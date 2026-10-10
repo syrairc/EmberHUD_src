@@ -5,6 +5,8 @@ namespace TorchlightSDK.Tests;
 
 internal readonly record struct FakeEntity(uint Id, long Address, int MapOffset = 0, long Value = 0);
 
+internal readonly record struct FakeMinimap(long Widget, long Material);
+
 internal sealed class FakeWorld
 {
     public const long ModuleBase = 0x1_4000_0000;
@@ -12,6 +14,10 @@ internal sealed class FakeWorld
 
     private readonly long _worldAddress;
     private long _next = 0x2_0000_0000;
+    private readonly long _nameBlock;
+    private int _nameCursor = 2;
+    private readonly Dictionary<long, long> _objects = [];
+    private long _nextObjectIndex = 1000;
 
     public FakeWorld()
     {
@@ -24,7 +30,10 @@ internal sealed class FakeWorld
         FightMgr = Alloc(0x1000);
         Memory.Write(ModuleBase + Offsets.FightMgrGlobalRva, FightMgr);
         Memory.Map(ModuleBase + Offsets.PlayerMgrGlobalRva, 8);
-        Memory.Map(ModuleBase + Offsets.GObjectsGlobalRva, 8);
+        Memory.Map(ModuleBase + Offsets.GObjectsGlobalRva, 0x20);
+        Memory.Map(ModuleBase + Offsets.FNamePoolRva, Offsets.FNameBlocks + 8 * 4);
+        _nameBlock = Alloc(Offsets.FNameBlockSize * Offsets.FNameEntryStride);
+        Memory.Write(ModuleBase + Offsets.FNamePoolRva + Offsets.FNameBlocks, _nameBlock);
     }
 
     public long FightMgr { get; }
@@ -97,22 +106,91 @@ internal sealed class FakeWorld
         Memory.Write(map + Offsets.TMapSecondaryBits, secondary);
     }
 
+    public long PlaceObject(long index, long obj)
+    {
+        _objects[index] = obj;
+        var count = _objects.Keys.Max() + 1;
+        var chunkCount = (int)((count - 1) / Offsets.GObjectsPerChunk) + 1;
+        var chunks = Alloc(chunkCount * 8);
+        for (var c = 0; c < chunkCount; c++)
+        {
+            var inChunk = _objects.Where(o => o.Key / Offsets.GObjectsPerChunk == c).ToArray();
+            if (inChunk.Length == 0) continue;
+            var size = c < chunkCount - 1 ? Offsets.GObjectsPerChunk : (int)(count - (long)c * Offsets.GObjectsPerChunk);
+            var chunk = Alloc(size * Offsets.GObjectsItemSize);
+            foreach (var (i, o) in inChunk) Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, o);
+            Memory.Write(chunks + c * 8, chunk);
+        }
+
+        Memory.Write(ModuleBase + Offsets.GObjectsGlobalRva, chunks);
+        Memory.Write(ModuleBase + Offsets.GObjectsGlobalRva + Offsets.GObjectsNumElements, (int)count);
+        return chunks;
+    }
+
     public (long Object, long Chunks) SetLocalPlayer(uint entityId, uint index = 77)
     {
         var manager = Alloc(0x100);
         Memory.Write(ModuleBase + Offsets.PlayerMgrGlobalRva, manager);
         Memory.WriteArray(manager + Offsets.PlayerMgrEntity, new[] { index, 1u });
-        var chunkIndex = (int)(index / Offsets.GObjectsPerChunk);
-        var slot = (int)(index % Offsets.GObjectsPerChunk);
-        var chunks = Alloc((chunkIndex + 1) * 8);
-        var chunk = Alloc((slot + 1) * Offsets.GObjectsItemSize);
         var obj = Alloc(0x800);
-        Memory.Write(ModuleBase + Offsets.GObjectsGlobalRva, chunks);
-        Memory.Write(chunks + chunkIndex * 8, chunk);
-        Memory.Write(chunk + slot * Offsets.GObjectsItemSize, obj);
         Memory.Write(obj + Offsets.UObjectInternalIndex, index);
         Memory.Write(obj + Offsets.UObjectEntityId, entityId);
-        return (obj, chunks);
+        return (obj, PlaceObject(index, obj));
+    }
+
+    public uint AddName(string text, bool wide = false)
+    {
+        var index = (uint)(_nameCursor / Offsets.FNameEntryStride);
+        var header = (ushort)((text.Length << Offsets.FNameLengthShift) | (wide ? 1 : 0));
+        Memory.Write(_nameBlock + _nameCursor, header);
+        Memory.WriteArray(_nameBlock + _nameCursor + 2, System.Text.Encoding.ASCII.GetBytes(text));
+        _nameCursor += (2 + text.Length + 1) & ~1;
+        return index;
+    }
+
+    public long AddClass(string name, bool wideName = false)
+    {
+        var cls = Alloc(0x80);
+        Memory.Write(cls + Offsets.UObjectName, AddName(name, wideName));
+        return cls;
+    }
+
+    public long AddObject(long cls, string name)
+    {
+        var obj = Alloc(0x400);
+        Memory.Write(obj + Offsets.UObjectClass, cls);
+        Memory.Write(obj + Offsets.UObjectName, AddName(name));
+        PlaceObject(_nextObjectIndex++, obj);
+        return obj;
+    }
+
+    public FakeMinimap AddMinimap(float? rotate, string className = "MiniMap_C", string objectName = "MiniMap_C", bool placeInTable = true)
+    {
+        var widget = Alloc(0x400);
+        Memory.Write(widget + Offsets.UObjectClass, AddClass(className));
+        Memory.Write(widget + Offsets.UObjectName, AddName(objectName));
+        if (placeInTable) PlaceObject(_nextObjectIndex++, widget);
+        var material = Alloc(0x200);
+        Memory.Write(widget + Offsets.MinimapWidgetMaterial, material);
+        var parameters = new List<(string Name, float Value)> { ("Zoom", 0.84f) };
+        if (rotate is { } turns) parameters.Add((Offsets.MinimapRotateParam, turns));
+        parameters.Add(("MapResolution", 485.376f));
+        var minimap = new FakeMinimap(widget, material);
+        WriteScalarParameters(minimap, [.. parameters]);
+        return minimap;
+    }
+
+    public void WriteScalarParameters(FakeMinimap minimap, params (string Name, float Value)[] parameters)
+    {
+        var data = Alloc(Math.Max(Offsets.ScalarParamStride, parameters.Length * Offsets.ScalarParamStride));
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            Memory.Write(data + i * Offsets.ScalarParamStride, AddName(parameters[i].Name));
+            Memory.Write(data + i * Offsets.ScalarParamStride + Offsets.ScalarParamValue, parameters[i].Value);
+        }
+
+        Memory.Write(minimap.Material + Offsets.MaterialScalarParams, data);
+        Memory.Write(minimap.Material + Offsets.MaterialScalarParams + Offsets.TArrayNum, parameters.Length);
     }
 
     public void MoveEntity(FakeEntity entity, double x, double y, double z)

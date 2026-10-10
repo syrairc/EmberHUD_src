@@ -23,7 +23,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         var player = new Player(
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
             new Vector2(-MathF.Sin(angle), MathF.Cos(angle)));
-        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain);
+        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90);
         failure = null;
         return true;
     }

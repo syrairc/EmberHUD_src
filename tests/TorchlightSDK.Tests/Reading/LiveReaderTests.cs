@@ -211,4 +211,19 @@ public class LiveReaderTests
         reader.TryRead(out var back, out _);
         Assert.Equal(new Vector2(1, 0), back.Player!.Forward);
     }
+
+    [Fact]
+    public void MinimapRotationComesFromTheGameWidgetAndIsNullWithout()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var without, out _);
+        Assert.Null(without.MinimapRotation);
+
+        world.AddMinimap(0.25f);
+        using var again = ReaderFor(world);
+        again.TryRead(out var with, out _);
+        Assert.Equal(-90f, with.MinimapRotation);
+    }
 }

@@ -11,6 +11,9 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void ReportsTheMinimapRotationTheFakeOverlayLooksRightWith() => Assert.Equal(-90f, At(0).MinimapRotation);
+
+    [Fact]
     public void SameClockGivesTheSameState() => Assert.Equal(At(5_000).Player, At(5_000).Player);
 
     [Fact]

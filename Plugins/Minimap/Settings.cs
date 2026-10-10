@@ -18,8 +18,8 @@ public sealed class ViewTab
     public HotkeyNode ZoomIn = new(new Hotkey(Key.PageUp));
     public HotkeyNode ZoomOut = new(new Hotkey(Key.PageDown));
     public ToggleNode FollowPlayer = new(true);
-    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.05f, 0.002f, 4);
-    [Menu("Rotation", "Rotates the map clockwise in degrees, tune until it matches the game's own map")] public RangeNode<float> Rotation = new(0, -180, 180);
+    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.06f, 0.002f, 4);
+    [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);
     [Menu("Vertical scale", "Squashes the map vertically after the rotation, the game camera is isometric")] public RangeNode<float> VerticalScale = new(1, 0.2f, 1.5f);
     public RangeNode<float> OffsetX = new(0, -960, 960);
     public RangeNode<float> OffsetY = new(0, -960, 960);

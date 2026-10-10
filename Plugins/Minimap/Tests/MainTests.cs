@@ -28,7 +28,7 @@ public sealed class MainTests
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
         Check.Equal<Vector2?>(new Vector2(970, 535), view?.ToScreen(new Vector3(4, 7, 0)));
-        Check.Equal<float?>(0.05f, view?.Scale);
+        Check.Equal<float?>(0.06f, view?.Scale);
     }
 
     [Test]
@@ -61,13 +61,61 @@ public sealed class MainTests
     }
 
     [Test]
+    public void TheGameMinimapRotationIsUsedForTheView()
+    {
+        var view = Main.ViewFor(new Settings(), new Vector3(4, 7, 0), Walls.Empty, Screen, -90);
+
+        Check.Equal<float?>(-90f, view?.RotationDegrees);
+    }
+
+    [Test]
+    public void TheRotationSettingIsAnExtraOffsetOnTopOfTheGameRotation()
+    {
+        var settings = new Settings();
+        settings.View.Rotation.Value = 15;
+
+        Check.Equal<float?>(-75f, Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen, -90)?.RotationDegrees);
+    }
+
+    [Test]
+    public void AnUnknownGameRotationCountsAsZero()
+    {
+        var settings = new Settings();
+        settings.View.Rotation.Value = 20;
+
+        Check.Equal<float?>(20f, Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen, null)?.RotationDegrees);
+    }
+
+    [Test]
+    public void TheFittedViewAddsTheGameRotationToo()
+    {
+        var settings = new Settings();
+        settings.View.FollowPlayer.Value = false;
+        settings.View.Rotation.Value = 30;
+
+        Check.Equal<float?>(120f, Main.ViewFor(settings, null, Tall, new Vector2(1000, 500), 90)?.RotationDegrees);
+    }
+
+    [Test]
+    public void TickPublishesAViewRotatedLikeTheGameState()
+    {
+        TestGame.Set(Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.Cells(3, 3, false, (1, 1)), rotation: -90));
+        var main = new Main { WallJob = new(inline: true) };
+        Map.View = null;
+
+        TestFrame.Run(main.Tick);
+
+        Check.Equal<float?>(-90f, Map.View?.RotationDegrees);
+    }
+
+    [Test]
     public void ZoomRangeGoesFromAThousandthToFour()
     {
         var zoom = new Settings().View.Zoom;
 
         Check.Equal(0.002f, zoom.Min);
         Check.Equal(4f, zoom.Max);
-        Check.Equal(0.05f, zoom.Value);
+        Check.Equal(0.06f, zoom.Value);
     }
 
     [Test]
@@ -96,8 +144,12 @@ public sealed class MainTests
     }
 
     [Test]
-    public void FollowingWithoutAPlayerFitsInstead() =>
-        Check.Equal<float?>(10.5f, Main.ViewFor(new Settings(), null, Tall, new Vector2(1000, 500))?.Scale);
+    public void FollowingWithoutAPlayerFitsInstead()
+    {
+        var settings = new Settings();
+
+        Check.Equal<float?>(10.5f, Main.ViewFor(settings, null, Tall, new Vector2(1000, 500))?.Scale);
+    }
 
     [Test]
     public void NoPlayerAndNoWallsGiveNoView() =>

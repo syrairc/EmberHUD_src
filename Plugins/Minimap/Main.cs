@@ -27,15 +27,16 @@ public sealed class Main : Plugin<Settings>
             WallJob.Start(() => Walls.Build(area, terrain));
         }
 
-        if (view.Show.Value) Map.View = ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize);
+        if (view.Show.Value) Map.View = ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation);
     }
 
-    public static MapView? ViewFor(Settings settings, Vector3? player, Walls walls, Vector2 viewport)
+    public static MapView? ViewFor(Settings settings, Vector3? player, Walls walls, Vector2 viewport, float? gameRotation = null)
     {
         var view = settings.View;
+        var rotation = (gameRotation ?? 0) + view.Rotation.Value;
         var map = view.FollowPlayer.Value && player is { } at && float.IsFinite(at.X) && float.IsFinite(at.Y)
-            ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value, view.Rotation.Value, view.VerticalScale.Value)
-            : MapView.Fit(walls.Min, walls.Max, viewport, 40, view.Rotation.Value, view.VerticalScale.Value);
+            ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value, rotation, view.VerticalScale.Value)
+            : MapView.Fit(walls.Min, walls.Max, viewport, 40, rotation, view.VerticalScale.Value);
         return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX.Value, view.OffsetY.Value) } : null;
     }
 

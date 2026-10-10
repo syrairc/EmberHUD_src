@@ -6,7 +6,7 @@ public enum EntityKind : byte { Monster, Ally, Player, Portal, Npc, Interactive 
 
 public enum Rarity : byte { Normal, Magic, Rare, Boss }
 
-public sealed record GameState(string Status, int AreaId, Player? Player, Entity[] Entities, Terrain? Terrain)
+public sealed record GameState(string Status, int AreaId, Player? Player, Entity[] Entities, Terrain? Terrain, float? MinimapRotation = null)
 {
     public static readonly GameState Empty = new("starting", 0, null, [], null);
 }

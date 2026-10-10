@@ -174,6 +174,34 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void TheArrowTurnsWithTheGameRotationToo()
+    {
+        TestGame.Set(Scene.State(player: Facing(new Vector2(0, -1)), rotation: 90));
+        Map.View = null;
+        var main = new Main { WallJob = new(inline: true) };
+        var tip = Vector2.Zero;
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            main.Tick();
+            var player = Map.View!.Value.ToScreen(new Vector3(15, 15, 0));
+            var list = Draw.Background;
+            var first = list.VtxBuffer.Size;
+            main.Render();
+            var best = -1f;
+            for (var i = first; i < list.VtxBuffer.Size; i++)
+            {
+                var offset = list.VtxBuffer[i].Pos - player;
+                if (offset.LengthSquared() <= best) continue;
+                best = offset.LengthSquared();
+                tip = offset;
+            }
+        });
+
+        Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward -Y turns right with a 90 degree game rotation");
+    }
+
+    [Test]
     public void TheArrowFollowsTheVerticalScaleToo()
     {
         var plain = FarthestFromPlayer(new Vector2(1, 1));
