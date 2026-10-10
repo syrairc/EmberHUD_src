@@ -33,10 +33,10 @@ Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release p
 
 | Path | What |
 |---|---|
-| `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain`, drawing, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
+| `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
 | `TorchlightSDK` | host - overlay, plugin compiler / loader, settings window, `--check` runner |
 | `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother - the live reader is the next plan |
-| `Plugins` | first-party plugin sources (`Sample`) |
+| `Plugins` | first-party plugin sources (`Sample`, `Minimap`) |
 | `tests` | xunit v3 suites |
 | `scripts` | `build.ps1` |
 
