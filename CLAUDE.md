@@ -2,7 +2,7 @@
 
 Plugin SDK for a Torchlight: Infinite overlay. `TorchlightSDK.Api` is the public API plugins compile against (never obfuscated, nothing sensitive in it). `TorchlightSDK` is the host exe (everything `internal`, obfuscated in Release). Plugins are C# source in `Plugins\<Name>\`, compiled by the host with Roslyn. Same shape as EpochSDK (`E:\EpochSDK\src`, read-only reference) - host / plugin / UI layers get copied over and renamed, the game layer (UE4 reading) is new.
 
-Phase 1 scaffold is built and runs on a fake game - `TorchlightSDK.exe --check` (headless, host JIT + every plugin's tests) is the only run the agent does, the user runs `TorchlightSDK.exe --fake` for the overlay with synthetic players, monsters and terrain. No live reader yet. Plan -> `..\docs\superpowers\plans\`, RE findings -> `..\docs\superpowers\research\`.
+Phase 1 scaffold and the phase 2 Minimap plugin are built and run on a fake game - `TorchlightSDK.exe --check` (headless, host JIT + every plugin's tests) is the only run the agent does, the user runs `TorchlightSDK.exe --fake` for the overlay with synthetic players, monsters and terrain. No live reader yet. Plan -> `..\docs\superpowers\plans\`, RE findings -> `..\docs\superpowers\research\`.
 
 ## Hard rules
 
