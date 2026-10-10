@@ -89,7 +89,7 @@ TArrayNum = 8
 ScalarParamStride = 36
 ScalarParamValue = 16
 MaxScalarParams = 64
-MinimapRescanMilliseconds = 2000
+MinimapRescanMilliseconds = 5000
 
 MinimapClassName = "MiniMap_C"
 MinimapDefaultPrefix = "Default__"

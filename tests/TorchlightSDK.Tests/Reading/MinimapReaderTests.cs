@@ -197,9 +197,9 @@ public class MinimapReaderTests
         world.AddMinimap(0.5f);
         clock.Now = 100;
         Assert.Null(reader.ReadRotationDegrees());
-        clock.Now = 1999;
+        clock.Now = Offsets.MinimapRescanMilliseconds - 1;
         Assert.Null(reader.ReadRotationDegrees());
-        clock.Now = 2000;
+        clock.Now = Offsets.MinimapRescanMilliseconds;
         Assert.Equal(-180f, reader.ReadRotationDegrees());
     }
 
@@ -211,9 +211,9 @@ public class MinimapReaderTests
         var reader = ReaderFor(world, clock);
         Assert.Null(reader.ReadRotationDegrees());
         world.AddMinimap(0.25f);
-        clock.Now = 1500;
+        clock.Now = Offsets.MinimapRescanMilliseconds / 2;
         Assert.Null(reader.ReadRotationDegrees());
-        clock.Now = 2000;
+        clock.Now = Offsets.MinimapRescanMilliseconds;
         Assert.Equal(-90f, reader.ReadRotationDegrees());
     }
 
@@ -226,7 +226,7 @@ public class MinimapReaderTests
         var reader = ReaderFor(world, clock);
         Assert.NotNull(reader.ReadRotationDegrees());
         world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0L);
-        for (var t = 100; t <= 6000; t += 900)
+        for (var t = 100; t <= 2 * Offsets.MinimapRescanMilliseconds; t += 900)
         {
             clock.Now = t;
             Assert.Null(reader.ReadRotationDegrees());
