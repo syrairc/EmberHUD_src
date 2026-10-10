@@ -2,6 +2,33 @@ KnownExeSize = 123144120
 LogicWorldGlobalRva = 0x69331B8
 WorldScene = 16
 
+FightMgrGlobalRva = 0x6931AD8
+PlayerMgrGlobalRva = 0x6933AA0
+PlayerMgrEntity = 0x58
+GObjectsGlobalRva = 0x7FD5D28
+GObjectsPerChunk = 65536
+GObjectsItemSize = 24
+UObjectInternalIndex = 12
+UObjectEntityId = 0x73C
+
+FightMapPlayer = 0xD0
+FightMapMonster = 0x120
+FightMapNpc = 0x6C0
+FightMapPortal = 0x440
+FightMapInteractive = 0x710
+FightMapFollower = 0x490
+FightMapServant = 0x850
+
+TMapNum = 8
+TMapInlineBits = 16
+TMapSecondaryBits = 32
+TMapInlineBitCount = 128
+TMapElementStride = 24
+TMapElementValue = 8
+
+MonsterRecord = 0x320
+MonsterRecordCfgId = 0x120
+
 SceneGeometry = 96
 SceneGridModule = 176
 SceneEntityBuckets = 16
@@ -31,12 +58,13 @@ CellClearance = 0
 
 EntityCfgId = 28
 EntityAlive = 34
-EntityHasRole = 119
 EntityHasPosition = 140
 EntityPosition = 920
 PositionX = 40
 
 MaxEntities = 4096
+MaxMapElements = 20000
+ParkedZ = 8000
 MaxBuckets = 100000
 MaxChain = 64
 MaxCells = 4000000

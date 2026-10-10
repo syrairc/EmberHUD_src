@@ -35,7 +35,7 @@ Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release p
 |---|---|
 | `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
 | `TorchlightSDK` | host - overlay, plugin compiler / loader, settings window, `--check` runner |
-| `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother, live reader (`LogicWorldReader`, `TerrainReader`, `LiveReader`, `LiveGameSource`) |
+| `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother, live reader (`LogicWorldReader`, `FightMapReader`, `TerrainReader`, `LiveReader`, `LiveGameSource`) |
 | `TorchlightSDK\Memory` | `IReadBackend` + `ReadProcessMemory` backend, read extensions, `GameProcess` (attach, exe size check) |
 | `TorchlightSDK\Offsets` | `Offsets.*` (generated `Offsets.g.cs` + sealed `offsets.bin`), regenerate with `pwsh scripts/gen-offsets.ps1` |
 | `offsets` | `layout.want` - every offset and limit the live reader uses, never literals in host code |

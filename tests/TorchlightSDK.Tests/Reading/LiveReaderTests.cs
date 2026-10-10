@@ -1,3 +1,4 @@
+using TorchlightSDK.Host;
 using TorchlightSDK.Host.Reading;
 
 namespace TorchlightSDK.Tests.Reading;
@@ -19,7 +20,7 @@ public class LiveReaderTests
         Assert.NotNull(state.Terrain);
         Assert.Equal(77, Assert.Single(state.Entities).CfgId);
         Assert.Null(state.Player);
-        Assert.Contains("live", state.Status);
+        Assert.Equal("live - no local player", state.Status);
     }
 
     [Fact]
@@ -92,5 +93,72 @@ public class LiveReaderTests
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Terrain);
         Assert.Single(state.Entities);
+    }
+
+    private static (FakeWorld World, FakeEntity Player) WorldWithPlayerAt(double x, double y)
+    {
+        var world = new FakeWorld();
+        var player = world.AddEntity(10, 52, true, x, y, 0, mapOffset: Offsets.FightMapPlayer);
+        world.PublishEntities(player, world.AddEntity(11, 48, true, 5, 5, 0));
+        world.SetLocalPlayer(10);
+        return (world, player);
+    }
+
+    [Fact]
+    public void LocalPlayerBecomesThePlayerWithAnInitialForwardAndLeavesTheEntityList()
+    {
+        var (world, _) = WorldWithPlayerAt(100, 200);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var state, out _);
+        Assert.Equal("live", state.Status);
+        Assert.Equal(new Vector3(100, 200, 0), state.Player!.Position);
+        Assert.Equal(new Vector2(0, 1), state.Player.Forward);
+        Assert.Equal([11], state.Entities.Select(e => e.Id));
+    }
+
+    [Fact]
+    public void ForwardFollowsMovementAndStaysWhenStill()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 0, 0);
+        reader.TryRead(out var moved, out _);
+        Assert.Equal(new Vector2(1, 0), moved.Player!.Forward);
+        world.MoveEntity(player, 30.2, 0.1, 0);
+        reader.TryRead(out var still, out _);
+        Assert.Equal(new Vector2(1, 0), still.Player!.Forward);
+        Assert.Equal(new Vector3(30.2f, 0.1f, 0), still.Player.Position);
+        world.MoveEntity(player, 30.2, -40, 0);
+        reader.TryRead(out var down, out _);
+        Assert.Equal(-1, down.Player!.Forward.Y, 3);
+        Assert.Equal(1, down.Player.Forward.Length(), 3);
+    }
+
+    [Fact]
+    public void SlowMovementStillTurnsForwardOnceItAddsUp()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 0.3, 0, 0);
+        reader.TryRead(out var first, out _);
+        Assert.Equal(new Vector2(0, 1), first.Player!.Forward);
+        world.MoveEntity(player, 0.6, 0, 0);
+        reader.TryRead(out var second, out _);
+        Assert.Equal(new Vector2(1, 0), second.Player!.Forward);
+    }
+
+    [Fact]
+    public void LosingThePlayerGivesNullAndStatusNote()
+    {
+        var (world, _) = WorldWithPlayerAt(0, 0);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.BreakPlayerMgr();
+        reader.TryRead(out var state, out _);
+        Assert.Null(state.Player);
+        Assert.Equal("live - no local player", state.Status);
+        Assert.Equal(2, state.Entities.Length);
     }
 }

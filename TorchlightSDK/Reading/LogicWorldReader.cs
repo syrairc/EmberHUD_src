@@ -5,6 +5,8 @@ namespace TorchlightSDK.Host.Reading;
 
 internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 {
+    private readonly FightMapReader _maps = new(memory);
+
     public bool TryReadScene(out nint scene, out string? failure)
     {
         scene = 0;
@@ -24,14 +26,17 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
-    public Entity[] ReadEntities(nint scene)
+    public (Vector3? PlayerPosition, Entity[] Entities) ReadWorld(nint scene)
     {
         if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
             bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
             !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
             !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
-            return [];
+            return (null, []);
 
+        var kinds = ReadKinds();
+        var localPlayerId = TryReadLocalPlayerId(out var id) ? id : (int?)null;
+        Vector3? playerPosition = null;
         var entities = new List<Entity>();
         var nodeCount = 0;
         foreach (var head in buckets)
@@ -40,37 +45,87 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             for (var node = head; node != 0; )
             {
                 if (++chainLength > Offsets.MaxChain || ++nodeCount > Offsets.MaxEntities ||
-                    !memory.TryRead(node + Offsets.NodeKey, out uint id) ||
+                    !memory.TryRead(node + Offsets.NodeKey, out uint key) ||
                     !memory.TryRead(node + Offsets.NodeEntity, out nint entity) ||
                     !memory.TryRead(node + Offsets.NodeNext, out nint next))
-                    return [];
+                    return (null, []);
 
-                if (TryReadEntity(entity, id, out var result))
+                var entityId = unchecked((int)key);
+                if (entityId == localPlayerId)
+                    playerPosition = TryReadPosition(entity, out var position) ? position : playerPosition;
+                else if (kinds.TryGetValue(entityId, out var kind) && TryReadEntity(entity, entityId, kind.Kind, kind.Value, out var result))
                     entities.Add(result);
                 node = next;
             }
         }
 
-        return [.. entities];
+        return (playerPosition, [.. entities]);
     }
 
-    private bool TryReadEntity(nint entity, uint id, out Entity result)
+    private Dictionary<int, (EntityKind Kind, nint Value)> ReadKinds()
     {
-        result = default;
+        var kinds = new Dictionary<int, (EntityKind, nint)>();
+        if (!memory.TryReadPtr(moduleBase + Offsets.FightMgrGlobalRva, out var fightMgr))
+            return kinds;
+
+        (int Map, EntityKind Kind)[] maps =
+        [
+            (Offsets.FightMapPlayer, EntityKind.Player),
+            (Offsets.FightMapMonster, EntityKind.Monster),
+            (Offsets.FightMapNpc, EntityKind.Npc),
+            (Offsets.FightMapPortal, EntityKind.Portal),
+            (Offsets.FightMapInteractive, EntityKind.Interactive),
+            (Offsets.FightMapFollower, EntityKind.Ally),
+            (Offsets.FightMapServant, EntityKind.Ally),
+        ];
+        foreach (var (map, kind) in maps)
+            foreach (var (key, value) in _maps.Read(fightMgr + map))
+                kinds[key] = (kind, value);
+        return kinds;
+    }
+
+    private bool TryReadLocalPlayerId(out int id)
+    {
+        id = 0;
+        if (!memory.TryReadPtr(moduleBase + Offsets.PlayerMgrGlobalRva, out var playerMgr) ||
+            !memory.TryRead(playerMgr + Offsets.PlayerMgrEntity, out uint index) ||
+            !memory.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
+            !memory.TryReadPtr(chunks + (nint)(index / Offsets.GObjectsPerChunk) * 8, out var chunk) ||
+            !memory.TryReadPtr(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, out var obj) ||
+            !memory.TryRead(obj + Offsets.UObjectInternalIndex, out uint internalIndex) || internalIndex != index)
+            return false;
+
+        return memory.TryRead(obj + Offsets.UObjectEntityId, out id);
+    }
+
+    private bool TryReadPosition(nint entity, out Vector3 position)
+    {
+        position = default;
         if (entity == 0 ||
-            !memory.TryRead(entity + Offsets.EntityAlive, out byte alive) || alive == 0 ||
-            !memory.TryRead(entity + Offsets.EntityHasRole, out byte hasRole) || hasRole == 0 ||
             !memory.TryRead(entity + Offsets.EntityHasPosition, out byte hasPosition) || hasPosition == 0 ||
-            !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) ||
             !memory.TryReadPtr(entity + Offsets.EntityPosition, out var block) ||
             !memory.TryReadArray(block + Offsets.PositionX, 3, out double[] xyz))
             return false;
 
-        var position = new Vector3((float)xyz[0], (float)xyz[1], (float)xyz[2]);
-        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z))
+        position = new Vector3((float)xyz[0], (float)xyz[1], (float)xyz[2]);
+        return float.IsFinite(position.X) && float.IsFinite(position.Y) && float.IsFinite(position.Z);
+    }
+
+    private bool TryReadEntity(nint entity, int id, EntityKind kind, nint value, out Entity result)
+    {
+        result = default;
+        if (entity == 0 ||
+            !memory.TryRead(entity + Offsets.EntityAlive, out byte alive) || alive == 0 ||
+            !TryReadPosition(entity, out var position) || position.Z >= Offsets.ParkedZ ||
+            !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId))
             return false;
 
-        result = new Entity(unchecked((int)id), (int)cfgId, position, EntityKind.Monster, Rarity.Normal);
+        if (kind == EntityKind.Monster &&
+            memory.TryReadPtr(value + Offsets.MonsterRecord, out var record) &&
+            memory.TryRead(record + Offsets.MonsterRecordCfgId, out uint monsterCfgId))
+            cfgId = monsterCfgId;
+
+        result = new Entity(id, (int)cfgId, position, kind, Rarity.Normal);
         return true;
     }
 }
