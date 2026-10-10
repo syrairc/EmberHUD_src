@@ -7,6 +7,34 @@ internal static class LayoutParser
     public static IReadOnlyList<(string Name, int Value)> Parse(string text)
     {
         var entries = new List<(string Name, int Value)>();
+        foreach (var (name, raw) in Lines(text))
+        {
+            if (raw.StartsWith('"')) continue;
+            var parsed = raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? int.TryParse(raw[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex) ? (int?)hex : null
+                : int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dec) ? dec : null;
+            entries.Add((name, parsed ?? throw new FormatException($"bad value '{raw}' for {name}")));
+        }
+
+        return entries;
+    }
+
+    public static IReadOnlyList<(string Name, string Value)> ParseStrings(string text)
+    {
+        var entries = new List<(string Name, string Value)>();
+        foreach (var (name, raw) in Lines(text))
+        {
+            if (!raw.StartsWith('"')) continue;
+            if (raw.Length < 3 || !raw.EndsWith('"')) throw new FormatException($"bad string '{raw}' for {name}");
+            entries.Add((name, raw[1..^1]));
+        }
+
+        return entries;
+    }
+
+    private static IEnumerable<(string Name, string Raw)> Lines(string text)
+    {
+        var seen = new HashSet<string>();
         foreach (var raw in text.Split('\n'))
         {
             var line = raw.Trim();
@@ -17,15 +45,8 @@ internal static class LayoutParser
             var name = parts[0];
             if (name.Length == 0 || !(char.IsLetter(name[0]) || name[0] == '_') || !name.All(c => char.IsLetterOrDigit(c) || c == '_'))
                 throw new FormatException($"bad name '{name}'");
-            if (entries.Any(e => e.Name == name)) throw new FormatException($"duplicate name '{name}'");
-
-            var number = parts[1];
-            var parsed = number.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-                ? int.TryParse(number[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex) ? (int?)hex : null
-                : int.TryParse(number, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dec) ? dec : null;
-            entries.Add((name, parsed ?? throw new FormatException($"bad value '{number}' for {name}")));
+            if (!seen.Add(name)) throw new FormatException($"duplicate name '{name}'");
+            yield return (name, parts[1]);
         }
-
-        return entries;
     }
 }

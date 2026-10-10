@@ -4,7 +4,7 @@ namespace OffsetGen;
 
 internal static class OffsetEmitter
 {
-    public static string Emit(IReadOnlyList<string> names, byte[] seed)
+    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string>? stringNames = null)
     {
         var source = new StringBuilder();
         source.AppendLine("namespace TorchlightSDK.Host;");
@@ -13,6 +13,7 @@ internal static class OffsetEmitter
         source.AppendLine("{");
         source.AppendLine($"    internal static ReadOnlySpan<byte> Seed => [{string.Join(", ", seed.Select(b => $"0x{b:X2}"))}];");
         for (var i = 0; i < names.Count; i++) source.AppendLine($"    internal static int {names[i]} => T[{i}];");
+        for (var i = 0; i < (stringNames?.Count ?? 0); i++) source.AppendLine($"    internal static string {stringNames![i]} => S[{i}];");
         source.AppendLine("}");
         return source.ToString();
     }

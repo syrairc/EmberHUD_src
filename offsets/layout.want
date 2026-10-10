@@ -8,6 +8,10 @@ PlayerMgrEntity = 0x58
 GObjectsGlobalRva = 0x7FD5D28
 GObjectsPerChunk = 65536
 GObjectsItemSize = 24
+GObjectsNumElements = 0x14
+MaxGObjectChunks = 64
+UObjectClass = 16
+UObjectName = 24
 UObjectInternalIndex = 12
 UObjectEntityId = 0x73C
 
@@ -70,6 +74,27 @@ PositionX = 40
 
 MaxEntities = 4096
 MaxMapElements = 20000
+
+FNamePoolRva = 0x7FBCC80
+FNameBlocks = 0x10
+FNameBlockSize = 65536
+FNameEntryStride = 2
+FNameLengthShift = 6
+MaxFNameBlocks = 8192
+MaxNameLength = 128
+
+MinimapWidgetMaterial = 0x378
+MaterialScalarParams = 0xF0
+TArrayNum = 8
+ScalarParamStride = 36
+ScalarParamValue = 16
+MaxScalarParams = 64
+MinimapRescanMilliseconds = 2000
+
+MinimapClassName = "MiniMap_C"
+MinimapDefaultPrefix = "Default__"
+MinimapRotateParam = "Rotate"
+
 ParkedZ = 8000
 MaxStepPerRead = 1000
 MinMoveTenths = 5
