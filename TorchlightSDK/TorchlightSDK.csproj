@@ -18,6 +18,7 @@
     <PackageReference Include="Hexa.NET.ImGui.Backends" Version="1.0.18" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />
     <PackageReference Include="Vortice.DirectComposition" Version="3.8.2" />
+    <PackageReference Include="Svg.Skia" Version="5.2.3" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Fonts\**" LinkBase="Fonts" CopyToOutputDirectory="PreserveNewest" />
@@ -25,6 +26,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Offsets\offsets.bin" LogicalName="t" />
+    <EmbeddedResource Include="Icons\*.svg" LogicalName="icon:%(Filename)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="TorchlightSDK.Tests" />

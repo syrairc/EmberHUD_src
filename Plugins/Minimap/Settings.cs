@@ -9,6 +9,7 @@ public sealed class MarkerStyle
     public ToggleNode Show = new(true);
     public ColorNode Colour = new(Color.White);
     public RangeNode<float> Radius = new(3, 1, 20);
+    [Menu("Accent", "Second colour of the SVG icon, only portal, interactive, rare and boss markers use it")] public ColorNode Accent = new(Color.FromArgb(0x1A, 0x1A, 0x1A));
 }
 
 public sealed class ViewTab
@@ -70,12 +71,13 @@ public sealed class Settings : PluginSettings
         return style.Show.Value ? style : null;
     }
 
-    public static MarkerShape ShapeFor(EntityKind kind) => kind switch
+    public static string IconFor(Entity entity) => entity switch
     {
-        EntityKind.Portal => MarkerShape.Diamond,
-        EntityKind.Npc => MarkerShape.Square,
-        EntityKind.Interactive => MarkerShape.Triangle,
-        _ => MarkerShape.Dot,
+        { Kind: EntityKind.Portal } => "svg:portal",
+        { Kind: EntityKind.Interactive } => "svg:gem",
+        { Kind: EntityKind.Monster, Rarity: Rarity.Rare or Rarity.Boss } => "svg:elite",
+        { Kind: EntityKind.Npc } => "marker:Square",
+        _ => "marker:Dot",
     };
 
     public static MarkerShape FallbackShape(int type) => type switch

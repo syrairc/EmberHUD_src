@@ -46,14 +46,22 @@ public sealed class SettingsTests
     }
 
     [Test]
-    public void ShapesFollowTheKind()
+    public void EntitiesTheGameMarksGetSvgIconsAndTheRestKeepPlainMarkers()
     {
-        Check.Equal(MarkerShape.Diamond, Settings.ShapeFor(EntityKind.Portal));
-        Check.Equal(MarkerShape.Square, Settings.ShapeFor(EntityKind.Npc));
-        Check.Equal(MarkerShape.Triangle, Settings.ShapeFor(EntityKind.Interactive));
-        Check.Equal(MarkerShape.Dot, Settings.ShapeFor(EntityKind.Monster));
-        Check.Equal(MarkerShape.Dot, Settings.ShapeFor(EntityKind.Player));
+        Check.Equal("svg:portal", Settings.IconFor(Scene.Entity(EntityKind.Portal, Vector3.Zero)));
+        Check.Equal("svg:gem", Settings.IconFor(Scene.Entity(EntityKind.Interactive, Vector3.Zero)));
+        Check.Equal("svg:elite", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Rare)));
+        Check.Equal("svg:elite", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Boss)));
+        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Normal)));
+        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Magic)));
+        Check.Equal("marker:Square", Settings.IconFor(Scene.Entity(EntityKind.Npc, Vector3.Zero)));
+        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Ally, Vector3.Zero)));
+        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Player, Vector3.Zero)));
     }
+
+    [Test]
+    public void EveryMarkerHasADarkAccentByDefault() =>
+        Check.Equal(System.Drawing.Color.FromArgb(0x1A, 0x1A, 0x1A).ToArgb(), new Settings().Markers.RareMonster.Accent.Value.ToArgb());
 
     static int Drawn(Action draw)
     {

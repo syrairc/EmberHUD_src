@@ -448,4 +448,171 @@ public sealed class DrawTests
             TestGame.UseGameIcons(null);
         }
     });
+
+    static readonly Sprite Whole = new(new ImTextureRef { TexID = new ImTextureID(2ul) }, Vector2.Zero, Vector2.One);
+
+    static readonly Color DarkAccent = Color.FromArgb(0x1A, 0x1A, 0x1A);
+
+    [Fact]
+    public void AnSvgIconAsksTheHostWithTheFullKeyItsScreenSizeAndBothColours() => TestFrame.Run(() =>
+    {
+        var asked = new List<(string Icon, int Pixels, Color Colour, Color Accent)>();
+        try
+        {
+            TestGame.UseSvgIcons((icon, pixels, colour, accent) =>
+            {
+                asked.Add((icon, pixels, colour, accent));
+                return null;
+            });
+            Draw.Icon("svg:quest", Centre, 7.2f, Color.Gold, null, accent: Color.Navy);
+            Draw.Icon("svg:Plugin/ring", Centre, 8, Color.Gold, null);
+
+            Assert.Equal(("svg:quest", 15, Color.Gold, Color.Navy), asked[0]);
+            Assert.Equal("svg:Plugin/ring", asked[1].Icon);
+            Assert.Equal(16, asked[1].Pixels);
+            Assert.Equal(DarkAccent.ToArgb(), asked[1].Accent.ToArgb());
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    });
+
+    [Fact]
+    public void AReadySvgIconIsOneQuadTintedOnlyByAlphaAndADotUntilThen() => TestFrame.Run(() =>
+    {
+        try
+        {
+            var list = Draw.Background;
+            TestGame.UseSvgIcons((_, _, _, _) => Whole);
+            var start = list.VtxBuffer.Size;
+            Draw.Icon("svg:quest", Centre, 8, Color.FromArgb(128, Color.Gold), null);
+            Assert.Equal(4, list.VtxBuffer.Size - start);
+            Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
+            Assert.Equal(EColor.U32(Color.FromArgb(128, Color.White)), list.VtxBuffer[start].Col);
+
+            var glowing = list.VtxBuffer.Size;
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null, 1);
+            Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+
+            var dot = list.VtxBuffer.Size;
+            Draw.Marker(Centre, 8, Color.Gold);
+            var dotCount = list.VtxBuffer.Size - dot;
+            var missing = list.VtxBuffer.Size;
+            TestGame.UseSvgIcons((_, _, _, _) => null);
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null);
+            TestGame.UseSvgIcons(null);
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null);
+            Assert.Equal(dotCount * 2, list.VtxBuffer.Size - missing);
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    });
+
+    [Fact]
+    public void ABadRadiusNeverAsksForAnSvgIconAndDoesNotThrow() => TestFrame.Run(() =>
+    {
+        var calls = 0;
+        try
+        {
+            TestGame.UseSvgIcons((_, _, _, _) =>
+            {
+                calls++;
+                return Whole;
+            });
+            foreach (var radius in new[] { 0f, -3f, float.NaN, float.PositiveInfinity }) Draw.Icon("svg:quest", Centre, radius, Color.Gold, null);
+            Assert.Equal(0, calls);
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    });
+
+    static (Vector2 Up, Vector2 TopLeft, Vector2 TopRight, int Count) DrawnFacing(Action draw)
+    {
+        var result = default((Vector2, Vector2, Vector2, int));
+        TestFrame.Run(() =>
+        {
+            var list = Draw.Background;
+            var start = list.VtxBuffer.Size;
+            draw();
+            var count = list.VtxBuffer.Size - start;
+            var top = Vector2.Zero;
+            Vector2 topLeft = default, topRight = default;
+            for (var i = start; i < list.VtxBuffer.Size; i++)
+            {
+                var vertex = list.VtxBuffer[i];
+                if (vertex.Uv.Y != 0) continue;
+                top += (vertex.Pos - Centre) / 2;
+                if (vertex.Uv.X == 0) topLeft = vertex.Pos;
+                else topRight = vertex.Pos;
+            }
+            result = (top, topLeft, topRight, count);
+        });
+        return result;
+    }
+
+    [Fact]
+    public void FacingTurnsTheIconsUpToPointAlongIt()
+    {
+        try
+        {
+            TestGame.UseSvgIcons((_, _, _, _) => Whole);
+
+            var right = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: new Vector2(1, 0)));
+            Assert.Equal(4, right.Count);
+            Assert.True(right.Up.X > 9 && MathF.Abs(right.Up.Y) < 0.01f, $"top edge on the right {right.Up}");
+            Assert.True(right.TopLeft.Y < right.TopRight.Y, "turned clockwise, not mirrored");
+
+            var up = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: new Vector2(0, -3)));
+            Assert.True(up.Up.Y < -9 && MathF.Abs(up.Up.X) < 0.01f, $"top edge above {up.Up}");
+            Assert.True(up.TopLeft.X < up.TopRight.X, "upright, not mirrored");
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
+
+    [Fact]
+    public void FacingWorksForGameAndAtlasSpritesToo()
+    {
+        try
+        {
+            TestGame.UseGameIcons(_ => Whole);
+            var game = DrawnFacing(() => Draw.Icon("game:UI_MiniMap_Player1", Centre, 10, Color.White, null, facing: new Vector2(1, 0)));
+            Assert.True(game.Up.X > 9, $"game sprite {game.Up}");
+
+            var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = Whole });
+            var door = DrawnFacing(() => Draw.Icon("door", Centre, 10, Color.White, atlas, facing: new Vector2(0, 1)));
+            Assert.True(door.Up.Y > 9, $"atlas sprite {door.Up}");
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Fact]
+    public void AZeroOrBrokenFacingDrawsTheIconUpright()
+    {
+        try
+        {
+            TestGame.UseSvgIcons((_, _, _, _) => Whole);
+            foreach (var facing in new[] { Vector2.Zero, new Vector2(float.NaN, 1), new Vector2(1, float.PositiveInfinity), new Vector2(1e-4f, 0) })
+            {
+                var drawn = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: facing));
+                Assert.Equal(4, drawn.Count);
+                Assert.True(drawn.Up.Y < -9, $"facing {facing} -> {drawn.Up}");
+                Assert.Equal(new Vector2(90, 40), drawn.TopLeft);
+            }
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
 }

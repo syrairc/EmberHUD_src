@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace TorchlightSDK.Testing;
 
 [AttributeUsage(AttributeTargets.Method)]
@@ -37,4 +39,5 @@ public static class TestGame
 {
     public static void Set(GameState state) => Game.State = state;
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver;
+    public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
 }

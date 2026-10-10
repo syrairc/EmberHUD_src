@@ -93,7 +93,7 @@ internal sealed class OverlayLoop : IDisposable
     bool Upload(string key, byte[] data, int width, int height, Format format)
     {
         if (TryCreate(data, width, height, format) is not { } created) return false;
-        ReleaseTexture(key);
+        DisposeTexture(key);
         _textures[key] = created;
         _textureData[key] = (data, width, height, format);
         return true;
@@ -146,11 +146,17 @@ internal sealed class OverlayLoop : IDisposable
         }
     }
 
-    void ReleaseTexture(string key)
+    void DisposeTexture(string key)
     {
         if (!_textures.Remove(key, out var old)) return;
         old.View.Dispose();
         old.Texture.Dispose();
+    }
+
+    public void ReleaseTexture(string key)
+    {
+        DisposeTexture(key);
+        _textureData.Remove(key);
     }
 
     public void Stop() => _stop = true;
@@ -201,7 +207,7 @@ internal sealed class OverlayLoop : IDisposable
 
     void DisposeGraphics()
     {
-        foreach (var key in _textures.Keys.ToList()) ReleaseTexture(key);
+        foreach (var key in _textures.Keys.ToList()) DisposeTexture(key);
         _imgui?.Dispose();
         _gd?.Dispose();
         _window?.Dispose();

@@ -202,12 +202,30 @@ public static class Draw
         return false;
     }
 
-    public static void Icon(string? icon, Vector2 centre, float radius, Color color, IconAtlas? atlas, float glow = 0, ImDrawListPtr? list = null)
+    public const string SvgIconPrefix = "svg:";
+
+    internal static Func<string, int, Color, Color, Sprite?>? SvgIcons { get; set; }
+
+    public static void Icon(string? icon, Vector2 centre, float radius, Color color, IconAtlas? atlas, float glow = 0, Color? accent = null, Vector2? facing = null, ImDrawListPtr? list = null)
     {
         var sprite = default(Sprite);
-        var found = icon is not null && icon.StartsWith(GameIconPrefix, StringComparison.Ordinal)
-            ? TryGameIcon(icon[GameIconPrefix.Length..], out sprite)
-            : icon is not null && !TryMarker(icon, out _) && atlas is not null && atlas.Sprites.TryGetValue(icon, out sprite);
+        var tint = color;
+        var found = false;
+        if (icon is not null && !TryMarker(icon, out _))
+        {
+            if (icon.StartsWith(GameIconPrefix, StringComparison.Ordinal)) found = TryGameIcon(icon[GameIconPrefix.Length..], out sprite);
+            else if (icon.StartsWith(SvgIconPrefix, StringComparison.Ordinal))
+            {
+                tint = Color.FromArgb(color.A, Color.White);
+                if (radius > 0 && float.IsFinite(radius) && SvgIcons?.Invoke(icon, (int)MathF.Ceiling(radius * 2), color, accent ?? Color.FromArgb(0x1A, 0x1A, 0x1A)) is { } svg)
+                {
+                    sprite = svg;
+                    found = true;
+                }
+            }
+            else found = atlas is not null && atlas.Sprites.TryGetValue(icon, out sprite);
+        }
+
         if (!found)
         {
             TryMarker(icon, out var shape);
@@ -216,7 +234,10 @@ public static class Draw
         }
 
         if (glow > 0) Glow(centre, radius * glow * 1.9f, Color.FromArgb((int)(color.A * 0.3f), color), radius * 0.5f, list);
-        Image(sprite, centre - new Vector2(radius), centre + new Vector2(radius), color, list);
+        if (facing is { } turn && float.IsFinite(turn.X) && float.IsFinite(turn.Y) && turn.LengthSquared() >= 1e-6f)
+            ImageRotated(sprite, centre, new Vector2(radius * 2), new Vector2(turn.Y, -turn.X), tint, list);
+        else
+            Image(sprite, centre - new Vector2(radius), centre + new Vector2(radius), tint, list);
     }
 
     public static bool TryMarker(string? icon, out MarkerShape shape)

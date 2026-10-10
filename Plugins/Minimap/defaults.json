@@ -6,8 +6,8 @@
     "BossMonster": { "Colour": "#D94DFFFF", "Radius": 7 },
     "Ally": { "Show": false, "Colour": "#4DE64DFF", "Radius": 3 },
     "OtherPlayer": { "Colour": "#4DE6FFFF", "Radius": 4 },
-    "Portal": { "Colour": "#33CCFFFF", "Radius": 6 },
+    "Portal": { "Colour": "#33CCFFFF", "Accent": "#FFFFFFFF", "Radius": 6 },
     "Npc": { "Colour": "#4DFF4DFF", "Radius": 5 },
-    "Interactive": { "Colour": "#FFAA33FF", "Radius": 4 }
+    "Interactive": { "Colour": "#FFAA33FF", "Accent": "#FFF4E0FF", "Radius": 4 }
   }
 }

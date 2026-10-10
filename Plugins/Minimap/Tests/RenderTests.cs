@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using TorchlightSDK;
@@ -350,5 +352,63 @@ public sealed class RenderTests
 
         Check.That(withMarker > Drawn(Scene.State(terrain: terrain)), "the monster draws");
         Check.Equal(withMarker, Drawn(Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = monster.Id, Position = new Vector2(float.NaN, 0) }])));
+    }
+
+    [Test]
+    public void AnEntityWithAnSvgIconAsksForItWithItsStyleAndDrawsOneQuad()
+    {
+        var asked = new List<(string Icon, int Pixels, Color Colour, Color Accent)>();
+        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var portal = Scene.Entity(EntityKind.Portal, new Vector3(15, 15, 0));
+        var walls = Drawn(Scene.State(terrain: terrain));
+        TestGame.UseSvgIcons((icon, pixels, colour, accent) =>
+        {
+            asked.Add((icon, pixels, colour, accent));
+            return Ready;
+        });
+        try
+        {
+            var drawn = Drawn(Scene.State(entities: [portal], terrain: terrain), configure: main =>
+            {
+                main.Settings.Markers.Portal.Radius.Value = 6;
+                main.Settings.Markers.Portal.Colour.Value = Color.DeepSkyBlue;
+                main.Settings.Markers.Portal.Accent.Value = Color.White;
+            });
+
+            Check.Equal(walls + 4, drawn);
+            Check.Equal("svg:portal", asked[^1].Icon);
+            Check.Equal(12, asked[^1].Pixels);
+            Check.Equal(Color.DeepSkyBlue.ToArgb(), asked[^1].Colour.ToArgb());
+            Check.Equal(Color.White.ToArgb(), asked[^1].Accent.ToArgb());
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
+
+    [Test]
+    public void AnSvgMarkerIsADotUntilItsIconIsReadyAndPlainMarkersNeverAsk()
+    {
+        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var walls = Drawn(Scene.State(terrain: terrain));
+        var asked = 0;
+        TestGame.UseSvgIcons((_, _, _, _) =>
+        {
+            asked++;
+            return null;
+        });
+        try
+        {
+            Check.That(Drawn(Scene.State(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], terrain: terrain)) > walls + 4, "the dot has more vertices than a quad");
+            var askedForElite = asked;
+            Drawn(Scene.State(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Normal), Scene.Entity(EntityKind.Npc, new Vector3(15, 15, 0))], terrain: terrain));
+            Check.Equal(askedForElite, asked);
+            Check.That(askedForElite > 0, "the rare monster asked for svg:elite");
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
     }
 }

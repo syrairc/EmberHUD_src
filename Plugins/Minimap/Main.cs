@@ -65,7 +65,7 @@ public sealed class Main : Plugin<Settings>
             if (Settings.MarkerFor(entity) is not { } style) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
-            Draw.Marker(at, style.Radius.Value, style.Colour.Value, Settings.ShapeFor(entity.Kind));
+            Draw.Icon(Settings.IconFor(entity), at, style.Radius.Value, style.Colour.Value, null, accent: style.Accent.Value);
         }
 
         foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport);

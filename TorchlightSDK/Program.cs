@@ -12,21 +12,28 @@ var pluginsDirectory = Path.Combine(root, "Plugins");
 var check = false;
 var fake = false;
 var live = false;
+string? iconSheet = null;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--check") check = true;
     else if (args[i] == "--fake") fake = true;
     else if (args[i] == "--live") live = true;
     else if (args[i] == "--plugins" && i + 1 < args.Length) pluginsDirectory = Path.GetFullPath(args[++i], root);
+    else if (args[i] == "--icon-sheet" && i + 1 < args.Length) iconSheet = Path.GetFullPath(args[++i], root);
     else
     {
-        Console.Error.WriteLine($"unknown argument {args[i]} - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check]");
+        Console.Error.WriteLine($"unknown argument {args[i]} - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>]");
         return 2;
     }
 }
 if (fake && live)
 {
-    Console.Error.WriteLine("--fake and --live cannot be used together - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check]");
+    Console.Error.WriteLine("--fake and --live cannot be used together - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>]");
+    return 2;
+}
+if (iconSheet is not null && !check)
+{
+    Console.Error.WriteLine("--icon-sheet needs --check");
     return 2;
 }
 Directory.CreateDirectory(Path.Combine(root, "Logs"));
@@ -37,6 +44,7 @@ if (check)
     var report = TextWriter.Synchronized(text);
     Log.Sink = (level, plugin, message) => report.WriteLine($"{level} {(plugin is null ? "" : $"[{plugin}] ")}{message}");
     var code = CheckRunner.Run(pluginsDirectory, report);
+    if (iconSheet is not null) report.WriteLine($"icon sheet {IconSheet.Write(iconSheet, SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory))}");
     File.WriteAllText(Path.Combine(root, "Logs", "check.txt"), text.ToString());
     Console.Write(text.ToString());
     return code;
@@ -70,6 +78,8 @@ reader.Start();
 using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
 var gameIcons = sdk.GameIconsDirectory.Length > 0 ? IconStore.Open(Path.GetFullPath(sdk.GameIconsDirectory, root), overlay.UploadRgba, overlay.TryGetTexture) : null;
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
+var svgIcons = new SvgIconStore(SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory), overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture);
+Draw.SvgIcons = svgIcons.Resolve;
 using var plugins = new PluginHost(sdk, root);
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
@@ -103,6 +113,7 @@ void Frame()
     Game.State = state;
     Map.View = null;
     gameIcons?.Pump();
+    svgIcons.Pump();
     plugins.TickAll();
     plugins.RenderAll();
     window.Draw();
