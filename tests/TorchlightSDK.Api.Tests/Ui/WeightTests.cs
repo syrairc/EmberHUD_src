@@ -196,6 +196,7 @@ public class WeightTests
 
     static ((Vector2 Min, Vector2 Max) Bar, (Vector2 Min, Vector2 Max) Grab) BarAndGrab(float v, WeightOpts opts)
     {
+        UiFrame.Unhover();
         var style = ImGui.GetStyle();
         var saved = style.Colors[(int)ImGuiCol.FrameBg];
         var frame = new Vector4(0.9f, 0.1f, 0.9f, 1f);
