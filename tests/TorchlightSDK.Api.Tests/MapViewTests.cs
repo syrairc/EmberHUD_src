@@ -31,7 +31,7 @@ public class MapViewTests
     }
 
     [Fact]
-    public void WorldPlusXIsScreenRightAndWorldPlusYIsScreenUp()
+    public void WorldPlusXIsScreenRightAndWorldPlusYIsScreenDown()
     {
         var view = MapView.Fit(new Vector2(-10, -10), new Vector2(10, 10), new Vector2(200, 200), 0);
 
@@ -41,7 +41,7 @@ public class MapViewTests
 
         Assert.Equal(new Vector2(100, 100), origin);
         Assert.Equal(new Vector2(110, 100), plusX);
-        Assert.Equal(new Vector2(100, 90), plusY);
+        Assert.Equal(new Vector2(100, 110), plusY);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class MapViewTests
     {
         var view = MapView.Follow(new Vector2(30, -10), new Vector2(800, 600), 5);
 
-        Assert.Equal(view.ToScreen(new Vector2(2, -5)), view.ToScreen(new Vector3(2, 5, 3)));
+        Assert.Equal(view.ToScreen(new Vector2(2, 5)), view.ToScreen(new Vector3(2, 5, 3)));
     }
 
     static void Near(Vector2 expected, Vector2 actual)

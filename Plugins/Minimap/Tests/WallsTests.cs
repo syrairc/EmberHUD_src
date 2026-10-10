@@ -13,10 +13,10 @@ public sealed class WallsTests
         var walls = Walls.Build(1, Scene.Cells(3, 3, false, (1, 1)));
 
         Check.Equal(8, walls.Lines.Length);
-        Check.That(walls.Lines.Contains(new Vector2(10, -10)));
-        Check.That(walls.Lines.Contains(new Vector2(20, -20)));
-        Check.Equal(new Vector2(10, -20), walls.Min);
-        Check.Equal(new Vector2(20, -10), walls.Max);
+        Check.That(walls.Lines.Contains(new Vector2(10, 10)));
+        Check.That(walls.Lines.Contains(new Vector2(20, 20)));
+        Check.Equal(new Vector2(10, 10), walls.Min);
+        Check.Equal(new Vector2(20, 20), walls.Max);
     }
 
     [Test]

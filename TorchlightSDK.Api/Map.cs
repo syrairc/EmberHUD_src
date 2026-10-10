@@ -4,7 +4,7 @@ namespace TorchlightSDK;
 
 public static class Map
 {
-    public static Vector2 Project(Vector3 world) => new(world.X, -world.Y);
+    public static Vector2 Project(Vector3 world) => new(world.X, world.Y);
 
     public static MapView? View { get; set; }
 }

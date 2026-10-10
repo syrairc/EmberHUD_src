@@ -3,8 +3,8 @@ namespace TorchlightSDK.Api.Tests;
 public class MapProjectTests
 {
     [Fact]
-    public void XRightYUpBecomesScreenXRightYDown() =>
-        Assert.Equal(new Vector2(3, -4), Map.Project(new Vector3(3, 4, 9)));
+    public void WorldXYBecomesMapXYWithoutMirroring() =>
+        Assert.Equal(new Vector2(3, 4), Map.Project(new Vector3(3, 4, 9)));
 
     [Fact]
     public void HeightIsIgnored() =>

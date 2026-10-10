@@ -150,11 +150,11 @@ public sealed class RenderTests
     }
 
     [Test]
-    public void TheArrowPointsUpTheScreenForPositiveY()
+    public void TheArrowPointsDownTheScreenForPositiveY()
     {
         var tip = FarthestFromPlayer(new Vector2(0, 1));
 
-        Check.That(tip.Y < 0 && MathF.Abs(tip.X) < 1, "logic +Y is screen up");
+        Check.That(tip.Y > 0 && MathF.Abs(tip.X) < 1, "logic +Y is screen down");
     }
 
     [Test]
@@ -168,9 +168,9 @@ public sealed class RenderTests
     [Test]
     public void TheArrowTurnsWithTheMapRotation()
     {
-        var tip = FarthestFromPlayer(new Vector2(0, 1), main => main.Settings.View.Rotation.Value = 90);
+        var tip = FarthestFromPlayer(new Vector2(0, -1), main => main.Settings.View.Rotation.Value = 90);
 
-        Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward up turns right with a 90 degree map rotation");
+        Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward -Y turns right with a 90 degree map rotation");
     }
 
     [Test]
