@@ -1,0 +1,13 @@
+{
+  "Markers": {
+    "NormalMonster": { "Colour": "#EBEBEBFF", "Radius": 3 },
+    "MagicMonster": { "Colour": "#598CFFFF", "Radius": 3 },
+    "RareMonster": { "Colour": "#FFD933FF", "Radius": 5 },
+    "BossMonster": { "Colour": "#D94DFFFF", "Radius": 7 },
+    "Ally": { "Show": false, "Colour": "#4DE64DFF", "Radius": 3 },
+    "OtherPlayer": { "Colour": "#4DE6FFFF", "Radius": 4 },
+    "Portal": { "Colour": "#33CCFFFF", "Radius": 6 },
+    "Npc": { "Colour": "#4DFF4DFF", "Radius": 5 },
+    "Interactive": { "Colour": "#FFAA33FF", "Radius": 4 }
+  }
+}
