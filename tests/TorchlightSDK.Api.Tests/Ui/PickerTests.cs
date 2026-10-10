@@ -32,6 +32,14 @@ public class PickerTests
     }
 
     [Fact]
+    public void ARegexTermTheLinearEngineCannotRunFallsBackToAPlainContains()
+    {
+        var term = Picker.TermMatcher(@"(a)\1");
+        Assert.True(term(@"x(A)\1y"));
+        Assert.False(term("aa"));
+    }
+
+    [Fact]
     public void ATermThatIsARegexIsUsedAsOne()
     {
         var term = Picker.TermMatcher("^fi.e$");
@@ -40,7 +48,7 @@ public class PickerTests
     }
 
     [Fact]
-    public void ACatastrophicRegexTermTimesOutAsNoMatchInsteadOfFreezing()
+    public void ACatastrophicRegexTermRunsInLinearTimeInsteadOfFreezing()
     {
         var term = Picker.TermMatcher("(a+)+$");
         var text = new string('a', 30) + "b";
@@ -49,6 +57,22 @@ public class PickerTests
         watch.Stop();
         Assert.False(matched);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(1), watch.Elapsed.ToString());
+    }
+
+    [Fact]
+    public void ARegexTermStillMatchesWhenTheCpuIsOversubscribed()
+    {
+        var term = Picker.TermMatcher("fi.e");
+        var text = new string('x', 20_000) + "fire";
+        var misses = 0;
+        var threads = Enumerable.Range(0, Environment.ProcessorCount * 4).Select(_ => new Thread(() =>
+        {
+            for (var i = 0; i < 300; i++)
+                if (!term(text)) Interlocked.Increment(ref misses);
+        })).ToList();
+        threads.ForEach(t => t.Start());
+        threads.ForEach(t => t.Join());
+        Assert.Equal(0, misses);
     }
 
     [Fact]
