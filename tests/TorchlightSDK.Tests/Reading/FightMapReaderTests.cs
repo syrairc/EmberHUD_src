@@ -81,4 +81,50 @@ public class FightMapReaderTests
         world.WriteMap(Offsets.FightMapMonster, (1, 0), (2, 0x2000));
         Assert.Equal([2], Read(world, Offsets.FightMapMonster).Select(e => e.Key));
     }
+
+    [Theory]
+    [InlineData(127)]
+    [InlineData(129)]
+    [InlineData(20000)]
+    public void ReadsEveryElementAroundTheInlineLimitAndAtTheMaximum(int count)
+    {
+        var world = new FakeWorld();
+        world.WriteMap(Offsets.FightMapMonster, Enumerable.Range(1, count).Select(i => ((int, long)?)(i, 0x1000 + i)).ToArray());
+        Assert.Equal(count, Read(world, Offsets.FightMapMonster).Length);
+    }
+
+    [Fact]
+    public void OneMoreThanTheMaximumIsRejected()
+    {
+        var world = new FakeWorld();
+        world.WriteMap(Offsets.FightMapMonster, Enumerable.Range(1, 20001).Select(i => ((int, long)?)(i, 0x1000 + i)).ToArray());
+        Assert.Empty(Read(world, Offsets.FightMapMonster));
+    }
+
+    [Fact]
+    public void ANonNullSecondaryPointerWinsOverTheInlineBitsEvenForSmallMaps()
+    {
+        var world = new FakeWorld();
+        world.WriteMap(Offsets.FightMapMonster, Enumerable.Range(0, 50).Select(i => ((int, long)?)(i, 0x1000 + i)).ToArray());
+        world.UseSecondaryBits(Offsets.FightMapMonster, Enumerable.Range(0, 50).Select(i => i == 3 || i == 40).ToArray());
+        Assert.Equal([3, 40], Read(world, Offsets.FightMapMonster).Select(e => e.Key));
+    }
+
+    [Fact]
+    public void UnreadableSecondaryBitsGiveNothingEvenWhenTheHeaderAndDataRead()
+    {
+        var world = new FakeWorld();
+        world.WriteMap(Offsets.FightMapMonster, Enumerable.Range(0, 50).Select(i => ((int, long)?)(i, 0x1000 + i)).ToArray());
+        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TMapSecondaryBits, 0x7777_0000_0000L);
+        Assert.Empty(Read(world, Offsets.FightMapMonster));
+    }
+
+    [Fact]
+    public void MoreThanTheInlineBitsWithoutASecondaryPointerGivesNothing()
+    {
+        var world = new FakeWorld();
+        world.WriteMap(Offsets.FightMapMonster, Enumerable.Range(0, 200).Select(i => ((int, long)?)(i, 0x1000 + i)).ToArray());
+        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TMapSecondaryBits, 0L);
+        Assert.Empty(Read(world, Offsets.FightMapMonster));
+    }
 }

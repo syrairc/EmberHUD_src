@@ -161,4 +161,54 @@ public class LiveReaderTests
         Assert.Equal("live - no local player", state.Status);
         Assert.Equal(2, state.Entities.Length);
     }
+
+    [Fact]
+    public void ATeleportDoesNotRotateForward()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 0, 0);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 5000, 0);
+        reader.TryRead(out var teleported, out _);
+        Assert.Equal(new Vector2(1, 0), teleported.Player!.Forward);
+        world.MoveEntity(player, 30, 5030, 0);
+        reader.TryRead(out var walked, out _);
+        Assert.Equal(new Vector2(0, 1), walked.Player!.Forward);
+    }
+
+    [Fact]
+    public void AreaChangeTakesAFreshAnchorWithoutRotating()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 0, 0);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 100, 100, 0);
+        world.SetGrid(5, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        reader.TryRead(out var changed, out _);
+        Assert.Equal(new Vector2(1, 0), changed.Player!.Forward);
+        world.MoveEntity(player, 100, 130, 0);
+        reader.TryRead(out var walked, out _);
+        Assert.Equal(new Vector2(0, 1), walked.Player!.Forward);
+    }
+
+    [Fact]
+    public void LosingThePlayerResetsTheAnchor()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 0, 0);
+        reader.TryRead(out _, out _);
+        world.BreakPlayerMgr();
+        reader.TryRead(out _, out _);
+        world.SetLocalPlayer(10);
+        world.MoveEntity(player, 40, 40, 0);
+        reader.TryRead(out var back, out _);
+        Assert.Equal(new Vector2(1, 0), back.Player!.Forward);
+    }
 }

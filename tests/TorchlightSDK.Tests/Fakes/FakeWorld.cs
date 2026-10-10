@@ -114,6 +114,52 @@ internal sealed class FakeWorld
         Memory.WriteArray(block + Offsets.PositionX, new[] { x, y, z });
     }
 
+    public void UseSecondaryBits(int mapOffset, params bool[] bits)
+    {
+        var words = new uint[Math.Max(1, (bits.Length + 31) / 32)];
+        for (var i = 0; i < bits.Length; i++)
+            if (bits[i]) words[i / 32] |= 1u << (i % 32);
+        var secondary = Alloc(words.Length * 4);
+        Memory.WriteArray(secondary, words);
+        Memory.Write(FightMgr + mapOffset + Offsets.TMapSecondaryBits, secondary);
+    }
+
+    private bool _configTableMapped;
+
+    public List<long> ConfigNodes { get; } = [];
+
+    public void SetMonsterConfigTable(int bucketCount, params (uint Id, uint Rarity)[] rows)
+    {
+        if (!_configTableMapped)
+        {
+            Memory.Map(ModuleBase + Offsets.MonsterCfgBucketsRva, 8);
+            Memory.Map(ModuleBase + Offsets.MonsterCfgBucketCountRva, 4);
+            _configTableMapped = true;
+        }
+
+        var buckets = new long[bucketCount];
+        ConfigNodes.Clear();
+        foreach (var (id, rarity) in rows)
+        {
+            var row = Alloc(0x40);
+            Memory.Write(row + Offsets.MonsterCfgRarity, rarity);
+            var node = Alloc(0x20);
+            var bucket = (int)(id % bucketCount);
+            Memory.Write(node + Offsets.NodeKey, id);
+            Memory.Write(node + Offsets.NodeEntity, row);
+            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
+            buckets[bucket] = node;
+            ConfigNodes.Add(node);
+        }
+
+        var array = Alloc(Math.Max(8, bucketCount * 8));
+        Memory.WriteArray(array, buckets);
+        Memory.Write(ModuleBase + Offsets.MonsterCfgBucketsRva, array);
+        Memory.Write(ModuleBase + Offsets.MonsterCfgBucketCountRva, (uint)bucketCount);
+    }
+
+    public void BreakMonsterConfigTable() => Memory.Write(ModuleBase + Offsets.MonsterCfgBucketsRva, 0L);
+
     public void BreakPlayerMgr() => Memory.Write(ModuleBase + Offsets.PlayerMgrGlobalRva, 0L);
 
     public void PublishEntities(params FakeEntity[] entities) => PublishEntities(3, entities);

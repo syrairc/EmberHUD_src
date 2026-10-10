@@ -7,9 +7,9 @@ internal sealed class FightMapReader(IReadBackend memory)
     public (int Key, nint Value)[] Read(nint map)
     {
         if (!memory.TryRead(map + Offsets.TMapNum, out int num) || num <= 0 || num > Offsets.MaxMapElements ||
+            !TryReadAllocationBits(map, num, out var bits) ||
             !memory.TryReadPtr(map, out var data) ||
-            !memory.TryReadArray(data, num * Offsets.TMapElementStride, out byte[] elements) ||
-            !TryReadAllocationBits(map, num, out var bits))
+            !memory.TryReadArray(data, num * Offsets.TMapElementStride, out byte[] elements))
             return [];
 
         var live = new List<(int, nint)>();
@@ -26,11 +26,13 @@ internal sealed class FightMapReader(IReadBackend memory)
 
     private bool TryReadAllocationBits(nint map, int num, out uint[] bits)
     {
-        if (num <= Offsets.TMapInlineBitCount)
-            return memory.TryReadArray(map + Offsets.TMapInlineBits, Offsets.TMapInlineBitCount / 32, out bits);
-
         bits = [];
-        return memory.TryReadPtr(map + Offsets.TMapSecondaryBits, out var secondary) &&
-               memory.TryReadArray(secondary, (num + 31) / 32, out bits);
+        if (!memory.TryRead(map + Offsets.TMapSecondaryBits, out nint secondary))
+            return false;
+        if (secondary != 0)
+            return memory.TryReadArray(secondary, (num + 31) / 32, out bits);
+
+        return num <= Offsets.TMapInlineBitCount &&
+               memory.TryReadArray(map + Offsets.TMapInlineBits, Offsets.TMapInlineBitCount / 32, out bits);
     }
 }

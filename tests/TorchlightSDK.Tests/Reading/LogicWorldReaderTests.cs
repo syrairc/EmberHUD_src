@@ -235,14 +235,98 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
-    public void NoFightMgrMeansNoEntitiesButStillAPlayer()
+    public void NoFightMgrMeansNoEntitiesAndNoPlayer()
     {
         var world = WorldWithPlayerAndMonster();
         world.SetLocalPlayer(10);
         world.Memory.Write(FakeWorld.ModuleBase + Offsets.FightMgrGlobalRva, 0L);
         var (position, entities) = ReadWorld(world);
-        Assert.NotNull(position);
+        Assert.Null(position);
         Assert.Empty(entities);
+    }
+
+    [Fact]
+    public void ResolvedIdThatIsNotInThePlayerMapGivesNoPlayer()
+    {
+        var world = WorldWithPlayerAndMonster();
+        world.SetLocalPlayer(11);
+        var (position, entities) = ReadWorld(world);
+        Assert.Null(position);
+        Assert.Equal([10, 11], entities.Select(e => e.Id).Order());
+    }
+
+    [Fact]
+    public void ParkedPlayerGivesNoPlayer()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 8700, mapOffset: Offsets.FightMapPlayer));
+        world.SetLocalPlayer(10);
+        Assert.Null(ReadWorld(world).PlayerPosition);
+    }
+
+    [Fact]
+    public void NpcsAndPortalsAndInteractivesDoNotNeedTheAliveFlag()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, 5, false, 1, 1, 0, mapOffset: Offsets.FightMapNpc),
+            world.AddEntity(2, 5, false, 2, 2, 0, mapOffset: Offsets.FightMapPortal),
+            world.AddEntity(3, 5, false, 3, 3, 0, mapOffset: Offsets.FightMapInteractive),
+            world.AddEntity(4, 5, false, 4, 4, 0, mapOffset: Offsets.FightMapMonster),
+            world.AddEntity(5, 5, false, 5, 5, 0, mapOffset: Offsets.FightMapFollower),
+            world.AddEntity(6, 5, false, 6, 6, 0, mapOffset: Offsets.FightMapPlayer));
+        Assert.Equal([1, 2, 3], Read(world).Select(e => e.Id).Order());
+    }
+
+    [Fact]
+    public void ZeroRecordCfgIdFallsBackToTheEntityCfgId()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 0));
+        Assert.Equal(48, Assert.Single(Read(world)).CfgId);
+    }
+
+    [Fact]
+    public void TornHashMapKeepsAPlayerAlreadyFoundAndDropsEntities()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(1, world.AddEntity(11, 48, true, 1, 2, 0), world.AddEntity(12, 48, true, 1, 2, 0), world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer));
+        world.SetLocalPlayer(10);
+        world.Memory.Write(world.Nodes[0] + Offsets.NodeNext, 0x7777_0000_0000L);
+        var (position, entities) = ReadWorld(world);
+        Assert.Equal(new Vector3(1, 2, 3), position);
+        Assert.Empty(entities);
+    }
+
+    [Fact]
+    public void TornHashMapBeforeThePlayerGivesNothing()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(1, world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer), world.AddEntity(11, 48, true, 1, 2, 0));
+        world.SetLocalPlayer(10);
+        world.Memory.Write(world.Nodes[1] + Offsets.NodeNext, 0x7777_0000_0000L);
+        var (position, entities) = ReadWorld(world);
+        Assert.Null(position);
+        Assert.Empty(entities);
+    }
+
+    [Fact]
+    public void MonstersGetTheirRarityFromTheConfigTableByRecordCfgId()
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1180001, 1), (2200080, 2), (190200, 4), (48, 4));
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1180001),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 2200080),
+            world.AddEntity(3, 48, true, 3, 3, 0, monsterCfgId: 190200),
+            world.AddEntity(4, 48, true, 4, 4, 0),
+            world.AddEntity(5, 48, true, 5, 5, 0, mapOffset: Offsets.FightMapNpc, monsterCfgId: 190200));
+        var rarity = Read(world).ToDictionary(e => e.Id, e => e.Rarity);
+        Assert.Equal(Rarity.Normal, rarity[1]);
+        Assert.Equal(Rarity.Rare, rarity[2]);
+        Assert.Equal(Rarity.Boss, rarity[3]);
+        Assert.Equal(Rarity.Normal, rarity[4]);
+        Assert.Equal(Rarity.Normal, rarity[5]);
     }
 
     [Fact]

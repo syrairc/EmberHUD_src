@@ -7,7 +7,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
 {
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly TerrainReader _terrain = new(memory, firstAreaId);
-    private const float MinMove = 0.5f;
+    private int _generation = firstAreaId;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
@@ -19,7 +19,15 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
 
         var terrain = _terrain.Read(scene);
         var (playerPosition, entities) = _world.ReadWorld(scene);
+        if (_terrain.Generation != _generation)
+        {
+            _generation = _terrain.Generation;
+            _anchor = null;
+        }
+
         var player = playerPosition is { } position ? new Player(position, UpdateForward(position)) : null;
+        if (player is null)
+            _anchor = null;
         state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain);
         return true;
     }
@@ -29,8 +37,10 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         if (_anchor is { } anchor)
         {
             var delta = new Vector2(position.X - anchor.X, position.Y - anchor.Y);
-            if (delta.Length() <= MinMove) return _forward;
-            _forward = Vector2.Normalize(delta);
+            var distance = delta.Length();
+            if (distance * 10 <= Offsets.MinMoveTenths) return _forward;
+            if (distance <= Offsets.MaxStepPerRead)
+                _forward = delta / distance;
         }
 
         _anchor = position;

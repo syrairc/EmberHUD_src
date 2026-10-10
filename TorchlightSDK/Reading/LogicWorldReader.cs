@@ -6,6 +6,7 @@ namespace TorchlightSDK.Host.Reading;
 internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 {
     private readonly FightMapReader _maps = new(memory);
+    private readonly MonsterRarityReader _rarity = new(memory, moduleBase);
 
     public bool TryReadScene(out nint scene, out string? failure)
     {
@@ -35,7 +36,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             return (null, []);
 
         var kinds = ReadKinds();
-        var localPlayerId = TryReadLocalPlayerId(out var id) ? id : (int?)null;
+        var localPlayerId = TryReadLocalPlayerId(out var id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
         Vector3? playerPosition = null;
         var entities = new List<Entity>();
         var nodeCount = 0;
@@ -48,11 +49,11 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
                     !memory.TryRead(node + Offsets.NodeKey, out uint key) ||
                     !memory.TryRead(node + Offsets.NodeEntity, out nint entity) ||
                     !memory.TryRead(node + Offsets.NodeNext, out nint next))
-                    return (null, []);
+                    return (playerPosition, []);
 
                 var entityId = unchecked((int)key);
                 if (entityId == localPlayerId)
-                    playerPosition = TryReadPosition(entity, out var position) ? position : playerPosition;
+                    playerPosition = TryReadPosition(entity, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
                 else if (kinds.TryGetValue(entityId, out var kind) && TryReadEntity(entity, entityId, kind.Kind, kind.Value, out var result))
                     entities.Add(result);
                 node = next;
@@ -115,17 +116,25 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     {
         result = default;
         if (entity == 0 ||
-            !memory.TryRead(entity + Offsets.EntityAlive, out byte alive) || alive == 0 ||
+            !TryReadAliveIfRequired(entity, kind) ||
             !TryReadPosition(entity, out var position) || position.Z >= Offsets.ParkedZ ||
             !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId))
             return false;
 
+        var rarity = Rarity.Normal;
         if (kind == EntityKind.Monster &&
             memory.TryReadPtr(value + Offsets.MonsterRecord, out var record) &&
-            memory.TryRead(record + Offsets.MonsterRecordCfgId, out uint monsterCfgId))
+            memory.TryRead(record + Offsets.MonsterRecordCfgId, out uint monsterCfgId) && monsterCfgId != 0)
+        {
             cfgId = monsterCfgId;
+            rarity = _rarity.Read(monsterCfgId);
+        }
 
-        result = new Entity(id, (int)cfgId, position, kind, Rarity.Normal);
+        result = new Entity(id, (int)cfgId, position, kind, rarity);
         return true;
     }
+
+    private bool TryReadAliveIfRequired(nint entity, EntityKind kind) =>
+        kind is EntityKind.Npc or EntityKind.Portal or EntityKind.Interactive ||
+        memory.TryRead(entity + Offsets.EntityAlive, out byte alive) && alive != 0;
 }
