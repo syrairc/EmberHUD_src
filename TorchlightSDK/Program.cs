@@ -10,16 +10,23 @@ var root = AppContext.BaseDirectory;
 var pluginsDirectory = Path.Combine(root, "Plugins");
 var check = false;
 var fake = false;
+var live = false;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--check") check = true;
     else if (args[i] == "--fake") fake = true;
+    else if (args[i] == "--live") live = true;
     else if (args[i] == "--plugins" && i + 1 < args.Length) pluginsDirectory = Path.GetFullPath(args[++i], root);
     else
     {
-        Console.Error.WriteLine($"unknown argument {args[i]} - usage: TorchlightSDK [--plugins <dir>] [--fake] [--check]");
+        Console.Error.WriteLine($"unknown argument {args[i]} - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check]");
         return 2;
     }
+}
+if (fake && live)
+{
+    Console.Error.WriteLine("--fake and --live cannot be used together - usage: TorchlightSDK [--plugins <dir>] [--fake] [--live] [--check]");
+    return 2;
 }
 Directory.CreateDirectory(Path.Combine(root, "Logs"));
 
@@ -57,7 +64,7 @@ Log.Sink = (level, plugin, message) =>
 var sdkPath = Path.Combine(root, "Config", "sdk.json");
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
 
-using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new NoGameSource(), Log.Info);
+using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : live ? new LiveGameSource() : new NoGameSource(), Log.Info, live ? 33 : 8);
 reader.Start();
 using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
 using var plugins = new PluginHost(sdk, root);

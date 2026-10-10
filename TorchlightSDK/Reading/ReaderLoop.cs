@@ -2,10 +2,8 @@ using System.Diagnostics;
 
 namespace TorchlightSDK.Host.Reading;
 
-internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log) : IDisposable
+internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds = 8) : IDisposable
 {
-    private const int TickMilliseconds = 8;
-
     private readonly ManualResetEventSlim _stop = new();
     private readonly HashSet<string> _logged = [];
     private Thread? _thread;
@@ -23,7 +21,7 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
     private void Run()
     {
         var lastGood = _current;
-        while (!_stop.Wait(TickMilliseconds))
+        while (!_stop.Wait(tickMilliseconds))
         {
             try
             {

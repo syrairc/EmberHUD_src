@@ -82,4 +82,35 @@ public class ReaderLoopTests
         Assert.Equal(7, loop.Current.State.AreaId);
         lock (logged) Assert.Single(logged);
     }
+
+    private sealed class Counting : IGameSource
+    {
+        public int Reads;
+        public bool TryRead(out GameState state, out string? failure)
+        {
+            Interlocked.Increment(ref Reads);
+            state = GameState.Empty;
+            failure = null;
+            return true;
+        }
+        public void Dispose() { }
+    }
+
+    private static int ReadsOver300Milliseconds(Func<Counting, ReaderLoop> create)
+    {
+        var source = new Counting();
+        using var loop = create(source);
+        loop.Start();
+        Thread.Sleep(300);
+        return Volatile.Read(ref source.Reads);
+    }
+
+    [Fact]
+    public void TickMillisecondsSetsHowOftenTheSourceIsRead()
+    {
+        var fast = ReadsOver300Milliseconds(source => new ReaderLoop(() => source, _ => { }));
+        var slow = ReadsOver300Milliseconds(source => new ReaderLoop(() => source, _ => { }, 50));
+        Assert.True(slow <= 10, $"slow loop read {slow} times");
+        Assert.True(fast > slow, $"fast {fast} slow {slow}");
+    }
 }

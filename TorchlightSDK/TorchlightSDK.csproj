@@ -24,6 +24,9 @@
     <None Include="..\Themes\**" LinkBase="Themes" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Offsets\offsets.bin" LogicalName="t" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="TorchlightSDK.Tests" />
   </ItemGroup>
 </Project>

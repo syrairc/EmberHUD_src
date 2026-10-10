@@ -1,0 +1,36 @@
+KnownExeSize = 123144120
+LogicWorldGlobalRva = 0x69331B8
+WorldScene = 8
+
+SceneGeometry = 96
+SceneGridModule = 176
+SceneEntityArray = 0x568
+SceneEntityCount = 0x570
+
+GeometryCellSize = 56
+GeometryOddRowShift = 88
+GeometryOriginX = 128
+GeometryOriginY = 136
+
+GridModuleHybrid = 56
+HybridCols = 8
+HybridRows = 12
+HybridCells = 16
+HybridIsHybrid = 24
+HybridBlockW = 28
+HybridBlockH = 32
+HybridBlocksPerRow = 36
+HybridMask = 40
+HybridBlockCount = 48
+CellStride = 12
+CellClearance = 0
+
+EntityCfgId = 28
+EntityAlive = 34
+EntityHasPosition = 140
+EntityPosition = 920
+PositionX = 40
+
+MaxEntities = 4096
+MaxCells = 4000000
+PebImageBase = 0x10

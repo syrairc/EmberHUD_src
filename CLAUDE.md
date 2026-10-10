@@ -2,12 +2,12 @@
 
 Plugin SDK for a Torchlight: Infinite overlay. `TorchlightSDK.Api` is the public API plugins compile against (never obfuscated, nothing sensitive in it). `TorchlightSDK` is the host exe (everything `internal`, obfuscated in Release). Plugins are C# source in `Plugins\<Name>\`, compiled by the host with Roslyn. Same shape as EpochSDK (`E:\EpochSDK\src`, read-only reference) - host / plugin / UI layers get copied over and renamed, the game layer (UE4 reading) is new.
 
-Phase 1 scaffold and the phase 2 Minimap plugin are built and run on a fake game - `TorchlightSDK.exe --check` (headless, host JIT + every plugin's tests) is the only run the agent does, the user runs `TorchlightSDK.exe --fake` for the overlay with synthetic players, monsters and terrain. No live reader yet. Plan -> `..\docs\superpowers\plans\`, RE findings -> `..\docs\superpowers\research\`.
+Phase 1 scaffold and the phase 2 Minimap plugin run on a fake game, the phase 3 live reader reads the real game read-only. `TorchlightSDK.exe --check` (headless, host JIT + every plugin's tests) is the only run the agent does, the user runs `TorchlightSDK.exe --fake` for the overlay with synthetic players, monsters and terrain and `TorchlightSDK.exe --live` for the real game. `--live` is built and tested on fake memory only, it has never run against the game and several fields are stubbed until the probe (`..\HANDOFF.md`). Plan -> `..\docs\superpowers\plans\`, RE findings -> `..\docs\superpowers\research\`.
 
 ## Hard rules
 
 - Read game memory only - never write to it, never inject. Input exceptions only if the user asks for one, same rules as EpochSDK's Input.Tap (SendInput, focused window, host rate limit)
-- No live attach until the anti-cheat check is written up and the user OKs it - see `..\docs\superpowers\research\anti-cheat.md`
+- No live attach until the user OKs the "Live read plan" in `..\docs\superpowers\research\anti-cheat.md`. Live attach only behind an explicit `--live`, the agent never passes it. Game calls are `OpenProcess` `0x1010` and `ReadProcessMemory` (plus `QueryFullProcessImageNameW`, `NtQueryInformationProcess`, `GetExitCodeProcess` on that one handle) - never `Process.MainModule` / `HasExited` (extra handles)
 - Nothing sensitive in `TorchlightSDK.Api` - offsets, layouts, class names and addresses stay in the host
 - `TreatWarningsAsErrors` - 0 warnings
 - Never launch `TorchlightSDK.exe` or any windowed program - the user runs the overlay. `TorchlightSDK.exe --check` is headless and fine
@@ -35,18 +35,22 @@ Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release p
 |---|---|
 | `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
 | `TorchlightSDK` | host - overlay, plugin compiler / loader, settings window, `--check` runner |
-| `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother - the live reader is the next plan |
+| `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother, live reader (`LogicWorldReader`, `TerrainReader`, `LiveReader`, `LiveGameSource`) |
+| `TorchlightSDK\Memory` | `IReadBackend` + `ReadProcessMemory` backend, read extensions, `GameProcess` (attach, exe size check) |
+| `TorchlightSDK\Offsets` | `Offsets.*` (generated `Offsets.g.cs` + sealed `offsets.bin`), regenerate with `pwsh scripts/gen-offsets.ps1` |
+| `offsets` | `layout.want` - every offset and limit the live reader uses, never literals in host code |
+| `tools\OffsetGen` | want file -> AES-GCM sealed table + `Offsets.g.cs` |
 | `Plugins` | first-party plugin sources (`Sample`, `Minimap`) |
 | `tests` | xunit v3 suites |
-| `scripts` | `build.ps1` |
+| `scripts` | `build.ps1`, `gen-offsets.ps1` |
 
 Planned:
 
 | Path | What |
 |---|---|
 | `scripts\release.ps1` | release plan |
-| `tools` | OffsetGen, external SDK dumper |
-| `offsets` | `offsets.want` + `layout.want`, OffsetGen encrypts them into the host |
+| `tools` | external SDK dumper |
+| `offsets\offsets.want` | fields from an SDK dump, once the dumper exists |
 
 ## Rules
 
@@ -56,7 +60,7 @@ Code
 - KISS/DRY/YAGNI: no function for something called once or twice; one source of truth; no constants for single-use values; no interfaces/generics/abstraction for a single implementation; no config knobs nobody asked for
 - A plugin `Settings` class that overrides `Draw()` must write `TorchlightSDK.Draw` to reach the drawing class - inside it the bare `Draw` is the method
 - Plugin structure: `Main.cs` (render, loop, thread work), `Settings.cs` (POCO + settings page, big plugins split UI into `SettingsUI.cs`), `defaults.json`
-- Once the live reader lands: offsets and game class names live in the want files, never in host code
+- Offsets and game class names live in `offsets\*.want`, never in host code. Garbage reads are normal while an area loads - reject, skip, never throw
 
 Testing
 - TDD where it's code - readers tested against fake memory, plugins test themselves (`--check`), same as EpochSDK
