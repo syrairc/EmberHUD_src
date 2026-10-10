@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using TorchlightSDK;
@@ -54,18 +55,31 @@ public sealed class SettingsTests
         Check.Equal(MarkerShape.Dot, Settings.ShapeFor(EntityKind.Player));
     }
 
-    [Test]
-    public void TheSettingsPageDraws()
+    static int Drawn(Action draw)
     {
         var drawn = 0;
         TestFrame.Run(() =>
         {
             ImGui.Begin("minimap settings");
             var before = ImGui.GetWindowDrawList().VtxBuffer.Size;
-            new Settings().Draw();
+            draw();
             drawn = ImGui.GetWindowDrawList().VtxBuffer.Size - before;
             ImGui.End();
         });
-        Check.That(drawn > 0, "settings page draws");
+        return drawn;
+    }
+
+    [Test]
+    public void TheSettingsPageDraws()
+    {
+        Check.That(Drawn(new Settings().Draw) > 0, "settings page draws");
+    }
+
+    [Test]
+    public void TheMarkersSectionDraws()
+    {
+        var page = Drawn(new Settings().Draw);
+        var viewOnly = Drawn(() => SettingsDrawer.DrawNodes(new Settings().View));
+        Check.That(page > 2 * viewOnly, $"markers drew (page {page}, view only {viewOnly})");
     }
 }

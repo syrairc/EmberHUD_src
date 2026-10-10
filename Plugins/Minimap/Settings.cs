@@ -76,7 +76,7 @@ public sealed class Settings : PluginSettings
     public override void Draw()
     {
         if (ImGui.CollapsingHeader("Map", ImGuiTreeNodeFlags.DefaultOpen)) SettingsDrawer.DrawNodes(View);
-        if (!ImGui.CollapsingHeader("Markers")) return;
+        if (!ImGui.CollapsingHeader("Markers", ImGuiTreeNodeFlags.DefaultOpen)) return;
         DrawStyle("Normal monster", Markers.NormalMonster);
         DrawStyle("Magic monster", Markers.MagicMonster);
         DrawStyle("Rare monster", Markers.RareMonster);
