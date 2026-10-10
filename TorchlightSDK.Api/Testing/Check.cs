@@ -36,4 +36,5 @@ public static class Check
 public static class TestGame
 {
     public static void Set(GameState state) => Game.State = state;
+    public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver;
 }

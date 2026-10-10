@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Hexa.NET.ImGui;
 using TorchlightSDK;
+using TorchlightSDK.Host.Icons;
 using TorchlightSDK.Host.Overlay;
 using TorchlightSDK.Host.Plugins;
 using TorchlightSDK.Host.Reading;
@@ -67,6 +68,8 @@ var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : live ? new LiveGameSource() : new NoGameSource(), Log.Info, live ? 33 : 8);
 reader.Start();
 using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
+var gameIcons = sdk.GameIconsDirectory.Length > 0 ? IconStore.Open(Path.GetFullPath(sdk.GameIconsDirectory, root), overlay.UploadRgba, overlay.TryGetTexture) : null;
+Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
 using var plugins = new PluginHost(sdk, root);
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
@@ -99,6 +102,7 @@ void Frame()
     if (state.Player is { } player) state = state with { Player = player with { Position = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency) } };
     Game.State = state;
     Map.View = null;
+    gameIcons?.Pump();
     plugins.TickAll();
     plugins.RenderAll();
     window.Draw();

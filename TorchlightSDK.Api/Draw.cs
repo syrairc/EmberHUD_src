@@ -181,10 +181,36 @@ public static class Draw
         for (var i = 0; i < star.Length; i += 2) target.AddQuadFilled(centre, star[(i + star.Length - 1) % star.Length], star[i], star[i + 1], fill);
     }
 
+    public const string GameIconPrefix = "game:";
+
+    internal static Func<string, Sprite?>? GameIcons { get; set; }
+
+    public static bool TryGameIcon(string texture, out Sprite sprite)
+    {
+        if (string.IsNullOrEmpty(texture))
+        {
+            sprite = default;
+            return false;
+        }
+
+        if (GameIcons?.Invoke(texture) is { } found)
+        {
+            sprite = found;
+            return true;
+        }
+        sprite = default;
+        return false;
+    }
+
     public static void Icon(string? icon, Vector2 centre, float radius, Color color, IconAtlas? atlas, float glow = 0, ImDrawListPtr? list = null)
     {
-        if (TryMarker(icon, out var shape) || icon is null || atlas is null || !atlas.Sprites.TryGetValue(icon, out var sprite))
+        var sprite = default(Sprite);
+        var found = icon is not null && icon.StartsWith(GameIconPrefix, StringComparison.Ordinal)
+            ? TryGameIcon(icon[GameIconPrefix.Length..], out sprite)
+            : icon is not null && !TryMarker(icon, out _) && atlas is not null && atlas.Sprites.TryGetValue(icon, out sprite);
+        if (!found)
         {
+            TryMarker(icon, out var shape);
             Marker(centre, radius, color, shape, glow, list);
             return;
         }

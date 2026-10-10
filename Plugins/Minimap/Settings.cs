@@ -27,6 +27,9 @@ public sealed class ViewTab
     public RangeNode<float> WallThickness = new(1.5f, 0.5f, 6);
     public ColorNode PlayerColour = new(Color.FromArgb(0xFF, 0xFF, 0x40, 0x40));
     public RangeNode<float> PlayerSize = new(10, 4, 30);
+    [Menu("Game icons", "Draw the game's own minimap icons when GameIconsDirectory is set in Config\\sdk.json, drawn shapes otherwise")] public ToggleNode UseGameIcons = new(true);
+    [Menu("Icon size", "On-screen size in pixels of a game icon at the game's default size multiplier")] public RangeNode<float> IconSize = new(24, 8, 64);
+    public ColorNode IconTint = new(Color.White);
 }
 
 public sealed class MarkerTab
@@ -72,6 +75,17 @@ public sealed class Settings : PluginSettings
         EntityKind.Portal => MarkerShape.Diamond,
         EntityKind.Npc => MarkerShape.Square,
         EntityKind.Interactive => MarkerShape.Triangle,
+        _ => MarkerShape.Dot,
+    };
+
+    public static MarkerShape FallbackShape(int type) => type switch
+    {
+        2 or (>= 1040 and <= 1060) => MarkerShape.Star,
+        10 or 11 or 12 or 14 or 32 or 33 or 1000 or 1022 => MarkerShape.Diamond,
+        7 or 8 or 9 or 1010 or 2001 or 2002 => MarkerShape.Hexagon,
+        3 or 1006 or 1007 or 1009 or 1011 => MarkerShape.Square,
+        (>= 15 and <= 24) or 29 => MarkerShape.Triangle,
+        1003 or 1008 or 1023 or 1024 => MarkerShape.Sparkle,
         _ => MarkerShape.Dot,
     };
 

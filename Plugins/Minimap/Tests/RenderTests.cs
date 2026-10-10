@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Hexa.NET.ImGui;
 using TorchlightSDK;
 using TorchlightSDK.Testing;
 
@@ -215,5 +216,139 @@ public sealed class RenderTests
     {
         Check.That(Main.ArrowPoints(new Vector2(100, 100), new Vector2(float.NaN, 1), 10) is null, "NaN");
         Check.That(Main.ArrowPoints(new Vector2(100, 100), new Vector2(float.PositiveInfinity, 0), 10) is null, "infinity");
+    }
+
+    static readonly Sprite Ready = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
+
+    static readonly MapIcon Portal = new(10, "UI_MiniMap_Portal", new Vector2(15, 15), 1, 0, 0);
+
+    static GameState IconScene(params MapIcon[] icons) => Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)), icons: icons);
+
+    static int DrawnWith(Func<string, Sprite?>? icons, GameState state, Action<Main>? configure = null)
+    {
+        TestGame.UseGameIcons(icons);
+        try
+        {
+            return Drawn(state, configure: configure);
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Test]
+    public void AReadyGameIconIsOneImageQuadAndAMarkerUntilThen()
+    {
+        var walls = Drawn(IconScene());
+
+        Check.Equal(walls + 4, DrawnWith(name => name == "UI_MiniMap_Portal" ? Ready : null, IconScene(Portal)));
+        Check.That(DrawnWith(_ => null, IconScene(Portal)) > walls + 4, "the fallback marker has more vertices than one quad");
+    }
+
+    [Test]
+    public void TurningGameIconsOffDrawsTheMarkerEvenWhenTheTextureIsReady()
+    {
+        var off = DrawnWith(_ => Ready, IconScene(Portal), main => main.Settings.View.UseGameIcons.Value = false);
+
+        Check.Equal(DrawnWith(_ => null, IconScene(Portal)), off);
+    }
+
+    [Test]
+    public void AnIconWithoutATextureNameDrawsAMarkerNotNothing()
+    {
+        var walls = Drawn(IconScene());
+
+        Check.That(DrawnWith(_ => Ready, IconScene(Portal with { Texture = "" })) > walls + 4, "empty texture name falls back");
+        Check.That(DrawnWith(_ => null, IconScene(Portal with { Type = 987654 })) > walls, "an unknown type still draws a dot");
+    }
+
+    [Test]
+    public void ANonFinitePositionIsSkippedAndABadSizeDrawsLikeOne()
+    {
+        var walls = Drawn(IconScene());
+        var ready = (Func<string, Sprite?>)(_ => Ready);
+
+        Check.Equal(walls, DrawnWith(ready, IconScene(Portal with { Position = new Vector2(float.NaN, 0) })));
+        Check.Equal(walls, DrawnWith(ready, IconScene(Portal with { Position = new Vector2(float.PositiveInfinity, 0) })));
+        foreach (var size in new[] { 0f, -2f, float.NaN, float.PositiveInfinity }) Check.Equal(walls + 4, DrawnWith(ready, IconScene(Portal with { Size = size })), $"size {size}");
+    }
+
+    [Test]
+    public void AnEntityTheGameAlreadyIconisedIsNotDrawnTwice()
+    {
+        var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var iconOnly = Drawn(Scene.State(terrain: terrain, icons: [Portal with { EntityId = monster.Id }]));
+
+        Check.Equal(iconOnly, Drawn(Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = monster.Id }])));
+        Check.That(Drawn(Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = 0 }])) > Drawn(Scene.State(terrain: terrain, icons: [Portal with { EntityId = 0 }])), "an icon with EntityId 0 never hides an entity");
+    }
+
+    [Test]
+    public void ThePlayerIsTheGameArrowRotatedByTheForwardWhenItIsReady()
+    {
+        var state = Scene.State(player: Facing(Vector2.UnitX));
+
+        Check.Equal(4, DrawnWith(name => name == "UI_MiniMap_Player1" ? Ready : null, state));
+        Check.That(DrawnWith(_ => null, state) != 4, "the triangle is the fallback");
+        Check.That(DrawnWith(name => name == "UI_MiniMap_Player1" ? Ready : null, Scene.State(player: Facing(Vector2.Zero))) != 0, "a player with no heading still draws a marker");
+    }
+
+    static Vector2 TopEdgeOffsetFromPlayer(Vector2 forward)
+    {
+        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
+        TestGame.UseGameIcons(name => name == "UI_MiniMap_Player1" ? sprite : null);
+        try
+        {
+            TestGame.Set(Scene.State(player: Facing(forward)));
+            Map.View = null;
+            var main = new Main { WallJob = new(inline: true) };
+            var top = Vector2.Zero;
+            TestFrame.Run(() =>
+            {
+                main.Tick();
+                main.Tick();
+                var player = Map.View!.Value.ToScreen(new Vector3(15, 15, 0));
+                var list = Draw.Background;
+                var first = list.VtxBuffer.Size;
+                main.Render();
+                var count = 0;
+                for (var i = first; i < list.VtxBuffer.Size; i++)
+                {
+                    if (list.VtxBuffer[i].Uv.Y != sprite.Uv0.Y) continue;
+                    top += list.VtxBuffer[i].Pos - player;
+                    count++;
+                }
+
+                Check.Equal(2, count, "two vertices on the texture's top edge");
+            });
+            return top;
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Test]
+    public void TheGameArrowSpriteHasItsTopEdgeOnTheSideThePlayerFaces()
+    {
+        var right = TopEdgeOffsetFromPlayer(Vector2.UnitX);
+        var up = TopEdgeOffsetFromPlayer(new Vector2(0, -1));
+
+        Check.That(right.X > 0 && MathF.Abs(right.Y) < 1, "facing +X puts the texture top on screen right");
+        Check.That(up.Y < 0 && MathF.Abs(up.X) < 1, "facing -Y puts the texture top on screen up");
+    }
+
+    [Test]
+    public void AnEntityWhoseGameIconIsOffscreenKeepsItsMarker()
+    {
+        var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var withMarker = Drawn(Scene.State(entities: [monster], terrain: terrain));
+
+        Check.That(withMarker > Drawn(Scene.State(terrain: terrain)), "the monster draws");
+        Check.Equal(withMarker, Drawn(Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = monster.Id, Position = new Vector2(float.NaN, 0) }])));
     }
 }

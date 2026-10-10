@@ -48,4 +48,29 @@ public class FakeGameSourceTests
         Assert.InRange(walkable, 1, terrain.Cols * terrain.Rows - 1);
         Assert.Equal(terrain.Cols * terrain.Rows, terrain.Walkable.Length);
     }
+
+    [Fact]
+    public void IconisesPortalsInteractivesAndRareAndBossMonsters()
+    {
+        var state = At(0);
+        var iconised = state.Entities.Where(e => e.Kind is EntityKind.Portal or EntityKind.Interactive || e.Rarity is Rarity.Rare or Rarity.Boss).Select(e => e.Id).Order();
+
+        Assert.Equal(iconised, state.MapIcons.Select(i => i.EntityId).Order());
+        Assert.All(state.MapIcons, icon => Assert.NotEqual("", icon.Texture));
+        Assert.Contains(state.MapIcons, i => i.Texture == "UI_MiniMap_Portal" && i.Type == 10);
+        Assert.Contains(state.MapIcons, i => i.Texture == "UI_MiniMap_BOSS" && i.Type == 2);
+    }
+
+    [Fact]
+    public void FakeIconsSitOnTheirEntities()
+    {
+        var state = At(0);
+
+        foreach (var icon in state.MapIcons)
+        {
+            var entity = state.Entities.Single(e => e.Id == icon.EntityId);
+            Assert.Equal(new Vector2(entity.Position.X, entity.Position.Y), icon.Position);
+            Assert.Equal(1f, icon.Size);
+        }
+    }
 }

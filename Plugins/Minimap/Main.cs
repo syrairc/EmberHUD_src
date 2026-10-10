@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using TorchlightSDK;
@@ -60,22 +61,52 @@ public sealed class Main : Plugin<Settings>
 
         foreach (var entity in state.Entities)
         {
+            if (HasIcon(state.MapIcons, entity.Id)) continue;
             if (Settings.MarkerFor(entity) is not { } style) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
             Draw.Marker(at, style.Radius.Value, style.Colour.Value, Settings.ShapeFor(entity.Kind));
         }
 
+        foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport);
+
         if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport);
+    }
+
+    internal static bool HasIcon(MapIcon[] icons, int entityId)
+    {
+        if (entityId == 0) return false;
+        foreach (var icon in icons)
+            if (icon.EntityId == entityId && float.IsFinite(icon.Position.X) && float.IsFinite(icon.Position.Y)) return true;
+        return false;
+    }
+
+    void DrawIcon(MapIcon icon, MapView map, Vector2 viewport)
+    {
+        var at = map.ToScreen(new Vector3(icon.Position, 0));
+        if (!Visible(at, at, viewport)) return;
+        var view = Settings.View;
+        var size = view.IconSize.Value * (float.IsFinite(icon.Size) && icon.Size > 0 ? icon.Size : 1);
+        if (view.UseGameIcons.Value && !string.IsNullOrEmpty(icon.Texture) && Draw.TryGameIcon(icon.Texture, out var sprite))
+            Draw.Image(sprite, at - new Vector2(size / 2), at + new Vector2(size / 2), view.IconTint.Value);
+        else
+            Draw.Marker(at, size / 4, Color.FromArgb(0xF9, 0xDD, 0x75), Settings.FallbackShape(icon.Type));
     }
 
     void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport)
     {
         if (!Visible(at, at, viewport)) return;
-        var size = Settings.View.PlayerSize.Value;
-        var colour = Settings.View.PlayerColour.Value;
-        if (ArrowPoints(at, forward, size) is { } arrow) Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
-        else Draw.Marker(at, size / 2, colour);
+        var view = Settings.View;
+        var size = view.PlayerSize.Value;
+        var colour = view.PlayerColour.Value;
+        if (ArrowPoints(at, forward, size) is not { } arrow)
+        {
+            Draw.Marker(at, size / 2, colour);
+            return;
+        }
+
+        if (view.UseGameIcons.Value && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(view.IconSize.Value), new Vector2(forward.Y, -forward.X), view.IconTint.Value);
+        else Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
     }
 
     internal static bool Visible(Vector2 a, Vector2 b, Vector2 viewport) =>

@@ -9,8 +9,12 @@ public enum Rarity : byte { Normal, Magic, Rare, Boss }
 public sealed record GameState(string Status, int AreaId, Player? Player, Entity[] Entities, Terrain? Terrain, float? MinimapRotation = null)
 {
     public static readonly GameState Empty = new("starting", 0, null, [], null);
+
+    public MapIcon[] MapIcons { get; init; } = [];
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward);
 
 public readonly record struct Entity(int Id, int CfgId, Vector3 Position, EntityKind Kind, Rarity Rarity);
+
+public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId);

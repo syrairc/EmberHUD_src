@@ -82,4 +82,26 @@ public sealed class SettingsTests
         var viewOnly = Drawn(() => SettingsDrawer.DrawNodes(new Settings().View));
         Check.That(page > 1.5f * viewOnly, $"markers drew (page {page}, view only {viewOnly})");
     }
+
+    [Test]
+    public void FallbackShapesFollowTheIconTypeGroup()
+    {
+        foreach (var type in new[] { 2, 1040, 1050, 1060 }) Check.Equal(MarkerShape.Star, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 10, 11, 12, 14, 32, 33, 1000, 1022 }) Check.Equal(MarkerShape.Diamond, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 7, 8, 9, 1010, 2001, 2002 }) Check.Equal(MarkerShape.Hexagon, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 3, 1006, 1007, 1009, 1011 }) Check.Equal(MarkerShape.Square, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 15, 20, 24, 29 }) Check.Equal(MarkerShape.Triangle, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 1003, 1008, 1023, 1024 }) Check.Equal(MarkerShape.Sparkle, Settings.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 0, 1, 25, 1061, 99999, -5 }) Check.Equal(MarkerShape.Dot, Settings.FallbackShape(type), $"type {type}");
+    }
+
+    [Test]
+    public void GameIconSettingsDefaultToOnAtAReadableSize()
+    {
+        var view = new Settings().View;
+
+        Check.That(view.UseGameIcons.Value, "on by default, a missing icon folder falls back to shapes anyway");
+        Check.Equal(24f, view.IconSize.Value);
+        Check.Equal(System.Drawing.Color.White.ToArgb(), view.IconTint.Value.ToArgb());
+    }
 }

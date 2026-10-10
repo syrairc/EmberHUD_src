@@ -348,4 +348,104 @@ public sealed class DrawTests
         Assert.All(coloured, p => Assert.True(Vector2.Distance(Centre, p) <= 8.01f));
         Assert.Contains(coloured, p => MathF.Abs(p.X - 100) < 0.5f && p.Y < 44);
     });
+
+    static readonly Sprite Ready = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.25f), new Vector2(0.5f));
+
+    [Fact]
+    public void TryGameIconSaysNoToAnEmptyNameWithoutAskingTheHost()
+    {
+        var asked = 0;
+        try
+        {
+            TestGame.UseGameIcons(_ =>
+            {
+                asked++;
+                return Ready;
+            });
+            Assert.False(Draw.TryGameIcon("", out _));
+            Assert.False(Draw.TryGameIcon(null!, out _));
+            Assert.Equal(0, asked);
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Fact]
+    public void TryGameIconAsksTheHostAndSaysNoWhenItHasNothing()
+    {
+        try
+        {
+            TestGame.UseGameIcons(null);
+            Assert.False(Draw.TryGameIcon("UI_MiniMap_Portal", out _));
+
+            TestGame.UseGameIcons(name => name == "UI_MiniMap_Portal" ? Ready : null);
+            Assert.True(Draw.TryGameIcon("UI_MiniMap_Portal", out var sprite));
+            Assert.Equal(Ready, sprite);
+            Assert.False(Draw.TryGameIcon("UI_MiniMap_Other", out _));
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Fact]
+    public void AGameIconDrawsTheResolvedSpriteTintedAndFallsBackToADotUntilItIsReady() => TestFrame.Run(() =>
+    {
+        try
+        {
+            var list = Draw.Background;
+            TestGame.UseGameIcons(name => name == "UI_MiniMap_Portal" ? Ready : null);
+            var start = list.VtxBuffer.Size;
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null);
+            Assert.Equal(4, list.VtxBuffer.Size - start);
+            Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
+            Assert.Equal(new Vector2(0.25f), list.VtxBuffer[start].Uv);
+            Assert.Equal(EColor.U32(Color.Gold), list.VtxBuffer[start].Col);
+
+            var glowing = list.VtxBuffer.Size;
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null, 1);
+            Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+
+            var dot = list.VtxBuffer.Size;
+            Draw.Marker(Centre, 8, Color.Gold);
+            var dotCount = list.VtxBuffer.Size - dot;
+            var missing = list.VtxBuffer.Size;
+            Draw.Icon("game:UI_MiniMap_NotLoaded", Centre, 8, Color.Gold, null);
+            Draw.Icon("game:", Centre, 8, Color.Gold, null);
+            TestGame.UseGameIcons(null);
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null);
+            Assert.Equal(dotCount * 3, list.VtxBuffer.Size - missing);
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    });
+
+    [Fact]
+    public void GameIconsDoNotDisturbMarkerAndAtlasKeys() => TestFrame.Run(() =>
+    {
+        try
+        {
+            var list = Draw.Background;
+            var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = Ready });
+            TestGame.UseGameIcons(_ => Ready);
+            var start = list.VtxBuffer.Size;
+            Draw.Icon("door", Centre, 8, Color.Gold, atlas);
+            Assert.Equal(4, list.VtxBuffer.Size - start);
+            var marker = list.VtxBuffer.Size;
+            Draw.Icon("marker:Star", Centre, 8, Color.Gold, atlas);
+            var star = list.VtxBuffer.Size - marker;
+            var expected = list.VtxBuffer.Size;
+            Draw.Marker(Centre, 8, Color.Gold, MarkerShape.Star);
+            Assert.Equal(list.VtxBuffer.Size - expected, star);
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    });
 }

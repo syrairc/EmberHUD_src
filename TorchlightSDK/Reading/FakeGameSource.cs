@@ -16,6 +16,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
+    private static readonly MapIcon[] SceneIcons = BuildIcons();
 
     public bool TryRead(out GameState state, out string? failure)
     {
@@ -23,7 +24,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         var player = new Player(
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
             new Vector2(-MathF.Sin(angle), MathF.Cos(angle)));
-        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90);
+        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90) { MapIcons = SceneIcons };
         failure = null;
         return true;
     }
@@ -67,4 +68,17 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         Add(new Vector2(0, -200), EntityKind.Interactive, Rarity.Normal);
         return [.. entities.OrderBy(e => e.Kind).ThenBy(e => e.Rarity)];
     }
+
+    private static MapIcon[] BuildIcons() =>
+    [
+        .. SceneEntities
+            .Where(e => e.Kind is EntityKind.Portal or EntityKind.Interactive || e.Rarity is Rarity.Rare or Rarity.Boss)
+            .Select(e => e switch
+            {
+                { Kind: EntityKind.Portal } => new MapIcon(10, "UI_MiniMap_Portal", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
+                { Kind: EntityKind.Interactive } => new MapIcon(2001, "UI_MiniMap_Entrepot", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
+                { Rarity: Rarity.Boss } => new MapIcon(2, "UI_MiniMap_BOSS", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
+                _ => new MapIcon(1040, "UI_Fight_IconBoss", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
+            }),
+    ];
 }
