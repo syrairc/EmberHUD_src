@@ -128,9 +128,12 @@ internal static partial class Win32
     [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint GetModuleHandle(string? name);
 
-    [LibraryImport("user32.dll", EntryPoint = "FindWindowW", SetLastError = true,
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowExW", SetLastError = true,
         StringMarshalling = StringMarshalling.Utf16)]
-    public static partial nint FindWindow(string? className, string? windowName);
+    public static partial nint FindWindowEx(nint parent, nint after, string? className, string? windowName);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowTextW", SetLastError = true)]
+    public static unsafe partial int GetWindowText(nint hwnd, char* buffer, int maxCount);
 
     [LibraryImport("user32.dll")]
     public static partial nint GetForegroundWindow();
