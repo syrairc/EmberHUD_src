@@ -15,8 +15,8 @@ public sealed class ViewTab
 {
     public ToggleNode Show = new(true);
     public HotkeyNode ToggleMap = new(new Hotkey(Key.F10));
-    public HotkeyNode ZoomIn = new(new Hotkey(Key.F11));
-    public HotkeyNode ZoomOut = new(new Hotkey(Key.F9));
+    public HotkeyNode ZoomIn = new(new Hotkey(Key.PageUp));
+    public HotkeyNode ZoomOut = new(new Hotkey(Key.PageDown));
     public ToggleNode FollowPlayer = new(true);
     public RangeNode<float> Zoom = new(0.5f, 0.05f, 4);
     public RangeNode<float> OffsetX = new(0, -960, 960);

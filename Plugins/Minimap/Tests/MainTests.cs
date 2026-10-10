@@ -108,11 +108,11 @@ public sealed class MainTests
         try
         {
             TestInput.Hold();
-            TestInput.Hold(Key.F11);
+            TestInput.Hold(Key.PageUp);
             TestFrame.Run(main.Tick);
             Check.Equal(main.Settings.View.Zoom.Max, main.Settings.View.Zoom.Value);
             TestInput.Hold();
-            TestInput.Hold(Key.F9);
+            TestInput.Hold(Key.PageDown);
             TestFrame.Run(main.Tick);
             Check.Equal(main.Settings.View.Zoom.Max / 1.25f, main.Settings.View.Zoom.Value);
         }
