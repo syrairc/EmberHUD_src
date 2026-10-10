@@ -29,7 +29,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         var player = playerPosition is { } position ? new Player(position, UpdateForward(position)) : null;
         if (player is null)
             _anchor = null;
-        state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain, _minimap.ReadRotationDegrees());
+        state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain, _minimap.ReadRotationDegrees(_terrain.Generation));
         return true;
     }
 

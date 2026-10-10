@@ -10,9 +10,17 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
     private readonly Dictionary<uint, bool> _isRotateName = [];
     private nint _widget;
     private long _nextScan;
+    private int? _generation;
 
-    public float? ReadRotationDegrees()
+    public float? ReadRotationDegrees(int generation)
     {
+        if (_generation != generation)
+        {
+            _generation = generation;
+            _widget = 0;
+            _nextScan = 0;
+        }
+
         if (_widget == 0 && !TryFindWidget())
             return null;
 
