@@ -9,26 +9,62 @@ public sealed class RenderTests
 {
     static readonly Vector2 Screen = new(1920, 1080);
 
-    static GameState Busy() => Scene.State(
-        player: new Player(new Vector3(15, 15, 0), Vector2.UnitX),
-        entities:
-        [
-            Scene.Entity(EntityKind.Monster, new Vector3(12, 12, 0), Rarity.Boss),
-            Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0)),
-            Scene.Entity(EntityKind.Monster, new Vector3(float.NaN, 12, 0)),
-        ],
-        terrain: Scene.Cells(3, 3, false, (1, 1)));
+    static GameState Busy(Player? player = null, bool entities = true, bool terrain = true) => Scene.State(
+        player: player,
+        entities: entities
+            ?
+            [
+                Scene.Entity(EntityKind.Monster, new Vector3(12, 12, 0), Rarity.Boss),
+                Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0)),
+            ]
+            : [],
+        terrain: terrain ? Scene.Cells(3, 3, false, (1, 1)) : null);
 
-    static int Drawn(Action draw)
+    static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
+
+    static int Drawn(GameState state, Action<Main>? beforeRender = null, Action<Main>? configure = null)
     {
+        TestGame.Set(state);
+        Map.View = null;
+        var main = new Main { WallJob = new(inline: true) };
+        configure?.Invoke(main);
         var drawn = 0;
         TestFrame.Run(() =>
         {
+            main.Tick();
+            main.Tick();
+            beforeRender?.Invoke(main);
             var before = Draw.Background.VtxBuffer.Size;
-            draw();
+            main.Render();
             drawn = Draw.Background.VtxBuffer.Size - before;
         });
         return drawn;
+    }
+
+    static Vector2 FarthestFromPlayer(Vector2 forward)
+    {
+        TestGame.Set(Busy(Facing(forward), entities: false, terrain: false));
+        Map.View = null;
+        var main = new Main { WallJob = new(inline: true) };
+        var tip = Vector2.Zero;
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            main.Tick();
+            var player = Map.View!.Value.ToScreen(new Vector3(15, 15, 0));
+            var list = Draw.Background;
+            var first = list.VtxBuffer.Size;
+            main.Render();
+            var best = -1f;
+            for (var i = first; i < list.VtxBuffer.Size; i++)
+            {
+                var offset = list.VtxBuffer[i].Pos - player;
+                if (offset.LengthSquared() <= best) continue;
+                best = offset.LengthSquared();
+                tip = offset;
+            }
+        });
+        return tip;
     }
 
     [Test]
@@ -64,81 +100,71 @@ public sealed class RenderTests
         Check.That(Main.ArrowPoints(new Vector2(100, 100), Vector2.Zero, 10) is null);
 
     [Test]
-    public void EverythingOnTheMapDraws()
+    public void WallsMarkersAndTheArrowAllDraw()
     {
-        TestGame.Set(Busy());
-        var main = new Main { WallJob = new(inline: true) };
-        var drawn = 0;
+        var full = Drawn(Busy(Facing(Vector2.UnitX)));
 
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            main.Tick();
-            var before = Draw.Background.VtxBuffer.Size;
-            main.Render();
-            drawn = Draw.Background.VtxBuffer.Size - before;
-        });
-
-        Check.That(drawn > 0, "walls, markers and the arrow draw");
+        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), entities: false)), "markers draw");
+        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), terrain: false)), "walls draw");
+        Check.That(full > Drawn(Busy(null)), "the arrow draws");
     }
 
     [Test]
-    public void AHiddenMapDrawsNothing()
+    public void AMapHiddenAfterItWasPublishedDrawsNothing() =>
+        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: main => main.Settings.View.Show.Value = false));
+
+    [Test]
+    public void AMapWithoutAViewDrawsNothing() =>
+        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: _ => Map.View = null));
+
+    [Test]
+    public void NonFiniteEntitiesAreSkipped()
     {
-        TestGame.Set(Busy());
-        var main = new Main { WallJob = new(inline: true) };
-        main.Settings.View.Show.Value = false;
-        Map.View = null;
-        var drawn = -1;
+        var player = Facing(Vector2.UnitX);
+        var scene = Scene.State(player: player, entities:
+        [
+            Scene.Entity(EntityKind.Monster, new Vector3(float.NaN, 12, 0)),
+            Scene.Entity(EntityKind.Monster, new Vector3(float.PositiveInfinity, 0, 0)),
+        ]);
 
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            main.Tick();
-            var before = Draw.Background.VtxBuffer.Size;
-            main.Render();
-            drawn = Draw.Background.VtxBuffer.Size - before;
-        });
-
-        Check.Equal(0, drawn);
+        Check.Equal(Drawn(Scene.State(player: player)), Drawn(scene));
     }
 
     [Test]
-    public void ANonFiniteEntityIsSkippedWithoutThrowing()
-    {
-        TestGame.Set(Scene.State(
-            player: new Player(new Vector3(float.NaN, 0, 0), Vector2.UnitX),
-            entities: [Scene.Entity(EntityKind.Monster, new Vector3(float.PositiveInfinity, 0, 0))]));
-        var main = new Main();
-
-        var drawn = Drawn(() =>
-        {
-            main.Tick();
-            main.Render();
-        });
-
-        Check.Equal(0, drawn);
-    }
+    public void ANonFinitePlayerDrawsNothing() =>
+        Check.Equal(0, Drawn(Scene.State(player: new Player(new Vector3(float.NaN, 0, 0), Vector2.UnitX), entities: [Scene.Entity(EntityKind.Monster, new Vector3(float.PositiveInfinity, 0, 0))])));
 
     [Test]
     public void AHiddenKindDrawsLessThanAShownOne()
     {
-        TestGame.Set(Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), entities: [Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0))]));
-        var shown = new Main();
-        var hidden = new Main();
-        hidden.Settings.Markers.Portal.Show.Value = false;
+        var scene = Scene.State(player: Facing(Vector2.UnitX), entities: [Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0))]);
 
-        var withMarker = Drawn(() =>
-        {
-            shown.Tick();
-            shown.Render();
-        });
-        var without = Drawn(() =>
-        {
-            hidden.Tick();
-            hidden.Render();
-        });
+        var withMarker = Drawn(scene);
+        var without = Drawn(scene, configure: main => main.Settings.Markers.Portal.Show.Value = false);
 
         Check.That(withMarker > without, "the portal marker adds vertices");
+    }
+
+    [Test]
+    public void TheArrowPointsUpTheScreenForPositiveY()
+    {
+        var tip = FarthestFromPlayer(Vector2.UnitY);
+
+        Check.That(tip.Y < 0 && MathF.Abs(tip.X) < 1, "logic +Y is screen up");
+    }
+
+    [Test]
+    public void TheArrowPointsRightForPositiveX()
+    {
+        var tip = FarthestFromPlayer(Vector2.UnitX);
+
+        Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "logic +X is screen right");
+    }
+
+    [Test]
+    public void ANonFiniteForwardGivesNoArrow()
+    {
+        Check.That(Main.ArrowPoints(new Vector2(100, 100), new Vector2(float.NaN, 1), 10) is null, "NaN");
+        Check.That(Main.ArrowPoints(new Vector2(100, 100), new Vector2(float.PositiveInfinity, 0), 10) is null, "infinity");
     }
 }

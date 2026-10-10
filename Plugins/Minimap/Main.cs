@@ -45,13 +45,15 @@ public sealed class Main : Plugin<Settings>
         var viewport = ImGui.GetIO().DisplaySize;
         var state = Game.State;
 
+        var wallColour = Settings.View.WallColour.Value;
+        var wallThickness = Settings.View.WallThickness.Value;
         using (Draw.Layer(DrawLayer.Back))
         {
             for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
             {
                 var a = map.ToScreen(_walls.Lines[i]);
                 var b = map.ToScreen(_walls.Lines[i + 1]);
-                if (Visible(a, b, viewport)) Draw.Line(a, b, Settings.View.WallColour.Value, Settings.View.WallThickness.Value);
+                if (Visible(a, b, viewport)) Draw.Line(a, b, wallColour, wallThickness);
             }
         }
 
@@ -82,7 +84,7 @@ public sealed class Main : Plugin<Settings>
 
     internal static (Vector2 Tip, Vector2 Left, Vector2 Right)? ArrowPoints(Vector2 at, Vector2 forward, float size)
     {
-        if (!(forward.LengthSquared() > 1e-6f)) return null;
+        if (!(float.IsFinite(forward.X) && float.IsFinite(forward.Y) && forward.LengthSquared() > 1e-6f)) return null;
         var direction = Vector2.Normalize(forward);
         var side = new Vector2(-direction.Y, direction.X);
         var back = at - direction * size * 0.6f;
