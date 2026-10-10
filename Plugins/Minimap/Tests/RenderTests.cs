@@ -148,7 +148,7 @@ public sealed class RenderTests
     [Test]
     public void TheArrowPointsUpTheScreenForPositiveY()
     {
-        var tip = FarthestFromPlayer(Vector2.UnitY);
+        var tip = FarthestFromPlayer(new Vector2(0, 1));
 
         Check.That(tip.Y < 0 && MathF.Abs(tip.X) < 1, "logic +Y is screen up");
     }
