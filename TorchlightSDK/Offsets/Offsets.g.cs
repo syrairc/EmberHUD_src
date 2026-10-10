@@ -2,7 +2,7 @@ namespace TorchlightSDK.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0xB2, 0x98, 0xB2, 0x54, 0x9F, 0x48, 0x5D, 0x67, 0x68, 0x6D, 0x9A, 0xD7, 0x97, 0x4F, 0x4F, 0x38, 0x02, 0x4C, 0x25, 0x03, 0xDF, 0xC5, 0xB6, 0x74, 0x0C, 0x6E, 0xDF, 0xAB, 0x42, 0x98, 0x65, 0x8A];
+    internal static ReadOnlySpan<byte> Seed => [0x8B, 0xF9, 0xC5, 0x2C, 0x1F, 0x08, 0x96, 0x88, 0x83, 0x80, 0xCD, 0x3E, 0x6D, 0x01, 0xCB, 0x88, 0x6C, 0xA7, 0x8C, 0x0B, 0x84, 0xE1, 0xB8, 0x45, 0x85, 0xAE, 0x74, 0x1D, 0x2A, 0x28, 0x13, 0x3F];
     internal static int KnownExeSize => T[0];
     internal static int LogicWorldGlobalRva => T[1];
     internal static int WorldScene => T[2];
@@ -59,14 +59,16 @@ internal static partial class Offsets
     internal static int EntityAlive => T[53];
     internal static int EntityHasPosition => T[54];
     internal static int EntityPosition => T[55];
-    internal static int PositionX => T[56];
-    internal static int MaxEntities => T[57];
-    internal static int MaxMapElements => T[58];
-    internal static int ParkedZ => T[59];
-    internal static int MaxStepPerRead => T[60];
-    internal static int MinMoveTenths => T[61];
-    internal static int MaxBuckets => T[62];
-    internal static int MaxChain => T[63];
-    internal static int MaxCells => T[64];
-    internal static int PebImageBase => T[65];
+    internal static int EntityRole => T[56];
+    internal static int RoleRarity => T[57];
+    internal static int PositionX => T[58];
+    internal static int MaxEntities => T[59];
+    internal static int MaxMapElements => T[60];
+    internal static int ParkedZ => T[61];
+    internal static int MaxStepPerRead => T[62];
+    internal static int MinMoveTenths => T[63];
+    internal static int MaxBuckets => T[64];
+    internal static int MaxChain => T[65];
+    internal static int MaxCells => T[66];
+    internal static int PebImageBase => T[67];
 }

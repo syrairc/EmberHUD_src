@@ -127,7 +127,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             memory.TryRead(record + Offsets.MonsterRecordCfgId, out uint monsterCfgId) && monsterCfgId != 0)
         {
             cfgId = monsterCfgId;
-            rarity = _rarity.Read(monsterCfgId);
+            rarity = _rarity.Read(monsterCfgId, entity);
         }
 
         result = new Entity(id, (int)cfgId, position, kind, rarity);

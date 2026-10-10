@@ -64,6 +64,8 @@ EntityCfgId = 28
 EntityAlive = 34
 EntityHasPosition = 140
 EntityPosition = 920
+EntityRole = 752
+RoleRarity = 32
 PositionX = 40
 
 MaxEntities = 4096

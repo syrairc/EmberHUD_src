@@ -330,6 +330,21 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void MonsterRarityComesFromTheRoleBlockAndNotForOtherKinds()
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1170006, 1), (190200, 4));
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1170006, role: 1),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 1170006, role: 2),
+            world.AddEntity(3, 48, true, 3, 3, 0, monsterCfgId: 1170006, role: 3),
+            world.AddEntity(4, 48, true, 4, 4, 0, monsterCfgId: 190200, role: 2),
+            world.AddEntity(5, 48, true, 5, 5, 0, mapOffset: Offsets.FightMapNpc, monsterCfgId: 1170006, role: 3));
+        var rarity = Read(world).ToDictionary(e => e.Id, e => e.Rarity);
+        Assert.Equal([Rarity.Normal, Rarity.Magic, Rarity.Rare, Rarity.Boss, Rarity.Normal], new[] { 1, 2, 3, 4, 5 }.Select(i => rarity[i]));
+    }
+
+    [Fact]
     public void BucketCountOfZeroOrNothingPublishedGivesNoEntities()
     {
         var world = new FakeWorld();

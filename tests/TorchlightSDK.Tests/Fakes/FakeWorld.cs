@@ -43,7 +43,7 @@ internal sealed class FakeWorld
 
     public List<long> Nodes { get; } = [];
 
-    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null)
+    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null)
     {
         var map = mapOffset ?? Offsets.FightMapMonster;
         var entity = Alloc(0x400);
@@ -53,6 +53,13 @@ internal sealed class FakeWorld
         Memory.Write(entity + Offsets.EntityHasPosition, (byte)(hasPosition ? 1 : 0));
         Memory.Write(entity + Offsets.EntityPosition, block);
         Memory.WriteArray(block + Offsets.PositionX, new[] { x, y, z });
+        if (role is { } roleValue)
+        {
+            var roleBlock = Alloc(0x80);
+            Memory.Write(entity + Offsets.EntityRole, roleBlock);
+            Memory.Write(roleBlock + Offsets.RoleRarity, roleValue);
+        }
+
         var value = map == Unregistered ? 0 : Alloc(0x400);
         if (value != 0 && monsterCfgId is { } monsterCfg)
         {

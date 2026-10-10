@@ -4,23 +4,33 @@ namespace TorchlightSDK.Host.Reading;
 
 internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
 {
-    private readonly Dictionary<uint, Rarity> _found = [];
+    private readonly Dictionary<uint, uint> _tiers = [];
 
-    public Rarity Read(uint configId)
+    public Rarity Read(uint configId, nint entity)
     {
-        if (_found.TryGetValue(configId, out var cached))
-            return cached;
-        if (!TryReadTier(configId, out var tier))
-            return Rarity.Normal;
-
-        var rarity = tier switch
+        var tier = ReadTier(configId);
+        var role = memory.TryReadPtr(entity + Offsets.EntityRole, out var block) && memory.TryRead(block + Offsets.RoleRarity, out int value) ? value : 0;
+        return (tier, role) switch
         {
-            2 => Rarity.Rare,
-            4 => Rarity.Boss,
+            (4, _) => Rarity.Boss,
+            (_, 1) => Rarity.Normal,
+            (_, 2) => Rarity.Magic,
+            (_, 3) => Rarity.Rare,
+            (_, >= 4) => Rarity.Boss,
+            (2, _) => Rarity.Rare,
             _ => Rarity.Normal,
         };
-        _found[configId] = rarity;
-        return rarity;
+    }
+
+    private uint ReadTier(uint configId)
+    {
+        if (_tiers.TryGetValue(configId, out var cached))
+            return cached;
+        if (!TryReadTier(configId, out var tier))
+            return 0;
+
+        _tiers[configId] = tier;
+        return tier;
     }
 
     private bool TryReadTier(uint configId, out uint tier)
