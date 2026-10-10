@@ -6,9 +6,9 @@ namespace TorchlightSDK.Host.Reading;
 
 internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0)
 {
-    private readonly record struct GridKey(nint Cells, int Cols, int Rows);
+    private readonly record struct GridKey(int Cols, int Rows, int CellSize, Vector2 Origin, bool OddRowShift);
 
-    private readonly record struct Header(GridKey Key, nint Grid, bool IsHybrid, int CellSize, Vector2 Origin, bool OddRowShift);
+    private readonly record struct Header(GridKey Key, nint Grid, nint Cells, bool IsHybrid);
 
     private GridKey _key;
     private Terrain? _terrain;
@@ -62,15 +62,15 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
             !double.IsFinite(shift) || !double.IsFinite(originX) || !double.IsFinite(originY))
             return false;
 
-        header = new Header(new GridKey(cells, cols, rows), grid, hybrid != 0, cellSize, new Vector2((float)originX, (float)originY), shift != 0);
+        header = new Header(new GridKey(cols, rows, cellSize, new Vector2((float)originX, (float)originY), shift != 0), grid, cells, hybrid != 0);
         return true;
     }
 
     private Terrain? Build(Header header)
     {
-        var (cells, cols, rows) = header.Key;
+        var (cols, rows, cellSize, origin, oddRowShift) = header.Key;
         var count = cols * rows;
-        if (!memory.TryReadArray(cells, count * Offsets.CellStride, out byte[] dense))
+        if (!memory.TryReadArray(header.Cells, count * Offsets.CellStride, out byte[] dense))
             return null;
 
         var walkable = new BitArray(count);
@@ -80,7 +80,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
         if (header.IsHybrid && !ClearUniformBlocks(header, walkable))
             return null;
 
-        return new Terrain(cols, rows, header.CellSize, header.Origin, header.OddRowShift, walkable);
+        return new Terrain(cols, rows, cellSize, origin, oddRowShift, walkable);
     }
 
     private bool ClearUniformBlocks(Header header, BitArray walkable)
@@ -97,7 +97,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
             !memory.TryReadArray(maskAddress, blockCount, out byte[] mask))
             return false;
 
-        var (_, cols, rows) = header.Key;
+        var (cols, rows, _, _, _) = header.Key;
         for (var row = 0; row < rows; row++)
             for (var col = 0; col < cols; col++)
             {

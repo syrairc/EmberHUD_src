@@ -2,6 +2,8 @@ using TorchlightSDK.Host;
 
 namespace TorchlightSDK.Tests;
 
+internal readonly record struct FakeEntity(uint Id, long Address);
+
 internal sealed class FakeWorld
 {
     public const long ModuleBase = 0x1_4000_0000;
@@ -30,24 +32,43 @@ internal sealed class FakeWorld
         return address;
     }
 
-    public long AddEntity(uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true)
+    public List<long> Nodes { get; } = [];
+
+    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, bool hasRole = true)
     {
         var entity = Alloc(0x400);
         var block = Alloc(0x80);
         Memory.Write(entity + Offsets.EntityCfgId, cfgId);
         Memory.Write(entity + Offsets.EntityAlive, (byte)(alive ? 1 : 0));
+        Memory.Write(entity + Offsets.EntityHasRole, (byte)(hasRole ? 1 : 0));
         Memory.Write(entity + Offsets.EntityHasPosition, (byte)(hasPosition ? 1 : 0));
         Memory.Write(entity + Offsets.EntityPosition, block);
         Memory.WriteArray(block + Offsets.PositionX, new[] { x, y, z });
-        return entity;
+        return new FakeEntity(id, entity);
     }
 
-    public void PublishEntities(params long[] entities)
+    public void PublishEntities(params FakeEntity[] entities) => PublishEntities(3, entities);
+
+    public void PublishEntities(int bucketCount, params FakeEntity[] entities)
     {
-        var array = Alloc(Math.Max(8, entities.Length * 8));
-        Memory.WriteArray(array, entities);
-        Memory.Write(Scene + Offsets.SceneEntityArray, array);
-        Memory.Write(Scene + Offsets.SceneEntityCount, (uint)entities.Length);
+        var buckets = new long[bucketCount];
+        Nodes.Clear();
+        foreach (var (id, address) in entities)
+        {
+            var node = Alloc(0x20);
+            var bucket = (int)(id % bucketCount);
+            Memory.Write(node + Offsets.NodeKey, id);
+            Memory.Write(node + Offsets.NodeEntity, address);
+            Memory.Write(node + 16, (long)id);
+            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
+            buckets[bucket] = node;
+            Nodes.Add(node);
+        }
+
+        var array = Alloc(Math.Max(8, bucketCount * 8));
+        Memory.WriteArray(array, buckets);
+        Memory.Write(Scene + Offsets.SceneEntityBuckets, array);
+        Memory.Write(Scene + Offsets.SceneEntityBucketCount, (uint)bucketCount);
     }
 
     public long GridAddress { get; private set; }

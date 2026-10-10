@@ -11,7 +11,7 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1]);
-        world.PublishEntities(world.AddEntity(77, true, 50, 60, 0));
+        world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
         using var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out var failure));
         Assert.Null(failure);
@@ -43,9 +43,23 @@ public class LiveReaderTests
         world.PublishEntities();
         using var reader = ReaderFor(world);
         reader.TryRead(out var first, out _);
-        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.SetGrid(5, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         reader.TryRead(out var second, out _);
         Assert.Equal(first.AreaId + 1, second.AreaId);
+    }
+
+    [Fact]
+    public void BufferSwapWithTheSameGridKeepsTheAreaIdAndTerrain()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities();
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var first, out _);
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        reader.TryRead(out var second, out _);
+        Assert.Same(first.Terrain, second.Terrain);
+        Assert.Equal(first.AreaId, second.AreaId);
     }
 
     [Fact]
@@ -73,7 +87,7 @@ public class LiveReaderTests
     public void NoGridStillGivesEntities()
     {
         var world = new FakeWorld();
-        world.PublishEntities(world.AddEntity(1, true, 1, 2, 3));
+        world.PublishEntities(world.AddEntity(1, 1, true, 1, 2, 3));
         using var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Terrain);

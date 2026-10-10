@@ -1,11 +1,15 @@
 KnownExeSize = 123144120
 LogicWorldGlobalRva = 0x69331B8
-WorldScene = 8
+WorldScene = 16
 
 SceneGeometry = 96
 SceneGridModule = 176
-SceneEntityArray = 0x568
-SceneEntityCount = 0x570
+SceneEntityBuckets = 16
+SceneEntityBucketCount = 28
+
+NodeKey = 0
+NodeEntity = 8
+NodeNext = 24
 
 GeometryCellSize = 56
 GeometryOddRowShift = 88
@@ -27,10 +31,13 @@ CellClearance = 0
 
 EntityCfgId = 28
 EntityAlive = 34
+EntityHasRole = 119
 EntityHasPosition = 140
 EntityPosition = 920
 PositionX = 40
 
 MaxEntities = 4096
+MaxBuckets = 100000
+MaxChain = 64
 MaxCells = 4000000
 PebImageBase = 0x10

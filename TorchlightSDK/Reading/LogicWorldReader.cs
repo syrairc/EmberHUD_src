@@ -26,32 +26,51 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 
     public Entity[] ReadEntities(nint scene)
     {
-        if (!memory.TryReadPtr(scene + Offsets.SceneEntityArray, out var array) ||
-            !memory.TryRead(scene + Offsets.SceneEntityCount, out uint count) ||
-            count > Offsets.MaxEntities ||
-            !memory.TryReadArray(array, (int)count, out nint[] pointers))
+        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
+            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
+            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
+            !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
             return [];
 
-        var entities = new List<Entity>(pointers.Length);
-        foreach (var pointer in pointers)
-            if (TryReadEntity(pointer, out var entity))
-                entities.Add(entity);
+        var entities = new List<Entity>();
+        var nodeCount = 0;
+        foreach (var head in buckets)
+        {
+            var chainLength = 0;
+            for (var node = head; node != 0; )
+            {
+                if (++chainLength > Offsets.MaxChain || ++nodeCount > Offsets.MaxEntities ||
+                    !memory.TryRead(node + Offsets.NodeKey, out uint id) ||
+                    !memory.TryRead(node + Offsets.NodeEntity, out nint entity) ||
+                    !memory.TryRead(node + Offsets.NodeNext, out nint next))
+                    return [];
+
+                if (TryReadEntity(entity, id, out var result))
+                    entities.Add(result);
+                node = next;
+            }
+        }
+
         return [.. entities];
     }
 
-    private bool TryReadEntity(nint entity, out Entity result)
+    private bool TryReadEntity(nint entity, uint id, out Entity result)
     {
         result = default;
         if (entity == 0 ||
             !memory.TryRead(entity + Offsets.EntityAlive, out byte alive) || alive == 0 ||
+            !memory.TryRead(entity + Offsets.EntityHasRole, out byte hasRole) || hasRole == 0 ||
             !memory.TryRead(entity + Offsets.EntityHasPosition, out byte hasPosition) || hasPosition == 0 ||
             !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) ||
             !memory.TryReadPtr(entity + Offsets.EntityPosition, out var block) ||
-            !memory.TryReadArray(block + Offsets.PositionX, 3, out double[] xyz) ||
-            !xyz.All(double.IsFinite))
+            !memory.TryReadArray(block + Offsets.PositionX, 3, out double[] xyz))
             return false;
 
-        result = new Entity((int)(entity >> 4), (int)cfgId, new Vector3((float)xyz[0], (float)xyz[1], (float)xyz[2]), EntityKind.Monster, Rarity.Normal);
+        var position = new Vector3((float)xyz[0], (float)xyz[1], (float)xyz[2]);
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z))
+            return false;
+
+        result = new Entity(unchecked((int)id), (int)cfgId, position, EntityKind.Monster, Rarity.Normal);
         return true;
     }
 }
