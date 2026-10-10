@@ -58,7 +58,7 @@ public sealed class MainTests
     public void TickPublishesTheViewForOtherPlugins()
     {
         TestGame.Set(InArea());
-        var main = new Main();
+        var main = new Main { WallJob = new(inline: true) };
         Map.View = null;
 
         TestFrame.Run(main.Tick);
@@ -70,7 +70,7 @@ public sealed class MainTests
     public void AHiddenMapPublishesNoView()
     {
         TestGame.Set(InArea());
-        var main = new Main();
+        var main = new Main { WallJob = new(inline: true) };
         main.Settings.View.Show.Value = false;
         Map.View = null;
 
@@ -83,7 +83,7 @@ public sealed class MainTests
     public void TheToggleHotkeyFlipsVisibility()
     {
         TestGame.Set(InArea());
-        var main = new Main();
+        var main = new Main { WallJob = new(inline: true) };
         try
         {
             TestInput.Hold();
@@ -103,7 +103,7 @@ public sealed class MainTests
     public void ZoomHotkeysScaleAndClamp()
     {
         TestGame.Set(InArea());
-        var main = new Main();
+        var main = new Main { WallJob = new(inline: true) };
         main.Settings.View.Zoom.Value = main.Settings.View.Zoom.Max;
         try
         {

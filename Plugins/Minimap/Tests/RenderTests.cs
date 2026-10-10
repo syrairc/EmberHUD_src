@@ -127,7 +127,10 @@ public sealed class RenderTests
             Scene.Entity(EntityKind.Monster, new Vector3(float.PositiveInfinity, 0, 0)),
         ]);
 
-        Check.Equal(Drawn(Scene.State(player: player)), Drawn(scene));
+        var baseline = Drawn(Scene.State(player: player));
+
+        Check.That(baseline > 0, "the baseline draws something");
+        Check.Equal(baseline, Drawn(scene));
     }
 
     [Test]
