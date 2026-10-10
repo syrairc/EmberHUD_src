@@ -1,0 +1,351 @@
+using System.Collections.Generic;
+using System.Drawing;
+using TorchlightSDK.Testing;
+using TorchlightSDK.Ui;
+using Hexa.NET.ImGui;
+
+namespace TorchlightSDK.Api.Tests;
+
+public sealed class DrawTests
+{
+    static readonly Vector2 Centre = new(100, 50);
+
+    [Theory]
+    [InlineData(Align.TopLeft, 0, 0)]
+    [InlineData(Align.Center, 20, 0)]
+    [InlineData(Align.Right, 40, 0)]
+    [InlineData(Align.Middle, 0, 5)]
+    [InlineData(Align.Bottom, 0, 10)]
+    [InlineData(Align.Center | Align.Middle, 20, 5)]
+    [InlineData(Align.Right | Align.Bottom, 40, 10)]
+    public void AlignOffsetMovesTheTopLeftCorner(Align align, float x, float y) => Assert.Equal(new Vector2(x, y), Draw.AlignOffset(new Vector2(40, 10), align));
+
+    [Fact]
+    public void ArrowHeadSitsBehindTheTipOnBothSides()
+    {
+        Assert.Equal((new Vector2(6, 2), new Vector2(6, -2)), Draw.ArrowHead(Vector2.Zero, new Vector2(10, 0), 4));
+        Assert.Null(Draw.ArrowHead(new Vector2(3, 3), new Vector2(3, 3), 4));
+    }
+
+    [Fact]
+    public void RotatedQuadFacingUpTurnsTheSpriteLikeAPlayerArrow() =>
+        Assert.Equal((new Vector2(110, 40), new Vector2(110, 60), new Vector2(90, 60), new Vector2(90, 40)), Draw.RotatedQuad(Centre, new Vector2(20), new Vector2(0, -1)));
+
+    [Fact]
+    public void RotatedQuadFacingRight() =>
+        Assert.Equal((new Vector2(110, 60), new Vector2(90, 60), new Vector2(90, 40), new Vector2(110, 40)), Draw.RotatedQuad(Centre, new Vector2(20), new Vector2(1, 0)));
+
+    [Fact]
+    public void RotatedQuadOnlyCaresAboutTheDirection() =>
+        Assert.Equal((new Vector2(90, 60), new Vector2(90, 40), new Vector2(110, 40), new Vector2(110, 60)), Draw.RotatedQuad(Centre, new Vector2(20), new Vector2(0, 5)));
+
+    [Fact]
+    public void RotatedQuadUsesSizeXAcrossAndSizeYAlong() =>
+        Assert.Equal((new Vector2(105, 40), new Vector2(105, 60), new Vector2(95, 60), new Vector2(95, 40)), Draw.RotatedQuad(Centre, new Vector2(20, 10), new Vector2(0, -1)));
+
+    [Fact]
+    public void RotatedQuadWithoutADirectionIsNull() => Assert.Null(Draw.RotatedQuad(Centre, new Vector2(20), Vector2.Zero));
+
+    [Fact]
+    public void EveryMethodDrawsInsideAFrame() => TestFrame.Run(() =>
+    {
+        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
+        Assert.Equal(Draw.MeasureText("hello"), Draw.Text("hello", new Vector2(10, 10), Color.White));
+        Assert.True(Draw.MeasureText("abc", 26).Y > Draw.MeasureText("abc", 13).Y);
+        Assert.True(Draw.MeasureText("abc", mono: true).X > 0);
+        Draw.TextOutlined("outlined", new Vector2(10, 30), Color.White, Color.Black, 2, Align.Center | Align.Middle);
+        Draw.TextShadow("shadow", new Vector2(10, 50), Color.White, Color.Black);
+        Assert.Equal(Draw.MeasureText("box") + new Vector2(8, 4), Draw.TextBackground("box", new Vector2(10, 70), Color.White, Color.DarkSlateGray, rounding: 3));
+        Draw.Line(Vector2.Zero, new Vector2(50), Color.Red, 2);
+        Draw.Polyline([new Vector2(0, 0), new Vector2(5, 5), new Vector2(9, 0)], Color.Red, closed: true);
+        Draw.Polyline([new Vector2(1, 1)], Color.Red);
+        Draw.Arrow(Vector2.Zero, new Vector2(40, 0), Color.Red);
+        Draw.Arrow(Vector2.Zero, Vector2.Zero, Color.Red);
+        Draw.Rect(Vector2.Zero, new Vector2(20), Color.Red, 1, 2);
+        Draw.RectFilled(Vector2.Zero, new Vector2(20), Color.Red, 2);
+        Draw.Circle(new Vector2(30), 5, Color.Red);
+        Draw.CircleFilled(new Vector2(30), 5, Color.Red, 12);
+        Draw.Triangle(Vector2.Zero, new Vector2(5, 0), new Vector2(0, 5), Color.Red);
+        Draw.TriangleFilled(Vector2.Zero, new Vector2(5, 0), new Vector2(0, 5), Color.Red);
+        Draw.Quad(Vector2.Zero, new Vector2(5, 0), new Vector2(5), new Vector2(0, 5), Color.Red);
+        Draw.QuadFilled(Vector2.Zero, new Vector2(5, 0), new Vector2(5), new Vector2(0, 5), Color.Red);
+        Draw.ConvexPolyFilled([new Vector2(0, 0), new Vector2(5, 0), new Vector2(5, 5)], Color.Red);
+        Draw.Glow(Centre, 12, Color.Gold, 4);
+        Draw.Marker(Centre, 5, Color.Red, MarkerShape.Dot, 1);
+        Draw.Marker(Centre, 6, Color.Red, MarkerShape.Star, 1);
+        foreach (var shape in Enum.GetValues<MarkerShape>()) Draw.Marker(Centre, 6, Color.Red, shape, 1);
+        Draw.Icon("marker:Hexagon", Centre, 6, Color.Red, null, 1);
+        Draw.Image(sprite, Vector2.Zero, new Vector2(16), list: Draw.Foreground);
+        Draw.ImageRotated(sprite, Centre, new Vector2(16), new Vector2(0, -1), Color.Gold);
+        Draw.ImageRotated(sprite, Centre, new Vector2(16), Vector2.Zero);
+        using (Draw.Clip(Vector2.Zero, new Vector2(50))) Draw.Line(Vector2.Zero, new Vector2(100), Color.Red);
+    });
+
+    [Fact]
+    public void FontScopesSetTheSizeAndPopCleanly() => TestFrame.Run(() =>
+    {
+        using (Fonts.UseMono(20)) Assert.Equal(20f, ImGui.GetFontSize());
+        using (Fonts.UseRegular(18)) Assert.Equal(18f, ImGui.GetFontSize());
+    });
+
+    [Fact]
+    public void BackDrawsUnderMiddleAndTheScopePutsTheChannelBack() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        using (Draw.Layer(DrawLayer.Front)) Draw.Line(Vector2.Zero, new Vector2(5), Color.Red);
+        Draw.ResetLayer();
+        Draw.MergeLayers();
+        var start = list.IdxBuffer.Size;
+        Draw.SplitLayers();
+        Assert.Equal((int)DrawLayer.Middle, list.Splitter.Current);
+        Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red);
+        using (Draw.Layer(DrawLayer.Back))
+        {
+            Assert.Equal((int)DrawLayer.Back, list.Splitter.Current);
+            Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Blue);
+        }
+        Assert.Equal((int)DrawLayer.Middle, list.Splitter.Current);
+        Draw.MergeLayers();
+        Assert.Equal(EColor.U32(Color.Blue), list.VtxBuffer[list.IdxBuffer[start]].Col);
+        Assert.Equal(EColor.U32(Color.Red), list.VtxBuffer[list.IdxBuffer[start + 6]].Col);
+    });
+
+    [Fact]
+    public void ResetLayerPutsAnAbandonedFrontChannelBackToMiddle() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        Draw.SplitLayers();
+        list.ChannelsSetCurrent((int)DrawLayer.Front);
+        Draw.ResetLayer();
+        Assert.Equal((int)DrawLayer.Middle, list.Splitter.Current);
+        Draw.MergeLayers();
+        Assert.Equal(1, list.Splitter.Count);
+    });
+
+    [Fact]
+    public void ImageRotatedPutsTheQuadCornersAndUvsWhereTheConventionSays() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
+        var start = list.VtxBuffer.Size;
+        Draw.ImageRotated(new Sprite(texture, new Vector2(0.25f, 0.5f), new Vector2(0.75f, 1)), Centre, new Vector2(20), new Vector2(1, 0), Color.Gold);
+        Assert.Equal(4, list.VtxBuffer.Size - start);
+        var expected = new[] { (new Vector2(110, 60), new Vector2(0.25f, 0.5f)), (new Vector2(90, 60), new Vector2(0.75f, 0.5f)), (new Vector2(90, 40), new Vector2(0.75f, 1)), (new Vector2(110, 40), new Vector2(0.25f, 1)) };
+        for (var i = 0; i < 4; i++)
+        {
+            var vertex = list.VtxBuffer[start + i];
+            Assert.Equal(expected[i].Item1, vertex.Pos);
+            Assert.Equal(expected[i].Item2, vertex.Uv);
+            Assert.Equal(EColor.U32(Color.Gold), vertex.Col);
+        }
+        var before = list.VtxBuffer.Size;
+        Draw.ImageRotated(new Sprite(texture, Vector2.Zero, Vector2.One), Centre, new Vector2(20), Vector2.Zero);
+        Assert.Equal(before, list.VtxBuffer.Size);
+    });
+
+    [Fact]
+    public void TextOutlinedDrawsEightRingCopiesThenTheTextAndShadowDrawsTwo() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var singleStart = list.VtxBuffer.Size;
+        Draw.Text("A", new Vector2(10, 10), Color.White);
+        var single = list.VtxBuffer.Size - singleStart;
+        Assert.True(single > 0);
+
+        var outlinedStart = list.VtxBuffer.Size;
+        Draw.TextOutlined("A", new Vector2(10, 10), Color.White, Color.Black, 2);
+        Assert.Equal(single * 9, list.VtxBuffer.Size - outlinedStart);
+        Assert.Equal(EColor.U32(Color.Black), list.VtxBuffer[outlinedStart].Col);
+        Assert.Equal(EColor.U32(Color.White), list.VtxBuffer[list.VtxBuffer.Size - 1].Col);
+
+        var shadowStart = list.VtxBuffer.Size;
+        Draw.TextShadow("A", new Vector2(10, 10), Color.White, Color.Black);
+        Assert.Equal(single * 2, list.VtxBuffer.Size - shadowStart);
+        Assert.Equal(list.VtxBuffer[shadowStart + single].Pos + Vector2.One, list.VtxBuffer[shadowStart].Pos);
+    });
+
+    [Fact]
+    public void TextAlignmentMovesTheDrawnGlyphsByTheMeasuredOffset() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var size = Draw.MeasureText("A");
+        var leftStart = list.VtxBuffer.Size;
+        Draw.Text("A", new Vector2(50, 50), Color.White);
+        var rightStart = list.VtxBuffer.Size;
+        Draw.Text("A", new Vector2(50, 50), Color.White, Align.Right | Align.Bottom);
+        Assert.Equal(list.VtxBuffer[leftStart].Pos - size, list.VtxBuffer[rightStart].Pos);
+    });
+
+    [Fact]
+    public void TextBackgroundFillsThePaddedBoxOnlyWhenTheBackgroundIsVisible() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.TextBackground("A", new Vector2(10, 10), Color.White, Color.FromArgb(0, 0, 0, 0));
+        var withoutFill = list.VtxBuffer.Size - start;
+        var filledStart = list.VtxBuffer.Size;
+        Draw.TextBackground("A", new Vector2(10, 10), Color.White, Color.Red);
+        Assert.Equal(withoutFill + 4, list.VtxBuffer.Size - filledStart);
+        Assert.Equal(new Vector2(6, 8), list.VtxBuffer[filledStart].Pos);
+        Assert.Equal(EColor.U32(Color.Red), list.VtxBuffer[filledStart].Col);
+    });
+
+    [Fact]
+    public void ClipScopePopsTheClipRectOnDispose() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var top = () => list.ClipRectStack[list.ClipRectStack.Size - 1];
+        var outer = top();
+        using (Draw.Clip(new Vector2(10, 10), new Vector2(50, 50))) Assert.Equal(new Vector4(10, 10, 50, 50), top());
+        Assert.Equal(outer, top());
+    });
+
+    [Fact]
+    public void ArrowPolylineAndConvexPolySkipDegenerateInput() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Arrow(Vector2.Zero, Vector2.Zero, Color.Red);
+        Draw.Polyline([new Vector2(1, 1)], Color.Red);
+        Draw.ConvexPolyFilled([new Vector2(1, 1), new Vector2(2, 2)], Color.Red);
+        Assert.Equal(start, list.VtxBuffer.Size);
+        Draw.Arrow(Vector2.Zero, new Vector2(40, 0), Color.Red);
+        Assert.True(list.VtxBuffer.Size > start);
+    });
+
+    [Fact]
+    public void StarPointsStartAtTheTopAndAlternateOuterAndInner()
+    {
+        Span<Vector2> star = stackalloc Vector2[8];
+        Draw.StarPoints(star, Centre, 10, 4);
+        Assert.Equal(new Vector2(100, 40), star[0]);
+        Assert.True(Vector2.Distance(new Vector2(110, 50), star[2]) < 1e-3f);
+        for (var i = 1; i < star.Length; i += 2) Assert.Equal(4, Vector2.Distance(Centre, star[i]), 3);
+    }
+
+    [Fact]
+    public void GlowIsSolidInsideTheInnerRadiusAndFadesToClearAtTheEdge() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        var colour = Color.FromArgb(100, 200, 150, 50);
+        Draw.Glow(Centre, 20, colour, 8);
+        Assert.Equal(65, list.VtxBuffer.Size - start);
+        Assert.Equal(Centre, list.VtxBuffer[start].Pos);
+        Assert.Equal(EColor.U32(colour), list.VtxBuffer[start].Col);
+        Assert.Equal(new Vector2(108, 50), list.VtxBuffer[start + 1].Pos);
+        Assert.Equal(EColor.U32(colour), list.VtxBuffer[start + 1].Col);
+        Assert.Equal(new Vector2(120, 50), list.VtxBuffer[start + 2].Pos);
+        Assert.Equal(EColor.U32(Color.FromArgb(0, colour)), list.VtxBuffer[start + 2].Col);
+        var before = list.VtxBuffer.Size;
+        Draw.Glow(Centre, 0, colour);
+        Draw.Glow(Centre, 20, Color.FromArgb(0, colour));
+        Assert.Equal(before, list.VtxBuffer.Size);
+    });
+
+    [Fact]
+    public void ADotMarkerFillsItsRadiusAndGlowOnlyAddsTheHalo() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 6, Color.Red);
+        var plain = list.VtxBuffer.Size - start;
+        var furthest = 0f;
+        for (var i = start; i < start + plain; i++)
+            if (list.VtxBuffer[i].Col == EColor.U32(Color.Red)) furthest = MathF.Max(furthest, Vector2.Distance(Centre, list.VtxBuffer[i].Pos));
+        Assert.InRange(furthest, 5.4f, 6f);
+
+        var glowing = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 6, Color.Red, glow: 1);
+        Assert.Equal(plain + 65, list.VtxBuffer.Size - glowing);
+        Assert.Equal(EColor.U32(Color.FromArgb(51, Color.Red)), list.VtxBuffer[glowing].Col);
+        Assert.Equal(6 * 2.2f, Vector2.Distance(Centre, list.VtxBuffer[glowing + 2].Pos), 3);
+
+        var none = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 0, Color.Red, glow: 1);
+        Assert.Equal(none, list.VtxBuffer.Size);
+    });
+
+    [Fact]
+    public void ABadgeMarkerIsADarkDiscWithAColouredRingAndStar() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 8, Color.Red, MarkerShape.Star);
+        var coloured = new List<Vector2>();
+        for (var i = start; i < list.VtxBuffer.Size; i++)
+            if (list.VtxBuffer[i].Col == EColor.U32(Color.Red)) coloured.Add(list.VtxBuffer[i].Pos);
+        Assert.Equal(EColor.U32(Color.FromArgb(0x14, 0x16, 0x1A)), list.VtxBuffer[start].Col);
+        Assert.Contains(coloured, p => Vector2.Distance(Centre, p) < 1f);
+        Assert.Contains(coloured, p => MathF.Abs(p.X - 100) < 1f && p.Y < 47 && p.Y > 44);
+        Assert.All(coloured, p => Assert.True(Vector2.Distance(Centre, p) <= 8.01f));
+    });
+
+    [Theory]
+    [InlineData("marker:Star", true, MarkerShape.Star)]
+    [InlineData("marker:Diamond", true, MarkerShape.Diamond)]
+    [InlineData("marker:Nope", false, MarkerShape.Dot)]
+    [InlineData("marker:99", false, MarkerShape.Dot)]
+    [InlineData("door", false, MarkerShape.Dot)]
+    [InlineData(null, false, MarkerShape.Dot)]
+    public void TryMarkerReadsOnlyPrefixedShapeNames(string? icon, bool ok, MarkerShape shape)
+    {
+        Assert.Equal(ok, Draw.TryMarker(icon, out var parsed));
+        Assert.Equal(shape, parsed);
+    }
+
+    [Fact]
+    public void RegularPointsStartAtTheGivenAngle()
+    {
+        Span<Vector2> square = stackalloc Vector2[4];
+        Draw.RegularPoints(square, Vector2.Zero, 10, 0);
+        Assert.Equal(new Vector2(10, 0), square[0]);
+        Assert.True(Vector2.Distance(new Vector2(0, 10), square[1]) < 1e-4f);
+    }
+
+    [Fact]
+    public void AnIconDrawsTheAtlasSpriteTintedAndFallsBackToADotWhenItIsMissing() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.25f), new Vector2(0.5f)) });
+        var start = list.VtxBuffer.Size;
+        Draw.Icon("door", Centre, 8, Color.Gold, atlas);
+        Assert.Equal(4, list.VtxBuffer.Size - start);
+        Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
+        Assert.Equal(new Vector2(0.25f), list.VtxBuffer[start].Uv);
+        Assert.Equal(EColor.U32(Color.Gold), list.VtxBuffer[start].Col);
+
+        var glowing = list.VtxBuffer.Size;
+        Draw.Icon("door", Centre, 8, Color.Gold, atlas, 1);
+        Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+
+        var marker = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 8, Color.Gold, MarkerShape.Star);
+        var star = list.VtxBuffer.Size - marker;
+        var named = list.VtxBuffer.Size;
+        Draw.Icon("marker:Star", Centre, 8, Color.Gold, atlas);
+        Assert.Equal(star, list.VtxBuffer.Size - named);
+
+        var dot = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 8, Color.Gold);
+        var dotCount = list.VtxBuffer.Size - dot;
+        var missing = list.VtxBuffer.Size;
+        Draw.Icon("not-loaded", Centre, 8, Color.Gold, atlas);
+        Draw.Icon("door", Centre, 8, Color.Gold, null);
+        Assert.Equal(dotCount * 2, list.VtxBuffer.Size - missing);
+    });
+
+    [Fact]
+    public void APolygonMarkerFillsItsCornersInTheColourInsideTheRadius() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Marker(Centre, 8, Color.Red, MarkerShape.Diamond);
+        var coloured = new List<Vector2>();
+        for (var i = start; i < list.VtxBuffer.Size; i++)
+            if (list.VtxBuffer[i].Col == EColor.U32(Color.Red)) coloured.Add(list.VtxBuffer[i].Pos);
+        Assert.NotEmpty(coloured);
+        Assert.All(coloured, p => Assert.True(Vector2.Distance(Centre, p) <= 8.01f));
+        Assert.Contains(coloured, p => MathF.Abs(p.X - 100) < 0.5f && p.Y < 44);
+    });
+}

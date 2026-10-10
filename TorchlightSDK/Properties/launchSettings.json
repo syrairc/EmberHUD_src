@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TorchlightSDK": {
+      "commandName": "Project",
+      "commandLineArgs": "--plugins ..\\..\\..\\..\\Plugins"
+    }
+  }
+}

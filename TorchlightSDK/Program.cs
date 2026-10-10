@@ -1,0 +1,109 @@
+using System.Diagnostics;
+using Hexa.NET.ImGui;
+using TorchlightSDK;
+using TorchlightSDK.Host.Overlay;
+using TorchlightSDK.Host.Plugins;
+using TorchlightSDK.Host.Reading;
+using TorchlightSDK.Host.Ui;
+
+var root = AppContext.BaseDirectory;
+var pluginsDirectory = Path.Combine(root, "Plugins");
+var check = false;
+var fake = false;
+for (var i = 0; i < args.Length; i++)
+{
+    if (args[i] == "--check") check = true;
+    else if (args[i] == "--fake") fake = true;
+    else if (args[i] == "--plugins" && i + 1 < args.Length) pluginsDirectory = Path.GetFullPath(args[++i], root);
+    else
+    {
+        Console.Error.WriteLine($"unknown argument {args[i]} - usage: TorchlightSDK [--plugins <dir>] [--fake] [--check]");
+        return 2;
+    }
+}
+Directory.CreateDirectory(Path.Combine(root, "Logs"));
+
+if (check)
+{
+    var text = new StringWriter();
+    var report = TextWriter.Synchronized(text);
+    Log.Sink = (level, plugin, message) => report.WriteLine($"{level} {(plugin is null ? "" : $"[{plugin}] ")}{message}");
+    var code = CheckRunner.Run(pluginsDirectory, report);
+    File.WriteAllText(Path.Combine(root, "Logs", "check.txt"), text.ToString());
+    Console.Write(text.ToString());
+    return code;
+}
+
+var logs = new LogBuffer();
+using var logFile = new StreamWriter(new FileStream(Path.Combine(root, "Logs", "torchlightsdk.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+var logGate = new Lock();
+Log.Sink = (level, plugin, message) =>
+{
+    var line = $"{DateTime.Now:HH:mm:ss.fff} {level} {(plugin is null ? "" : $"[{plugin}] ")}{message}";
+    lock (logGate)
+    {
+        try
+        {
+            logFile.WriteLine(line);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        Console.WriteLine(line);
+    }
+    logs.Add(line);
+};
+
+var sdkPath = Path.Combine(root, "Config", "sdk.json");
+var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
+
+using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new NoGameSource(), Log.Info);
+reader.Start();
+using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
+using var plugins = new PluginHost(sdk, root);
+plugins.Discover(pluginsDirectory);
+Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
+var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), sdk.Theme, overlay.BeforeFrame);
+overlay.OnStyle(() =>
+{
+    ImGui.GetIO().ConfigErrorRecoveryEnableAssert = false;
+    themes.Apply();
+});
+var window = new SettingsWindow(sdk, plugins, themes, logs, () => null);
+using var tray = TrayIcon.Create("TorchlightSDK", () => overlay.TargetHandle, command =>
+{
+    if (command == TrayCommand.Settings) window.Toggle();
+    else overlay.Stop();
+});
+var smoother = new PlayerSmoother();
+
+void Frame()
+{
+    Input.NewFrame(suppressed: !overlay.IsOverlayActive || overlay.WantTextInput);
+    if (Input.Pressed(sdk.Hotkeys.Quit, ignoreSuppression: true))
+    {
+        overlay.Stop();
+        return;
+    }
+    if (Input.Pressed(sdk.Hotkeys.Settings)) window.Toggle();
+
+    var snapshot = reader.Current;
+    var state = snapshot.State;
+    if (state.Player is { } player) state = state with { Player = player with { Position = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency) } };
+    Game.State = state;
+    Map.View = null;
+    plugins.TickAll();
+    plugins.RenderAll();
+    window.Draw();
+}
+
+try
+{
+    overlay.Run(Frame);
+}
+catch (Exception ex)
+{
+    Log.Error(ex, "fatal");
+    Environment.ExitCode = 1;
+}
+return Environment.ExitCode;

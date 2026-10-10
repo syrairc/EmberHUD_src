@@ -1,0 +1,51 @@
+{
+  "Colors": {
+    "Text": "#E6E3D6FF",
+    "TextDisabled": "#8A8F99FF",
+    "WindowBg": "#121418F7",
+    "ChildBg": "#00000000",
+    "PopupBg": "#1A1D23FF",
+    "Border": "#2A2E36FF",
+    "FrameBg": "#23272FFF",
+    "FrameBgHovered": "#2D323CFF",
+    "FrameBgActive": "#2D323CFF",
+    "TitleBg": "#121418FF",
+    "TitleBgActive": "#1A1D23FF",
+    "TitleBgCollapsed": "#121418FF",
+    "CheckMark": "#D8D090FF",
+    "SliderGrab": "#8F895CFF",
+    "SliderGrabActive": "#D8D090FF",
+    "Button": "#23272FFF",
+    "ButtonHovered": "#2D323CFF",
+    "ButtonActive": "#8F895CFF",
+    "Header": "#23272FFF",
+    "HeaderHovered": "#2D323CFF",
+    "HeaderActive": "#8F895CFF",
+    "Separator": "#2A2E36FF",
+    "ScrollbarBg": "#00000000",
+    "ScrollbarGrab": "#23272FFF",
+    "ScrollbarGrabHovered": "#2D323CFF",
+    "ScrollbarGrabActive": "#8F895CFF",
+    "ResizeGrip": "#00000000",
+    "ResizeGripHovered": "#8F895CFF",
+    "ResizeGripActive": "#D8D090FF",
+    "NavCursor": "#D8D090FF"
+  },
+  "Style": {
+    "WindowRounding": 6,
+    "ChildRounding": 4,
+    "FrameRounding": 4,
+    "PopupRounding": 4,
+    "GrabRounding": 4,
+    "ScrollbarRounding": 4,
+    "WindowPadding": [12, 12],
+    "FramePadding": [8, 5],
+    "ItemSpacing": [8, 7],
+    "WindowBorderSize": 1,
+    "FrameBorderSize": 0
+  },
+  "Fonts": {
+    "Regular": { "File": "segoeui.ttf", "Size": 15 },
+    "Mono": { "File": "JetBrainsMono-Regular.ttf", "Size": 15 }
+  }
+}

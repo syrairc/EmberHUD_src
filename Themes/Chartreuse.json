@@ -1,0 +1,100 @@
+{
+  "Colors": {
+    "Text": "#EDF1FAFF",
+    "TextDisabled": "#66738CFF",
+    "WindowBg": "#0A0D14FF",
+    "ChildBg": "#080A0FFF",
+    "PopupBg": "#0D0F1AEB",
+    "Border": "#2B4468FF",
+    "BorderShadow": "#00000000",
+    "FrameBg": "#141A29FF",
+    "FrameBgHovered": "#1B2338FF",
+    "FrameBgActive": "#4F7300FF",
+    "TitleBg": "#0D1429FF",
+    "TitleBgActive": "#405D00FF",
+    "TitleBgCollapsed": "#080A0FFF",
+    "MenuBarBg": "#080A0FFF",
+    "ScrollbarBg": "#080A0FFF",
+    "ScrollbarGrab": "#2C4670FF",
+    "ScrollbarGrabHovered": "#608C00FF",
+    "ScrollbarGrabActive": "#405D00FF",
+    "CheckMark": "#D6FF80FF",
+    "SliderGrab": "#D6FF80FF",
+    "SliderGrabActive": "#405D00FF",
+    "Button": "#4F7300FF",
+    "ButtonHovered": "#608C00FF",
+    "ButtonActive": "#405D00FF",
+    "Header": "#4F7300FF",
+    "HeaderHovered": "#608C00FF",
+    "HeaderActive": "#405D00FF",
+    "Separator": "#2B4468FF",
+    "SeparatorHovered": "#608C00FF",
+    "SeparatorActive": "#D6FF80FF",
+    "ResizeGrip": "#EDF1FA29",
+    "ResizeGripHovered": "#608C0099",
+    "ResizeGripActive": "#608C00E6",
+    "Tab": "#141A29FF",
+    "TabHovered": "#608C00FF",
+    "TabSelected": "#4F7300FF",
+    "TabDimmed": "#0D1429F7",
+    "TabDimmedSelected": "#405D00F2",
+    "DockingPreview": "#608C00B2",
+    "DockingEmptyBg": "#080A0FFF",
+    "PlotLines": "#EDF1FAFF",
+    "PlotLinesHovered": "#608C00FF",
+    "PlotHistogram": "#D6FF80FF",
+    "PlotHistogramHovered": "#608C00FF",
+    "TableHeaderBg": "#0F1424FF",
+    "TableBorderStrong": "#2C4670FF",
+    "TableBorderLight": "#17233DFF",
+    "TableRowBg": "#00000000",
+    "TableRowBgAlt": "#4F73000F",
+    "TextSelectedBg": "#608C0059",
+    "DragDropTarget": "#00CCFFE6",
+    "NavCursor": "#608C00FF",
+    "NavWindowingHighlight": "#EDF1FAB2",
+    "NavWindowingDimBg": "#CCCCCC33",
+    "ModalWindowDimBg": "#00000059"
+  },
+  "Style": {
+    "Alpha": 1.0,
+    "GrabRounding": 4.0,
+    "GrabMinSize": 12.0,
+    "ScrollbarRounding": 10.0,
+    "ScrollbarSize": 18.0,
+    "IndentSpacing": 24.0,
+    "FrameRounding": 4.0,
+    "WindowRounding": 9.0,
+    "ChildRounding": 2.0,
+    "ItemInnerSpacing": [
+      6.0,
+      6.0
+    ],
+    "ItemSpacing": [
+      10.0,
+      6.0
+    ],
+    "FramePadding": [
+      4.0,
+      3.0
+    ],
+    "WindowTitleAlign": [
+      0.5,
+      0.5
+    ],
+    "WindowPadding": [
+      12.0,
+      12.0
+    ]
+  },
+  "Fonts": {
+    "Regular": {
+      "File": "segoeui.ttf",
+      "Size": 15
+    },
+    "Mono": {
+      "File": "JetBrainsMono-Regular.ttf",
+      "Size": 15
+    }
+  }
+}
