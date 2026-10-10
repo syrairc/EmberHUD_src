@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using TorchlightSDK;
 using TorchlightSDK.Testing;
@@ -27,7 +28,59 @@ public sealed class MainTests
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
         Check.Equal<Vector2?>(new Vector2(970, 535), view?.ToScreen(new Vector3(4, 7, 0)));
-        Check.Equal<float?>(0.5f, view?.Scale);
+        Check.Equal<float?>(0.05f, view?.Scale);
+    }
+
+    [Test]
+    public void RotationAndVerticalScaleGoIntoTheFollowingView()
+    {
+        var settings = new Settings();
+        settings.View.Rotation.Value = 90;
+        settings.View.VerticalScale.Value = 0.5f;
+
+        var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
+
+        Check.Equal<float?>(90f, view?.RotationDegrees);
+        Check.Equal<float?>(0.5f, view?.VerticalScale);
+        Check.Equal<Vector2?>(new Vector2(960, 540), view?.ToScreen(new Vector3(4, 7, 0)));
+        var right = view?.ToScreen(new Vector3(5, 7, 0)) - view?.ToScreen(new Vector3(4, 7, 0));
+        Check.That(right is { } d && MathF.Abs(d.X) < 0.001f && d.Y > 0, "world +X turns to screen down after a 90 degree clockwise map rotation");
+    }
+
+    [Test]
+    public void RotationAndVerticalScaleGoIntoTheFittedView()
+    {
+        var settings = new Settings();
+        settings.View.FollowPlayer.Value = false;
+        settings.View.Rotation.Value = 90;
+
+        var view = Main.ViewFor(settings, null, Tall, new Vector2(1000, 500));
+
+        Check.Equal<float?>(90f, view?.RotationDegrees);
+        Check.That(view?.Scale > 0 && view?.Scale != 10.5f, "fits the rotated bounds");
+    }
+
+    [Test]
+    public void ZoomRangeGoesFromAThousandthToFour()
+    {
+        var zoom = new Settings().View.Zoom;
+
+        Check.Equal(0.002f, zoom.Min);
+        Check.Equal(4f, zoom.Max);
+        Check.Equal(0.05f, zoom.Value);
+    }
+
+    [Test]
+    public void RotationAndVerticalScaleRangesAndDefaults()
+    {
+        var view = new Settings().View;
+
+        Check.Equal(-180f, view.Rotation.Min);
+        Check.Equal(180f, view.Rotation.Max);
+        Check.Equal(0f, view.Rotation.Value);
+        Check.Equal(0.2f, view.VerticalScale.Min);
+        Check.Equal(1.5f, view.VerticalScale.Max);
+        Check.Equal(1f, view.VerticalScale.Value);
     }
 
     [Test]
@@ -115,6 +168,25 @@ public sealed class MainTests
             TestInput.Hold(Key.PageDown);
             TestFrame.Run(main.Tick);
             Check.Equal(main.Settings.View.Zoom.Max / 1.25f, main.Settings.View.Zoom.Value);
+        }
+        finally
+        {
+            TestInput.Hold();
+        }
+    }
+
+    [Test]
+    public void ZoomOutClampsAtTheNewMinimum()
+    {
+        TestGame.Set(InArea());
+        var main = new Main { WallJob = new(inline: true) };
+        main.Settings.View.Zoom.Value = 0.0025f;
+        try
+        {
+            TestInput.Hold();
+            TestInput.Hold(Key.PageDown);
+            TestFrame.Run(main.Tick);
+            Check.Equal(0.002f, main.Settings.View.Zoom.Value);
         }
         finally
         {

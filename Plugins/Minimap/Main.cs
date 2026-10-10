@@ -34,8 +34,8 @@ public sealed class Main : Plugin<Settings>
     {
         var view = settings.View;
         var map = view.FollowPlayer.Value && player is { } at && float.IsFinite(at.X) && float.IsFinite(at.Y)
-            ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value)
-            : MapView.Fit(walls.Min, walls.Max, viewport, 40);
+            ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value, view.Rotation.Value, view.VerticalScale.Value)
+            : MapView.Fit(walls.Min, walls.Max, viewport, 40, view.Rotation.Value, view.VerticalScale.Value);
         return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX.Value, view.OffsetY.Value) } : null;
     }
 
@@ -65,7 +65,7 @@ public sealed class Main : Plugin<Settings>
             Draw.Marker(at, style.Radius.Value, style.Colour.Value, Settings.ShapeFor(entity.Kind));
         }
 
-        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), Map.Project(new Vector3(player.Forward, 0)), viewport);
+        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport);
     }
 
     void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport)

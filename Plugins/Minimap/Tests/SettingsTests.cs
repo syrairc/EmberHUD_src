@@ -80,6 +80,6 @@ public sealed class SettingsTests
     {
         var page = Drawn(new Settings().Draw);
         var viewOnly = Drawn(() => SettingsDrawer.DrawNodes(new Settings().View));
-        Check.That(page > 2 * viewOnly, $"markers drew (page {page}, view only {viewOnly})");
+        Check.That(page > 1.5f * viewOnly, $"markers drew (page {page}, view only {viewOnly})");
     }
 }

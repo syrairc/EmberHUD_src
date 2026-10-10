@@ -37,7 +37,9 @@ public static partial class SettingsDrawer
                     changed |= ImGui.SliderInt(label, ref node.Value, node.Min, node.Max);
                     break;
                 case RangeNode<float> node:
-                    changed |= ImGui.SliderFloat(label, ref node.Value, node.Min, node.Max, "%.1f");
+                    var wide = node.Min > 0 && node.Max / node.Min >= 100;
+                    var format = wide || node.Max - node.Min <= 10 ? "%.3f" : "%.1f";
+                    changed |= ImGui.SliderFloat(label, ref node.Value, node.Min, node.Max, format, wide ? ImGuiSliderFlags.Logarithmic : ImGuiSliderFlags.None);
                     break;
                 case ColorNode node:
                     var colour = EColor.ToVector4(node.Value);

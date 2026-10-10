@@ -41,11 +41,12 @@ public sealed class RenderTests
         return drawn;
     }
 
-    static Vector2 FarthestFromPlayer(Vector2 forward)
+    static Vector2 FarthestFromPlayer(Vector2 forward, Action<Main>? configure = null)
     {
         TestGame.Set(Busy(Facing(forward), entities: false, terrain: false));
         Map.View = null;
         var main = new Main { WallJob = new(inline: true) };
+        configure?.Invoke(main);
         var tip = Vector2.Zero;
         TestFrame.Run(() =>
         {
@@ -162,6 +163,23 @@ public sealed class RenderTests
         var tip = FarthestFromPlayer(Vector2.UnitX);
 
         Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "logic +X is screen right");
+    }
+
+    [Test]
+    public void TheArrowTurnsWithTheMapRotation()
+    {
+        var tip = FarthestFromPlayer(new Vector2(0, 1), main => main.Settings.View.Rotation.Value = 90);
+
+        Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward up turns right with a 90 degree map rotation");
+    }
+
+    [Test]
+    public void TheArrowFollowsTheVerticalScaleToo()
+    {
+        var plain = FarthestFromPlayer(new Vector2(1, 1));
+        var squashed = FarthestFromPlayer(new Vector2(1, 1), main => main.Settings.View.VerticalScale.Value = 0.3f);
+
+        Check.That(MathF.Abs(squashed.Y) / MathF.Abs(squashed.X) < MathF.Abs(plain.Y) / MathF.Abs(plain.X), "arrow flattens with the map");
     }
 
     [Test]
