@@ -78,6 +78,82 @@ public class WallExtractorTests
         Has(walls, 5, 10, 10, 10);
     }
 
+    private static void HalfEdges(List<WallSegment> walls, float x0, float y0, bool topLeft, bool topRight, bool bottomLeft, bool bottomRight)
+    {
+        var mid = x0 + 5;
+        var x1 = x0 + 10;
+        var y1 = y0 + 10;
+        Check(walls, topLeft, x0, y0, mid, y0);
+        Check(walls, topRight, mid, y0, x1, y0);
+        Check(walls, bottomLeft, x0, y1, mid, y1);
+        Check(walls, bottomRight, mid, y1, x1, y1);
+    }
+
+    private static void Check(List<WallSegment> walls, bool present, float ax, float ay, float bx, float by)
+    {
+        if (present) Has(walls, ax, ay, bx, by);
+        else Lacks(walls, ax, ay, bx, by);
+    }
+
+    [Fact]
+    public void AnOddCellOnlyClosesItsLeftHalvesAgainstTheCellsDirectlyAboveAndBelow()
+    {
+        var walls = WallExtractor.Extract(Grid(3, 3, true, (1, 1), (1, 0), (1, 2)));
+
+        Assert.Equal(14, walls.Count);
+        Has(walls, 15, 10, 15, 20);
+        Has(walls, 25, 10, 25, 20);
+        HalfEdges(walls, 15, 10, false, true, false, true);
+    }
+
+    [Fact]
+    public void AnOddCellOnlyClosesItsRightHalvesAgainstTheCellsAboveAndBelowToTheRight()
+    {
+        var walls = WallExtractor.Extract(Grid(3, 3, true, (1, 1), (2, 0), (2, 2)));
+
+        Assert.Equal(14, walls.Count);
+        Has(walls, 15, 10, 15, 20);
+        Has(walls, 25, 10, 25, 20);
+        HalfEdges(walls, 15, 10, true, false, true, false);
+    }
+
+    [Fact]
+    public void AnEvenCellOnlyClosesItsLeftHalvesAgainstTheCellsAboveAndBelowToTheLeft()
+    {
+        var walls = WallExtractor.Extract(Grid(3, 5, true, (1, 2), (0, 1), (0, 3)));
+
+        Assert.Equal(14, walls.Count);
+        Has(walls, 10, 20, 10, 30);
+        Has(walls, 20, 20, 20, 30);
+        HalfEdges(walls, 10, 20, false, true, false, true);
+    }
+
+    [Fact]
+    public void AnEvenCellOnlyClosesItsRightHalvesAgainstTheCellsDirectlyAboveAndBelow()
+    {
+        var walls = WallExtractor.Extract(Grid(3, 5, true, (1, 2), (1, 1), (1, 3)));
+
+        Assert.Equal(14, walls.Count);
+        Has(walls, 10, 20, 10, 30);
+        Has(walls, 20, 20, 20, 30);
+        HalfEdges(walls, 10, 20, true, false, true, false);
+    }
+
+    [Fact]
+    public void TheOriginMovesAShiftedOddRowToo()
+    {
+        var bits = new BitArray(9);
+        bits[4] = true;
+
+        var walls = WallExtractor.Extract(new Terrain(3, 3, 10f, new Vector2(100, 200), true, bits));
+
+        Assert.Equal(6, walls.Count);
+        Has(walls, 115, 210, 115, 220);
+        Has(walls, 125, 210, 125, 220);
+        Has(walls, 115, 210, 120, 210);
+        Has(walls, 120, 220, 125, 220);
+    }
+
     [Fact]
     public void TheOriginMovesTheWalls()
     {
@@ -93,6 +169,8 @@ public class WallExtractorTests
     [InlineData(0f)]
     [InlineData(-5f)]
     [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
     public void ACellSizeThatIsNotPositiveHasNoWalls(float size)
     {
         var bits = new BitArray(1);

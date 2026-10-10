@@ -8,7 +8,7 @@ public static class WallExtractor
     {
         var walls = new List<WallSegment>();
         var size = terrain.CellSize;
-        if (!(size > 0)) return walls;
+        if (!float.IsFinite(size) || size <= 0) return walls;
 
         for (var row = 0; row < terrain.Rows; row++)
         {
