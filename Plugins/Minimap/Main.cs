@@ -33,9 +33,59 @@ public sealed class Main : Plugin<Settings>
     public static MapView? ViewFor(Settings settings, Vector3? player, Walls walls, Vector2 viewport)
     {
         var view = settings.View;
-        var map = view.FollowPlayer.Value && player is { } at
+        var map = view.FollowPlayer.Value && player is { } at && float.IsFinite(at.X) && float.IsFinite(at.Y)
             ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value)
             : MapView.Fit(walls.Min, walls.Max, viewport, 40);
         return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX.Value, view.OffsetY.Value) } : null;
+    }
+
+    public override void Render()
+    {
+        if (!Settings.View.Show.Value || Map.View is not { } map) return;
+        var viewport = ImGui.GetIO().DisplaySize;
+        var state = Game.State;
+
+        using (Draw.Layer(DrawLayer.Back))
+        {
+            for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
+            {
+                var a = map.ToScreen(_walls.Lines[i]);
+                var b = map.ToScreen(_walls.Lines[i + 1]);
+                if (Visible(a, b, viewport)) Draw.Line(a, b, Settings.View.WallColour.Value, Settings.View.WallThickness.Value);
+            }
+        }
+
+        foreach (var entity in state.Entities)
+        {
+            if (Settings.MarkerFor(entity) is not { } style) continue;
+            var at = map.ToScreen(entity.Position);
+            if (!Visible(at, at, viewport)) continue;
+            Draw.Marker(at, style.Radius.Value, style.Colour.Value, Settings.ShapeFor(entity.Kind));
+        }
+
+        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), Map.Project(new Vector3(player.Forward, 0)), viewport);
+    }
+
+    void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport)
+    {
+        if (!Visible(at, at, viewport)) return;
+        var size = Settings.View.PlayerSize.Value;
+        var colour = Settings.View.PlayerColour.Value;
+        if (ArrowPoints(at, forward, size) is { } arrow) Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
+        else Draw.Marker(at, size / 2, colour);
+    }
+
+    internal static bool Visible(Vector2 a, Vector2 b, Vector2 viewport) =>
+        float.IsFinite(a.X) && float.IsFinite(a.Y) && float.IsFinite(b.X) && float.IsFinite(b.Y)
+        && MathF.Max(a.X, b.X) >= 0 && MathF.Min(a.X, b.X) <= viewport.X
+        && MathF.Max(a.Y, b.Y) >= 0 && MathF.Min(a.Y, b.Y) <= viewport.Y;
+
+    internal static (Vector2 Tip, Vector2 Left, Vector2 Right)? ArrowPoints(Vector2 at, Vector2 forward, float size)
+    {
+        if (!(forward.LengthSquared() > 1e-6f)) return null;
+        var direction = Vector2.Normalize(forward);
+        var side = new Vector2(-direction.Y, direction.X);
+        var back = at - direction * size * 0.6f;
+        return (at + direction * size, back + side * size * 0.6f, back - side * size * 0.6f);
     }
 }

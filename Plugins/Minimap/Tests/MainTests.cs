@@ -51,6 +51,10 @@ public sealed class MainTests
         Check.That(Main.ViewFor(new Settings(), null, Walls.Empty, Screen) is null);
 
     [Test]
+    public void ANonFinitePlayerGivesNoView() =>
+        Check.That(Main.ViewFor(new Settings(), new Vector3(float.NaN, 0, 0), Walls.Empty, Screen) is null);
+
+    [Test]
     public void TickPublishesTheViewForOtherPlugins()
     {
         TestGame.Set(InArea());
