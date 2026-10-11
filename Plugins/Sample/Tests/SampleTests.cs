@@ -1,7 +1,7 @@
 using System;
 using Hexa.NET.ImGui;
-using TorchlightSDK;
-using TorchlightSDK.Testing;
+using Aember;
+using Aember.Testing;
 
 namespace Sample;
 

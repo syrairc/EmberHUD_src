@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$box = Join-Path ([IO.Path]::GetTempPath()) "torchlightsdk-releasetests-$([guid]::NewGuid().ToString('N'))"
+$box = Join-Path ([IO.Path]::GetTempPath()) "aember-releasetests-$([guid]::NewGuid().ToString('N'))"
 $release = "$box/repo/src/scripts/release.ps1"
 $links = [Collections.Generic.List[string]]::new()
 $failed = 0
@@ -10,8 +10,8 @@ if ($a[0] -eq 'publish') {
     if ($stage -eq 'publish') { exit 1 }
     $dir = $a[[array]::IndexOf($a, '-o') + 1]
     New-Item -ItemType Directory -Force $dir | Out-Null
-    foreach ($name in 'TorchlightSDK.exe', 'TorchlightSDK.dll', 'TorchlightSDK.runtimeconfig.json', 'TorchlightSDK.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
-    foreach ($name in 'TorchlightSDK.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
+    foreach ($name in 'Aember.exe', 'Aember.dll', 'Aember.runtimeconfig.json', 'Aember.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
+    foreach ($name in 'Aember.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
     if ($stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
     if ($stage -eq 'swap') {
         Remove-Item -LiteralPath $env:STUB_SWAP_DIST -Recurse -Force
@@ -23,9 +23,9 @@ exit 0
 $stubBuild = 'if ($env:STUB_FAIL -eq ''build'') { exit 99 }; exit 0'
 try {
     New-Item -ItemType Directory -Force "$box/bin", "$box/stubapp" | Out-Null
-    Set-Content "$box/stubapp/TorchlightSDK.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>'
+    Set-Content "$box/stubapp/Aember.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>'
     Set-Content "$box/stubapp/Program.cs" 'if (Environment.GetEnvironmentVariable("STUB_FAIL") == "check") return 1; Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Logs")); File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "Logs", "check.txt"), "PASS stub"); return 0;'
-    dotnet build "$box/stubapp/TorchlightSDK.csproj" -o "$box/stubapp-out" | Out-Null
+    dotnet build "$box/stubapp/Aember.csproj" -o "$box/stubapp-out" | Out-Null
     if ($LASTEXITCODE) { throw 'stub app build failed' }
     Set-Content "$box/bin/stubdotnet.ps1" $stubDotnet
     Set-Content "$box/bin/dotnet.cmd" "@pwsh -NoProfile -File `"%~dp0stubdotnet.ps1`" %*`r`n@exit /b %ERRORLEVEL%"
@@ -48,9 +48,9 @@ try {
     foreach ($real in 'victim', 'plainvictim', 'victimparent/inner', 'real/dist', 'srclike/dist', 'slnx/dist', 'csproj/dist', 'rel/dist', 'q1/dist') { New-Item -ItemType Directory -Force "$box/$real/.git" | Out-Null; Set-Content "$box/$real/keep.txt" keep }
     New-Item -ItemType Directory -Force "$box/victimparent/.git", "$box/victim/scripts", "$box/srclike/dist/scripts", "$box/rel/dist/scripts" | Out-Null
     Set-Content "$box/victimparent/keep.txt" keep
-    Set-Content "$box/victim/TorchlightSDK.slnx" x
+    Set-Content "$box/victim/Aember.slnx" x
     Set-Content "$box/victim/scripts/release.ps1" x
-    Set-Content "$box/slnx/dist/TorchlightSDK.slnx" x
+    Set-Content "$box/slnx/dist/Aember.slnx" x
     Set-Content "$box/csproj/dist/A.csproj" x
     Set-Content "$box/rel/dist/scripts/release.ps1" x
     New-Item -ItemType Directory -Force "$box/j1", "$box/j2", "$box/j3", "$box/j4" | Out-Null
@@ -66,7 +66,7 @@ try {
         $items = Get-ChildItem $box -Recurse -Force
         (($items | Where-Object PSIsContainer | ForEach-Object { "dir|$($_.FullName)" }) + ($items | Where-Object { -not $_.PSIsContainer } | ForEach-Object { "file|$($_.FullName)|$((Get-FileHash -LiteralPath $_.FullName).Hash)" }) | Sort-Object) -join "`n"
     }
-    function WorkDirs { (Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'torchlightsdk-release-*' | ForEach-Object Name) -join ',' }
+    function WorkDirs { (Get-ChildItem ([IO.Path]::GetTempPath()) -Directory -Filter 'aember-release-*' | ForEach-Object Name) -join ',' }
     function Run([string]$out, [string]$cwd, [string]$stage = 'build', [string]$script = $release) {
         Push-Location $cwd
         $oldPath = $env:PATH
@@ -105,7 +105,7 @@ try {
         Set-Content "$box/repo/dist/README.md" readme
         New-Item -ItemType Directory -Force "$box/repo/dist/Config/Plugins", "$box/repo/dist/Logs", "$box/repo/dist/Cache" | Out-Null
         Set-Content "$box/repo/dist/Config/Plugins/Minimap.json" mine
-        Set-Content "$box/repo/dist/Logs/torchlightsdk.log" log
+        Set-Content "$box/repo/dist/Logs/aember.log" log
         Set-Content "$box/repo/dist/Cache/plugin.bin" cache
         Set-Content "$box/repo/dist/imgui.ini" layout
     }
@@ -173,13 +173,13 @@ try {
         (Test-Path "$dist/Plugins/Sample/Main.cs") -and (Test-Path "$dist/Plugins/Sample/defaults.json") -and (Test-Path "$dist/Plugins/Sample/Icons/dot.svg") -and
         -not (Test-Path "$dist/Plugins/Sample/Icons/deep") -and -not (Test-Path "$dist/Plugins/Sample/bin") -and -not (Test-Path "$dist/Plugins/Sample/notes.txt") -and -not (Test-Path "$dist/Plugins/Plugins.csproj") -and
         (Test-Path "$dist/GameIcons/index.json") -and (Test-Path "$dist/GameIcons/a.png") -and -not (Test-Path "$dist/GameIcons/notes.txt") -and
-        (Test-Path "$dist/TorchlightSDK.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and
-        (Get-Content "$dist/Config/Plugins/Minimap.json" -ErrorAction SilentlyContinue) -eq 'mine' -and (Get-Content "$dist/Logs/torchlightsdk.log" -ErrorAction SilentlyContinue) -eq 'log' -and -not (Test-Path "$dist/Logs/check.txt") -and
+        (Test-Path "$dist/Aember.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and
+        (Get-Content "$dist/Config/Plugins/Minimap.json" -ErrorAction SilentlyContinue) -eq 'mine' -and (Get-Content "$dist/Logs/aember.log" -ErrorAction SilentlyContinue) -eq 'log' -and -not (Test-Path "$dist/Logs/check.txt") -and
         (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout') 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences and the game icon art, and leaves no pdb, Logs or work dir'
 
     ResetDist
-    Copy-Item "$env:SystemRoot\System32\PING.EXE" "$box/repo/dist/TorchlightSDK.exe"
-    $running = Start-Process "$box/repo/dist/TorchlightSDK.exe" -ArgumentList '-n', '60', '127.0.0.1' -WindowStyle Hidden -PassThru
+    Copy-Item "$env:SystemRoot\System32\PING.EXE" "$box/repo/dist/Aember.exe"
+    $running = Start-Process "$box/repo/dist/Aember.exe" -ArgumentList '-n', '60', '127.0.0.1' -WindowStyle Hidden -PassThru
     try { Refuses "$box/repo/dist" $box '-Out with a program running from it' }
     finally { Stop-Process -Id $running.Id -Force -ErrorAction SilentlyContinue; $running.WaitForExit() }
 

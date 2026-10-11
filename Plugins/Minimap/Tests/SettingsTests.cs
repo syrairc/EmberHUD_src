@@ -3,8 +3,8 @@ using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
-using TorchlightSDK;
-using TorchlightSDK.Testing;
+using Aember;
+using Aember.Testing;
 
 namespace Minimap;
 

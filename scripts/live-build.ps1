@@ -5,7 +5,7 @@ $previous = Get-ChildItem $temp -Directory -Filter 'tli-live*' | Where-Object { 
 $next = 1 + ((Get-ChildItem $temp -Directory -Filter 'tli-live*' | ForEach-Object { [int]($_.Name -replace '\D', '0') } | Measure-Object -Maximum).Maximum)
 $out = Join-Path $temp "tli-live$next"
 
-dotnet build "$src/TorchlightSDK/TorchlightSDK.csproj" -c Debug -o $out --nologo -v q
+dotnet build "$src/Aember/Aember.csproj" -c Debug -o $out --nologo -v q
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
 if ($previous) {
@@ -33,5 +33,5 @@ if (Test-Path $icons) {
     }
 }
 
-& (Join-Path $out 'TorchlightSDK.exe') --check --plugins "$src/Plugins" | Select-String -NotMatch '^PASS'
-Write-Host "run: & '$out\TorchlightSDK.exe' --live --plugins '$src\Plugins'"
+& (Join-Path $out 'Aember.exe') --check --plugins "$src/Plugins" | Select-String -NotMatch '^PASS'
+Write-Host "run: & '$out\Aember.exe' --live --plugins '$src\Plugins'"

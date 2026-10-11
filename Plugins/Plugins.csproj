@@ -7,6 +7,6 @@
     <RootNamespace>Plugins</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\TorchlightSDK.Api\TorchlightSDK.Api.csproj" />
+    <ProjectReference Include="..\Aember.Api\Aember.Api.csproj" />
   </ItemGroup>
 </Project>

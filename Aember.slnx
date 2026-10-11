@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/OffsetGen.Tests/OffsetGen.Tests.csproj" />
+    <Project Path="tests/Aember.Api.Tests/Aember.Api.Tests.csproj" />
+    <Project Path="tests/Aember.Tests/Aember.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/OffsetGen/OffsetGen.csproj" />
+  </Folder>
+  <Project Path="Aember.Api/Aember.Api.csproj" />
+  <Project Path="Aember/Aember.csproj" />
+</Solution>

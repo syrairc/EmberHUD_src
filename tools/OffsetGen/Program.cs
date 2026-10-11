@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using OffsetGen;
-using TorchlightSDK.Host;
+using Aember.Host;
 
 if (args.Length != 2)
 {

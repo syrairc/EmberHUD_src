@@ -2,15 +2,15 @@ param([string]$Out = (Join-Path $PSScriptRoot '..\..\dist'))
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
-$work = Join-Path ([IO.Path]::GetTempPath()) "torchlightsdk-release-$([guid]::NewGuid().ToString('N'))"
+$work = Join-Path ([IO.Path]::GetTempPath()) "aember-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
 $gameIcons = Join-Path (Split-Path $src) 'assets\icons'
 $ship = @(
-    'TorchlightSDK.exe'
-    'TorchlightSDK.dll'
-    'TorchlightSDK.Api.dll'
-    'TorchlightSDK.runtimeconfig.json'
-    'TorchlightSDK.deps.json'
+    'Aember.exe'
+    'Aember.dll'
+    'Aember.Api.dll'
+    'Aember.runtimeconfig.json'
+    'Aember.deps.json'
     'Hexa*.dll'
     'cimgui.dll'
     'ImGuiImpl.dll'
@@ -69,7 +69,7 @@ try {
     & "$PSScriptRoot/build.ps1"
     if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
 
-    dotnet publish "$src/TorchlightSDK/TorchlightSDK.csproj" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
+    dotnet publish "$src/Aember/Aember.csproj" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
     if ($LASTEXITCODE) { throw "publish failed (exit $LASTEXITCODE)" }
 
     $plugins = Join-Path $publish 'Plugins'
@@ -106,13 +106,13 @@ try {
     }
     else { Write-Host "no game icon art at $gameIcons - the release draws shapes" }
 
-    $check = Start-Process (Join-Path $publish 'TorchlightSDK.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
+    $check = Start-Process (Join-Path $publish 'Aember.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
     $null = $check.Handle
-    if (-not $check.WaitForExit(300000)) { $check.Kill(); $check.WaitForExit(); throw 'TorchlightSDK.exe --check timed out after 5 minutes' }
+    if (-not $check.WaitForExit(300000)) { $check.Kill(); $check.WaitForExit(); throw 'Aember.exe --check timed out after 5 minutes' }
     $report = Join-Path $publish 'Logs/check.txt'
-    if (-not (Test-Path $report)) { throw "TorchlightSDK.exe --check exited $($check.ExitCode) without writing $report" }
+    if (-not (Test-Path $report)) { throw "Aember.exe --check exited $($check.ExitCode) without writing $report" }
     Get-Content $report | Write-Host
-    if ($check.ExitCode) { throw "TorchlightSDK.exe --check failed (exit $($check.ExitCode))" }
+    if ($check.ExitCode) { throw "Aember.exe --check failed (exit $($check.ExitCode))" }
 
     $staged = @(Get-ChildItem -LiteralPath $publish -File | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } })
     foreach ($dir in $folders) { $staged += Get-ChildItem -LiteralPath (Join-Path $publish $dir) -Recurse -Force }

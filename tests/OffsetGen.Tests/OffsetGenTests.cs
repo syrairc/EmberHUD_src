@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using TorchlightSDK.Host;
+using Aember.Host;
 
 namespace OffsetGen.Tests;
 
@@ -27,7 +27,7 @@ public class OffsetGenTests
         Assert.Contains("internal static int Alpha => T[0];", source);
         Assert.Contains("internal static int Beta => T[1];", source);
         Assert.Contains("0x01, 0x02, 0x03", source);
-        Assert.Contains("namespace TorchlightSDK.Host;", source);
+        Assert.Contains("namespace Aember.Host;", source);
     }
 
     [Fact]

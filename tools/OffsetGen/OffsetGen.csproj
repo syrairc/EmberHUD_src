@@ -5,7 +5,7 @@
     <RootNamespace>OffsetGen</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\TorchlightSDK\Offsets\OffsetTable.cs" Link="OffsetTable.cs" />
+    <Compile Include="..\..\Aember\Offsets\OffsetTable.cs" Link="OffsetTable.cs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="OffsetGen.Tests" />

@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Numerics;
 using Hexa.NET.ImGui;
-using TorchlightSDK;
+using Aember;
 
 namespace Minimap;
 

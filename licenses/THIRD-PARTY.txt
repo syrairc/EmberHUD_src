@@ -1,6 +1,6 @@
-TorchlightSDK - third-party software
+Aember - third-party software
 
-TorchlightSDK ships the components below. Each keeps its own licence. The MIT licence text at the bottom applies to every component marked MIT, together with that component's copyright line. The zlib, BSD-3-Clause, Old MIT (HarfBuzz) and MS-PL licence texts apply to the components marked with them.
+Aember ships the components below. Each keeps its own licence. The MIT licence text at the bottom applies to every component marked MIT, together with that component's copyright line. The zlib, BSD-3-Clause, Old MIT (HarfBuzz) and MS-PL licence texts apply to the components marked with them.
 
 Dear ImGui 1.92.2b - inside cimgui.dll and ImGuiImpl.dll
   MIT - Copyright (c) 2014-2025 Omar Cornut
