@@ -56,6 +56,9 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
                     playerPosition = TryReadPosition(entity, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
                 else if (kinds.TryGetValue(entityId, out var kind) && TryReadEntity(entity, entityId, kind.Kind, kind.Value, out var result))
                     entities.Add(result);
+                else if (!kinds.ContainsKey(entityId) && memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) && cfgId == Offsets.VigilCoffinCfg &&
+                         TryReadEntity(entity, entityId, EntityKind.Coffin, 0, out var coffin))
+                    entities.Add(coffin);
                 node = next;
             }
         }
@@ -99,6 +102,10 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             (Offsets.FightMapInteractive, EntityKind.Interactive),
             (Offsets.FightMapFollower, EntityKind.Ally),
             (Offsets.FightMapServant, EntityKind.Ally),
+            (Offsets.FightMapGamePlay, EntityKind.Altar),
+            (Offsets.FightMapElevator, EntityKind.Elevator),
+            (Offsets.FightMapObject, EntityKind.MapObject),
+            (Offsets.FightMapDestructible, EntityKind.Destructible),
         ];
         foreach (var (map, kind) in maps)
             foreach (var (key, value) in _maps.Read(fightMgr + map))
@@ -139,7 +146,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         if (entity == 0 ||
             !TryReadAliveIfRequired(entity, kind) ||
             !TryReadPosition(entity, out var position) || position.Z >= Offsets.ParkedZ ||
-            !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId))
+            !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) ||
+            kind == EntityKind.Altar && cfgId != Offsets.SeasonAltarCfg)
             return false;
 
         var rarity = Rarity.Normal;
@@ -156,6 +164,6 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     }
 
     private bool TryReadAliveIfRequired(nint entity, EntityKind kind) =>
-        kind is EntityKind.Npc or EntityKind.Portal or EntityKind.Interactive ||
+        kind is EntityKind.Npc or EntityKind.Portal or EntityKind.Interactive or EntityKind.Altar or EntityKind.Elevator or EntityKind.MapObject ||
         memory.TryRead(entity + Offsets.EntityAlive, out byte alive) && alive != 0;
 }

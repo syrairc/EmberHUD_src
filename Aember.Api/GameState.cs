@@ -2,7 +2,7 @@ using System.Numerics;
 
 namespace Aember;
 
-public enum EntityKind : byte { Monster, Ally, Player, Portal, Npc, Interactive }
+public enum EntityKind : byte { Monster, Ally, Player, Portal, Npc, Interactive, Coffin, Altar, Elevator, MapObject, Destructible }
 
 public enum Rarity : byte { Normal, Magic, Rare, Boss }
 

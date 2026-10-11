@@ -279,6 +279,60 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void PreloadedMapEntitiesGetTheirKindFromTheirFightMgrMap()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, (uint)Offsets.SeasonAltarCfg, true, 1, 1, 5620, mapOffset: Offsets.FightMapGamePlay),
+            world.AddEntity(2, 40, true, 2, 2, 0, mapOffset: Offsets.FightMapElevator),
+            world.AddEntity(3, 36, true, 3, 3, 0, mapOffset: Offsets.FightMapObject),
+            world.AddEntity(4, 45, true, 4, 4, 0, mapOffset: Offsets.FightMapObject),
+            world.AddEntity(5, 39, true, 5, 5, 0, mapOffset: Offsets.FightMapDestructible));
+        var kinds = Read(world).ToDictionary(e => e.Id, e => e.Kind);
+        Assert.Equal(EntityKind.Altar, kinds[1]);
+        Assert.Equal(EntityKind.Elevator, kinds[2]);
+        Assert.Equal(EntityKind.MapObject, kinds[3]);
+        Assert.Equal(EntityKind.MapObject, kinds[4]);
+        Assert.Equal(EntityKind.Destructible, kinds[5]);
+    }
+
+    [Fact]
+    public void OnlySeasonAltarsComeFromTheGamePlayMap()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, 10, true, 0, 0, 0, mapOffset: Offsets.FightMapGamePlay),
+            world.AddEntity(2, (uint)Offsets.SeasonAltarCfg, true, 2, 2, 5620, mapOffset: Offsets.FightMapGamePlay));
+        Assert.Equal([2], Read(world).Select(e => e.Id));
+    }
+
+    [Fact]
+    public void TheVigilCoffinIsFoundByCfgIdOutsideEveryKindMap()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, (uint)Offsets.VigilCoffinCfg, true, 1, 2, 5000, mapOffset: FakeWorld.Unregistered),
+            world.AddEntity(2, 66, true, 2, 2, 0, mapOffset: FakeWorld.Unregistered));
+        var coffin = Assert.Single(Read(world));
+        Assert.Equal(1, coffin.Id);
+        Assert.Equal(EntityKind.Coffin, coffin.Kind);
+        Assert.Equal(new Vector3(1, 2, 5000), coffin.Position);
+    }
+
+    [Fact]
+    public void CoffinsAndDestructiblesNeedTheAliveFlagAndTheOtherMapEntitiesDoNot()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, (uint)Offsets.SeasonAltarCfg, false, 1, 1, 0, mapOffset: Offsets.FightMapGamePlay),
+            world.AddEntity(2, 40, false, 2, 2, 0, mapOffset: Offsets.FightMapElevator),
+            world.AddEntity(3, 36, false, 3, 3, 0, mapOffset: Offsets.FightMapObject),
+            world.AddEntity(4, 39, false, 4, 4, 0, mapOffset: Offsets.FightMapDestructible),
+            world.AddEntity(5, (uint)Offsets.VigilCoffinCfg, false, 5, 5, 0, mapOffset: FakeWorld.Unregistered));
+        Assert.Equal([1, 2, 3], Read(world).Select(e => e.Id).Order());
+    }
+
+    [Fact]
     public void ZeroRecordCfgIdFallsBackToTheEntityCfgId()
     {
         var world = new FakeWorld();

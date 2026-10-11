@@ -25,6 +25,10 @@ FightMapPortal = 0x440
 FightMapInteractive = 0x710
 FightMapFollower = 0x490
 FightMapServant = 0x850
+FightMapGamePlay = 0x800
+FightMapElevator = 0x4E0
+FightMapObject = 0x350
+FightMapDestructible = 0x3F0
 
 TMapNum = 8
 TMapInlineBits = 16
@@ -69,6 +73,8 @@ CellClearance = 0
 CellClearanceSecond = 2
 
 EntityCfgId = 28
+VigilCoffinCfg = 67
+SeasonAltarCfg = 56
 EntityAlive = 34
 EntityHasPosition = 140
 EntityPosition = 920

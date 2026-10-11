@@ -9,7 +9,7 @@ public sealed class MarkerStyle
     public ToggleNode Show = new(true);
     public ColorNode Colour = new(Color.White);
     public RangeNode<float> Radius = new(3, 1, 20);
-    [Menu("Accent", "Second colour of the SVG icon, only portal, interactive, rare and boss markers use it")] public ColorNode Accent = new(Color.FromArgb(0x1A, 0x1A, 0x1A));
+    [Menu("Accent", "Second colour of the SVG icon, only portal, interactive, rare, boss, altar and elevator markers use it")] public ColorNode Accent = new(Color.FromArgb(0x1A, 0x1A, 0x1A));
 }
 
 public sealed class ViewTab
@@ -51,6 +51,11 @@ public sealed class MarkerTab
     public MarkerStyle Portal = new();
     public MarkerStyle Npc = new();
     public MarkerStyle Interactive = new();
+    public MarkerStyle Coffin = new();
+    public MarkerStyle Altar = new();
+    public MarkerStyle Elevator = new();
+    public MarkerStyle MapObject = new();
+    public MarkerStyle Destructible = new();
 }
 
 public sealed class Settings : PluginSettings
@@ -73,6 +78,11 @@ public sealed class Settings : PluginSettings
             EntityKind.Player => Markers.OtherPlayer,
             EntityKind.Portal => Markers.Portal,
             EntityKind.Npc => Markers.Npc,
+            EntityKind.Coffin => Markers.Coffin,
+            EntityKind.Altar => Markers.Altar,
+            EntityKind.Elevator => Markers.Elevator,
+            EntityKind.MapObject => Markers.MapObject,
+            EntityKind.Destructible => Markers.Destructible,
             _ => Markers.Interactive,
         };
         return style.Show.Value ? style : null;
@@ -84,6 +94,11 @@ public sealed class Settings : PluginSettings
         { Kind: EntityKind.Interactive } => "svg:gem",
         { Kind: EntityKind.Monster, Rarity: Rarity.Rare or Rarity.Boss } => "svg:elite",
         { Kind: EntityKind.Npc } => "marker:Square",
+        { Kind: EntityKind.Coffin } => "game:UI_MiniMap_S15guancai",
+        { Kind: EntityKind.Altar } => "svg:quest",
+        { Kind: EntityKind.Elevator } => "svg:portal",
+        { Kind: EntityKind.MapObject } => "marker:Diamond",
+        { Kind: EntityKind.Destructible } => "marker:Triangle",
         _ => "marker:Dot",
     };
 
@@ -111,6 +126,11 @@ public sealed class Settings : PluginSettings
         DrawStyle("Portal", Markers.Portal);
         DrawStyle("NPC", Markers.Npc);
         DrawStyle("Interactive", Markers.Interactive);
+        DrawStyle("Vigil coffin", Markers.Coffin);
+        DrawStyle("Season altar", Markers.Altar);
+        DrawStyle("Elevator", Markers.Elevator);
+        DrawStyle("Map object", Markers.MapObject);
+        DrawStyle("Destructible", Markers.Destructible);
     }
 
     static void DrawStyle(string label, MarkerStyle style)

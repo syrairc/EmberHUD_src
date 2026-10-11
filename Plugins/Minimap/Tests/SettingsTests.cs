@@ -33,6 +33,11 @@ public sealed class SettingsTests
         Check.That(ReferenceEquals(s.Markers.Portal, s.MarkerFor(Of(EntityKind.Portal))));
         Check.That(ReferenceEquals(s.Markers.Npc, s.MarkerFor(Of(EntityKind.Npc))));
         Check.That(ReferenceEquals(s.Markers.Interactive, s.MarkerFor(Of(EntityKind.Interactive))));
+        Check.That(ReferenceEquals(s.Markers.Coffin, s.MarkerFor(Of(EntityKind.Coffin))));
+        Check.That(ReferenceEquals(s.Markers.Altar, s.MarkerFor(Of(EntityKind.Altar))));
+        Check.That(ReferenceEquals(s.Markers.Elevator, s.MarkerFor(Of(EntityKind.Elevator))));
+        Check.That(ReferenceEquals(s.Markers.MapObject, s.MarkerFor(Of(EntityKind.MapObject))));
+        Check.That(ReferenceEquals(s.Markers.Destructible, s.MarkerFor(Of(EntityKind.Destructible))));
     }
 
     [Test]
@@ -59,6 +64,23 @@ public sealed class SettingsTests
         Check.Equal("marker:Square", Settings.IconFor(Scene.Entity(EntityKind.Npc, Vector3.Zero)));
         Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Ally, Vector3.Zero)));
         Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Player, Vector3.Zero)));
+    }
+
+    [Test]
+    public void PreloadedMapEntitiesGetTheirOwnIcons()
+    {
+        Check.Equal("game:UI_MiniMap_S15guancai", Settings.IconFor(Scene.Entity(EntityKind.Coffin, Vector3.Zero)));
+        Check.Equal("svg:quest", Settings.IconFor(Scene.Entity(EntityKind.Altar, Vector3.Zero)));
+        Check.Equal("svg:portal", Settings.IconFor(Scene.Entity(EntityKind.Elevator, Vector3.Zero)));
+        Check.Equal("marker:Diamond", Settings.IconFor(Scene.Entity(EntityKind.MapObject, Vector3.Zero)));
+        Check.Equal("marker:Triangle", Settings.IconFor(Scene.Entity(EntityKind.Destructible, Vector3.Zero)));
+    }
+
+    [Test]
+    public void PreloadedMapEntitiesAreShownByDefault()
+    {
+        var m = new Settings().Markers;
+        Check.That(new[] { m.Coffin, m.Altar, m.Elevator, m.MapObject, m.Destructible }.All(style => style.Show.Value));
     }
 
     [Test]
@@ -106,8 +128,8 @@ public sealed class SettingsTests
         var viewOnly = Height(() => SettingsDrawer.DrawNodes(new Settings().View));
         var rowHeight = 0f;
         TestFrame.Run(() => rowHeight = ImGui.GetFrameHeightWithSpacing());
-        var nineSections = 9 * rowHeight;
-        Check.That(page - viewOnly >= nineSections, $"markers drew (page {page}, view only {viewOnly}, nine sections {nineSections})");
+        var sections = 14 * rowHeight;
+        Check.That(page - viewOnly >= sections, $"markers drew (page {page}, view only {viewOnly}, fourteen sections {sections})");
     }
 
     [Test]

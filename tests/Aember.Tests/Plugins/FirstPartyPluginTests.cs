@@ -18,4 +18,18 @@ public sealed class FirstPartyPluginTests
         Assert.Contains("PASS Sample SampleTests.TickTogglesVisibilityOnTheHotkey", report.ToString());
         Assert.DoesNotContain(" defaults - ", report.ToString());
     }
+
+    [Theory]
+    [InlineData("Coffin")]
+    [InlineData("Altar")]
+    [InlineData("Elevator")]
+    [InlineData("MapObject")]
+    [InlineData("Destructible")]
+    public void MinimapDefaultsShowEveryPreloadedMapEntity(string style)
+    {
+        var defaults = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(Here())!, "..", "..", "..", "Plugins", "Minimap", "defaults.json")))!;
+        var marker = defaults["Markers"]![style];
+        Assert.NotNull(marker);
+        Assert.NotEqual(false, marker["Show"]?.GetValue<bool>());
+    }
 }
