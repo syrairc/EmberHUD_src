@@ -293,14 +293,10 @@ public static class Picker
     {
         try
         {
-            var rx = new Regex(term, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(5));
-            return s =>
-            {
-                try { return rx.IsMatch(s); }
-                catch (RegexMatchTimeoutException) { return false; }
-            };
+            var rx = new Regex(term, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+            return rx.IsMatch;
         }
-        catch (ArgumentException)
+        catch (Exception e) when (e is ArgumentException or NotSupportedException)
         {
             return s => s.Contains(term, StringComparison.OrdinalIgnoreCase);
         }
