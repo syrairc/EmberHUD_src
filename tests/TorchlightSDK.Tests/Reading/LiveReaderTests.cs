@@ -1,3 +1,4 @@
+using System.Numerics;
 using TorchlightSDK.Host;
 using TorchlightSDK.Host.Reading;
 
@@ -236,5 +237,57 @@ public class LiveReaderTests
         using var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.Null(state.Explored);
+    }
+
+    [Fact]
+    public void PublishesTheGamesMapIconsAtTheLiveEntityPosition()
+    {
+        var (world, _) = WorldWithPlayerAt(0, 0);
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 3, new FakeIcon(1040, 1, 2, EntityId: 11), new FakeIcon(10, 7, 8));
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var state, out _);
+        Assert.Equal([new MapIcon(1040, "", new Vector2(5, 5), 1, 0, 11), new MapIcon(10, "", new Vector2(7, 8), 1, 0, 0)], state.MapIcons);
+    }
+
+    [Theory]
+    [InlineData(0f, 1f, 0f)]
+    [InlineData(90f, 0f, 1f)]
+    [InlineData(180f, -1f, 0f)]
+    public void PlayerForwardComesFromTheGamesHeading(float heading, float x, float y)
+    {
+        var (world, _) = WorldWithPlayerAt(0, 0);
+        var minimap = world.AddMinimap(0f);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, heading);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var state, out _);
+        Assert.Equal(x, state.Player!.Forward.X, 4);
+        Assert.Equal(y, state.Player.Forward.Y, 4);
+    }
+
+    [Fact]
+    public void WithoutAHeadingForwardStillFollowsMovement()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        var minimap = world.AddMinimap(0f);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, float.NaN);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 30, 0, 0);
+        reader.TryRead(out var moved, out _);
+        Assert.Equal(new Vector2(1, 0), moved.Player!.Forward);
+    }
+
+    [Fact]
+    public void TwoEntitiesWithTheSameIdDoNotBreakTheRead()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities(world.AddEntity(5, 48, true, 1, 1, 0), world.AddEntity(5, 48, true, 2, 2, 0));
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 1, new FakeIcon(1040, 9, 9, EntityId: 5));
+        using var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Equal(1040, Assert.Single(state.MapIcons).Type);
     }
 }

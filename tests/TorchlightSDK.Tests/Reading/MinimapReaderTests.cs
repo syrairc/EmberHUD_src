@@ -269,4 +269,44 @@ public class MinimapReaderTests
         clock.Now = 100 + Offsets.MinimapRescanMilliseconds;
         Assert.Equal(-180f, reader.ReadRotationDegrees(2));
     }
+
+    [Fact]
+    public void TheWidgetIsExposedAfterARotationReadAndDroppedWhenItBreaks()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        var reader = ReaderFor(world);
+        Assert.Equal((nint)0, reader.Widget);
+        reader.ReadRotationDegrees(1);
+        Assert.Equal(unchecked((nint)minimap.Widget), reader.Widget);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0L);
+        reader.ReadRotationDegrees(1);
+        Assert.Equal((nint)0, reader.Widget);
+    }
+
+    [Fact]
+    public void ReadsTheHeadingInDegrees()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, 37.5f);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        Assert.Equal(37.5f, reader.ReadHeadingDegrees());
+    }
+
+    [Fact]
+    public void ANonFiniteHeadingOrNoWidgetGivesNull()
+    {
+        var empty = ReaderFor(new FakeWorld());
+        empty.ReadRotationDegrees(1);
+        Assert.Null(empty.ReadHeadingDegrees());
+
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, float.NaN);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        Assert.Null(reader.ReadHeadingDegrees());
+    }
 }

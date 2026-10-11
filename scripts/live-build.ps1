@@ -20,5 +20,18 @@ if ($previous) {
     Write-Host "settings copied from $($previous.Name)"
 }
 
+$icons = Join-Path (Split-Path $src) 'assets\icons'
+$sdkPath = Join-Path $out 'Config\sdk.json'
+if (Test-Path $icons) {
+    $sdk = if (Test-Path $sdkPath) { Get-Content $sdkPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} }
+    if ($null -eq $sdk) { $sdk = [pscustomobject]@{} }
+    if (-not $sdk.GameIconsDirectory) {
+        $sdk | Add-Member -Force NoteProperty GameIconsDirectory (Resolve-Path $icons).Path
+        New-Item -ItemType Directory -Force (Split-Path $sdkPath) | Out-Null
+        $sdk | ConvertTo-Json -Depth 10 | Set-Content $sdkPath -Encoding utf8
+        Write-Host "game icons: $((Resolve-Path $icons).Path)"
+    }
+}
+
 & (Join-Path $out 'TorchlightSDK.exe') --check --plugins "$src/Plugins" | Select-String -NotMatch '^PASS'
 Write-Host "run: & '$out\TorchlightSDK.exe' --live --plugins '$src\Plugins'"

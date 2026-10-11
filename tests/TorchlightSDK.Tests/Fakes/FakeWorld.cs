@@ -7,6 +7,8 @@ internal readonly record struct FakeEntity(uint Id, long Address, int MapOffset 
 
 internal readonly record struct FakeMinimap(long Widget, long Material);
 
+internal readonly record struct FakeIcon(int Type, float X, float Y, int Zorder = 0, int EntityId = 0, float Size = 1, uint? Area = null, float Rotation = 0);
+
 internal sealed class FakeWorld
 {
     public const long ModuleBase = 0x1_4000_0000;
@@ -166,7 +168,7 @@ internal sealed class FakeWorld
 
     public FakeMinimap AddMinimap(float? rotate, string className = "MiniMap_C", string objectName = "MiniMap_C", bool placeInTable = true)
     {
-        var widget = Alloc(0x400);
+        var widget = Alloc(0x900);
         Memory.Write(widget + Offsets.UObjectClass, AddClass(className));
         Memory.Write(widget + Offsets.UObjectName, AddName(objectName));
         if (placeInTable) PlaceObject(_nextObjectIndex++, widget);
@@ -191,6 +193,88 @@ internal sealed class FakeWorld
 
         Memory.Write(minimap.Material + Offsets.MaterialScalarParams, data);
         Memory.Write(minimap.Material + Offsets.MaterialScalarParams + Offsets.TArrayNum, parameters.Length);
+    }
+
+    public void SetMapIcons(FakeMinimap minimap, uint area, params FakeIcon[] icons)
+    {
+        Memory.Write(minimap.Widget + Offsets.MinimapIconArea, area);
+        var data = Alloc(Math.Max(1, icons.Length) * Offsets.IconEntryStride);
+        for (var i = 0; i < icons.Length; i++)
+        {
+            var icon = icons[i];
+            var at = data + i * Offsets.IconEntryStride;
+            Memory.Write(at + Offsets.IconEntryType, icon.Type);
+            Memory.Write(at + Offsets.IconEntryX, icon.X);
+            Memory.Write(at + Offsets.IconEntryY, icon.Y);
+            Memory.Write(at + Offsets.IconEntryZorder, icon.Zorder);
+            Memory.Write(at + Offsets.IconEntryKey, unchecked(icon.Type * Offsets.IconKeyStride + icon.EntityId));
+            Memory.Write(at + Offsets.IconEntrySize, icon.Size);
+            Memory.Write(at + Offsets.IconEntryArea, icon.Area ?? area);
+            Memory.Write(at + Offsets.IconEntryRotation, icon.Rotation);
+        }
+
+        Memory.Write(minimap.Widget + Offsets.MinimapIconList, data);
+        Memory.Write(minimap.Widget + Offsets.MinimapIconList + Offsets.TArrayNum, icons.Length);
+    }
+
+    public void SetTaskTypes(FakeMinimap minimap, int[] a, int[] b, int[] c)
+    {
+        foreach (var (offset, types) in new[] { (Offsets.MinimapTaskTypesA, a), (Offsets.MinimapTaskTypesB, b), (Offsets.MinimapTaskTypesC, c) })
+        {
+            var data = Alloc(Math.Max(1, types.Length) * sizeof(int));
+            if (types.Length > 0) Memory.WriteArray(data, types);
+            Memory.Write(minimap.Widget + offset, data);
+            Memory.Write(minimap.Widget + offset + Offsets.TArrayNum, types.Length);
+        }
+    }
+
+    public void SetFollowIcons(FakeMinimap minimap, params (int Id, uint Type, uint Area)[] follows)
+    {
+        WriteIdMap(minimap.Widget + Offsets.MinimapFollowTypes, [.. follows.Select(f => (f.Id, f.Type))]);
+        WriteIdMap(minimap.Widget + Offsets.MinimapFollowAreas, [.. follows.Select(f => (f.Id, f.Area))]);
+    }
+
+    private void WriteIdMap(long map, (int Id, uint Value)[] nodes)
+    {
+        const int bucketCount = 3;
+        var heads = new long[bucketCount];
+        foreach (var (id, value) in nodes)
+        {
+            var node = Alloc(Offsets.FollowNodeSize);
+            var bucket = (int)((uint)id % bucketCount);
+            Memory.Write(node + Offsets.FollowNodeId, id);
+            Memory.Write(node + Offsets.FollowNodeValue, value);
+            Memory.Write(node + Offsets.FollowNodeNext, heads[bucket]);
+            heads[bucket] = node;
+        }
+
+        var buckets = Alloc(bucketCount * 8);
+        Memory.WriteArray(buckets, heads);
+        Memory.Write(map, buckets);
+        Memory.Write(map + Offsets.FollowMapBucketCount, (uint)bucketCount);
+    }
+
+    public long AddTexture(string name)
+    {
+        var texture = Alloc(0x40);
+        Memory.Write(texture + Offsets.UObjectName, AddName(name));
+        return texture;
+    }
+
+    public long SetIconMap(FakeMinimap minimap, params (int Type, long Texture)[] elements)
+    {
+        var map = Alloc(0x40);
+        var data = Alloc(Math.Max(1, elements.Length) * Offsets.IconMapElementStride);
+        for (var i = 0; i < elements.Length; i++)
+        {
+            Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementKey, elements[i].Type);
+            Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementTexture, elements[i].Texture);
+        }
+
+        Memory.Write(map, data);
+        Memory.Write(map + Offsets.TMapNum, elements.Length);
+        Memory.Write(minimap.Widget + Offsets.MinimapActiveIconMap, map);
+        return map;
     }
 
     public void MoveEntity(FakeEntity entity, double x, double y, double z)
