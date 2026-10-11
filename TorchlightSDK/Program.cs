@@ -73,7 +73,7 @@ Log.Sink = (level, plugin, message) =>
 var sdkPath = Path.Combine(root, "Config", "sdk.json");
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
 
-using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : live ? new LiveGameSource() : new NoGameSource(), Log.Info, live ? 33 : 8);
+using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.Info, fake ? 8 : 33);
 reader.Start();
 using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
 var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
