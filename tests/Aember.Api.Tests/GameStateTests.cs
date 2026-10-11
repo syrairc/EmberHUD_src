@@ -13,6 +13,17 @@ public class GameStateTests
     }
 
     [Fact]
+    public void RescanMinimapIsTakenOnceHoweverManyTimesItIsRequested()
+    {
+        Game.TakeMinimapRescan();
+        Assert.False(Game.TakeMinimapRescan());
+        Game.RescanMinimap();
+        Game.RescanMinimap();
+        Assert.True(Game.TakeMinimapRescan());
+        Assert.False(Game.TakeMinimapRescan());
+    }
+
+    [Fact]
     public void MapIconsStartEmptyAndSurviveWith()
     {
         Assert.Empty(GameState.Empty.MapIcons);

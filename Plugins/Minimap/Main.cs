@@ -23,6 +23,7 @@ public sealed class Main : Plugin<Settings>
     {
         var view = Settings.View;
         if (view.ToggleMap.Pressed) view.Show.Value = !view.Show.Value;
+        if (view.RescanRotation.Pressed) Game.RescanMinimap();
         if (view.ZoomIn.Pressed) view.Zoom.Value = MathF.Min(view.Zoom.Value * 1.25f, view.Zoom.Max);
         if (view.ZoomOut.Pressed) view.Zoom.Value = MathF.Max(view.Zoom.Value / 1.25f, view.Zoom.Min);
 

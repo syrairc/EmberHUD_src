@@ -14,6 +14,15 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
 
     public nint Widget => _widget;
 
+    public void Reset()
+    {
+        _widget = 0;
+        _nextScan = 0;
+        _generation = null;
+        _isMinimapClass.Clear();
+        _isRotateName.Clear();
+    }
+
     public float? ReadHeadingDegrees() =>
         _widget != 0 && memory.TryRead(_widget + Offsets.MinimapHeading, out float heading) && float.IsFinite(heading) ? heading : null;
 

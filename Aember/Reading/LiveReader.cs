@@ -28,6 +28,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             _anchor = null;
         }
 
+        if (Game.TakeMinimapRescan()) _minimap.Reset();
         var rotation = _minimap.ReadRotationDegrees(_terrain.Generation);
         var heading = _minimap.ReadHeadingDegrees();
         var player = playerPosition is { } position ? new Player(position, Forward(UpdateForward(position), heading)) : null;

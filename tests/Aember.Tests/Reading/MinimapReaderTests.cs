@@ -204,6 +204,23 @@ public class MinimapReaderTests
     }
 
     [Fact]
+    public void ResetRescansAtOnceInsideTheThrottle()
+    {
+        var clock = new Clock();
+        var world = new FakeWorld();
+        var old = world.AddMinimap(0.25f);
+        var reader = ReaderFor(world, clock);
+        Assert.Equal(-90f, reader.ReadRotationDegrees(1));
+
+        world.Memory.Write(old.Widget + Offsets.UObjectClass, 0L);
+        world.AddMinimap(0.5f);
+        clock.Now = 100;
+        Assert.Null(reader.ReadRotationDegrees(1));
+        reader.Reset();
+        Assert.Equal(-180f, reader.ReadRotationDegrees(1));
+    }
+
+    [Fact]
     public void ScansAreThrottledWhileTheWidgetIsMissing()
     {
         var clock = new Clock();
