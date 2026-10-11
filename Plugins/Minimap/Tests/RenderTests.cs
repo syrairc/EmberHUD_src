@@ -23,13 +23,93 @@ public sealed class RenderTests
             : [],
         terrain: terrain ? Scene.Cells(3, 3, false, (1, 1)) : null);
 
+    static readonly Sprite Fill = new(new ImTextureRef { TexID = new ImTextureID(9ul) }, Vector2.Zero, Vector2.One);
+
+    static GameState OneCell() => Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)));
+
+    static int DrawnWithFill(GameState state, Action<Main>? configure = null, Func<string, Sprite?>? resolve = null)
+    {
+        TestGame.UseTextures((_, _, _, _) => { }, resolve ?? (_ => Fill));
+        try
+        {
+            return Drawn(state, configure: configure);
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void TheRegionFillIsOneQuad() => Check.Equal(Drawn(OneCell()) + 4, DrawnWithFill(OneCell()));
+
+    [Test]
+    public void TheFillQuadIsDrawnFirstOverTheWholeGrid()
+    {
+        TestGame.UseTextures((_, _, _, _) => { }, _ => Fill);
+        try
+        {
+            TestGame.Set(OneCell());
+            Map.View = null;
+            var main = Scene.Plugin();
+            TestFrame.Run(() =>
+            {
+                main.Tick();
+                main.Tick();
+                var map = Map.View!.Value;
+                var list = Draw.Background;
+                var first = list.VtxBuffer.Size;
+                main.Render();
+                Vector2[] corners = [new(0, 0), new(30, 0), new(30, 30), new(0, 30)];
+                Vector2[] uvs = [Vector2.Zero, Vector2.UnitX, Vector2.One, Vector2.UnitY];
+                for (var i = 0; i < 4; i++)
+                {
+                    Check.Equal(map.ToScreen(corners[i]), list.VtxBuffer[first + i].Pos, $"corner {i}");
+                    Check.Equal(uvs[i], list.VtxBuffer[first + i].Uv, $"uv {i}");
+                }
+            });
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void AFillTextureThatNeverArrivedSkipsTheFillButKeepsTheOutlines()
+    {
+        var outlines = DrawnWithFill(OneCell(), resolve: _ => null);
+
+        Check.That(outlines > 0, "the outlines draw");
+        Check.Equal(Drawn(OneCell()), outlines);
+    }
+
+    [Test]
+    public void TheWallsStyleDrawsTheOldWallLinesAndNoRegion()
+    {
+        void WallsStyle(Main main) => main.Settings.View.DrawStyle.Value = "Walls";
+        var perLine = 0;
+        TestFrame.Run(() =>
+        {
+            var before = Draw.Background.VtxBuffer.Size;
+            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().View.WallThickness.Value);
+            perLine = Draw.Background.VtxBuffer.Size - before;
+        });
+
+        Check.Equal(4 * perLine, DrawnWithFill(OneCell(), WallsStyle) - DrawnWithFill(Scene.State(), WallsStyle));
+    }
+
+    [Test]
+    public void ADrawStyleItDoesNotKnowDrawsTheRegion() =>
+        Check.Equal(DrawnWithFill(OneCell()), DrawnWithFill(OneCell(), main => main.Settings.View.DrawStyle.Value = "region"));
+
     static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
 
     static int Drawn(GameState state, Action<Main>? beforeRender = null, Action<Main>? configure = null)
     {
         TestGame.Set(state);
         Map.View = null;
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         configure?.Invoke(main);
         var drawn = 0;
         TestFrame.Run(() =>
@@ -48,7 +128,7 @@ public sealed class RenderTests
     {
         TestGame.Set(Busy(Facing(forward), entities: false, terrain: false));
         Map.View = null;
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         configure?.Invoke(main);
         var tip = Vector2.Zero;
         TestFrame.Run(() =>
@@ -181,7 +261,7 @@ public sealed class RenderTests
     {
         TestGame.Set(Scene.State(player: Facing(new Vector2(0, -1)), rotation: 90));
         Map.View = null;
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         var tip = Vector2.Zero;
         TestFrame.Run(() =>
         {
@@ -305,7 +385,7 @@ public sealed class RenderTests
         {
             TestGame.Set(Scene.State(player: Facing(forward)));
             Map.View = null;
-            var main = new Main { WallJob = new(inline: true) };
+            var main = Scene.Plugin();
             var top = Vector2.Zero;
             TestFrame.Run(() =>
             {

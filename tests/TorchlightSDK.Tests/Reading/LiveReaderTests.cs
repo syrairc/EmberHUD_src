@@ -226,4 +226,15 @@ public class LiveReaderTests
         again.TryRead(out var with, out _);
         Assert.Equal(-90f, with.MinimapRotation);
     }
+
+    [Fact]
+    public void ExploredStaysNullUntilTheProbeConfirmsTheChain()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        world.AddMinimap(0.25f);
+        using var reader = ReaderFor(world);
+        reader.TryRead(out var state, out _);
+        Assert.Null(state.Explored);
+    }
 }

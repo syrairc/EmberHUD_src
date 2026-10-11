@@ -11,6 +11,8 @@ public sealed record GameState(string Status, int AreaId, Player? Player, Entity
     public static readonly GameState Empty = new("starting", 0, null, [], null);
 
     public MapIcon[] MapIcons { get; init; } = [];
+
+    public ExploredTrail? Explored { get; init; }
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward);
@@ -18,3 +20,5 @@ public sealed record Player(Vector3 Position, Vector2 Forward);
 public readonly record struct Entity(int Id, int CfgId, Vector3 Position, EntityKind Kind, Rarity Rarity);
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId);
+
+public sealed record ExploredTrail(Vector2[] Points, float Radius);

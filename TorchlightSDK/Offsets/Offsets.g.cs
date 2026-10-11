@@ -2,7 +2,7 @@ namespace TorchlightSDK.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0xDA, 0x6A, 0x4A, 0x4C, 0x90, 0x39, 0x25, 0xB2, 0x2A, 0x6F, 0x0C, 0x58, 0x6C, 0x2D, 0x6F, 0x92, 0x40, 0x64, 0xF4, 0xF4, 0x8B, 0x52, 0x61, 0x70, 0x18, 0x6C, 0x01, 0x4A, 0xDE, 0x06, 0x23, 0x26];
+    internal static ReadOnlySpan<byte> Seed => [0x41, 0x5B, 0x71, 0xD8, 0x93, 0x51, 0xB1, 0xD6, 0xE7, 0xBA, 0xB8, 0x59, 0x38, 0x3C, 0x97, 0x34, 0xB2, 0xD8, 0xAA, 0xB0, 0xA4, 0xFB, 0xB1, 0x89, 0x2D, 0xAC, 0xA5, 0xCB, 0x28, 0x7C, 0x5F, 0x5C];
     internal static int KnownExeSize => T[0];
     internal static int LogicWorldGlobalRva => T[1];
     internal static int WorldScene => T[2];
@@ -82,14 +82,27 @@ internal static partial class Offsets
     internal static int ScalarParamValue => T[76];
     internal static int MaxScalarParams => T[77];
     internal static int MinimapRescanMilliseconds => T[78];
-    internal static int ParkedZ => T[79];
-    internal static int MaxStepPerRead => T[80];
-    internal static int MinMoveTenths => T[81];
-    internal static int MaxBuckets => T[82];
-    internal static int MaxChain => T[83];
-    internal static int MaxCells => T[84];
-    internal static int PebImageBase => T[85];
+    internal static int MinimapSaveObject => T[79];
+    internal static int MinimapBrushSize => T[80];
+    internal static int MinimapMapSide => T[81];
+    internal static int SaveRecords => T[82];
+    internal static int TMapNumFree => T[83];
+    internal static int SaveRecordStride => T[84];
+    internal static int SaveRecordPos => T[85];
+    internal static int SavePointStride => T[86];
+    internal static int GeometryLevelId => T[87];
+    internal static int GeometryLevelInstance => T[88];
+    internal static int MaxSaveRecords => T[89];
+    internal static int MaxExploredPoints => T[90];
+    internal static int ParkedZ => T[91];
+    internal static int MaxStepPerRead => T[92];
+    internal static int MinMoveTenths => T[93];
+    internal static int MaxBuckets => T[94];
+    internal static int MaxChain => T[95];
+    internal static int MaxCells => T[96];
+    internal static int PebImageBase => T[97];
     internal static string MinimapClassName => S[0];
     internal static string MinimapDefaultPrefix => S[1];
     internal static string MinimapRotateParam => S[2];
+    internal static string ExploredRecordKey => S[3];
 }

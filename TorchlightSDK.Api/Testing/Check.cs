@@ -40,4 +40,11 @@ public static class TestGame
     public static void Set(GameState state) => Game.State = state;
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver;
     public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
+
+    public static void UseTextures(Action<string, byte[], int, int>? upload, Func<string, Sprite?>? resolve, Action<string>? release = null)
+    {
+        Textures.Uploader = upload is null ? null : (_, key, rgba, width, height) => upload(key, rgba, width, height);
+        Textures.Resolver = resolve is null ? null : (_, key) => resolve(key);
+        Textures.Releaser = release is null ? null : (_, key) => release(key);
+    }
 }

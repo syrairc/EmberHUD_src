@@ -7,7 +7,7 @@ using Hexa.NET.ImGui;
 
 namespace TorchlightSDK.Host.Plugins;
 
-internal sealed class PluginHost(SdkSettings sdk, string root) : IDisposable
+internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? unloaded = null) : IDisposable
 {
     readonly string _config = Path.Combine(root, "Config");
     readonly string _cache = Path.Combine(root, "Cache");
@@ -256,6 +256,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root) : IDisposable
         slot.Context?.Unload();
         slot.Context = null;
         ClearJsonCache();
+        unloaded?.Invoke(slot.Name);
     }
 
     void ClearJsonCache()

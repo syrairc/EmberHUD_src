@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace TorchlightSDK.Tests;
 
 public class FakeGameSourceTests
@@ -72,5 +74,52 @@ public class FakeGameSourceTests
             Assert.Equal(new Vector2(entity.Position.X, entity.Position.Y), icon.Position);
             Assert.Equal(1f, icon.Size);
         }
+    }
+
+    private static readonly long HalfSecond = Stopwatch.Frequency / 2;
+
+    [Fact]
+    public void TheTrailStartsOnTheFirstReadAndGrowsEveryHalfSecondOfMovement()
+    {
+        using var source = new FakeGameSource(() => 0);
+        Assert.Equal([new Vector2(0, 0)], source.Sample(1, new Vector2(0, 0), 0).Points);
+        Assert.Single(source.Sample(1, new Vector2(10, 0), HalfSecond - 1).Points);
+        Assert.Equal([new Vector2(0, 0), new Vector2(10, 0)], source.Sample(1, new Vector2(10, 0), HalfSecond).Points);
+    }
+
+    [Fact]
+    public void HalfAUnitOrLessOfMovementAddsNothing()
+    {
+        using var source = new FakeGameSource(() => 0);
+        source.Sample(1, new Vector2(0, 0), 0);
+        Assert.Single(source.Sample(1, new Vector2(0.5f, -0.5f), HalfSecond).Points);
+        Assert.Equal(2, source.Sample(1, new Vector2(0.6f, 0), 2 * HalfSecond).Points.Length);
+    }
+
+    [Fact]
+    public void TheSameTrailComesBackUntilAPointIsAdded()
+    {
+        using var source = new FakeGameSource(() => 0);
+        var first = source.Sample(1, Vector2.Zero, 0);
+        Assert.Same(first, source.Sample(1, new Vector2(50, 0), HalfSecond / 2));
+        Assert.NotSame(first, source.Sample(1, new Vector2(50, 0), HalfSecond));
+        Assert.Single(first.Points);
+    }
+
+    [Fact]
+    public void AnAreaChangeStartsANewTrail()
+    {
+        using var source = new FakeGameSource(() => 0);
+        source.Sample(1, Vector2.Zero, 0);
+        source.Sample(1, new Vector2(50, 0), HalfSecond);
+        Assert.Equal([new Vector2(70, 0)], source.Sample(2, new Vector2(70, 0), HalfSecond + 1).Points);
+    }
+
+    [Fact]
+    public void TheFakeReadCarriesTheTrailWithAFewHundredUnitRadius()
+    {
+        var state = At(0);
+        Assert.Equal([new Vector2(state.Player!.Position.X, state.Player.Position.Y)], state.Explored!.Points);
+        Assert.Equal(250f, state.Explored.Radius);
     }
 }

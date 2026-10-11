@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using TorchlightSDK;
 using TorchlightSDK.Testing;
@@ -9,6 +12,26 @@ public sealed class MainTests
 {
     static readonly Vector2 Screen = new(1920, 1080);
     static readonly Walls Tall = Walls.Empty with { Min = new(-10, -20), Max = new(10, 20) };
+
+    readonly List<string> _uploads = [];
+    readonly List<string> _released = [];
+    readonly Terrain _cell = Scene.Cells(3, 3, false, (1, 1));
+    long _now;
+
+    Main RegionPlugin()
+    {
+        TestGame.UseTextures((key, _, _, _) => _uploads.Add(key), null, _released.Add);
+        var main = Scene.Plugin();
+        main.Clock = () => _now;
+        return main;
+    }
+
+    void TickTwiceAt(Main main, long at, GameState state)
+    {
+        _now = at;
+        TestGame.Set(state);
+        TickTwice(main);
+    }
 
     static GameState InArea(int area = 1) => Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.Cells(3, 3, false, (1, 1)), area: area);
 
@@ -100,7 +123,7 @@ public sealed class MainTests
     public void TickPublishesAViewRotatedLikeTheGameState()
     {
         TestGame.Set(Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.Cells(3, 3, false, (1, 1)), rotation: -90));
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         Map.View = null;
 
         TestFrame.Run(main.Tick);
@@ -163,7 +186,7 @@ public sealed class MainTests
     public void TickPublishesTheViewForOtherPlugins()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         Map.View = null;
 
         TestFrame.Run(main.Tick);
@@ -175,7 +198,7 @@ public sealed class MainTests
     public void AHiddenMapPublishesNoView()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         main.Settings.View.Show.Value = false;
         Map.View = null;
 
@@ -188,7 +211,7 @@ public sealed class MainTests
     public void TheToggleHotkeyFlipsVisibility()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         try
         {
             TestInput.Hold();
@@ -208,7 +231,7 @@ public sealed class MainTests
     public void ZoomHotkeysScaleAndClamp()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         main.Settings.View.Zoom.Value = main.Settings.View.Zoom.Max;
         try
         {
@@ -231,7 +254,7 @@ public sealed class MainTests
     public void ZoomOutClampsAtTheNewMinimum()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         main.Settings.View.Zoom.Value = 0.0025f;
         try
         {
@@ -250,7 +273,7 @@ public sealed class MainTests
     public void NotFollowingTheViewFitsTheWallsTheJobBuilt()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         main.Settings.View.FollowPlayer.Value = false;
         Map.View = null;
 
@@ -263,7 +286,7 @@ public sealed class MainTests
     public void WallsFromTheLastAreaAreDroppedWhenTheAreaChanges()
     {
         TestGame.Set(InArea());
-        var main = new Main { WallJob = new(inline: true) };
+        var main = Scene.Plugin();
         main.Settings.View.FollowPlayer.Value = false;
         TickTwice(main);
 
@@ -272,5 +295,152 @@ public sealed class MainTests
         TestFrame.Run(main.Tick);
 
         Check.That(Map.View is null);
+    }
+
+    [Test]
+    public void TheRegionRebuildsAtMostOnceASecondAndOnlyWhenTheTrailGrew()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            ExploredTrail one = new([new Vector2(15, 15)], 4);
+            ExploredTrail two = new([new Vector2(15, 15), new Vector2(16, 15)], 4);
+
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell, explored: one));
+            Check.Equal(1, _uploads.Count, "the first build is at once");
+            TickTwiceAt(main, 500, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "grew, but not a second yet");
+            TickTwiceAt(main, 1000, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(2, _uploads.Count, "a second later");
+            TickTwiceAt(main, 2500, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(2, _uploads.Count, "nothing grew, no rebuild");
+            Check.Equal("region-1", _uploads[^1]);
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void APlayerInANewCellOrANewFillColourRebuildsTheRegion()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            ExploredTrail trail = new([new Vector2(15, 15)], 4);
+            GameState At(float x) => Scene.State(player: new Player(new Vector3(x, 15, 0), Vector2.UnitX), terrain: _cell, explored: trail);
+
+            TickTwiceAt(main, 0, At(15));
+            TickTwiceAt(main, 1000, At(18));
+            Check.Equal(1, _uploads.Count, "same cell");
+            TickTwiceAt(main, 2000, At(25));
+            Check.Equal(2, _uploads.Count, "next cell");
+            main.Settings.View.ExploredFill.Value = Color.Red;
+            TickTwiceAt(main, 3000, At(25));
+            Check.Equal(3, _uploads.Count, "new colour");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void ANewAreaUploadsItsOwnTextureAndReleasesTheOldOne()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell, area: 1));
+            TickTwiceAt(main, 10, Scene.State(terrain: Scene.Cells(2, 2, false, (0, 0)), area: 2));
+
+            Check.That(_uploads.SequenceEqual(new[] { "region-1", "region-2" }), string.Join(", ", _uploads));
+            Check.That(_released.SequenceEqual(new[] { "region-1" }), string.Join(", ", _released));
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void ABuildThatFinishesAfterTheAreaChangedIsDropped()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            TestGame.Set(Scene.State(terrain: _cell, area: 1));
+            TestFrame.Run(main.Tick);
+            TestGame.Set(Scene.State(terrain: Scene.Cells(2, 2, false, (0, 0)), area: 2));
+            TickTwice(main);
+
+            Check.That(_uploads.SequenceEqual(new[] { "region-2" }), string.Join(", ", _uploads));
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void TheWallsStyleBuildsNoRegion()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            main.Settings.View.DrawStyle.Value = "Walls";
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell));
+
+            Check.Equal(0, _uploads.Count);
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void AHiddenMapBuildsNoRegionUntilItIsShownAgain()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            main.Settings.View.Show.Value = false;
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell));
+            Check.Equal(0, _uploads.Count, "hidden");
+
+            main.Settings.View.Show.Value = true;
+            TickTwiceAt(main, 10, Scene.State(terrain: _cell));
+            Check.Equal(1, _uploads.Count, "shown");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void ABuildAfterAnAreaChangeStartsFromNoPreviousRegion()
+    {
+        byte[]? last = null;
+        try
+        {
+            TestGame.UseTextures((_, rgba, _, _) => last = rgba, null);
+            var main = Scene.Plugin();
+            main.Clock = () => _now;
+            var strip = Scene.Cells(4, 1, false, (0, 0), (3, 0));
+
+            TickTwiceAt(main, 0, Scene.State(terrain: strip, area: 1, explored: new([new Vector2(5, 5)], 4)));
+            TickTwiceAt(main, 10, Scene.State(terrain: strip, area: 2, explored: new([new Vector2(35, 5)], 4)));
+
+            var view = main.Settings.View;
+            Check.Equal(view.RegionFill.Value.A, last![3], "the old area's explored cell is not carried over");
+            Check.Equal(view.ExploredFill.Value.A, last[6 * 4 + 3], "the new area's trail is stamped");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
     }
 }

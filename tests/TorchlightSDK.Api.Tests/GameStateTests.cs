@@ -22,4 +22,15 @@ public class GameStateTests
         Assert.Empty(GameState.Empty.MapIcons);
         Assert.Equal("starting", state.Status);
     }
+
+    [Fact]
+    public void ExploredStartsNullAndSurvivesWith()
+    {
+        Assert.Null(GameState.Empty.Explored);
+        var trail = new ExploredTrail([new Vector2(1, 2)], 250);
+        var state = GameState.Empty with { Explored = trail };
+        Assert.Same(trail, state.Explored);
+        Assert.Null(GameState.Empty.Explored);
+        Assert.Equal("starting", state.Status);
+    }
 }

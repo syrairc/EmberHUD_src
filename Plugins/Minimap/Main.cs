@@ -9,7 +9,15 @@ namespace Minimap;
 public sealed class Main : Plugin<Settings>
 {
     internal BackgroundJob<Walls> WallJob = new();
+    internal BackgroundJob<Region> RegionJob = new();
+    internal Func<long> Clock = () => Environment.TickCount64;
     Walls _walls = Walls.Empty;
+    Region _region = Region.Empty;
+    string _regionKey = "";
+    long _regionAt;
+    Vector2[] _screen = [];
+
+    bool WallsStyle => Settings.View.DrawStyle.Value == "Walls";
 
     public override void Tick()
     {
@@ -27,8 +35,41 @@ public sealed class Main : Plugin<Settings>
             var terrain = state.Terrain;
             WallJob.Start(() => Walls.Build(area, terrain));
         }
+        if (view.Show.Value && !WallsStyle) UpdateRegion(state);
 
         if (view.Show.Value) Map.View = ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation);
+    }
+
+    void UpdateRegion(GameState state)
+    {
+        if (RegionJob.TakeFinished() is { } done)
+        {
+            var built = done.GetAwaiter().GetResult();
+            if (built.Matches(state.AreaId, state.Terrain)) Show(built);
+        }
+        if (RegionJob.Running || state.Terrain is not { } terrain) return;
+
+        var view = Settings.View;
+        var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
+        var now = Clock();
+        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), view.RegionFill.Value, view.ExploredFill.Value))) return;
+
+        _regionAt = now;
+        var area = state.AreaId;
+        var trail = state.Explored;
+        var regionFill = view.RegionFill.Value;
+        var exploredFill = view.ExploredFill.Value;
+        var previous = _region.Matches(area, terrain) ? _region : null;
+        RegionJob.Start(() => Region.Build(area, terrain, trail, player, regionFill, exploredFill, previous));
+    }
+
+    void Show(Region built)
+    {
+        var key = $"region-{built.AreaId}";
+        if (_regionKey.Length > 0 && _regionKey != key) Textures.Release(_regionKey);
+        if (built.Pixels.Length > 0) Textures.Upload(key, built.Pixels, built.Width, built.Height);
+        _regionKey = key;
+        _region = built;
     }
 
     public static MapView? ViewFor(Settings settings, Vector3? player, Walls walls, Vector2 viewport, float? gameRotation = null)
@@ -47,16 +88,10 @@ public sealed class Main : Plugin<Settings>
         var viewport = ImGui.GetIO().DisplaySize;
         var state = Game.State;
 
-        var wallColour = Settings.View.WallColour.Value;
-        var wallThickness = Settings.View.WallThickness.Value;
         using (Draw.Layer(DrawLayer.Back))
         {
-            for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
-            {
-                var a = map.ToScreen(_walls.Lines[i]);
-                var b = map.ToScreen(_walls.Lines[i + 1]);
-                if (Visible(a, b, viewport)) Draw.Line(a, b, wallColour, wallThickness);
-            }
+            if (WallsStyle) DrawWalls(map, viewport);
+            else DrawRegion(map, state);
         }
 
         foreach (var entity in state.Entities)
@@ -71,6 +106,38 @@ public sealed class Main : Plugin<Settings>
         foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport);
 
         if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport);
+    }
+
+    void DrawWalls(MapView map, Vector2 viewport)
+    {
+        var colour = Settings.View.WallColour.Value;
+        var thickness = Settings.View.WallThickness.Value;
+        for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
+        {
+            var a = map.ToScreen(_walls.Lines[i]);
+            var b = map.ToScreen(_walls.Lines[i + 1]);
+            if (Visible(a, b, viewport)) Draw.Line(a, b, colour, thickness);
+        }
+    }
+
+    void DrawRegion(MapView map, GameState state)
+    {
+        var view = Settings.View;
+        var current = _region.Matches(state.AreaId, state.Terrain);
+        if (current && _region.Corners.Length == 4 && Textures.TryGet(_regionKey, out var fill))
+            Draw.ImageQuad(fill, map.ToScreen(_region.Corners[0]), map.ToScreen(_region.Corners[1]), map.ToScreen(_region.Corners[2]), map.ToScreen(_region.Corners[3]));
+        DrawOutline(_walls.RegionOutline, map, view.RegionOutline.Value, view.RegionOutlineWidth.Value);
+        if (current) DrawOutline(_region.ExploredOutline, map, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
+    }
+
+    void DrawOutline(Polyline[] lines, MapView map, Color colour, float width)
+    {
+        foreach (var line in lines)
+        {
+            if (_screen.Length < line.Points.Length) _screen = new Vector2[line.Points.Length];
+            for (var i = 0; i < line.Points.Length; i++) _screen[i] = map.ToScreen(line.Points[i]);
+            Draw.Polyline(_screen.AsSpan(0, line.Points.Length), colour, width, line.Closed);
+        }
     }
 
     internal static bool HasIcon(MapIcon[] icons, int entityId)

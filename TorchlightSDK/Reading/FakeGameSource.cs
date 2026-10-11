@@ -12,21 +12,44 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float InnerRadius = 120f;
     private const int Cells = 80;
     private const float CellSize = 25f;
+    private const float TrailRadius = 250f;
     private static readonly Vector2 Center = new(1000, 1000);
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
     private static readonly MapIcon[] SceneIcons = BuildIcons();
 
+    private readonly List<Vector2> _trail = [];
+    private ExploredTrail _published = new([], TrailRadius);
+    private int _trailArea = -1;
+    private long _nextSample;
+
     public bool TryRead(out GameState state, out string? failure)
     {
-        var angle = MathF.Tau * (float)(clock() / (double)Stopwatch.Frequency % LapSeconds / LapSeconds);
+        var now = clock();
+        var angle = MathF.Tau * (float)(now / (double)Stopwatch.Frequency % LapSeconds / LapSeconds);
         var player = new Player(
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
             new Vector2(-MathF.Sin(angle), MathF.Cos(angle)));
-        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90) { MapIcons = SceneIcons };
+        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90) { MapIcons = SceneIcons, Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now) };
         failure = null;
         return true;
+    }
+
+    internal ExploredTrail Sample(int areaId, Vector2 at, long now)
+    {
+        if (areaId != _trailArea)
+        {
+            _trailArea = areaId;
+            _trail.Clear();
+            _published = new ExploredTrail([], TrailRadius);
+            _nextSample = now;
+        }
+        if (now < _nextSample) return _published;
+        _nextSample = now + Stopwatch.Frequency / 2;
+        if (_trail.Count > 0 && MathF.Abs(at.X - _trail[^1].X) <= 0.5f && MathF.Abs(at.Y - _trail[^1].Y) <= 0.5f) return _published;
+        _trail.Add(at);
+        return _published = new ExploredTrail([.. _trail], TrailRadius);
     }
 
     public void Dispose()

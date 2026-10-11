@@ -33,7 +33,7 @@ Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release p
 
 | Path | What |
 |---|---|
-| `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
+| `TorchlightSDK.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, textures, fonts, input, logging, widgets (`TorchlightSDK.Ui`), plugin test helpers (`TorchlightSDK.Testing`) |
 | `TorchlightSDK` | host - overlay, plugin compiler / loader, settings window, `--check` runner |
 | `TorchlightSDK\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother, live reader (`LogicWorldReader`, `FightMapReader`, `MonsterRarityReader`, `MinimapReader`, `TerrainReader`, `LiveReader`, `LiveGameSource`) |
 | `TorchlightSDK\Memory` | `IReadBackend` + `ReadProcessMemory` backend, read extensions, `GameProcess` (attach, exe size check) |

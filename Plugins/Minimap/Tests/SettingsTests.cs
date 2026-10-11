@@ -1,4 +1,6 @@
 using System;
+using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using TorchlightSDK;
@@ -77,6 +79,20 @@ public sealed class SettingsTests
         return drawn;
     }
 
+    static float Height(Action draw)
+    {
+        var height = 0f;
+        TestFrame.Run(() =>
+        {
+            ImGui.Begin("minimap settings");
+            var before = ImGui.GetCursorPosY();
+            draw();
+            height = ImGui.GetCursorPosY() - before;
+            ImGui.End();
+        });
+        return height;
+    }
+
     [Test]
     public void TheSettingsPageDraws()
     {
@@ -86,9 +102,12 @@ public sealed class SettingsTests
     [Test]
     public void TheMarkersSectionDraws()
     {
-        var page = Drawn(new Settings().Draw);
-        var viewOnly = Drawn(() => SettingsDrawer.DrawNodes(new Settings().View));
-        Check.That(page > 1.5f * viewOnly, $"markers drew (page {page}, view only {viewOnly})");
+        var page = Height(new Settings().Draw);
+        var viewOnly = Height(() => SettingsDrawer.DrawNodes(new Settings().View));
+        var rowHeight = 0f;
+        TestFrame.Run(() => rowHeight = ImGui.GetFrameHeightWithSpacing());
+        var nineSections = 9 * rowHeight;
+        Check.That(page - viewOnly >= nineSections, $"markers drew (page {page}, view only {viewOnly}, nine sections {nineSections})");
     }
 
     [Test]
@@ -101,6 +120,21 @@ public sealed class SettingsTests
         foreach (var type in new[] { 15, 20, 24, 29 }) Check.Equal(MarkerShape.Triangle, Settings.FallbackShape(type), $"type {type}");
         foreach (var type in new[] { 1003, 1008, 1023, 1024 }) Check.Equal(MarkerShape.Sparkle, Settings.FallbackShape(type), $"type {type}");
         foreach (var type in new[] { 0, 1, 25, 1061, 99999, -5 }) Check.Equal(MarkerShape.Dot, Settings.FallbackShape(type), $"type {type}");
+    }
+
+    [Test]
+    public void TheRegionLookIsTheDefaultWithTheGamesColours()
+    {
+        var view = new Settings().View;
+
+        Check.Equal("Region", view.DrawStyle.Value);
+        Check.That(view.DrawStyle.Options.SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", view.DrawStyle.Options));
+        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), view.RegionFill.Value.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), view.RegionOutline.Value.ToArgb());
+        Check.Equal(1.5f, view.RegionOutlineWidth.Value);
+        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), view.ExploredFill.Value.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), view.ExploredOutline.Value.ToArgb());
+        Check.Equal(2.5f, view.ExploredOutlineWidth.Value);
     }
 
     [Test]

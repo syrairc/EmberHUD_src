@@ -253,6 +253,22 @@ public sealed class PluginReloadTests : IDisposable
     }
 
     [Fact]
+    public void UnloadingAPluginTellsTheHostItsTexturesCanGo()
+    {
+        _fixture.Write("Hot", "Main.cs", Ticking("Hot", "v1"));
+        var gone = new List<string>();
+        using (var host = new PluginHost(_fixture.Sdk, _fixture.Root, gone.Add))
+        {
+            host.Discover(_fixture.Plugins);
+            PluginFixture.Settle(host);
+            host.Reload(host.Slots[0]);
+            Assert.Equal(["Hot"], gone);
+            PluginFixture.Settle(host);
+        }
+        Assert.Equal(["Hot", "Hot"], gone);
+    }
+
+    [Fact]
     public void AWatcherThatCannotBeCreatedWarnsOncePerSlotAndNeverStopsOtherPluginsTicking()
     {
         _fixture.Write("Gone", "Main.cs", PluginFixture.Source("Gone", ""));

@@ -28,6 +28,7 @@ public sealed class WallsTests
         Check.Equal(0, walls.Lines.Length);
         Check.Equal(Vector2.Zero, walls.Min);
         Check.Equal(Vector2.Zero, walls.Max);
+        Check.Equal(0, walls.RegionOutline.Length);
     }
 
     [Test]
@@ -51,5 +52,14 @@ public sealed class WallsTests
         Check.That(!walls.Matches(6, terrain));
         Check.That(!walls.Matches(5, Scene.Cells(2, 2, false, (0, 0))));
         Check.That(!Walls.Empty.Matches(0, null));
+    }
+
+    [Test]
+    public void TheRegionOutlineIsTheWallsJoinedIntoALoop()
+    {
+        var loop = Walls.Build(1, Scene.Cells(4, 3, false, (1, 1), (2, 1))).RegionOutline.Single();
+
+        Check.That(loop.Closed, "closed");
+        Check.Equal(6, loop.Points.Length);
     }
 }

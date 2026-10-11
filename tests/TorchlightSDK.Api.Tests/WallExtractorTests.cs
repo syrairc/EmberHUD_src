@@ -18,6 +18,37 @@ public class WallExtractorTests
         Assert.DoesNotContain(new WallSegment(ax, ay, bx, by), walls);
 
     [Fact]
+    public void IsWalkableAsThePredicateGivesTheSameWalls()
+    {
+        var terrain = Grid(4, 4, true, (1, 1), (2, 1), (1, 2), (0, 3), (3, 0));
+        Assert.Equal(WallExtractor.Extract(terrain), WallExtractor.Extract(terrain, terrain.IsWalkable));
+    }
+
+    [Fact]
+    public void APredicateOutlinesOnlyTheCellsItKeeps()
+    {
+        var terrain = Grid(4, 3, false, (1, 1), (2, 1));
+        var walls = WallExtractor.Extract(terrain, (col, row) => terrain.IsWalkable(col, row) && col == 1);
+        Assert.Equal(4, walls.Count);
+        Has(walls, 20, 10, 20, 20);
+        Lacks(walls, 30, 10, 30, 20);
+    }
+
+    [Fact]
+    public void ThePredicateIsOnlyAskedAboutCellsOnTheGrid()
+    {
+        var terrain = Grid(2, 2, true, (0, 0), (1, 0), (0, 1), (1, 1));
+        var asked = new List<(int Col, int Row)>();
+        var walls = WallExtractor.Extract(terrain, (col, row) =>
+        {
+            asked.Add((col, row));
+            return true;
+        });
+        Assert.NotEmpty(walls);
+        Assert.All(asked, cell => Assert.True(cell.Col is >= 0 and < 2 && cell.Row is >= 0 and < 2, $"asked about {cell}"));
+    }
+
+    [Fact]
     public void NoWalkableCellsHaveNoWalls() => Assert.Empty(WallExtractor.Extract(Grid(3, 3, false)));
 
     [Fact]

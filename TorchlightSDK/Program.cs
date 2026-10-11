@@ -80,7 +80,11 @@ var gameIcons = sdk.GameIconsDirectory.Length > 0 ? IconStore.Open(Path.GetFullP
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
 var svgIcons = new SvgIconStore(SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory), overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture);
 Draw.SvgIcons = svgIcons.Resolve;
-using var plugins = new PluginHost(sdk, root);
+var textures = new PluginTextures(overlay.BeforeFrame, overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture, () => overlay.UploadError);
+Textures.Uploader = textures.Upload;
+Textures.Resolver = textures.Resolve;
+Textures.Releaser = textures.Release;
+using var plugins = new PluginHost(sdk, root, textures.ReleaseAll);
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
 var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), sdk.Theme, overlay.BeforeFrame);

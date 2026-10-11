@@ -90,10 +90,23 @@ ScalarParamStride = 36
 ScalarParamValue = 16
 MaxScalarParams = 64
 MinimapRescanMilliseconds = 5000
+MinimapSaveObject = 0x590
+MinimapBrushSize = 0x2C0
+MinimapMapSide = 0x730
+SaveRecords = 0x28
+TMapNumFree = 52
+SaveRecordStride = 0x40
+SaveRecordPos = 0x18
+SavePointStride = 12
+GeometryLevelId = 28
+GeometryLevelInstance = 152
+MaxSaveRecords = 64
+MaxExploredPoints = 65536
 
 MinimapClassName = "MiniMap_C"
 MinimapDefaultPrefix = "Default__"
 MinimapRotateParam = "Rotate"
+ExploredRecordKey = "{0}_{1}"
 
 ParkedZ = 8000
 MaxStepPerRead = 1000

@@ -250,10 +250,13 @@ public static class Draw
     public static void Image(Sprite sprite, Vector2 min, Vector2 max, Color? tint = null, ImDrawListPtr? list = null) =>
         (list ?? Background).AddImage(sprite.Texture, min, max, sprite.Uv0, sprite.Uv1, EColor.U32(tint ?? Color.White));
 
+    public static void ImageQuad(Sprite sprite, Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color? tint = null, ImDrawListPtr? list = null) =>
+        (list ?? Background).AddImageQuad(sprite.Texture, a, b, c, d, sprite.Uv0, new Vector2(sprite.Uv1.X, sprite.Uv0.Y), sprite.Uv1, new Vector2(sprite.Uv0.X, sprite.Uv1.Y), EColor.U32(tint ?? Color.White));
+
     public static void ImageRotated(Sprite sprite, Vector2 centre, Vector2 size, Vector2 facing, Color? tint = null, ImDrawListPtr? list = null)
     {
         if (RotatedQuad(centre, size, facing) is not { } quad) return;
-        (list ?? Background).AddImageQuad(sprite.Texture, quad.A, quad.B, quad.C, quad.D, sprite.Uv0, new Vector2(sprite.Uv1.X, sprite.Uv0.Y), sprite.Uv1, new Vector2(sprite.Uv0.X, sprite.Uv1.Y), EColor.U32(tint ?? Color.White));
+        ImageQuad(sprite, quad.A, quad.B, quad.C, quad.D, tint, list);
     }
 
     public static ClipScope Clip(Vector2 min, Vector2 max, ImDrawListPtr? list = null)

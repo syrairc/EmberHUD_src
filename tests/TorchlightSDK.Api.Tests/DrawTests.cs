@@ -143,6 +143,32 @@ public sealed class DrawTests
     });
 
     [Fact]
+    public void ImageQuadMapsTheSpriteCornersOntoTheFourPointsInOrder() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
+        var start = list.VtxBuffer.Size;
+        Draw.ImageQuad(new Sprite(texture, new Vector2(0.25f, 0.5f), new Vector2(0.75f, 1)), new Vector2(10, 20), new Vector2(50, 25), new Vector2(45, 70), new Vector2(5, 60), Color.Gold);
+        Assert.Equal(4, list.VtxBuffer.Size - start);
+        var expected = new[] { (new Vector2(10, 20), new Vector2(0.25f, 0.5f)), (new Vector2(50, 25), new Vector2(0.75f, 0.5f)), (new Vector2(45, 70), new Vector2(0.75f, 1)), (new Vector2(5, 60), new Vector2(0.25f, 1)) };
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.Equal(expected[i].Item1, list.VtxBuffer[start + i].Pos);
+            Assert.Equal(expected[i].Item2, list.VtxBuffer[start + i].Uv);
+            Assert.Equal(EColor.U32(Color.Gold), list.VtxBuffer[start + i].Col);
+        }
+    });
+
+    [Fact]
+    public void ImageQuadWithoutATintIsWhite() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.ImageQuad(new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One), Vector2.Zero, new Vector2(10, 0), new Vector2(10, 10), new Vector2(0, 10));
+        Assert.Equal(EColor.U32(Color.White), list.VtxBuffer[start].Col);
+    });
+
+    [Fact]
     public void ImageRotatedPutsTheQuadCornersAndUvsWhereTheConventionSays() => TestFrame.Run(() =>
     {
         var list = Draw.Background;

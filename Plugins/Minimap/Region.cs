@@ -1,0 +1,105 @@
+using System;
+using System.Collections;
+using System.Drawing;
+using System.Numerics;
+using TorchlightSDK;
+
+namespace Minimap;
+
+public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, BitArray Explored, (int Col, int Row)? PlayerCell, Color RegionFill, Color ExploredFill, byte[] Pixels, int Width, int Height, Vector2[] Corners, Polyline[] ExploredOutline)
+{
+    public static readonly Region Empty = new(-1, null, null, new BitArray(0), null, default, default, [], 0, 0, [], []);
+
+    public bool Matches(int areaId, Terrain? terrain) => AreaId == areaId && ReferenceEquals(Source, terrain);
+
+    public bool Stale(ExploredTrail? trail, (int Col, int Row)? playerCell, Color regionFill, Color exploredFill) =>
+        regionFill.ToArgb() != RegionFill.ToArgb() || exploredFill.ToArgb() != ExploredFill.ToArgb()
+        || (trail is null) != (Trail is null)
+        || trail is not null && (trail.Points.Length != Trail!.Points.Length || !trail.Radius.Equals(Trail.Radius) || playerCell != PlayerCell);
+
+    public static (int Col, int Row)? CellOf(Terrain terrain, Vector2? at)
+    {
+        if (at is not { } point || !float.IsFinite(point.X) || !float.IsFinite(point.Y) || !(terrain.CellSize > 0)) return null;
+        return ((int)MathF.Floor((point.X - terrain.Origin.X) / terrain.CellSize), (int)MathF.Floor((point.Y - terrain.Origin.Y) / terrain.CellSize));
+    }
+
+    public static Region Build(int areaId, Terrain terrain, ExploredTrail? trail, Vector2? player, Color regionFill, Color exploredFill, Region? previous)
+    {
+        var size = terrain.CellSize;
+        var playerCell = CellOf(terrain, player);
+        if (!float.IsFinite(size) || size <= 0 || terrain.Cols <= 0 || terrain.Rows <= 0)
+            return new Region(areaId, terrain, trail, new BitArray(0), playerCell, regionFill, exploredFill, [], 0, 0, [], []);
+
+        var everything = trail is null;
+        var explored = Stamp(terrain, trail, player, previous);
+        var pixels = Texels(terrain, explored, everything, regionFill, exploredFill, out var width);
+        var right = terrain.Origin.X + width * size / 2;
+        var bottom = terrain.Origin.Y + terrain.Rows * size;
+        Vector2[] corners =
+        [
+            Map.Project(new Vector3(terrain.Origin.X, terrain.Origin.Y, 0)),
+            Map.Project(new Vector3(right, terrain.Origin.Y, 0)),
+            Map.Project(new Vector3(right, bottom, 0)),
+            Map.Project(new Vector3(terrain.Origin.X, bottom, 0)),
+        ];
+        var outline = Outline.Join(WallExtractor.Extract(terrain, (col, row) => terrain.IsWalkable(col, row) && (everything || explored[row * terrain.Cols + col])), terrain);
+        return new Region(areaId, terrain, trail, explored, playerCell, regionFill, exploredFill, pixels, width, terrain.Rows, corners, outline);
+    }
+
+    static BitArray Stamp(Terrain terrain, ExploredTrail? trail, Vector2? player, Region? previous)
+    {
+        var cells = terrain.Cols * terrain.Rows;
+        if (trail is null || !float.IsFinite(trail.Radius) || trail.Radius <= 0) return new BitArray(cells);
+
+        var keep = previous is { Trail: { } old } && ReferenceEquals(previous.Source, terrain) && previous.Explored.Length == cells && old.Radius.Equals(trail.Radius) && old.Points.Length <= trail.Points.Length;
+        var explored = keep ? new BitArray(previous!.Explored) : new BitArray(cells);
+        for (var i = keep ? previous!.Trail!.Points.Length : 0; i < trail.Points.Length; i++) Disc(explored, terrain, trail.Points[i], trail.Radius);
+        if (player is { } at) Disc(explored, terrain, at, trail.Radius);
+        return explored;
+    }
+
+    static void Disc(BitArray explored, Terrain terrain, Vector2 at, float radius)
+    {
+        if (!float.IsFinite(at.X) || !float.IsFinite(at.Y)) return;
+        var size = terrain.CellSize;
+        var rowFrom = Clamp((at.Y - radius - terrain.Origin.Y) / size, terrain.Rows);
+        var rowTo = Clamp((at.Y + radius - terrain.Origin.Y) / size, terrain.Rows);
+        var colFrom = Clamp((at.X - radius - terrain.Origin.X) / size - 1, terrain.Cols);
+        var colTo = Clamp((at.X + radius - terrain.Origin.X) / size, terrain.Cols);
+        var reach = radius * radius;
+        for (var row = rowFrom; row <= rowTo; row++)
+            for (var col = colFrom; col <= colTo; col++)
+                if (Vector2.DistanceSquared(terrain.CellCenter(col, row), at) <= reach) explored[row * terrain.Cols + col] = true;
+    }
+
+    static int Clamp(float cell, int count) => (int)Math.Clamp(MathF.Floor(cell), 0, count - 1);
+
+    static byte[] Texels(Terrain terrain, BitArray explored, bool everything, Color regionFill, Color exploredFill, out int width)
+    {
+        width = terrain.Cols * 2 + (terrain.OddRowShift ? 1 : 0);
+        var pixels = new byte[width * terrain.Rows * 4];
+        var clear = Color.FromArgb(0, regionFill);
+        for (var row = 0; row < terrain.Rows; row++)
+        {
+            var line = row * width * 4;
+            for (var x = 0; x < width; x++) Put(pixels, line + x * 4, clear);
+            var shift = terrain.OddRowShift && (row & 1) == 1 ? 1 : 0;
+            for (var col = 0; col < terrain.Cols; col++)
+            {
+                if (!terrain.IsWalkable(col, row)) continue;
+                var colour = everything || explored[row * terrain.Cols + col] ? exploredFill : regionFill;
+                Put(pixels, line + (col * 2 + shift) * 4, colour);
+                Put(pixels, line + (col * 2 + shift + 1) * 4, colour);
+            }
+        }
+        return pixels;
+    }
+
+    static void Put(byte[] pixels, int at, Color colour)
+    {
+        pixels[at] = colour.R;
+        pixels[at + 1] = colour.G;
+        pixels[at + 2] = colour.B;
+        pixels[at + 3] = colour.A;
+    }
+}

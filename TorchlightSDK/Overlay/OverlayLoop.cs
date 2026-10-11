@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using Hexa.NET.ImGui;
 using Vortice.Direct3D11;
@@ -10,7 +11,7 @@ internal sealed class OverlayLoop : IDisposable
 {
     readonly ITargetSource _source;
     readonly TargetWindow _target;
-    readonly Queue<Action> _beforeFrame = new();
+    readonly ConcurrentQueue<Action> _beforeFrame = new();
     readonly Dictionary<string, (byte[] Data, int Width, int Height, Format Format)> _textureData = [];
     readonly Dictionary<string, (ID3D11Texture2D Texture, ID3D11ShaderResourceView View)> _textures = [];
 
