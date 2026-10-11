@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Hexa.NET.ImGui;
 using Aember;
+using Aember.Host;
 using Aember.Host.Icons;
 using Aember.Host.Overlay;
 using Aember.Host.Plugins;
@@ -13,6 +14,7 @@ var check = false;
 var fake = false;
 var live = false;
 string? iconSheet = null;
+string? processName = null;
 for (var i = 0; i < args.Length; i++)
 {
     if (args[i] == "--check") check = true;
@@ -20,15 +22,17 @@ for (var i = 0; i < args.Length; i++)
     else if (args[i] == "--live") live = true;
     else if (args[i] == "--plugins" && i + 1 < args.Length) pluginsDirectory = Path.GetFullPath(args[++i], root);
     else if (args[i] == "--icon-sheet" && i + 1 < args.Length) iconSheet = Path.GetFullPath(args[++i], root);
+    else if (args[i] == "--as" && i + 1 < args.Length && args[i + 1].Length > 0) processName = args[++i];
     else
     {
-        Console.Error.WriteLine($"unknown argument {args[i]} - usage: Aember [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>]");
+        Console.Error.WriteLine($"unknown argument {args[i]} - usage: Aember [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]");
         return 2;
     }
 }
+if (processName is not null) ProcessName.Spoof(processName);
 if (fake && live)
 {
-    Console.Error.WriteLine("--fake and --live cannot be used together - usage: Aember [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>]");
+    Console.Error.WriteLine("--fake and --live cannot be used together - usage: Aember [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]");
     return 2;
 }
 if (iconSheet is not null && !check)
