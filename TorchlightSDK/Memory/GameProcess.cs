@@ -42,16 +42,27 @@ internal sealed partial class GameProcess : IDisposable
 
     public bool IsAlive => !_handle.IsClosed && GetExitCodeProcess(_handle, out var code) && code == StillActive;
 
-    public static bool TryAttach(out GameProcess? game, out string? failure)
+    public static bool TryFindPid(out int pid, out string? failure)
     {
-        game = null;
         var candidates = Process.GetProcessesByName(ProcessName);
         var count = candidates.Length;
-        var pid = count == 1 ? candidates[0].Id : 0;
+        pid = count == 1 ? candidates[0].Id : 0;
         foreach (var candidate in candidates) candidate.Dispose();
-        if (count != 1)
+        failure = count switch
         {
-            failure = count == 0 ? $"{ProcessName}.exe is not running" : $"{count} processes are named {ProcessName}.exe, the target is ambiguous";
+            1 => null,
+            0 => $"{ProcessName}.exe is not running",
+            _ => $"{count} processes are named {ProcessName}.exe, the target is ambiguous",
+        };
+        return count == 1;
+    }
+
+    public static bool TryAttach(int pid, ref (int Pid, string? Failure) rejectedBuild, out GameProcess? game, out string? failure)
+    {
+        game = null;
+        if (pid == rejectedBuild.Pid)
+        {
+            failure = rejectedBuild.Failure;
             return false;
         }
 
@@ -77,6 +88,7 @@ internal sealed partial class GameProcess : IDisposable
             if (size != Offsets.KnownExeSize)
             {
                 failure = $"unknown build - exe is {size} bytes, offsets are for {Offsets.KnownExeSize}";
+                rejectedBuild = (pid, failure);
                 return false;
             }
 

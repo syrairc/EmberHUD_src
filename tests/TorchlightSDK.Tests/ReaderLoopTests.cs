@@ -113,4 +113,65 @@ public class ReaderLoopTests
         Assert.True(slow <= 10, $"slow loop read {slow} times");
         Assert.True(fast > slow, $"fast {fast} slow {slow}");
     }
+
+    [Fact]
+    public void ErrorThatReturnsAfterARecoveryIsLoggedAgain()
+    {
+        var good = GameState.Empty with { Status = "ok" };
+        var logged = new List<string>();
+        using var loop = new ReaderLoop(
+            () => new Scripted(() => throw new InvalidOperationException("boom"), () => good, () => throw new InvalidOperationException("boom"), () => good),
+            message => { lock (logged) logged.Add(message); });
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => { lock (logged) return logged.Count == 2; }, 2000));
+    }
+
+    [Fact]
+    public void SameErrorInARowIsLoggedOnce()
+    {
+        var good = GameState.Empty with { Status = "ok" };
+        var logged = new List<string>();
+        using var loop = new ReaderLoop(
+            () => new Scripted(() => throw new InvalidOperationException("boom"), () => throw new InvalidOperationException("boom"), () => good),
+            message => { lock (logged) logged.Add(message); });
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => loop.Current.State.Status == "ok", 2000));
+        lock (logged) Assert.Single(logged);
+    }
+
+    [Fact]
+    public void DisposingTwiceIsANoOp()
+    {
+        var loop = new ReaderLoop(() => new Counting(), _ => { });
+        loop.Start();
+        loop.Dispose();
+        loop.Dispose();
+    }
+
+    private sealed class Hanging(ManualResetEventSlim entered, ManualResetEventSlim release) : IGameSource
+    {
+        public bool TryRead(out GameState state, out string? failure)
+        {
+            entered.Set();
+            release.Wait();
+            state = GameState.Empty;
+            failure = null;
+            return true;
+        }
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public async Task DisposeReturnsWhileTheSourceIsHungInARead()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var loop = new ReaderLoop(() => new Hanging(entered, release), _ => { });
+        loop.Start();
+        Assert.True(entered.Wait(2000, TestContext.Current.CancellationToken));
+        var disposing = Task.Run(loop.Dispose, TestContext.Current.CancellationToken);
+        Assert.Same(disposing, await Task.WhenAny(disposing, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)));
+        release.Set();
+        Thread.Sleep(100);
+    }
 }

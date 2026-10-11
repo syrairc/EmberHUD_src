@@ -12,6 +12,7 @@ internal sealed class LiveGameSource : IGameSource
     private long _nextAttach;
     private int _lastAreaId;
     private string? _attachFailure;
+    private (int Pid, string? Failure) _rejectedBuild;
 
     public bool TryRead(out GameState state, out string? failure)
     {
@@ -37,7 +38,8 @@ internal sealed class LiveGameSource : IGameSource
         var now = Stopwatch.GetTimestamp();
         if (now < _nextAttach) return false;
         _nextAttach = now + AttachRetryTicks;
-        if (!GameProcess.TryAttach(out _game, out _attachFailure)) return false;
+        if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
+        if (!GameProcess.TryAttach(pid, ref _rejectedBuild, out _game, out _attachFailure)) return false;
         _reader = new LiveReader(_game!.Backend, _game.ModuleBase, _lastAreaId);
         return true;
     }
