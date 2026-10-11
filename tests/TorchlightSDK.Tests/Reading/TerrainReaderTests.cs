@@ -18,18 +18,34 @@ public class TerrainReaderTests
         Assert.Equal((4, 3), (terrain.Cols, terrain.Rows));
         Assert.Equal(32f, terrain.CellSize);
         Assert.Equal(new Vector2(-64, 128), terrain.Origin);
-        Assert.True(terrain.OddRowShift);
+        Assert.False(terrain.OddRowShift);
         for (var row = 0; row < 3; row++)
             for (var col = 0; col < 4; col++)
                 Assert.Equal(FourByThree[row * 4 + col] >= 1, terrain.IsWalkable(col, row));
     }
 
     [Fact]
-    public void ZeroShiftMeansNoOddRowShift()
+    public void ShiftInMemoryIsIgnoredAndDoesNotChangeTheTerrain()
     {
         var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree, oddRowShift: 16);
+        var reader = new TerrainReader(world.Memory);
+        var first = reader.Read(unchecked((nint)world.Scene))!;
+        Assert.False(first.OddRowShift);
         world.SetGrid(4, 3, FourByThree, oddRowShift: 0);
-        Assert.False(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene))!.OddRowShift);
+        Assert.Same(first, reader.Read(unchecked((nint)world.Scene)));
+        world.SetGrid(4, 3, FourByThree, oddRowShift: double.NaN);
+        Assert.Same(first, reader.Read(unchecked((nint)world.Scene)));
+        Assert.Equal(1, reader.Generation);
+    }
+
+    [Fact]
+    public void CellIsWalkableOnlyWhenBothClearanceBytesArePositive()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 1, [1, 1, 0, 5], secondClearance: [1, 0, 1, 3]);
+        var terrain = new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene))!;
+        Assert.Equal([true, false, false, true], Enumerable.Range(0, 4).Select(col => terrain.IsWalkable(col, 0)));
     }
 
     [Fact]
@@ -63,19 +79,18 @@ public class TerrainReaderTests
     }
 
     [Theory]
-    [InlineData(5, 3, 32, 0, 0, 16)]
-    [InlineData(4, 4, 32, 0, 0, 16)]
-    [InlineData(4, 3, 64, 0, 0, 16)]
-    [InlineData(4, 3, 32, 8, 0, 16)]
-    [InlineData(4, 3, 32, 0, 8, 16)]
-    [InlineData(4, 3, 32, 0, 0, 0)]
-    public void AnyChangeInDimensionsOrGeometryRebuilds(int cols, int rows, int cellSize, double originX, double originY, double shift)
+    [InlineData(5, 3, 32, 0, 0)]
+    [InlineData(4, 4, 32, 0, 0)]
+    [InlineData(4, 3, 64, 0, 0)]
+    [InlineData(4, 3, 32, 8, 0)]
+    [InlineData(4, 3, 32, 0, 8)]
+    public void AnyChangeInDimensionsOrGeometryRebuilds(int cols, int rows, int cellSize, double originX, double originY)
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory);
         reader.Read(unchecked((nint)world.Scene));
-        world.SetGrid(cols, rows, Enumerable.Repeat((byte)1, cols * rows).ToArray(), cellSize, shift, originX, originY);
+        world.SetGrid(cols, rows, Enumerable.Repeat((byte)1, cols * rows).ToArray(), cellSize, originX: originX, originY: originY);
         reader.Read(unchecked((nint)world.Scene));
         Assert.Equal(2, reader.Generation);
     }
@@ -187,14 +202,6 @@ public class TerrainReaderTests
         var reader = new TerrainReader(world.Memory);
         Assert.Null(reader.Read(unchecked((nint)world.Scene)));
         Assert.Equal(0, reader.Generation);
-    }
-
-    [Fact]
-    public void NonFiniteShiftGivesNoTerrain()
-    {
-        var world = new FakeWorld();
-        world.SetGrid(4, 3, FourByThree, oddRowShift: double.NaN);
-        Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
     }
 
     [Fact]

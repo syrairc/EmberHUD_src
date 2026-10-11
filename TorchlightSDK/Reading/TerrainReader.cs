@@ -8,7 +8,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
 {
     internal const int RetryEveryReads = 30;
 
-    private readonly record struct GridKey(int Cols, int Rows, int CellSize, Vector2 Origin, bool OddRowShift);
+    private readonly record struct GridKey(int Cols, int Rows, int CellSize, Vector2 Origin);
 
     private readonly record struct Header(GridKey Key, nint Grid, nint Cells, bool IsHybrid);
 
@@ -59,7 +59,6 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
         if (!memory.TryReadPtr(scene + Offsets.SceneGeometry, out var geometry) ||
             !memory.TryReadPtr(scene + Offsets.SceneGridModule, out var module) ||
             !memory.TryRead(geometry + Offsets.GeometryCellSize, out int cellSize) ||
-            !memory.TryRead(geometry + Offsets.GeometryOddRowShift, out double shift) ||
             !memory.TryRead(geometry + Offsets.GeometryOriginX, out double originX) ||
             !memory.TryRead(geometry + Offsets.GeometryOriginY, out double originY))
             return false;
@@ -72,28 +71,28 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
             return false;
 
         if (cols <= 0 || rows <= 0 || (long)cols * rows > Offsets.MaxCells || cellSize <= 0 ||
-            !double.IsFinite(shift) || !double.IsFinite(originX) || !double.IsFinite(originY))
+            !double.IsFinite(originX) || !double.IsFinite(originY))
             return false;
 
-        header = new Header(new GridKey(cols, rows, cellSize, new Vector2((float)originX, (float)originY), shift != 0), grid, cells, hybrid != 0);
+        header = new Header(new GridKey(cols, rows, cellSize, new Vector2((float)originX, (float)originY)), grid, cells, hybrid != 0);
         return true;
     }
 
     private Terrain? Build(Header header)
     {
-        var (cols, rows, cellSize, origin, oddRowShift) = header.Key;
+        var (cols, rows, cellSize, origin) = header.Key;
         var count = cols * rows;
         if (!memory.TryReadArray(header.Cells, count * Offsets.CellStride, out byte[] dense))
             return null;
 
         var walkable = new BitArray(count);
         for (var i = 0; i < count; i++)
-            walkable[i] = dense[i * Offsets.CellStride + Offsets.CellClearance] >= 1;
+            walkable[i] = Math.Min(dense[i * Offsets.CellStride + Offsets.CellClearance], dense[i * Offsets.CellStride + Offsets.CellClearanceSecond]) >= 1;
 
         if (header.IsHybrid && !ClearUniformBlocks(header, walkable))
             return null;
 
-        return new Terrain(cols, rows, cellSize, origin, oddRowShift, walkable);
+        return new Terrain(cols, rows, cellSize, origin, OddRowShift: false, walkable);
     }
 
     private bool ClearUniformBlocks(Header header, BitArray walkable)
@@ -110,7 +109,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
             !memory.TryReadArray(maskAddress, blockCount, out byte[] mask))
             return false;
 
-        var (cols, rows, _, _, _) = header.Key;
+        var (cols, rows, _, _) = header.Key;
         for (var row = 0; row < rows; row++)
             for (var col = 0; col < cols; col++)
             {

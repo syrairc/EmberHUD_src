@@ -418,7 +418,7 @@ internal sealed class FakeWorld
 
     public long GridAddress { get; private set; }
 
-    public void SetGrid(int cols, int rows, byte[] clearance, int cellSize = 32, double oddRowShift = 16, double originX = 0, double originY = 0, (int BlockW, int BlockH, int BlocksPerRow, byte[] Mask)? hybrid = null)
+    public void SetGrid(int cols, int rows, byte[] clearance, int cellSize = 32, double oddRowShift = 16, double originX = 0, double originY = 0, (int BlockW, int BlockH, int BlocksPerRow, byte[] Mask)? hybrid = null, byte[]? secondClearance = null)
     {
         var geometry = Alloc(0x100);
         var module = Alloc(0x100);
@@ -433,7 +433,11 @@ internal sealed class FakeWorld
         Memory.Write(GridAddress + Offsets.HybridCols, cols);
         Memory.Write(GridAddress + Offsets.HybridRows, rows);
         Memory.Write(GridAddress + Offsets.HybridCells, dense);
-        for (var i = 0; i < clearance.Length; i++) Memory.Write(dense + i * Offsets.CellStride + Offsets.CellClearance, clearance[i]);
+        for (var i = 0; i < clearance.Length; i++)
+        {
+            Memory.Write(dense + i * Offsets.CellStride + Offsets.CellClearance, clearance[i]);
+            Memory.Write(dense + i * Offsets.CellStride + Offsets.CellClearanceSecond, (secondClearance ?? clearance)[i]);
+        }
         Memory.Write(GridAddress + Offsets.HybridIsHybrid, (byte)(hybrid is null ? 0 : 1));
         if (hybrid is not { } h) return;
         var mask = Alloc(h.Mask.Length);

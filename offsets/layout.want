@@ -66,6 +66,7 @@ HybridMask = 40
 HybridBlockCount = 48
 CellStride = 12
 CellClearance = 0
+CellClearanceSecond = 2
 
 EntityCfgId = 28
 EntityAlive = 34

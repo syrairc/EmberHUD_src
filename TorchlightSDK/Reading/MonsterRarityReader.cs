@@ -12,12 +12,12 @@ internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
         var role = memory.TryReadPtr(entity + Offsets.EntityRole, out var block) && memory.TryRead(block + Offsets.RoleRarity, out int value) ? value : 0;
         return (tier, role) switch
         {
-            (4, _) => Rarity.Boss,
+            (4 or 5, _) => Rarity.Boss,
             (_, 1) => Rarity.Normal,
             (_, 2) => Rarity.Magic,
             (_, 3) => Rarity.Rare,
             (_, >= 4) => Rarity.Boss,
-            (2, _) => Rarity.Rare,
+            (2 or 3, _) => Rarity.Rare,
             _ => Rarity.Normal,
         };
     }
