@@ -27,7 +27,7 @@ Builds the host into a temp dir and runs every test project under `tests\`. Sing
 T=$(mktemp -d); dotnet build tests/TorchlightSDK.Tests -o "$T" && "$T/TorchlightSDK.Tests.exe"
 ```
 
-Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release publish -> Obfuscar on `TorchlightSDK.dll` -> leak scan -> `TorchlightSDK.exe --check` on the obfuscated build -> allow-list copy into `..\dist`. Keep the Obfuscar `Mapping.txt` it prints to read a user's stack trace from that build.
+Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-dependent, win-x64) -> plugins / fonts / themes / licences / game icon art (`..\assets\icons` -> `GameIcons\`) staged -> `TorchlightSDK.exe --check` -> allow-list copy into `..\dist` (local only, never pushed). `pwsh scripts/release.tests.ps1` tests it (stub dotnet, run by hand). Obfuscar on `TorchlightSDK.dll` and the leak scan come with the full release plan - keep the Obfuscar `Mapping.txt` then to read a user's stack trace.
 
 ## Layout
 
@@ -42,13 +42,13 @@ Release (planned, release plan): `pwsh scripts/release.ps1` - tests -> Release p
 | `tools\OffsetGen` | want file -> AES-GCM sealed table + `Offsets.g.cs` |
 | `Plugins` | first-party plugin sources (`Sample`, `Minimap`) |
 | `tests` | xunit v3 suites |
-| `scripts` | `build.ps1`, `gen-offsets.ps1` |
+| `scripts` | `build.ps1`, `gen-offsets.ps1`, `live-build.ps1`, `release.ps1`, `release.tests.ps1` |
 
 Planned:
 
 | Path | What |
 |---|---|
-| `scripts\release.ps1` | release plan |
+| `scripts\release.ps1` | Obfuscar + leak scan (full release plan) |
 | `tools` | external SDK dumper |
 | `offsets\offsets.want` | fields from an SDK dump, once the dumper exists |
 

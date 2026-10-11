@@ -76,7 +76,8 @@ var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : live ? new LiveGameSource() : new NoGameSource(), Log.Info, live ? 33 : 8);
 reader.Start();
 using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
-var gameIcons = sdk.GameIconsDirectory.Length > 0 ? IconStore.Open(Path.GetFullPath(sdk.GameIconsDirectory, root), overlay.UploadRgba, overlay.TryGetTexture) : null;
+var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
+var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.UploadRgba, overlay.TryGetTexture);
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
 var svgIcons = new SvgIconStore(SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory), overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture);
 Draw.SvgIcons = svgIcons.Resolve;
