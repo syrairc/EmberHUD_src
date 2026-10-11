@@ -59,7 +59,7 @@ public static class TestFrame
         var io = ImGui.GetIO();
         io.IniFilename = null;
         io.DisplaySize = new System.Numerics.Vector2(1920, 1080);
-        io.BackendFlags |= ImGuiBackendFlags.RendererHasTextures;
+        io.BackendFlags |= ImGuiBackendFlags.RendererHasTextures | ImGuiBackendFlags.RendererHasVtxOffset;
         io.ConfigErrorRecoveryEnableAssert = false;
         io.ConfigErrorRecoveryEnableDebugLog = false;
         io.Fonts.AddFontDefault();

@@ -78,8 +78,21 @@ public static class Draw
     {
         if (points.Length < 2) return;
         var target = list ?? Background;
-        target.AddPolyline(ref MemoryMarshal.GetReference(points), points.Length, EColor.U32(color), closed ? ImDrawFlags.Closed : ImDrawFlags.None, thickness);
+        var col = EColor.U32(color);
+        if (points.Length <= MaxPolylinePoints)
+        {
+            target.AddPolyline(ref MemoryMarshal.GetReference(points), points.Length, col, closed ? ImDrawFlags.Closed : ImDrawFlags.None, thickness);
+            return;
+        }
+        for (var start = 0; start < points.Length - 1; start += MaxPolylinePoints - 1)
+        {
+            var chunk = points.Slice(start, Math.Min(MaxPolylinePoints, points.Length - start));
+            target.AddPolyline(ref MemoryMarshal.GetReference(chunk), chunk.Length, col, ImDrawFlags.None, thickness);
+        }
+        if (closed) target.AddLine(points[^1], points[0], col, thickness);
     }
+
+    const int MaxPolylinePoints = 8000;
 
     public static void Arrow(Vector2 from, Vector2 to, Color color, float thickness = 1, float head = 8, ImDrawListPtr? list = null)
     {

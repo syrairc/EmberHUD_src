@@ -130,6 +130,37 @@ public sealed class DrawTests
         Assert.Equal(EColor.U32(Color.Red), list.VtxBuffer[list.IdxBuffer[start + 6]].Col);
     });
 
+    [Theory]
+    [InlineData(1, 40000, true)]
+    [InlineData(300, 150, true)]
+    [InlineData(1, 40000, false)]
+    public void AShapeDrawnAfterAHugePolylineStillPointsAtItsOwnVertices(int lines, int points, bool layered) => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        Draw.ResetLayer();
+        Draw.MergeLayers();
+        if (layered) Draw.SplitLayers();
+        var outline = new Vector2[points];
+        for (var i = 0; i < points; i++) outline[i] = new Vector2(i % 1000, i / 1000 * 3 + i % 7);
+        using (Draw.Layer(DrawLayer.Back))
+            for (var l = 0; l < lines; l++) Draw.Polyline(outline, Color.White, 2, true);
+        Draw.RectFilled(new Vector2(500), new Vector2(510), Color.Red);
+        Draw.MergeLayers();
+        var red = EColor.U32(Color.Red);
+        var redCorners = 0;
+        for (var c = 0; c < list.CmdBuffer.Size; c++)
+        {
+            var cmd = list.CmdBuffer[c];
+            for (var i = 0; i < cmd.ElemCount; i++)
+            {
+                var vertex = (int)cmd.VtxOffset + list.IdxBuffer[(int)cmd.IdxOffset + i];
+                if (vertex < list.VtxBuffer.Size && list.VtxBuffer[vertex].Col == red) redCorners++;
+            }
+        }
+        Assert.True(list.VtxBuffer.Size > 65536, $"only {list.VtxBuffer.Size} vertices");
+        Assert.Equal(6, redCorners);
+    });
+
     [Fact]
     public void ResetLayerPutsAnAbandonedFrontChannelBackToMiddle() => TestFrame.Run(() =>
     {
