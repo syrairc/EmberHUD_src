@@ -4,7 +4,6 @@ $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
 $work = Join-Path ([IO.Path]::GetTempPath()) "aember-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
-$gameIcons = Join-Path (Split-Path $src) 'assets\icons'
 $ship = @(
     'Aember.exe'
     'Aember.dll'
@@ -24,11 +23,22 @@ $ship = @(
     'HarfBuzzSharp.dll'
     'libSkiaSharp.dll'
     'libHarfBuzzSharp.dll'
+    'AemberLauncher.exe'
+    'AemberLauncher.dll'
+    'AemberLauncher.runtimeconfig.json'
+    'AemberLauncher.deps.json'
+    'AemberSetup.exe'
+    'AemberSetup.dll'
+    'AemberSetup.runtimeconfig.json'
+    'AemberSetup.deps.json'
+    'ooz.dll'
+    'BCnEncoder.dll'
+    'Microsoft.Toolkit.HighPerformance.dll'
 )
 $assets = @(
     @{ Dir = 'Fonts'; Include = '*.ttf', 'OFL*.txt' }
     @{ Dir = 'Themes'; Include = '*.json' }
-    @{ Dir = 'licenses'; Include = 'THIRD-PARTY.txt' }
+    @{ Dir = 'licenses'; Include = 'THIRD-PARTY.txt', 'ooz-GPL-3.0.txt' }
 )
 
 if ($Out.StartsWith('\\')) { throw "$Out is a UNC or device path - refusing to wipe it" }
@@ -43,7 +53,7 @@ foreach ($asset in $assets) {
 }
 if (-not (Get-ChildItem "$src/Plugins" -Directory -ErrorAction SilentlyContinue | Where-Object Name -notin 'bin', 'obj')) { throw "no plugin sources under $src/Plugins" }
 
-$userData = 'Config', 'Cache', 'Logs', 'imgui.ini'
+$userData = 'Config', 'Cache', 'Logs', 'imgui.ini', 'GameIcons'
 $assertWipeable = {
     $running = @(Get-CimInstance Win32_Process -Property ExecutablePath | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith("$Out\", [StringComparison]::OrdinalIgnoreCase) })
     if ($running) { throw "$($running[0].ExecutablePath) is running - close it first, refusing to wipe $Out" }
@@ -69,8 +79,10 @@ try {
     & "$PSScriptRoot/build.ps1"
     if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
 
-    dotnet publish "$src/Aember/Aember.csproj" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
-    if ($LASTEXITCODE) { throw "publish failed (exit $LASTEXITCODE)" }
+    foreach ($project in 'Aember/Aember.csproj', 'Aember.Launcher/Aember.Launcher.csproj', 'Aember.Setup/Aember.Setup.csproj') {
+        dotnet publish "$src/$project" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
+        if ($LASTEXITCODE) { throw "publish failed for $project (exit $LASTEXITCODE)" }
+    }
 
     $plugins = Join-Path $publish 'Plugins'
     Remove-Item $plugins -Recurse -Force -ErrorAction SilentlyContinue
@@ -98,13 +110,6 @@ try {
     }
 
     $folders = @('Plugins') + $assets.Dir
-    if (Test-Path -LiteralPath (Join-Path $gameIcons 'index.json')) {
-        $target = Join-Path $publish 'GameIcons'
-        New-Item -ItemType Directory -Force $target | Out-Null
-        Get-ChildItem -LiteralPath $gameIcons -File | Where-Object { $_.Name -eq 'index.json' -or $_.Extension -eq '.png' } | Copy-Item -Destination $target
-        $folders += 'GameIcons'
-    }
-    else { Write-Host "no game icon art at $gameIcons - the release draws shapes" }
 
     $check = Start-Process (Join-Path $publish 'Aember.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
     $null = $check.Handle
