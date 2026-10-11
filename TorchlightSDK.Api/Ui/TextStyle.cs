@@ -8,6 +8,7 @@ namespace TorchlightSDK.Ui;
 public sealed class TextStyle
 {
     public float Scale = 1f;
+    public FontFace Face = FontFace.Regular;
     public Color Color = Color.FromArgb(255, 255, 255, 255);
     public bool BgEnabled;
     public Color BgColor = Color.FromArgb(180, 0, 0, 0);
@@ -17,6 +18,16 @@ public sealed class TextStyle
     public float BorderRounding = 2f;
     public bool StrokeEnabled;
     public Color StrokeColor = Color.FromArgb(255, 0, 0, 0);
+    public bool ShadowEnabled;
+    public Color ShadowColor = Color.FromArgb(0xA0, 0, 0, 0);
+
+    public static TextStyle WorldLabel() => new() { Face = FontFace.Label, BgEnabled = true, BgColor = GameColors.LabelBackground, BorderRounding = 0 };
+
+    public static TextStyle Hud() => new() { Color = GameColors.HudText, ShadowEnabled = true };
+
+    public static TextStyle Speech() => new() { Face = FontFace.Bold, StrokeEnabled = true };
+
+    public static TextStyle Damage() => new() { Face = FontFace.Bold, Color = GameColors.DamageHit, ShadowEnabled = true };
 
     public static bool Edit(string label, TextStyle? style, string sampleText = "Sample Text", string? id = null, float swatchWidth = 140f)
     {
@@ -35,12 +46,16 @@ public sealed class TextStyle
         {
             Preview(style, sampleText, h);
             changed |= Controls.SliderFloat("Scale", ref style.Scale, 0.5f, 3f);
+            changed |= Combo.Enum(ref style.Face, "face");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("Font");
             changed |= Controls.Color("Color", ref style.Color);
             changed |= Controls.OverrideRow("bg", "Background", ref style.BgEnabled, () => Controls.Color("##bgcolor", ref style.BgColor, "bgcolor"), "Draw a filled box behind the text.");
             changed |= Controls.OverrideRow("border", "Border", ref style.BorderEnabled, () => Controls.Color("##bordercolor", ref style.BorderColor, "bordercolor"), "Draw a frame around the text.");
             changed |= Controls.SliderFloat("Border width", ref style.BorderThickness, 1f, 6f, fmt: "%.0f");
             changed |= Controls.SliderFloat("Border rounding", ref style.BorderRounding, 0f, 8f, fmt: "%.0f");
             changed |= Controls.OverrideRow("stroke", "Stroke", ref style.StrokeEnabled, () => Controls.Color("##strokecolor", ref style.StrokeColor, "strokecolor"), "Outline each glyph so it reads over any background.");
+            changed |= Controls.OverrideRow("shadow", "Shadow", ref style.ShadowEnabled, () => Controls.Color("##shadowcolor", ref style.ShadowColor, "shadowcolor"), "Draw a soft dark copy of the text one pixel down and right.");
             ImGui.EndPopup();
         }
 
@@ -54,6 +69,7 @@ public sealed class TextStyle
     {
         if (o is null) return;
         Scale = o.Scale;
+        Face = o.Face;
         Color = o.Color;
         BgEnabled = o.BgEnabled;
         BgColor = o.BgColor;
@@ -63,6 +79,8 @@ public sealed class TextStyle
         BorderRounding = o.BorderRounding;
         StrokeEnabled = o.StrokeEnabled;
         StrokeColor = o.StrokeColor;
+        ShadowEnabled = o.ShadowEnabled;
+        ShadowColor = o.ShadowColor;
     }
 
     public static bool EditOverride(string label, TextStyleOverride? ov, TextStyle? baseStyle, string sampleText = "Sample Text", string? id = null, float swatchWidth = 140f, TextStyle? scratch = null)
@@ -86,6 +104,7 @@ public sealed class TextStyle
         {
             Preview(resolved, sampleText, h);
             changed |= Controls.OverrideRow("sc", "Scale", ref ov.OverrideScale, () => Controls.SliderFloat("##scale", ref ov.Scale, 0.5f, 3f, "scale"));
+            changed |= Controls.OverrideRow("fc", "Font", ref ov.OverrideFace, () => Combo.Enum(ref ov.Face, "face"));
             changed |= Controls.OverrideRow("col", "Color", ref ov.OverrideColor, () => Controls.Color("##color", ref ov.Color, "color"));
             changed |= Controls.OverrideRow("bg", "Background", ref ov.OverrideBg, () =>
             {
@@ -110,6 +129,13 @@ public sealed class TextStyle
                 Text.Tip("Outline each glyph so it reads over any background.");
                 ImGui.SameLine();
                 return c | Controls.Color("##stcolor", ref ov.StrokeColor, "stcolor");
+            });
+            changed |= Controls.OverrideRow("sh", "Shadow", ref ov.OverrideShadow, () =>
+            {
+                var c = ImGui.Checkbox("##shon", ref ov.ShadowEnabled);
+                Text.Tip("Draw a soft dark copy of the text one pixel down and right.");
+                ImGui.SameLine();
+                return c | Controls.Color("##shcolor", ref ov.ShadowColor, "shcolor");
             });
             ImGui.EndPopup();
         }
@@ -147,6 +173,8 @@ public sealed class TextStyleOverride
 {
     public bool OverrideScale;
     public float Scale = 1f;
+    public bool OverrideFace;
+    public FontFace Face = FontFace.Regular;
     public bool OverrideColor;
     public Color Color = Color.FromArgb(255, 255, 255, 255);
     public bool OverrideBg;
@@ -160,11 +188,15 @@ public sealed class TextStyleOverride
     public bool OverrideStroke;
     public bool StrokeEnabled;
     public Color StrokeColor = Color.FromArgb(255, 0, 0, 0);
+    public bool OverrideShadow;
+    public bool ShadowEnabled;
+    public Color ShadowColor = Color.FromArgb(0xA0, 0, 0, 0);
 
     public void ApplyTo(TextStyle? s)
     {
         if (s is null) return;
         if (OverrideScale) s.Scale = Scale;
+        if (OverrideFace) s.Face = Face;
         if (OverrideColor) s.Color = Color;
         if (OverrideBg)
         {
@@ -183,10 +215,15 @@ public sealed class TextStyleOverride
             s.StrokeEnabled = StrokeEnabled;
             s.StrokeColor = StrokeColor;
         }
+        if (OverrideShadow)
+        {
+            s.ShadowEnabled = ShadowEnabled;
+            s.ShadowColor = ShadowColor;
+        }
     }
 
     [JsonIgnore]
-    public bool IsEmpty => !OverrideScale && !OverrideColor && !OverrideBg && !OverrideBorder && !OverrideStroke;
+    public bool IsEmpty => !OverrideScale && !OverrideColor && !OverrideBg && !OverrideBorder && !OverrideStroke && !OverrideFace && !OverrideShadow;
 
     public TextStyleOverride Clone() => (TextStyleOverride)MemberwiseClone();
 
@@ -194,6 +231,8 @@ public sealed class TextStyleOverride
     {
         OverrideScale = true,
         Scale = s.Scale,
+        OverrideFace = true,
+        Face = s.Face,
         OverrideColor = true,
         Color = s.Color,
         OverrideBg = true,
@@ -207,5 +246,8 @@ public sealed class TextStyleOverride
         OverrideStroke = true,
         StrokeEnabled = s.StrokeEnabled,
         StrokeColor = s.StrokeColor,
+        OverrideShadow = true,
+        ShadowEnabled = s.ShadowEnabled,
+        ShadowColor = s.ShadowColor,
     };
 }

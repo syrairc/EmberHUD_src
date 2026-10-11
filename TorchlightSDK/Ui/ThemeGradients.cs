@@ -19,29 +19,30 @@ internal static class ThemeGradients
 
     public static int IndexOf(uint colour) => (colour & 0xFFFF) == Marker ? (int)(colour >> 16 & 0xFF) : -1;
 
-    public static unsafe void Apply(ImDrawDataPtr data, ReadOnlySpan<GradientShade> shades, uint textRgb, List<GradientRun> runs)
+    public static unsafe void Apply(ImDrawDataPtr data, ReadOnlySpan<GradientShade> shades, uint textRgb, List<GradientRun> runs, ReadOnlySpan<uint> blockerRgbs = default)
     {
         if (data.IsNull || shades.IsEmpty) return;
         for (var n = 0; n < data.CmdListsCount; n++)
         {
             var list = data.CmdLists[n];
-            Apply(new Span<ImDrawVert>(list.VtxBuffer.Data, list.VtxBuffer.Size), shades, textRgb, runs);
+            Apply(new Span<ImDrawVert>(list.VtxBuffer.Data, list.VtxBuffer.Size), shades, textRgb, runs, blockerRgbs);
         }
     }
 
-    public static void Apply(Span<ImDrawVert> vertices, ReadOnlySpan<GradientShade> shades, uint textRgb, List<GradientRun> runs)
+    public static void Apply(Span<ImDrawVert> vertices, ReadOnlySpan<GradientShade> shades, uint textRgb, List<GradientRun> runs, ReadOnlySpan<uint> blockerRgbs = default)
     {
         runs.Clear();
         var anyText = false;
         for (var i = 0; i < vertices.Length;)
         {
+            var rgb = vertices[i].Col & RgbMask;
             var shade = IndexOf(vertices[i].Col);
-            if (shade < 0 || shade >= shades.Length)
+            if (shade >= shades.Length) shade = -1;
+            if (shade < 0 && !blockerRgbs.Contains(rgb))
             {
                 i++;
                 continue;
             }
-            var rgb = vertices[i].Col & RgbMask;
             var start = i;
             var min = vertices[i].Pos;
             var max = min;
@@ -51,11 +52,12 @@ internal static class ThemeGradients
                 max = Vector2.Max(max, vertices[i].Pos);
             }
             runs.Add(new GradientRun(start, i, min, max, shade));
-            anyText |= shades[shade].HasText;
+            if (shade >= 0) anyText |= shades[shade].HasText;
         }
 
         foreach (var run in runs)
         {
+            if (run.Shade < 0) continue;
             var shade = shades[run.Shade];
             var height = run.Max.Y - run.Min.Y;
             for (var i = run.Start; i < run.End; i++)
@@ -75,6 +77,7 @@ internal static class ThemeGradients
             {
                 var run = runs[r];
                 if (vertex.Pos.X < run.Min.X || vertex.Pos.X > run.Max.X || vertex.Pos.Y < run.Min.Y || vertex.Pos.Y > run.Max.Y) continue;
+                if (run.Shade < 0) break;
                 var shade = shades[run.Shade];
                 if (shade.HasText) vertex.Col = (vertex.Col & AlphaMask) | shade.Text;
                 break;

@@ -88,6 +88,8 @@ internal static class SettingsJson
                     if (current is null || value is not JsonObject nested) throw new JsonException("expected an object");
                     Populate(current, nested, $"{prefix}{field.Name}.", report);
                 }
+                else if (current is not null && value is JsonObject && field.FieldType.IsClass && !typeof(IEnumerable).IsAssignableFrom(field.FieldType))
+                    field.SetValue(holder, Merge(JsonSerializer.SerializeToNode(current, field.FieldType, Options), value)!.Deserialize(field.FieldType, Options));
                 else field.SetValue(holder, value.Deserialize(field.FieldType, Options));
             }
             catch (Exception ex)

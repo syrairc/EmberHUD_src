@@ -25,11 +25,11 @@ public sealed class ViewTab
     public RangeNode<float> OffsetX = new(0, -960, 960);
     public RangeNode<float> OffsetY = new(0, -960, 960);
     [Menu("Draw style", "Region fills the walkable area like the game's Tab map - white where you've been, blue where you haven't. Walls draws the old wall lines")] public ChoiceNode DrawStyle = new("Region", "Region", "Walls");
-    [Menu("Region fill", "Fill of the walkable area you haven't explored yet")] public ColorNode RegionFill = new(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8));
-    [Menu("Region outline", "Outline around the whole walkable area")] public ColorNode RegionOutline = new(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8));
+    [Menu("Region fill", "Fill of the walkable area you haven't explored yet")] public ColorNode RegionFill = new(Color.FromArgb(0x1F, GameColors.MinimapUnexplored));
+    [Menu("Region outline", "Outline around the whole walkable area")] public ColorNode RegionOutline = new(GameColors.MinimapUnexplored);
     [Menu("Region outline width")] public RangeNode<float> RegionOutlineWidth = new(1.5f, 0.5f, 6);
     [Menu("Explored fill", "Fill of the area you've been through")] public ColorNode ExploredFill = new(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
-    [Menu("Explored outline", "Outline around the explored area and the islands inside it")] public ColorNode ExploredOutline = new(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5));
+    [Menu("Explored outline", "Outline around the explored area and the islands inside it")] public ColorNode ExploredOutline = new(GameColors.MinimapOutline);
     [Menu("Explored outline width")] public RangeNode<float> ExploredOutlineWidth = new(2.5f, 0.5f, 6);
     [Menu("Wall colour", "Only used by the Walls draw style")] public ColorNode WallColour = new(Color.FromArgb(0xE6, 0xD8, 0xD0, 0x90));
     [Menu("Wall thickness", "Only used by the Walls draw style")] public RangeNode<float> WallThickness = new(1.5f, 0.5f, 6);

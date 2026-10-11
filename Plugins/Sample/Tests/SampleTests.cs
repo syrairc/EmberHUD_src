@@ -85,4 +85,12 @@ public sealed class SampleTests
         });
         Check.That(drawn > 0, "settings page draws");
     }
+
+    [Test]
+    public void TheStatusTextIsABoxedWorldLabelByDefault()
+    {
+        var label = new Settings().Display.Label;
+        Check.Equal(FontFace.Label, label.Face);
+        Check.That(label.BgEnabled, "the label sits in a box");
+    }
 }

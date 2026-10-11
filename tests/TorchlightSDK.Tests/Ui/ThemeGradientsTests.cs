@@ -12,6 +12,8 @@ public sealed class ThemeGradientsTests
     static readonly GradientShade Gold = new(Rgb(0xFF, 0xD4, 0x6A), Rgb(0xB9, 0x82, 0x0F), Rgb(0xFF, 0xE7, 0xA3), Rgb(0x2A, 0x2C, 0x30), HasHighlight: true, HasText: true);
     static readonly GradientShade Slate = new(Rgb(0x25, 0x2B, 0x33), Rgb(0x2C, 0x40, 0x72), 0, 0, HasHighlight: false, HasText: false);
     static readonly GradientShade[] Shades = [Gold, Slate];
+    static readonly uint FrameRgb = Rgb(0x28, 0x40, 0x55);
+    static readonly uint[] Frames = [FrameRgb];
 
     public ThemeGradientsTests() => TestFrame.Run(() => { });
 
@@ -22,6 +24,54 @@ public sealed class ThemeGradientsTests
     static uint Tag(int index, uint alpha = Opaque) => alpha | ThemeGradients.SentinelRgb(index);
 
     static void Shade(ImDrawVert[] vertices) => ThemeGradients.Apply(vertices, Shades, TextRgb, []);
+
+    [Fact]
+    public void TextInsideAFrameDrawnOnGoldStaysLightAndTextOnTheGoldAroundItStillGoesDark()
+    {
+        ImDrawVert[] vertices =
+        [
+            V(0, 0, Tag(0)), V(100, 0, Tag(0)), V(100, 40, Tag(0)), V(0, 40, Tag(0)),
+            V(10, 5, Opaque | FrameRgb), V(60, 5, Opaque | FrameRgb), V(60, 30, Opaque | FrameRgb), V(10, 30, Opaque | FrameRgb),
+            V(20, 10, Opaque | TextRgb), V(80, 35, Opaque | TextRgb),
+        ];
+        var runs = new List<GradientRun>();
+        ThemeGradients.Apply(vertices, Shades, TextRgb, runs, Frames);
+
+        Assert.Equal(Opaque | TextRgb, vertices[8].Col);
+        Assert.Equal(Opaque | Gold.Text, vertices[9].Col);
+        for (var i = 4; i < 8; i++) Assert.Equal(Opaque | FrameRgb, vertices[i].Col);
+        Assert.Contains(runs, run => run.Shade == -1 && run.Start == 4 && run.End == 8);
+    }
+
+    [Fact]
+    public void AFrameDrawnBeforeTheGoldDoesNotBlock()
+    {
+        ImDrawVert[] vertices =
+        [
+            V(10, 5, Opaque | FrameRgb), V(60, 5, Opaque | FrameRgb), V(60, 30, Opaque | FrameRgb), V(10, 30, Opaque | FrameRgb),
+            V(0, 0, Tag(0)), V(100, 0, Tag(0)), V(100, 40, Tag(0)), V(0, 40, Tag(0)),
+            V(20, 10, Opaque | TextRgb),
+        ];
+        ThemeGradients.Apply(vertices, Shades, TextRgb, [], Frames);
+
+        Assert.Equal(Opaque | Gold.Text, vertices[8].Col);
+    }
+
+    [Fact]
+    public void ADisabledFrameWithLowerAlphaStillBlocks()
+    {
+        const uint half = 0x80000000;
+        ImDrawVert[] vertices =
+        [
+            V(0, 0, Tag(0)), V(100, 0, Tag(0)), V(100, 40, Tag(0)), V(0, 40, Tag(0)),
+            V(10, 5, half | FrameRgb), V(60, 5, half | FrameRgb), V(60, 30, half | FrameRgb), V(10, 30, half | FrameRgb),
+            V(20, 10, half | TextRgb),
+        ];
+        ThemeGradients.Apply(vertices, Shades, TextRgb, [], Frames);
+
+        Assert.Equal(half | TextRgb, vertices[8].Col);
+        Assert.Equal(half | FrameRgb, vertices[4].Col);
+    }
 
     [Fact]
     public void TheSentinelVectorPacksToTheSentinelRgb()
@@ -105,7 +155,7 @@ public sealed class ThemeGradientsTests
     {
         ImDrawVert[] vertices = [V(0, 0, Tag(0)), V(40, 10, Tag(0)), V(0, 10, 0xFF336699), V(4, 100, Tag(0)), V(40, 110, Tag(0))];
         var runs = new List<GradientRun>();
-        ThemeGradients.Apply(vertices, Shades, TextRgb, runs);
+        ThemeGradients.Apply(vertices, Shades, TextRgb, runs, Frames);
 
         Assert.Equal(2, runs.Count);
         Assert.Equal(Opaque | Gold.Highlight, vertices[3].Col);
@@ -127,12 +177,12 @@ public sealed class ThemeGradientsTests
         ImDrawVert[] vertices = [V(0, 0, Tag(0)), V(40, 20, Tag(0)), V(10, 10, Opaque | TextRgb), V(0, 30, Tag(1)), V(40, 60, Tag(1))];
         var pristine = (ImDrawVert[])vertices.Clone();
         var runs = new List<GradientRun>();
-        ThemeGradients.Apply(vertices, Shades, TextRgb, runs);
+        ThemeGradients.Apply(vertices, Shades, TextRgb, runs, Frames);
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 100; i++)
         {
             Array.Copy(pristine, vertices, vertices.Length);
-            ThemeGradients.Apply(vertices, Shades, TextRgb, runs);
+            ThemeGradients.Apply(vertices, Shades, TextRgb, runs, Frames);
         }
         Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
     }
@@ -152,7 +202,7 @@ public sealed class ThemeGradientsTests
                     ImGui.Button("gold");
                     ImGui.End();
                 });
-            ThemeGradients.Apply(ImGui.GetDrawData(), Shades, TextRgb, []);
+            ThemeGradients.Apply(ImGui.GetDrawData(), Shades, TextRgb, [], Frames);
 
             var data = ImGui.GetDrawData();
             var colours = new List<uint>();

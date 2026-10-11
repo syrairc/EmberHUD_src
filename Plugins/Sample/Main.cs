@@ -17,7 +17,7 @@ public sealed class Main : Plugin<Settings>
         var centre = ImGui.GetIO().DisplaySize / 2;
         var radius = Settings.Display.Radius.Value;
         Draw.Marker(centre, radius, Settings.Display.Colour.Value);
-        Draw.TextOutlined(StatusText(Game.State), centre + new Vector2(0, radius + 6), Settings.Display.Colour.Value, Settings.Display.Outline.Value, align: Align.Center);
+        Draw.Text(StatusText(Game.State), centre + new Vector2(0, radius + 6), Settings.Display.Label, Align.Center);
     }
 
     internal static string StatusText(GameState state) => $"Status: {state.Status}";

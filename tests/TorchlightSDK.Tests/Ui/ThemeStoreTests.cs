@@ -42,6 +42,74 @@ public sealed class ThemeStoreTests : IDisposable
 
     static ThemeStore Store(string directory, string name) => new(directory, FontsDirectory, name, action => action());
 
+    static (Vector2 InputMin, Vector2 InputMax, Vector2 PlainMin, Vector2 PlainMax) InputOnGold()
+    {
+        var boxes = default((Vector2, Vector2, Vector2, Vector2));
+        for (var frame = 0; frame < 2; frame++)
+            TestFrame.Run(() =>
+            {
+                ImGui.SetNextWindowSize(new Vector2(400, 200));
+                ImGui.Begin("input on gold");
+                var at = ImGui.GetCursorScreenPos();
+                ImGui.GetWindowDrawList().AddRectFilled(at, at + new Vector2(300, 70), ImGui.GetColorU32(ImGuiCol.Button));
+                ImGui.SetCursorScreenPos(at + new Vector2(10, 10));
+                var value = "value";
+                ImGui.SetNextItemWidth(200);
+                ImGui.InputText("##in", ref value, 32);
+                var inputMin = ImGui.GetItemRectMin();
+                var inputMax = ImGui.GetItemRectMax();
+                ImGui.SetCursorScreenPos(at + new Vector2(10, 45));
+                ImGui.TextUnformatted("plain");
+                boxes = (inputMin, inputMax, ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+                ImGui.End();
+            });
+        return boxes;
+    }
+
+    static List<(Vector2 Pos, uint Rgb)> Vertices()
+    {
+        var data = ImGui.GetDrawData();
+        var vertices = new List<(Vector2, uint)>();
+        for (var n = 0; n < data.CmdListsCount; n++)
+        {
+            var list = data.CmdLists[n];
+            for (var i = 0; i < list.VtxBuffer.Size; i++) vertices.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col & 0xFFFFFF));
+        }
+        return vertices;
+    }
+
+    static bool Inside(Vector2 pos, Vector2 min, Vector2 max) => pos.X >= min.X && pos.X <= max.X && pos.Y >= min.Y && pos.Y <= max.Y;
+
+    static void AssertInputTextLightAndPlainTextDark(ThemeStore themes)
+    {
+        var (inputMin, inputMax, plainMin, plainMax) = InputOnGold();
+        themes.Shade();
+
+        var text = ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Text]) & 0xFFFFFF;
+        var vertices = Vertices();
+        Assert.Contains(vertices, v => v.Rgb == text && Inside(v.Pos, inputMin, inputMax));
+        Assert.DoesNotContain(vertices, v => v.Rgb == 0x302C2A && Inside(v.Pos, inputMin, inputMax));
+        Assert.Contains(vertices, v => v.Rgb == 0x302C2A && Inside(v.Pos, plainMin, plainMax));
+    }
+
+    [Fact]
+    public void TextInAnInputOnGoldStaysLightWhileTextOnTheGoldGoesDark()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), Graded);
+        var themes = Store(_themes, "Graded");
+        themes.Apply();
+        AssertInputTextLightAndPlainTextDark(themes);
+    }
+
+    [Fact]
+    public void AThemeThatTagsFrameBgItselfStillKeepsInputTextLight()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Framed.json"), """{ "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Text": "#2A2C30FF" }, "FrameBg": { "Top": "#284055FF", "Bottom": "#1C2C3BFF" } } }""");
+        var themes = Store(_themes, "Framed");
+        themes.Apply();
+        AssertInputTextLightAndPlainTextDark(themes);
+    }
+
     [Fact]
     public void TheTorchlightThemeAppliesItsStyleColoursAndFonts()
     {

@@ -64,6 +64,9 @@ public static partial class SettingsDrawer
                         changed = true;
                     }
                     break;
+                case TextStyle style:
+                    changed |= TextStyle.Edit(text, style, id: field.Name);
+                    break;
                 default:
                     continue;
             }

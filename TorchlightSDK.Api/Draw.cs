@@ -26,18 +26,18 @@ public static class Draw
         return measured;
     }
 
-    static float BaseSize => Fonts.RegularSize > 0 ? Fonts.RegularSize : ImGui.GetFontSize();
-
     public static Vector2 Text(string text, Vector2 pos, Ui.TextStyle style, Align align = Align.TopLeft, ImDrawListPtr? list = null)
     {
-        var size = BaseSize * style.Scale;
-        var box = MeasureText(text, size);
+        var faceSize = Fonts.Of(style.Face).Size;
+        var size = (faceSize > 0 ? faceSize : ImGui.GetFontSize()) * (style.Scale > 0 ? style.Scale : 1);
+        var box = MeasureText(text, size, style.Face);
         var min = pos - AlignOffset(box, align);
-        var pad = new Vector2(5f, 2f);
+        var pad = new Vector2(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
         if (style.BgEnabled) RectFilled(min - pad, min + box + pad, style.BgColor, style.BorderRounding, list);
         if (style.BorderEnabled) Rect(min - pad, min + box + pad, style.BorderColor, style.BorderThickness, style.BorderRounding, list);
-        if (style.StrokeEnabled) TextOutlined(text, min, style.Color, style.StrokeColor, 1f, Align.TopLeft, size, list: list);
-        else Text(text, min, style.Color, Align.TopLeft, size, list: list);
+        if (style.ShadowEnabled) Text(text, min + Vector2.One, style.ShadowColor, Align.TopLeft, size, style.Face, list);
+        if (style.StrokeEnabled) TextOutlined(text, min, style.Color, style.StrokeColor, 1f, Align.TopLeft, size, style.Face, list);
+        else Text(text, min, style.Color, Align.TopLeft, size, style.Face, list);
         return box;
     }
 

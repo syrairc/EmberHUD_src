@@ -1,5 +1,6 @@
 using System.Drawing;
 using Hexa.NET.ImGui;
+using TorchlightSDK.Ui;
 
 namespace TorchlightSDK.Api.Tests;
 
@@ -101,6 +102,8 @@ public sealed class SettingsDrawerTests
         Assert.Equal(0, Height(new Single<RangeNode<double>>(new(1, 0, 2))));
         Assert.Equal(0, Height(new Single<int>(3)));
         Assert.Equal(0, Height(new Single<MapTab>(new())));
+        Assert.True(Height(new Single<TextStyle>(TextStyle.WorldLabel())) > 0);
+        Assert.Equal(0, Height(new Single<TextStyle>(null!)));
         Assert.Equal(0, Height(new Single<ToggleNode>(null!)));
     }
 

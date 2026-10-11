@@ -12,7 +12,7 @@ public class TextStyleTests
     record Vtx(Vector2 Pos, Vector2 Uv, uint Col);
 
     const string Sentence = "Boss";
-    static readonly Vector2 Pad = new(5f, 2f);
+    static Vector2 PadFor(float size) => new(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
     static readonly Vector2 At = new(100, 100);
 
     static TextStyle Sample() => new()
@@ -38,6 +38,9 @@ public class TextStyleTests
         BorderRounding = 6f,
         StrokeEnabled = true,
         StrokeColor = Color.FromArgb(150, 111, 122, 133),
+        Face = FontFace.Bold,
+        ShadowEnabled = true,
+        ShadowColor = Color.FromArgb(140, 144, 155, 166),
     };
 
     static TextStyle Distinct(float scale = 2f) => new()
@@ -49,6 +52,7 @@ public class TextStyleTests
         BorderThickness = 3f,
         BorderRounding = 5f,
         StrokeColor = Color.FromArgb(255, 230, 230, 40),
+        ShadowColor = Color.FromArgb(255, 40, 230, 230),
     };
 
     static string Json(object value) => JsonSerializer.Serialize(value, SettingsJson.Options);
@@ -120,7 +124,7 @@ public class TextStyleTests
         Assert.Equal(style.BorderRounding, styleBack.BorderRounding);
         Assert.Equal(style.StrokeColor.ToArgb(), styleBack.StrokeColor.ToArgb());
         Assert.Equal(Json(ov), Json(overrideBack));
-        Assert.True(overrideBack.OverrideScale && overrideBack.OverrideColor && overrideBack.OverrideBg && overrideBack.OverrideBorder && overrideBack.OverrideStroke);
+        Assert.True(overrideBack.OverrideScale && overrideBack.OverrideColor && overrideBack.OverrideBg && overrideBack.OverrideBorder && overrideBack.OverrideStroke && overrideBack.OverrideFace && overrideBack.OverrideShadow);
     }
 
     [Fact]
@@ -142,6 +146,10 @@ public class TextStyleTests
         var ov = new TextStyleOverride();
         Assert.Equal((1f, white, 1f, 2f), (ov.Scale, ov.Color, ov.BorderThickness, ov.BorderRounding));
         Assert.Equal((Color.FromArgb(180, 0, 0, 0), white, Color.FromArgb(255, 0, 0, 0)), (ov.BgColor, ov.BorderColor, ov.StrokeColor));
+        Assert.Equal(FontFace.Regular, back.Face);
+        Assert.False(back.ShadowEnabled);
+        Assert.Equal(Color.FromArgb(0xA0, 0, 0, 0), back.ShadowColor);
+        Assert.Equal((FontFace.Regular, Color.FromArgb(0xA0, 0, 0, 0)), (ov.Face, ov.ShadowColor));
     }
 
     [Fact]
@@ -273,6 +281,8 @@ public class TextStyleTests
     [InlineData("bg")]
     [InlineData("border")]
     [InlineData("stroke")]
+    [InlineData("face")]
+    [InlineData("shadow")]
     public void EachOverrideGroupCarriesExactlyItsOwnFields(string group)
     {
         var ov = AllValues();
@@ -281,6 +291,8 @@ public class TextStyleTests
         ov.OverrideBg = group == "bg";
         ov.OverrideBorder = group == "border";
         ov.OverrideStroke = group == "stroke";
+        ov.OverrideFace = group == "face";
+        ov.OverrideShadow = group == "shadow";
         var target = new TextStyle();
         var full = Full();
 
@@ -297,6 +309,9 @@ public class TextStyleTests
         Assert.Equal(group == "border" ? full.BorderRounding : untouched.BorderRounding, target.BorderRounding);
         Assert.Equal(group == "stroke" ? full.StrokeEnabled : untouched.StrokeEnabled, target.StrokeEnabled);
         Assert.Equal(group == "stroke" ? full.StrokeColor : untouched.StrokeColor, target.StrokeColor);
+        Assert.Equal(group == "face" ? full.Face : untouched.Face, target.Face);
+        Assert.Equal(group == "shadow" ? full.ShadowEnabled : untouched.ShadowEnabled, target.ShadowEnabled);
+        Assert.Equal(group == "shadow" ? full.ShadowColor : untouched.ShadowColor, target.ShadowColor);
     }
 
     [Theory]
@@ -305,6 +320,8 @@ public class TextStyleTests
     [InlineData("bg")]
     [InlineData("border")]
     [InlineData("stroke")]
+    [InlineData("face")]
+    [InlineData("shadow")]
     public void AnyOneTickedGroupMakesAnOverrideNonEmpty(string group)
     {
         var ov = new TextStyleOverride
@@ -314,6 +331,8 @@ public class TextStyleTests
             OverrideBg = group == "bg",
             OverrideBorder = group == "border",
             OverrideStroke = group == "stroke",
+            OverrideFace = group == "face",
+            OverrideShadow = group == "shadow",
         };
 
         Assert.False(ov.IsEmpty);
@@ -344,7 +363,7 @@ public class TextStyleTests
         ov.ApplyTo(resolved);
 
         Assert.False(ov.IsEmpty);
-        Assert.True(ov.OverrideScale && ov.OverrideColor && ov.OverrideBg && ov.OverrideBorder && ov.OverrideStroke);
+        Assert.True(ov.OverrideScale && ov.OverrideColor && ov.OverrideBg && ov.OverrideBorder && ov.OverrideStroke && ov.OverrideFace && ov.OverrideShadow);
         Assert.Equal(Json(source), Json(resolved));
         Assert.Equal(source.BorderRounding, resolved.BorderRounding);
         Assert.Equal(source.StrokeColor, resolved.StrokeColor);
@@ -453,25 +472,25 @@ public class TextStyleTests
     [InlineData(Align.TopLeft)]
     [InlineData(Align.Center | Align.Middle)]
     [InlineData(Align.Right | Align.Bottom)]
-    public void ABackgroundIsAFilledBoxPaddedBy5x2BehindTheText(Align align)
+    public void ABackgroundIsAFilledBoxPaddedByItsSizeBehindTheText(Align align)
     {
         var style = Distinct();
         style.BgEnabled = true;
         AssertDraws(style, align, (list, min, box, size) =>
         {
-            list.AddRectFilled(min - Pad, min + box + Pad, EColor.U32(style.BgColor), style.BorderRounding);
+            list.AddRectFilled(min - PadFor(size), min + box + PadFor(size), EColor.U32(style.BgColor), style.BorderRounding);
             GlyphsAt(list, min, size, style.Color);
         });
     }
 
     [Fact]
-    public void ABorderIsAFrameWithItsThicknessAndRoundingPaddedBy5x2()
+    public void ABorderIsAFrameWithItsThicknessAndRoundingPaddedByItsSize()
     {
         var style = Distinct();
         style.BorderEnabled = true;
         AssertDraws(style, Align.Center, (list, min, box, size) =>
         {
-            list.AddRect(min - Pad, min + box + Pad, EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
+            list.AddRect(min - PadFor(size), min + box + PadFor(size), EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
             GlyphsAt(list, min, size, style.Color);
         });
     }
@@ -509,17 +528,157 @@ public class TextStyleTests
     }
 
     [Fact]
-    public void BackgroundBorderAndStrokeDrawInThatOrderUnderTheText()
+    public void BackgroundBorderShadowAndStrokeDrawInThatOrderUnderTheText()
     {
         var style = Distinct();
-        style.BgEnabled = style.BorderEnabled = style.StrokeEnabled = true;
+        style.BgEnabled = style.BorderEnabled = style.ShadowEnabled = style.StrokeEnabled = true;
         AssertDraws(style, Align.Center | Align.Middle, (list, min, box, size) =>
         {
-            list.AddRectFilled(min - Pad, min + box + Pad, EColor.U32(style.BgColor), style.BorderRounding);
-            list.AddRect(min - Pad, min + box + Pad, EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
+            var pad = PadFor(size);
+            list.AddRectFilled(min - pad, min + box + pad, EColor.U32(style.BgColor), style.BorderRounding);
+            list.AddRect(min - pad, min + box + pad, EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
+            GlyphsAt(list, min + Vector2.One, size, style.ShadowColor);
             StrokeRing(list, min, size, style.StrokeColor);
             GlyphsAt(list, min, size, style.Color);
         });
+    }
+
+    [Fact]
+    public void AShadowIsOneCopyOnePixelDownAndRightUnderTheText()
+    {
+        var style = Distinct();
+        style.ShadowEnabled = true;
+        AssertDraws(style, Align.TopLeft, (list, min, _, size) =>
+        {
+            GlyphsAt(list, min + Vector2.One, size, style.ShadowColor);
+            GlyphsAt(list, min, size, style.Color);
+        });
+    }
+
+    [Fact]
+    public void ThePaddingIs8x3AtSixteenPixels()
+    {
+        var style = Distinct(1f);
+        style.BgEnabled = true;
+        var font = Fonts.Regular;
+        var size = Fonts.RegularSize;
+        try
+        {
+            for (var frame = 0; frame < 2; frame++)
+                TestFrame.Run(() =>
+                {
+                    Fonts.Regular = ImGui.GetFont();
+                    Fonts.RegularSize = 16f;
+                    var verts = Drawn(Draw.Foreground, () => Draw.Text(Sentence, At, style, Align.TopLeft, Draw.Foreground));
+                    var bg = verts.Where(v => v.Col == EColor.U32(style.BgColor)).ToList();
+                    Assert.InRange(bg.Min(v => v.Pos.X), At.X - 8.6f, At.X - 7.4f);
+                    Assert.InRange(bg.Min(v => v.Pos.Y), At.Y - 3.6f, At.Y - 2.4f);
+                });
+        }
+        finally
+        {
+            Fonts.Regular = font;
+            Fonts.RegularSize = size;
+        }
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(float.NaN)]
+    public void ABadScaleWithABackgroundPadsAtScaleOne(float scale)
+    {
+        var bad = Distinct(scale);
+        var good = Distinct(1f);
+        bad.BgEnabled = good.BgEnabled = true;
+        TestFrame.Run(() => Draw.Text(Sentence, At, good, Align.TopLeft, Draw.Foreground));
+        TestFrame.Run(() =>
+        {
+            var expected = Drawn(Draw.Foreground, () => Draw.Text(Sentence, At, good, Align.TopLeft, Draw.Foreground));
+            var actual = Drawn(Draw.Foreground, () => Draw.Text(Sentence, At, bad, Align.TopLeft, Draw.Foreground));
+            Assert.Equal(expected, actual);
+            Assert.All(actual, v => Assert.True(float.IsFinite(v.Pos.X) && float.IsFinite(v.Pos.Y)));
+        });
+    }
+
+    [Fact]
+    public void TheFaceSetsTheFontAndScaleMultipliesItsSize()
+    {
+        var style = Distinct(2f);
+        style.Face = FontFace.Label;
+        var font = Fonts.Label;
+        var size = Fonts.LabelSize;
+        try
+        {
+            for (var frame = 0; frame < 2; frame++)
+                TestFrame.Run(() =>
+                {
+                    Fonts.Label = ImGui.GetFont();
+                    Fonts.LabelSize = ImGui.GetFontSize() * 1.3f;
+                    var list = Draw.Foreground;
+                    var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, Fonts.LabelSize * 2f, FontFace.Label, list));
+                    Vector2 box = default;
+                    var styled = Drawn(list, () => box = Draw.Text(Sentence, At, style, Align.TopLeft, list));
+                    Assert.Equal(plain, styled);
+                    Assert.Equal(Draw.MeasureText(Sentence, Fonts.LabelSize * 2f, FontFace.Label), box);
+                    Assert.NotEqual(Draw.MeasureText(Sentence, ImGui.GetFontSize() * 2f), box);
+                });
+        }
+        finally
+        {
+            Fonts.Label = font;
+            Fonts.LabelSize = size;
+        }
+    }
+
+    [Fact]
+    public void AFaceWhoseSlotIsNotLoadedFallsBackToTheCurrentFont()
+    {
+        var style = Distinct(1f);
+        style.Face = FontFace.Label;
+        var font = Fonts.Label;
+        var size = Fonts.LabelSize;
+        try
+        {
+            for (var frame = 0; frame < 2; frame++)
+                TestFrame.Run(() =>
+                {
+                    Fonts.Label = default;
+                    Fonts.LabelSize = 0;
+                    var list = Draw.Foreground;
+                    var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, ImGui.GetFontSize(), list: list));
+                    var styled = Drawn(list, () => Draw.Text(Sentence, At, style, Align.TopLeft, list));
+                    Assert.NotEmpty(styled);
+                    Assert.Equal(plain, styled);
+                });
+        }
+        finally
+        {
+            Fonts.Label = font;
+            Fonts.LabelSize = size;
+        }
+    }
+
+    [Fact]
+    public void ThePresetsCarryTheGameLooksAndEachCallIsANewInstance()
+    {
+        var label = TextStyle.WorldLabel();
+        Assert.Equal((FontFace.Label, true, GameColors.LabelBackground, 0f), (label.Face, label.BgEnabled, label.BgColor, label.BorderRounding));
+        Assert.Equal(Color.FromArgb(255, 255, 255, 255), label.Color);
+        var hud = TextStyle.Hud();
+        Assert.Equal((FontFace.Regular, GameColors.HudText, true), (hud.Face, hud.Color, hud.ShadowEnabled));
+        var speech = TextStyle.Speech();
+        Assert.Equal((FontFace.Bold, Color.FromArgb(255, 255, 255, 255), true, Color.FromArgb(255, 0, 0, 0)), (speech.Face, speech.Color, speech.StrokeEnabled, speech.StrokeColor));
+        var damage = TextStyle.Damage();
+        Assert.Equal((FontFace.Bold, GameColors.DamageHit, true), (damage.Face, damage.Color, damage.ShadowEnabled));
+        Assert.NotSame(TextStyle.WorldLabel(), TextStyle.WorldLabel());
+        Assert.Equal(Color.FromArgb(0x99, 0x25, 0x28, 0x3E), GameColors.LabelBackground);
+    }
+
+    [Fact]
+    public void TheFaceIsWrittenByName()
+    {
+        Assert.Contains("\"Face\": \"Label\"", Json(TextStyle.WorldLabel()));
+        Assert.Equal(FontFace.Bold, JsonSerializer.Deserialize<TextStyle>("{\"Face\":\"Bold\"}", SettingsJson.Options)!.Face);
     }
 
     [Fact]
@@ -800,7 +959,7 @@ public class TextStyleTests
                     previewInk = Verts(windows[i].DrawList, 0).Count(v => v.Col == EColor.U32(style.Color));
             Assert.True(previewInk > 0);
 
-            var backgroundRow = origin + new Vector2(height / 2, height * 2 + spacing.Y + 1f + spacing.Y + (height + spacing.Y) * 2 + height / 2);
+            var backgroundRow = origin + new Vector2(height / 2, height * 2 + spacing.Y + 1f + spacing.Y + (height + spacing.Y) * 3 + height / 2);
             changed = false;
             UiFrame.Click("popup", backgroundRow, Body);
 

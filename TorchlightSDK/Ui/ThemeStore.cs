@@ -117,7 +117,18 @@ internal sealed class ThemeStore
         ApplyGradients(warn: false);
     });
 
-    public void Shade() => ThemeGradients.Apply(ImGui.GetDrawData(), _shades, ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Text]) & 0xFFFFFF, _runs);
+    public void Shade()
+    {
+        var style = ImGui.GetStyle();
+        Span<uint> blockers = stackalloc uint[3];
+        var count = 0;
+        foreach (var col in (ReadOnlySpan<ImGuiCol>)[ImGuiCol.FrameBg, ImGuiCol.FrameBgHovered, ImGuiCol.FrameBgActive])
+        {
+            var colour = ImGui.ColorConvertFloat4ToU32(style.Colors[(int)col]);
+            if (ThemeGradients.IndexOf(colour) < 0) blockers[count++] = colour & 0xFFFFFF;
+        }
+        ThemeGradients.Apply(ImGui.GetDrawData(), _shades, ImGui.ColorConvertFloat4ToU32(style.Colors[(int)ImGuiCol.Text]) & 0xFFFFFF, _runs, blockers[..count]);
+    }
 
     public void Save() => SaveAs(Name);
 

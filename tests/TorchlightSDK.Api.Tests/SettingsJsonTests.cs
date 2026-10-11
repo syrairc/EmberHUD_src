@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using TorchlightSDK.Ui;
 
 namespace TorchlightSDK.Api.Tests;
 
@@ -56,6 +57,12 @@ public sealed class SettingsJsonTests
     {
         public ToggleNode Show = new(true);
         public Vector2 Spot = new(40, 400);
+    }
+
+    public sealed class Styled : PluginSettings
+    {
+        public TextStyle Label = TextStyle.WorldLabel();
+        public Dictionary<string, int> Counts = new() { ["a"] = 1 };
     }
 
     readonly List<string> _reports = [];
@@ -234,6 +241,36 @@ public sealed class SettingsJsonTests
         Assert.True(four["Top"]!["Next"]!["Next"]!["Next"]!["On"]!.GetValue<bool>());
         var five = JsonNode.Parse(SettingsJson.Serialize(new Five()))!;
         Assert.IsType<JsonObject>(five["Top"]!["Next"]!["Next"]!["Next"]!["Next"]!["On"]);
+    }
+
+    [Fact]
+    public void APartialObjectForAStyleFieldKeepsThePresetValuesItLeavesOut()
+    {
+        var settings = (Styled)SettingsJson.Load(typeof(Styled), """{ "Label": { "Scale": 2 } }""", """{ "Label": { "Color": "#7FDBFEFF" } }""", _reports.Add);
+        Assert.Equal(2f, settings.Label.Scale);
+        Assert.Equal(Color.FromArgb(0x7F, 0xDB, 0xFE).ToArgb(), settings.Label.Color.ToArgb());
+        Assert.Equal(FontFace.Label, settings.Label.Face);
+        Assert.True(settings.Label.BgEnabled);
+        Assert.Equal(GameColors.LabelBackground.ToArgb(), settings.Label.BgColor.ToArgb());
+        Assert.Equal(0f, settings.Label.BorderRounding);
+        Assert.Empty(_reports);
+    }
+
+    [Fact]
+    public void ABadFaceNameReportsAndTheStyleKeepsItsPreset()
+    {
+        var settings = (Styled)SettingsJson.Load(typeof(Styled), null, """{ "Label": { "Face": "Huge", "Scale": 3 } }""", _reports.Add);
+        Assert.StartsWith("Label - ", Assert.Single(_reports));
+        Assert.Equal(FontFace.Label, settings.Label.Face);
+        Assert.Equal(1f, settings.Label.Scale);
+    }
+
+    [Fact]
+    public void ACollectionFieldIsStillReplacedWhole()
+    {
+        var settings = (Styled)SettingsJson.Load(typeof(Styled), null, """{ "Counts": { "b": 2 } }""", _reports.Add);
+        Assert.Equal(new Dictionary<string, int> { ["b"] = 2 }, settings.Counts);
+        Assert.Empty(_reports);
     }
 
     [Fact]
