@@ -11,5 +11,6 @@
     <InternalsVisibleTo Include="Aember" />
     <InternalsVisibleTo Include="Aember.Tests" />
     <InternalsVisibleTo Include="Aember.Api.Tests" />
+    <InternalsVisibleTo Include="AemberSetup" />
   </ItemGroup>
 </Project>

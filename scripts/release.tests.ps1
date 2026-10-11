@@ -10,10 +10,15 @@ if ($a[0] -eq 'publish') {
     if ($stage -eq 'publish') { exit 1 }
     $dir = $a[[array]::IndexOf($a, '-o') + 1]
     New-Item -ItemType Directory -Force $dir | Out-Null
-    foreach ($name in 'Aember.exe', 'Aember.dll', 'Aember.runtimeconfig.json', 'Aember.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
-    foreach ($name in 'Aember.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
-    if ($stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
-    if ($stage -eq 'swap') {
+    $project = $a[1]
+    if ($project -like '*Aember.Launcher*') { foreach ($name in 'AemberLauncher.exe', 'AemberLauncher.dll', 'AemberLauncher.runtimeconfig.json', 'AemberLauncher.deps.json') { Set-Content (Join-Path $dir $name) plain } }
+    elseif ($project -like '*Aember.Setup*') { foreach ($name in 'AemberSetup.exe', 'AemberSetup.dll', 'AemberSetup.runtimeconfig.json', 'AemberSetup.deps.json', 'AemberLauncher.exe', 'AemberLauncher.dll', 'AemberLauncher.runtimeconfig.json', 'AemberLauncher.deps.json', 'ooz.dll', 'BCnEncoder.dll', 'Microsoft.Toolkit.HighPerformance.dll', 'Aember.Api.dll', 'Hexa.NET.ImGui.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll') { Set-Content (Join-Path $dir $name) plain } }
+    else {
+        foreach ($name in 'Aember.exe', 'Aember.dll', 'Aember.runtimeconfig.json', 'Aember.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
+        foreach ($name in 'Aember.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
+    }
+    if ($project -notlike '*Aember.Launcher*' -and $project -notlike '*Aember.Setup*' -and $stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
+    if ($project -notlike '*Aember.Launcher*' -and $project -notlike '*Aember.Setup*' -and $stage -eq 'swap') {
         Remove-Item -LiteralPath $env:STUB_SWAP_DIST -Recurse -Force
         New-Item -ItemType Junction -Path $env:STUB_SWAP_DIST -Target $env:STUB_SWAP_TARGET | Out-Null
     }
@@ -39,7 +44,7 @@ try {
     Copy-Item "$PSScriptRoot/release.ps1" $release
     Set-Content "$box/repo/src/scripts/build.ps1" $stubBuild
     New-Item -ItemType Directory -Force "$box/repo/src/Fonts", "$box/repo/src/Themes", "$box/repo/src/licenses", "$box/repo/src/Plugins/Sample/Icons/deep", "$box/repo/src/Plugins/Sample/bin", "$box/repo/assets/icons" | Out-Null
-    foreach ($file in 'Fonts/a.ttf', 'Fonts/OFL.txt', 'Themes/a.json', 'licenses/THIRD-PARTY.txt', 'Plugins/Sample/Main.cs', 'Plugins/Sample/defaults.json', 'Plugins/Sample/notes.txt', 'Plugins/Sample/Icons/dot.svg', 'Plugins/Sample/Icons/deep/skip.svg', 'Plugins/Sample/bin/Skip.cs', 'Plugins/Plugins.csproj') { Set-Content "$box/repo/src/$file" x }
+    foreach ($file in 'Fonts/a.ttf', 'Fonts/OFL.txt', 'Themes/a.json', 'licenses/THIRD-PARTY.txt', 'licenses/ooz-GPL-3.0.txt', 'Plugins/Sample/Main.cs', 'Plugins/Sample/defaults.json', 'Plugins/Sample/notes.txt', 'Plugins/Sample/Icons/dot.svg', 'Plugins/Sample/Icons/deep/skip.svg', 'Plugins/Sample/bin/Skip.cs', 'Plugins/Plugins.csproj') { Set-Content "$box/repo/src/$file" x }
     foreach ($file in 'index.json', 'a.png', 'notes.txt') { Set-Content "$box/repo/assets/icons/$file" x }
     foreach ($dir in 'repo', 'repo/src', 'repo/dist', 'plain', 'notdist', 'repo/other', 'plain/dist') { Set-Content "$box/$dir/keep.txt" keep }
     Set-Content "$box/repo/dist/old/old.bin" old
@@ -108,6 +113,7 @@ try {
         Set-Content "$box/repo/dist/Logs/aember.log" log
         Set-Content "$box/repo/dist/Cache/plugin.bin" cache
         Set-Content "$box/repo/dist/imgui.ini" layout
+        New-Item -ItemType Directory -Force "$box/repo/dist/GameIcons" | Out-Null; Set-Content "$box/repo/dist/GameIcons/mine.png" mine
     }
     function FailsAt([string]$stage, [string]$message) {
         ResetDist
@@ -172,10 +178,11 @@ try {
         (Test-Path "$dist/licenses/THIRD-PARTY.txt") -and (Test-Path "$dist/Fonts/a.ttf") -and (Test-Path "$dist/Fonts/OFL.txt") -and (Test-Path "$dist/Themes/a.json") -and
         (Test-Path "$dist/Plugins/Sample/Main.cs") -and (Test-Path "$dist/Plugins/Sample/defaults.json") -and (Test-Path "$dist/Plugins/Sample/Icons/dot.svg") -and
         -not (Test-Path "$dist/Plugins/Sample/Icons/deep") -and -not (Test-Path "$dist/Plugins/Sample/bin") -and -not (Test-Path "$dist/Plugins/Sample/notes.txt") -and -not (Test-Path "$dist/Plugins/Plugins.csproj") -and
-        (Test-Path "$dist/GameIcons/index.json") -and (Test-Path "$dist/GameIcons/a.png") -and -not (Test-Path "$dist/GameIcons/notes.txt") -and
+        (Get-Content "$dist/GameIcons/mine.png" -ErrorAction SilentlyContinue) -eq 'mine' -and -not (Test-Path "$dist/GameIcons/a.png") -and -not (Test-Path "$dist/GameIcons/index.json") -and
+        (Test-Path "$dist/AemberLauncher.exe") -and (Test-Path "$dist/AemberSetup.exe") -and (Test-Path "$dist/ooz.dll") -and (Test-Path "$dist/BCnEncoder.dll") -and (Test-Path "$dist/licenses/ooz-GPL-3.0.txt") -and
         (Test-Path "$dist/Aember.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and
         (Get-Content "$dist/Config/Plugins/Minimap.json" -ErrorAction SilentlyContinue) -eq 'mine' -and (Get-Content "$dist/Logs/aember.log" -ErrorAction SilentlyContinue) -eq 'log' -and -not (Test-Path "$dist/Logs/check.txt") -and
-        (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout') 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences and the game icon art, and leaves no pdb, Logs or work dir'
+        (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout') 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences, the launcher, Setup and ooz.dll, keeps the user''s GameIcons and ships no icon art, and leaves no pdb, Logs or work dir'
 
     ResetDist
     Copy-Item "$env:SystemRoot\System32\PING.EXE" "$box/repo/dist/Aember.exe"
@@ -183,11 +190,10 @@ try {
     try { Refuses "$box/repo/dist" $box '-Out with a program running from it' }
     finally { Stop-Process -Id $running.Id -Force -ErrorAction SilentlyContinue; $running.WaitForExit() }
 
-    Rename-Item "$box/repo/assets" 'assets-off'
     ResetDist
+    Remove-Item "$box/repo/dist/GameIcons" -Recurse -Force
     Run "$box/repo/dist" $box 'none'
-    Check ($code -eq 0 -and $output -match 'no game icon art at' -and $output -match 'release ready' -and -not (Test-Path "$box/repo/dist/GameIcons")) 'no assets\icons warns and still releases without GameIcons'
-    Rename-Item "$box/repo/assets-off" 'assets'
+    Check ($code -eq 0 -and $output -match 'release ready' -and -not (Test-Path "$box/repo/dist/GameIcons") -and $output -notmatch 'game icon art') 'a dist without GameIcons releases without creating one - the icons come from Setup'
 
     ResetDist
     $victimBefore = (Get-ChildItem "$box/plainvictim" -Recurse -Force | ForEach-Object { "$($_.FullName)|$($_.Length)" }) -join ','

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ApplicationIcon>..\Aember\aember.ico</ApplicationIcon>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Aember.Setup</RootNamespace>
+    <AssemblyName>AemberSetup</AssemblyName>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aember.Api\Aember.Api.csproj" />
+    <ProjectReference Include="..\Aember.Launcher\Aember.Launcher.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Hexa.NET.ImGui.Backends" Version="1.0.18" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />
+    <PackageReference Include="Vortice.DirectComposition" Version="3.8.2" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.1.0" />
+    <PackageReference Include="SkiaSharp" Version="4.148.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Aember\Overlay\GraphicsDevice.cs" Link="Host\GraphicsDevice.cs" />
+    <Compile Include="..\Aember\Overlay\ImGuiHost.cs" Link="Host\ImGuiHost.cs" />
+    <Compile Include="..\Aember\Overlay\Win32.cs" Link="Host\Win32.cs" />
+    <Compile Include="..\Aember\Ui\ThemeStore.cs" Link="Host\ThemeStore.cs" />
+    <Compile Include="..\Aember\Ui\ThemeGradients.cs" Link="Host\ThemeGradients.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Aember\Offsets\Offsets.cs" Link="Host\Offsets.cs" />
+    <Compile Include="..\Aember\Offsets\Offsets.g.cs" Link="Host\Offsets.g.cs" />
+    <Compile Include="..\Aember\Offsets\OffsetTable.cs" Link="Host\OffsetTable.cs" />
+    <EmbeddedResource Include="..\Aember\Offsets\offsets.bin" LogicalName="t" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Fonts\**" LinkBase="Fonts" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Themes\**" LinkBase="Themes" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\native\ooz\ooz.dll" Link="ooz.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aember.Setup.Tests" />
+  </ItemGroup>
+</Project>

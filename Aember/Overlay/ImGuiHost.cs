@@ -7,16 +7,17 @@ namespace Aember.Host.Overlay;
 internal sealed class ImGuiHost : IDisposable
 {
     ImGuiContextPtr _context;
-    OverlayWindow _window = null!;
+    nint _hwnd;
+    Action<Func<nint, uint, nint, nint, nint?>?> _setHook = null!;
     bool _disposed;
 
     public bool WantCaptureMouse { get; private set; }
 
     public bool WantTextInput { get; private set; }
 
-    public static unsafe ImGuiHost Create(OverlayWindow window, GraphicsDevice gd)
+    public static unsafe ImGuiHost Create(nint hwnd, Action<Func<nint, uint, nint, nint, nint?>?> setHook, GraphicsDevice gd)
     {
-        var host = new ImGuiHost { _window = window };
+        var host = new ImGuiHost { _hwnd = hwnd, _setHook = setHook };
         host._context = ImGui.CreateContext();
         ImGui.SetCurrentContext(host._context);
 
@@ -30,7 +31,7 @@ internal sealed class ImGuiHost : IDisposable
             ImGuiImplWin32.SetCurrentContext(host._context);
             ImGuiImplD3D11.SetCurrentContext(host._context);
 
-            if (!ImGuiImplWin32.Init((void*)window.Handle))
+            if (!ImGuiImplWin32.Init((void*)hwnd))
                 throw new InvalidOperationException("ImGuiImplWin32.Init failed");
             win32Ready = true;
 
@@ -39,8 +40,7 @@ internal sealed class ImGuiHost : IDisposable
                     (ID3D11DeviceContext*)gd.Context.NativePointer))
                 throw new InvalidOperationException("ImGuiImplD3D11.Init failed");
 
-            window.WndProcHook = (hwnd, msg, wparam, lparam) =>
-                ImGuiImplWin32.WndProcHandler(hwnd, msg, (nuint)wparam, lparam) != 0 ? 1 : null;
+            setHook((h, msg, wparam, lparam) => ImGuiImplWin32.WndProcHandler(h, msg, (nuint)wparam, lparam) != 0 ? 1 : null);
 
             return host;
         }
@@ -65,7 +65,7 @@ internal sealed class ImGuiHost : IDisposable
     void FeedCursor(ImGuiIOPtr io)
     {
         if (!Win32.GetCursorPos(out var p)) return;
-        if (!Win32.ScreenToClient(_window.Handle, ref p)) return;
+        if (!Win32.ScreenToClient(_hwnd, ref p)) return;
         io.AddMousePosEvent(p.X, p.Y);
     }
 
@@ -86,7 +86,7 @@ internal sealed class ImGuiHost : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _window.WndProcHook = null;
+        _setHook(null);
         ImGuiImplD3D11.Shutdown();
         ImGuiImplWin32.Shutdown();
         ImGui.DestroyContext(_context);

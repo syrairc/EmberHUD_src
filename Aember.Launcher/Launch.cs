@@ -1,0 +1,50 @@
+using System.Diagnostics;
+
+namespace Aember.Launcher;
+
+public static class Launch
+{
+    public static bool NeedsSetup(LauncherConfig? config, GameInstall? game) => config is null || game is null;
+
+    public static string GameInner(GameInstall game) =>
+        $"set __COMPAT_LAYER=RunAsInvoker&& cd /d \"{game.Binaries}\" && start /high torchlight_infinite.exe -SkipGameLauncher -UserDir=Torchlight{(game.Build is { } build ? $" -Version={build}" : "")}";
+
+    public static ProcessStartInfo Game(GameInstall game, string runAsUser) =>
+        runAsUser.Length == 0
+            ? new ProcessStartInfo("cmd") { Arguments = "/c " + GameInner(game), UseShellExecute = false, CreateNoWindow = true }
+            : RunAs(runAsUser, "cmd /c " + GameInner(game));
+
+    public static ProcessStartInfo SavePassword(string runAsUser) => RunAs(runAsUser, "cmd /c exit");
+
+    static ProcessStartInfo RunAs(string user, string command)
+    {
+        var start = new ProcessStartInfo("runas") { UseShellExecute = false };
+        start.ArgumentList.Add($"/user:{user}");
+        start.ArgumentList.Add("/savecred");
+        start.ArgumentList.Add(command);
+        return start;
+    }
+
+    public static List<(string Name, ProcessStartInfo Start)> Steps(LauncherConfig config, GameInstall game, string root, Func<string, bool> isRunning, Action<string> log)
+    {
+        List<(string Name, ProcessStartInfo Start)> steps = [];
+        if (!config.LaunchGame) log("game - off");
+        else if (isRunning("torchlight_infinite.exe")) log("game - already running");
+        else
+        {
+            if (game.Build is null) log("game - no CurrentBuild in live_patch_version.json, starting without -Version");
+            steps.Add(("game", Game(game, config.RunAsUser)));
+        }
+
+        if (!config.LaunchAember) log("Aember - off");
+        else if (isRunning("Aember.exe")) log("Aember - already running");
+        else steps.Add(("Aember", new ProcessStartInfo(Path.Combine(root, "Aember.exe")) { UseShellExecute = false, WorkingDirectory = root }));
+
+        foreach (var program in config.Programs.Where(program => program.Enabled && program.Path.Length > 0))
+        {
+            if (isRunning(Path.GetFileName(program.Path))) log($"{program.Path} - already running");
+            else steps.Add((program.Path, new ProcessStartInfo(program.Path, program.Arguments) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(program.Path)) ?? "" }));
+        }
+        return steps;
+    }
+}

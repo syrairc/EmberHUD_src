@@ -49,7 +49,7 @@ internal sealed class OverlayLoop : IDisposable
         {
             window = OverlayWindow.Create("Aember", x, y, width, height);
             gd = GraphicsDevice.Create(window.Handle, width, height);
-            imgui = ImGuiHost.Create(window, gd);
+            imgui = ImGuiHost.Create(window.Handle, hook => window.WndProcHook = hook, gd);
 
             _window = window;
             _gd = gd;
