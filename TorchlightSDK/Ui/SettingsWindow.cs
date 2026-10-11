@@ -35,9 +35,10 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         {
             var errored = slot.ErrorStage is not null;
             var colour = errored ? EColor.U32(EColor.Bad) : ImGui.GetColorU32(slot.Enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
-            using (new EColor.StyleColorScope((ImGuiCol.Text, colour)))
+            var selected = Page == SettingsPage.Plugin && Selected == slot;
+            using (new EColor.StyleColorScope(selected ? [] : [(ImGuiCol.Text, colour)]))
             {
-                if (ImGui.Selectable($"{(errored ? "! " : "")}{slot.Name}{(slot.Compiling ? " (compiling)" : "")}###{slot.Name}", Page == SettingsPage.Plugin && Selected == slot))
+                if (ImGui.Selectable($"{(errored ? "! " : "")}{slot.Name}{(slot.Compiling ? " (compiling)" : "")}###{slot.Name}", selected))
                 {
                     Page = SettingsPage.Plugin;
                     Selected = slot;
@@ -62,10 +63,15 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         }
     }
 
+    static void Section(string text)
+    {
+        using (Fonts.UseBold()) ImGui.SeparatorText(text);
+    }
+
     void DrawPlugin(PluginSlot slot)
     {
         ImGui.PushID(slot.Name);
-        ImGui.TextUnformatted(slot.Name);
+        using (Fonts.UseBold()) ImGui.TextUnformatted(slot.Name);
         ImGui.SameLine();
         ImGui.BeginDisabled(slot.Compiling);
         if (ImGui.Button(slot.ErrorStage is null ? "Reload###reload" : "Retry###reload")) plugins.Reload(slot);
@@ -103,19 +109,19 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
     void DrawGeneral()
     {
-        ImGui.SeparatorText("Hotkeys");
+        Section("Hotkeys");
         Controls.Hotkey("Settings window", ref sdk.Hotkeys.Settings, "settings");
         Controls.Hotkey("Quit", ref sdk.Hotkeys.Quit, "quit");
 
-        ImGui.SeparatorText("Game");
+        Section("Game");
         ImGui.TextUnformatted(Game.State.Status);
         if (buildWarning() is { } warning) ImGui.TextColored(new Vector4(1, 0.85f, 0.3f, 1), Text.EscPct(warning));
 
-        ImGui.SeparatorText("Plugins");
+        Section("Plugins");
         ImGui.Checkbox("Reload plugins when their source changes", ref sdk.AutoReload);
         if (ImGui.Button("Clear compile cache")) plugins.ClearCache();
 
-        ImGui.SeparatorText("Log");
+        Section("Log");
         Controls.LogView("log", logs.Snapshot(), 0);
     }
 
@@ -130,7 +136,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         }
         sdk.Theme = themes.Name;
         ImGui.SameLine();
-        if (ImGui.Button("Save")) themes.Save();
+        if (Controls.PrimaryButton("Save")) themes.Save();
         ImGui.SameLine();
         if (ImGui.Button("Revert")) themes.Use(themes.Name);
         ImGui.SetNextItemWidth(260);
@@ -144,9 +150,9 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         }
         ImGui.EndDisabled();
 
-        ImGui.SeparatorText("Fonts");
-        ThemeFont[] fonts = [themes.Current.Fonts.Regular, themes.Current.Fonts.Mono];
-        string[] labels = ["Regular", "Mono"];
+        Section("Fonts");
+        ThemeFont[] fonts = [themes.Current.Fonts.Regular, themes.Current.Fonts.Bold, themes.Current.Fonts.Label, themes.Current.Fonts.Mono];
+        string[] labels = ["Regular", "Bold", "Label", "Mono"];
         var changed = false;
         for (var i = 0; i < fonts.Length; i++)
         {
@@ -172,9 +178,40 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
             }
             ImGui.PopID();
         }
-        if (changed) themes.UseFonts(new ThemeFonts { Regular = fonts[0], Mono = fonts[1] });
+        if (changed) themes.UseFonts(new ThemeFonts { Regular = fonts[0], Bold = fonts[1], Label = fonts[2], Mono = fonts[3] });
 
-        ImGui.SeparatorText("Style");
+        Section("Gradients");
+        Dictionary<string, ThemeGradient>? edited = null;
+        foreach (var (key, gradient) in themes.Current.Gradients)
+        {
+            ImGui.PushID(key);
+            var top = gradient.Top;
+            var bottom = gradient.Bottom;
+            var highlight = gradient.Highlight;
+            var text = gradient.Text;
+            var touched = Controls.Color("##top", ref top, "top");
+            ImGui.SameLine();
+            touched |= Controls.Color("##bottom", ref bottom, "bottom");
+            if (highlight is { } h)
+            {
+                ImGui.SameLine();
+                touched |= Controls.Color("##highlight", ref h, "highlight");
+                highlight = h;
+            }
+            if (text is { } t)
+            {
+                ImGui.SameLine();
+                touched |= Controls.Color("##text", ref t, "text");
+                text = t;
+            }
+            ImGui.SameLine();
+            ImGui.TextUnformatted(key);
+            if (touched) (edited ??= new Dictionary<string, ThemeGradient>(themes.Current.Gradients))[key] = new ThemeGradient(top, bottom, highlight, text);
+            ImGui.PopID();
+        }
+        if (edited is not null) themes.UseGradients(edited);
+
+        Section("Style");
         ImGui.ShowStyleEditor();
     }
 }

@@ -52,7 +52,7 @@ public sealed class DrawTests
         var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
         Assert.Equal(Draw.MeasureText("hello"), Draw.Text("hello", new Vector2(10, 10), Color.White));
         Assert.True(Draw.MeasureText("abc", 26).Y > Draw.MeasureText("abc", 13).Y);
-        Assert.True(Draw.MeasureText("abc", mono: true).X > 0);
+        Assert.True(Draw.MeasureText("abc", face: FontFace.Mono).X > 0);
         Draw.TextOutlined("outlined", new Vector2(10, 30), Color.White, Color.Black, 2, Align.Center | Align.Middle);
         Draw.TextShadow("shadow", new Vector2(10, 50), Color.White, Color.Black);
         Assert.Equal(Draw.MeasureText("box") + new Vector2(8, 4), Draw.TextBackground("box", new Vector2(10, 70), Color.White, Color.DarkSlateGray, rounding: 3));
@@ -86,6 +86,26 @@ public sealed class DrawTests
     {
         using (Fonts.UseMono(20)) Assert.Equal(20f, ImGui.GetFontSize());
         using (Fonts.UseRegular(18)) Assert.Equal(18f, ImGui.GetFontSize());
+        using (Fonts.UseBold(19)) Assert.Equal(19f, ImGui.GetFontSize());
+        using (Fonts.UseLabel(21)) Assert.Equal(21f, ImGui.GetFontSize());
+    });
+
+    [Fact]
+    public void EachFaceMeasuresWithItsOwnFontAndSize() => TestFrame.Run(() =>
+    {
+        var (label, labelSize) = (Fonts.Label, Fonts.LabelSize);
+        try
+        {
+            Fonts.Label = ImGui.GetFont();
+            Fonts.LabelSize = 40;
+            Assert.True(Draw.MeasureText("abc", face: FontFace.Label).Y > Draw.MeasureText("abc", face: FontFace.Regular).Y);
+            Assert.Equal(Draw.MeasureText("abc", 40), Draw.MeasureText("abc", face: FontFace.Label));
+        }
+        finally
+        {
+            Fonts.Label = label;
+            Fonts.LabelSize = labelSize;
+        }
     });
 
     [Fact]

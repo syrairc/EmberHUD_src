@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TorchlightSDK.Ui;
 using Hexa.NET.ImGui;
 
@@ -11,9 +12,20 @@ namespace TorchlightSDK.Host.Ui;
 internal sealed record ThemeFont(string File, float Size);
 
 [Obfuscation(Exclude = true, ApplyToMembers = true)]
+internal sealed record ThemeGradient(
+    Color Top,
+    Color Bottom,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Color? Highlight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Color? Text = null);
+
+[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record ThemeFonts
 {
-    public ThemeFont Regular { get; init; } = new("segoeui.ttf", 15);
+    public ThemeFont Regular { get; init; } = new("NotoSans-Regular.ttf", 15);
+
+    public ThemeFont Bold { get; init; } = new("NotoSans-SemiBold.ttf", 16);
+
+    public ThemeFont Label { get; init; } = new("Rajdhani-SemiBold.ttf", 16);
 
     public ThemeFont Mono { get; init; } = new("JetBrainsMono-Regular.ttf", 15);
 }
@@ -26,6 +38,8 @@ internal sealed record ThemeFile
     public Dictionary<string, JsonElement> Style { get; init; } = [];
 
     public ThemeFonts Fonts { get; init; } = new();
+
+    public Dictionary<string, ThemeGradient> Gradients { get; init; } = [];
 }
 
 internal sealed class ThemeStore
@@ -36,6 +50,8 @@ internal sealed class ThemeStore
     readonly string _fonts;
     readonly Action<Action> _beforeFrame;
     readonly Dictionary<string, ImFontPtr> _loaded = new(StringComparer.OrdinalIgnoreCase);
+    readonly List<GradientRun> _runs = [];
+    GradientShade[] _shades = [];
     ImGuiStyle _defaults;
 
     public ThemeStore(string themesDirectory, string fontsDirectory, string name, Action<Action> beforeFrame)
@@ -95,6 +111,14 @@ internal sealed class ThemeStore
         LoadFonts(fonts);
     });
 
+    public void UseGradients(Dictionary<string, ThemeGradient> gradients) => _beforeFrame(() =>
+    {
+        Current = Current with { Gradients = gradients };
+        ApplyGradients(warn: false);
+    });
+
+    public void Shade() => ThemeGradients.Apply(ImGui.GetDrawData(), _shades, ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Text]) & 0xFFFFFF, _runs);
+
     public void Save() => SaveAs(Name);
 
     public unsafe void SaveAs(string name)
@@ -102,8 +126,9 @@ internal sealed class ThemeStore
         object look = *ImGui.GetStyle().Handle;
         var saved = Current with
         {
+            Gradients = Current.Gradients.Where(entry => !(TryColour(entry.Key, out var col) && !entry.Value.Top.IsEmpty && !entry.Value.Bottom.IsEmpty && !Tagged(col))).ToDictionary(),
             Style = StyleFields.ToDictionary(field => field.Name, field => JsonSerializer.SerializeToElement(field.GetValue(look) is Vector2 pair ? new[] { pair.X, pair.Y } : field.GetValue(look))),
-            Colors = Enum.GetValues<ImGuiCol>().Where(col => col != ImGuiCol.Count).ToDictionary(col => col.ToString(), col => EColor.FromVector4(ImGui.GetStyle().Colors[(int)col])),
+            Colors = Enum.GetValues<ImGuiCol>().Where(col => col != ImGuiCol.Count && !Tagged(col)).ToDictionary(col => col.ToString(), col => EColor.FromVector4(ImGui.GetStyle().Colors[(int)col])),
         };
         var path = Path.Combine(_themes, name + ".json");
         try
@@ -127,7 +152,7 @@ internal sealed class ThemeStore
         if (!File.Exists(path)) return null;
         try
         {
-            return JsonSerializer.Deserialize<ThemeFile>(File.ReadAllText(path), SettingsJson.Options);
+            return JsonSerializer.Deserialize<ThemeFile>(File.ReadAllText(path), SettingsJson.Options) is { } file ? file with { Gradients = (file.Gradients ?? []).Where(entry => entry.Value is not null).ToDictionary() } : null;
         }
         catch (JsonException ex)
         {
@@ -166,17 +191,48 @@ internal sealed class ThemeStore
         style->FontSizeBase = size;
         foreach (var (key, colour) in Current.Colors)
         {
-            if (Enum.TryParse<ImGuiCol>(key, out var col) && Enum.IsDefined(col) && col != ImGuiCol.Count) ImGui.GetStyle().Colors[(int)col] = EColor.ToVector4(colour);
+            if (TryColour(key, out var col)) ImGui.GetStyle().Colors[(int)col] = EColor.ToVector4(colour);
             else Log.Warn($"theme {Name} - unknown colour {key}");
         }
+        ApplyGradients(warn: true);
     }
+
+    static bool TryColour(string key, out ImGuiCol col) => Enum.TryParse(key, out col) && Enum.IsDefined(col) && col != ImGuiCol.Count;
+
+    static bool Tagged(ImGuiCol col) => ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)col])) >= 0;
+
+    void ApplyGradients(bool warn)
+    {
+        foreach (var col in Enum.GetValues<ImGuiCol>().Where(col => col != ImGuiCol.Count && Tagged(col)))
+            ImGui.GetStyle().Colors[(int)col] = Current.Colors.TryGetValue(col.ToString(), out var listed) ? EColor.ToVector4(listed) : _defaults.Colors[(int)col];
+        List<GradientShade> shades = [];
+        foreach (var (key, gradient) in Current.Gradients)
+        {
+            if (!TryColour(key, out var col))
+            {
+                if (warn) Log.Warn($"theme {Name} - unknown gradient {key}");
+                continue;
+            }
+            if (gradient.Top.IsEmpty || gradient.Bottom.IsEmpty)
+            {
+                if (warn) Log.Warn($"theme {Name} - gradient {key} needs Top and Bottom");
+                continue;
+            }
+            ImGui.GetStyle().Colors[(int)col] = ThemeGradients.Sentinel(shades.Count, gradient.Top.A / 255f);
+            shades.Add(new GradientShade(Rgb(gradient.Top), Rgb(gradient.Bottom), Rgb(gradient.Highlight ?? default), Rgb(gradient.Text ?? default), gradient.Highlight is not null, gradient.Text is not null));
+        }
+        _shades = [.. shades];
+    }
+
+    static uint Rgb(Color colour) => EColor.U32(colour) & 0xFFFFFF;
 
     void LoadFonts(ThemeFonts fonts)
     {
         var io = ImGui.GetIO();
+        ThemeFont[] slots = [fonts.Regular, fonts.Bold, fonts.Label, fonts.Mono];
         ImFontPtr[] picked =
         [
-            .. new[] { fonts.Regular, fonts.Mono }.Select(font =>
+            .. slots.Select(font =>
             {
                 if (_loaded.TryGetValue(font.File, out var loaded)) return loaded;
                 var path = new[] { _fonts, Environment.GetFolderPath(Environment.SpecialFolder.Fonts) }.Select(directory => Path.Combine(directory, font.File)).FirstOrDefault(File.Exists);
@@ -192,9 +248,13 @@ internal sealed class ThemeStore
         io.FontDefault = picked[0];
         Fonts.Regular = picked[0];
         Fonts.RegularSize = fonts.Regular.Size;
-        Fonts.Mono = picked[1];
+        Fonts.Bold = picked[1];
+        Fonts.BoldSize = fonts.Bold.Size;
+        Fonts.Label = picked[2];
+        Fonts.LabelSize = fonts.Label.Size;
+        Fonts.Mono = picked[3];
         Fonts.MonoSize = fonts.Mono.Size;
-        foreach (var stale in _loaded.Keys.Where(file => !file.Equals(fonts.Regular.File, StringComparison.OrdinalIgnoreCase) && !file.Equals(fonts.Mono.File, StringComparison.OrdinalIgnoreCase)).ToList())
+        foreach (var stale in _loaded.Keys.Where(file => !slots.Any(slot => slot.File.Equals(file, StringComparison.OrdinalIgnoreCase))).ToList())
         {
             ImGui.RemoveFont(io.Fonts, _loaded[stale]);
             _loaded.Remove(stale);

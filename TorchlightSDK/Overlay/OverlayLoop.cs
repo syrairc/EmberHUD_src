@@ -161,7 +161,7 @@ internal sealed class OverlayLoop : IDisposable
 
     public void Stop() => _stop = true;
 
-    public void Run(Action onFrame)
+    public void Run(Action onFrame, Action afterRender)
     {
         while (!_stop)
         {
@@ -176,6 +176,7 @@ internal sealed class OverlayLoop : IDisposable
             _imgui.NewFrame(_gd.Width, _gd.Height);
             onFrame();
             _imgui.Render();
+            afterRender();
             _window.SetClickable(_imgui.WantCaptureMouse);
 
             _gd.Context.ClearRenderTargetView(_gd.BackBufferView, new Color4(0f, 0f, 0f, 0f));

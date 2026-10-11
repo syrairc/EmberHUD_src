@@ -21,19 +21,20 @@ public static class Badges
         ImGui.Dummy(size);
 
         var dl = ImGui.GetWindowDrawList();
-        var fill = color ?? EColor.FromVector4(style.Colors[(int)ImGuiCol.Header]);
+        var fill = color.HasValue ? EColor.U32(color.Value) : ImGui.GetColorU32(ImGuiCol.Header);
+        var ink = color.HasValue ? EColor.U32(EColor.Contrast(color.Value)) : ImGui.GetColorU32(ImGuiCol.Text);
         var r = size.Y * 0.5f;
         if (dot)
         {
             dl.AddRectFilled(org, org + size, ImGui.GetColorU32(ImGuiCol.FrameBg), r);
             dl.AddRect(org, org + size, ImGui.GetColorU32(ImGuiCol.Border), r);
-            dl.AddCircleFilled(new Vector2(org.X + padX + DotR, org.Y + size.Y * 0.5f), DotR, EColor.U32(fill));
+            dl.AddCircleFilled(new Vector2(org.X + padX + DotR, org.Y + size.Y * 0.5f), DotR, fill);
             dl.AddText(org + new Vector2(padX + DotR * 2 + DotGap, (size.Y - ts.Y) * 0.5f), ImGui.GetColorU32(ImGuiCol.Text), text);
             return;
         }
-        if (outline) dl.AddRect(org, org + size, EColor.U32(fill), r);
-        else dl.AddRectFilled(org, org + size, EColor.U32(fill), r);
-        dl.AddText(org + new Vector2(padX, (size.Y - ts.Y) * 0.5f), EColor.U32(outline ? fill : EColor.Contrast(fill)), text);
+        if (outline) dl.AddRect(org, org + size, fill, r);
+        else dl.AddRectFilled(org, org + size, fill, r);
+        dl.AddText(org + new Vector2(padX, (size.Y - ts.Y) * 0.5f), outline ? fill : ink, text);
     }
 
     public static float Width(string? text, bool dot = false) =>

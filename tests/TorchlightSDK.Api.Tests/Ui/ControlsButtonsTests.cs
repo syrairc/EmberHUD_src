@@ -311,6 +311,26 @@ public class ControlsButtonsTests
     }
 
     [Fact]
+    public void DesaturateNeverDerivesAColourFromTheButtonStyleColour()
+    {
+        UiFrame.Io();
+        var colours = ImGui.GetStyle().Colors;
+        var button = colours[(int)ImGuiCol.Button];
+        try
+        {
+            colours[(int)ImGuiCol.Button] = new Vector4(1 / 255f, 2 / 255f, 9 / 255f, 1);
+
+            var verts = Verts(() => Controls.ButtonGroup("g", Plain, selected: 0, desaturate: true));
+
+            Assert.Contains(verts, v => (v.Col & 0xFFFF) == 0x0201);
+        }
+        finally
+        {
+            colours[(int)ImGuiCol.Button] = button;
+        }
+    }
+
+    [Fact]
     public void DesaturateGreysTheLosersInsteadOfFadingThem()
     {
         Controls.GroupButton[] buttons = [new("A", Dark), new("B", Dark)];

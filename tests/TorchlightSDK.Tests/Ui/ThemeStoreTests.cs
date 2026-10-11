@@ -1,4 +1,5 @@
 using System.Drawing;
+using TorchlightSDK.Ui;
 using TorchlightSDK.Host.Ui;
 using TorchlightSDK.Testing;
 using Hexa.NET.ImGui;
@@ -12,7 +13,26 @@ public sealed class ThemeStoreTests : IDisposable
     readonly string _themes = Directory.CreateTempSubdirectory("torchlightsdk-themes-").FullName;
     readonly LogCapture _log = new();
 
-    public ThemeStoreTests() => TestFrame.Run(() => { });
+    static readonly Lazy<ImGuiStyle> Pristine = new(CapturePristine);
+
+    public ThemeStoreTests()
+    {
+        TestFrame.Run(() => { });
+        ResetStyle();
+    }
+
+    static unsafe ImGuiStyle CapturePristine()
+    {
+        var main = ImGui.GetCurrentContext();
+        var scratch = ImGui.CreateContext();
+        ImGui.SetCurrentContext(scratch);
+        var style = *ImGui.GetStyle().Handle;
+        ImGui.SetCurrentContext(main);
+        ImGui.DestroyContext(scratch);
+        return style;
+    }
+
+    static unsafe void ResetStyle() => *ImGui.GetStyle().Handle = Pristine.Value;
 
     public void Dispose()
     {
@@ -29,25 +49,86 @@ public sealed class ThemeStoreTests : IDisposable
         themes.Apply();
         Assert.Equal(6f, ImGui.GetStyle().WindowRounding);
         Assert.Equal(new Vector2(12, 12), ImGui.GetStyle().WindowPadding);
-        Assert.Equal(new Vector4(0xE6 / 255f, 0xE3 / 255f, 0xD6 / 255f, 1), ImGui.GetStyle().Colors[(int)ImGuiCol.Text]);
+        Assert.Equal(new Vector4(0xD9 / 255f, 0xD9 / 255f, 0xD9 / 255f, 1), ImGui.GetStyle().Colors[(int)ImGuiCol.Text]);
+        Assert.Equal(4f, ImGui.GetStyle().FrameRounding);
+        foreach (var col in new[] { ImGuiCol.WindowBg, ImGuiCol.Button, ImGuiCol.ButtonActive, ImGuiCol.Header, ImGuiCol.HeaderHovered, ImGuiCol.TabSelected })
+            Assert.True(ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)col])) >= 0, $"{col} is a gradient");
+        Assert.Equal(new ThemeFont("NotoSans-Regular.ttf", 15), themes.Current.Fonts.Regular);
         Assert.False(Fonts.Regular.IsNull);
         Assert.False(Fonts.Mono.IsNull);
         Assert.Equal(15f, Fonts.MonoSize);
+        Assert.False(Fonts.Bold.IsNull);
+        Assert.False(Fonts.Label.IsNull);
+        Assert.Equal(16f, Fonts.BoldSize);
+        Assert.Equal(16f, Fonts.LabelSize);
+        Assert.NotEqual(Fonts.Regular, Fonts.Mono);
+        Assert.NotEqual(Fonts.Regular, Fonts.Label);
+        Assert.NotEqual(Fonts.Bold, Fonts.Label);
+        Assert.NotEqual(Fonts.Bold, Fonts.Regular);
+        Assert.NotEqual(Fonts.Bold, Fonts.Mono);
+        Assert.NotEqual(Fonts.Label, Fonts.Mono);
         Assert.Equal(15f, ImGui.GetStyle().FontSizeBase);
         Assert.Empty(_log.Text);
         TestFrame.Run(() => ImGui.TextUnformatted("themed"));
     }
 
     [Fact]
-    public void EveryShippedThemeLoadsWithoutWarnings()
+    public void AnOldTwoSlotThemeGetsTheDefaultBoldAndLabelFaces()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Old.json"), """{ "Fonts": { "Regular": { "File": "JetBrainsMono-Regular.ttf", "Size": 14 }, "Mono": { "File": "JetBrainsMono-Regular.ttf", "Size": 14 } } }""");
+        var themes = Store(_themes, "Old");
+        themes.Apply();
+        Assert.Equal(new ThemeFont("NotoSans-SemiBold.ttf", 16), themes.Current.Fonts.Bold);
+        Assert.Equal(new ThemeFont("Rajdhani-SemiBold.ttf", 16), themes.Current.Fonts.Label);
+        Assert.False(Fonts.Bold.IsNull);
+        Assert.NotEqual(Fonts.Regular, Fonts.Label);
+        Assert.NotEqual(Fonts.Bold, Fonts.Label);
+        Assert.Equal(14f, Fonts.RegularSize);
+        Assert.Empty(_log.Text);
+    }
+
+    [Fact]
+    public void ABoldOrLabelChangeOnlyTouchesThatSlot()
     {
         var themes = Store(Shipped, "Torchlight");
         themes.Apply();
-        Assert.Equal(["Amethyst", "Azure", "Chartreuse", "Crimson", "Denim", "Emerald", "Gold", "Graphite", "HighContrastMono", "Indigo", "MonoSteel", "Rose", "Torchlight", "TrueGrayscale", "Violet"], themes.Names());
-        foreach (var name in themes.Names()) themes.Use(name);
-        Assert.Equal("Violet", themes.Name);
+        var regular = Fonts.Regular;
+        var label = Fonts.Label;
+        var mono = Fonts.Mono;
+        var bold = Fonts.Bold;
+        themes.UseFonts(themes.Current.Fonts with { Label = themes.Current.Fonts.Label with { Size = 30 }, Bold = new ThemeFont("NotoSans-Bold.ttf", 18) });
+        Assert.Equal(regular, Fonts.Regular);
+        Assert.Equal(label, Fonts.Label);
+        Assert.Equal(mono, Fonts.Mono);
+        Assert.NotEqual(bold, Fonts.Bold);
+        Assert.Equal(30f, Fonts.LabelSize);
+        Assert.Equal(18f, Fonts.BoldSize);
         Assert.Empty(_log.Text);
-        TestFrame.Run(() => ImGui.TextUnformatted("violet"));
+        TestFrame.Run(() =>
+        {
+            using (Fonts.UseBold()) ImGui.TextUnformatted("bold");
+            using (Fonts.UseLabel()) ImGui.TextUnformatted("label");
+        });
+    }
+
+    [Fact]
+    public void TorchlightIsTheOnlyShippedThemeAndLoadsWithoutWarnings()
+    {
+        var themes = Store(Shipped, "Torchlight");
+        themes.Apply();
+        Assert.Equal(["Torchlight"], themes.Names());
+        themes.Use("Torchlight");
+        Assert.Equal("Torchlight", themes.Name);
+        Assert.Empty(_log.Text);
+        TestFrame.Run(() => ImGui.TextUnformatted("torchlight"));
+    }
+
+    [Fact]
+    public void ASavedThemeNameThatNoLongerShipsFallsBackToTorchlight()
+    {
+        var themes = Store(Shipped, "Azure");
+        Assert.Equal("Torchlight", themes.Name);
+        Assert.Contains("theme Azure not found", _log.Text);
     }
 
     [Fact]
@@ -241,5 +322,158 @@ public sealed class ThemeStoreTests : IDisposable
         var themes = Store(_themes, "Locked");
         Assert.Contains("theme Locked could not be read", _log.Text);
         Assert.Equal("Torchlight", themes.Name);
+    }
+
+    const string Graded = """{ "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" } } }""";
+
+    static List<uint> VertexColours()
+    {
+        var data = ImGui.GetDrawData();
+        var colours = new List<uint>();
+        for (var n = 0; n < data.CmdListsCount; n++)
+        {
+            var list = data.CmdLists[n];
+            for (var i = 0; i < list.VtxBuffer.Size; i++) colours.Add(list.VtxBuffer[i].Col);
+        }
+        return colours;
+    }
+
+    [Fact]
+    public void AGradientTagsItsColourAndShadeTurnsTheTagIntoTheGradient()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), Graded);
+        var themes = Store(_themes, "Graded");
+        themes.Apply();
+        Assert.Equal(0, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Button])));
+
+        for (var frame = 0; frame < 2; frame++)
+            TestFrame.Run(() =>
+            {
+                ImGui.Begin("graded");
+                ImGui.Button("gold");
+                ImGui.End();
+            });
+        themes.Shade();
+
+        var colours = VertexColours();
+        Assert.DoesNotContain(colours, colour => ThemeGradients.IndexOf(colour) >= 0);
+        Assert.Contains(colours, colour => (colour & 0xFFFFFF) == 0x0F82B9);
+        Assert.Empty(_log.Text);
+    }
+
+    [Fact]
+    public void UnknownGradientsAndMissingStopsWarnAndTheRestApplies()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Odd.json"), """{ "Gradients": { "TabActive": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" }, "Header": { "Top": "#FFFFFFFF" }, "Button": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" } } }""");
+        var themes = Store(_themes, "Odd");
+        themes.Apply();
+        Assert.Contains("unknown gradient TabActive", _log.Text);
+        Assert.Contains("gradient Header needs Top and Bottom", _log.Text);
+        Assert.Equal(-1, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Header])));
+        Assert.Equal(0, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Button])));
+    }
+
+    [Fact]
+    public void SaveNeverWritesASentinelAndKeepsTheGradients()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), Graded);
+        var themes = Store(_themes, "Graded");
+        themes.Apply();
+        var gradient = themes.Current.Gradients["Button"];
+        themes.SaveAs("Mine");
+
+        var again = Store(_themes, "Mine");
+        Assert.False(again.Current.Colors.ContainsKey("Button"));
+        Assert.True(again.Current.Colors.ContainsKey("Text"));
+        Assert.Equal(gradient, again.Current.Gradients["Button"]);
+        Assert.Empty(_log.Text);
+    }
+
+    [Fact]
+    public void ReTaggingPutsBackTheColourOfAGradientThatWentAway()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), """{ "Colors": { "Header": "#102030FF" }, "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF" }, "Header": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" } } }""");
+        List<Action> queued = [];
+        var themes = new ThemeStore(_themes, FontsDirectory, "Graded", queued.Add);
+        themes.Apply();
+        themes.UseGradients(new Dictionary<string, ThemeGradient> { ["Header"] = themes.Current.Gradients["Header"] });
+        queued[0]();
+
+        Assert.Equal(-1, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Button])));
+        Assert.Equal(0, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Header])));
+
+        themes.UseGradients([]);
+        queued[1]();
+        Assert.Equal(new Vector4(0x10 / 255f, 0x20 / 255f, 0x30 / 255f, 1), ImGui.GetStyle().Colors[(int)ImGuiCol.Header]);
+    }
+
+    [Fact]
+    public void UseGradientsQueuesUntilTheFrameRunsAndKeepsTheRestOfTheLook()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), """{ "Style": { "FrameRounding": 7 }, "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF" } } }""");
+        List<Action> queued = [];
+        var themes = new ThemeStore(_themes, FontsDirectory, "Graded", queued.Add);
+        themes.Apply();
+        ImGui.GetStyle().WindowRounding = 3;
+        var edited = new Dictionary<string, ThemeGradient>(themes.Current.Gradients) { ["Button"] = new ThemeGradient(Color.Red, Color.Blue) };
+        themes.UseGradients(edited);
+        Assert.Single(queued);
+        Assert.Equal(Color.FromArgb(0xFF, 0xFF, 0xD4, 0x6A), themes.Current.Gradients["Button"].Top);
+
+        queued[0]();
+        Assert.Equal(Color.Red, themes.Current.Gradients["Button"].Top);
+        Assert.Equal(0, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Button])));
+        Assert.Equal(3f, ImGui.GetStyle().WindowRounding);
+        Assert.Equal(7f, ImGui.GetStyle().FrameRounding);
+    }
+
+    [Fact]
+    public void SaveDropsAGradientTheStyleEditorFlattened()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), """{ "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF" }, "Header": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" }, "TabActive": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" }, "Border": { "Top": "#FFFFFFFF" } } }""");
+        var themes = Store(_themes, "Graded");
+        themes.Apply();
+        var flat = new Vector4(0.1f, 0.2f, 0.3f, 1);
+        ImGui.GetStyle().Colors[(int)ImGuiCol.Button] = flat;
+        themes.SaveAs("Mine");
+
+        var again = Store(_themes, "Mine");
+        Assert.Equal(EColor.FromVector4(flat), again.Current.Colors["Button"]);
+        Assert.False(again.Current.Gradients.ContainsKey("Button"));
+        Assert.True(again.Current.Gradients.ContainsKey("Header"));
+        Assert.True(again.Current.Gradients.ContainsKey("TabActive"));
+        Assert.True(again.Current.Gradients.ContainsKey("Border"));
+        Assert.False(themes.Current.Gradients.ContainsKey("Button"));
+    }
+
+    [Fact]
+    public void UseGradientsDoesNotRepeatTheApplyWarnings()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Odd.json"), """{ "Gradients": { "TabActive": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" }, "Header": { "Top": "#FFFFFFFF" }, "Button": { "Top": "#FFFFFFFF", "Bottom": "#000000FF" } } }""");
+        var themes = Store(_themes, "Odd");
+        themes.Apply();
+        var warned = _log.Text;
+        Assert.Contains("unknown gradient TabActive", warned);
+
+        themes.UseGradients(themes.Current.Gradients);
+        themes.UseGradients(themes.Current.Gradients);
+
+        Assert.Equal(warned, _log.Text);
+    }
+
+    [Theory]
+    [InlineData("""{ "Gradients": { "Button": null } }""")]
+    [InlineData("""{ "Gradients": null }""")]
+    public void NullGradientsAreSkippedAndNeverThrow(string json)
+    {
+        File.WriteAllText(Path.Combine(_themes, "Nully.json"), json);
+        var themes = Store(_themes, "Nully");
+        themes.Apply();
+        Assert.NotNull(themes.Current.Gradients);
+        Assert.DoesNotContain(themes.Current.Gradients.Values, gradient => gradient is null);
+        themes.SaveAs("Mine");
+
+        Assert.Equal(-1, ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Button])));
+        Assert.Empty(Store(_themes, "Mine").Current.Gradients);
     }
 }

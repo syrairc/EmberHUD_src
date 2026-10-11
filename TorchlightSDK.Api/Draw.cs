@@ -19,9 +19,9 @@ public static class Draw
 
     public static ImDrawListPtr Foreground => ImGui.GetForegroundDrawList();
 
-    public static Vector2 Text(string text, Vector2 pos, Color color, Align align = Align.TopLeft, float size = 0, bool mono = false, ImDrawListPtr? list = null)
+    public static Vector2 Text(string text, Vector2 pos, Color color, Align align = Align.TopLeft, float size = 0, FontFace face = FontFace.Regular, ImDrawListPtr? list = null)
     {
-        var (font, px, origin, measured) = Place(text, pos, align, size, mono);
+        var (font, px, origin, measured) = Place(text, pos, align, size, face);
         ImGui.AddText(list ?? Background, font, px, origin, EColor.U32(color), text);
         return measured;
     }
@@ -41,9 +41,9 @@ public static class Draw
         return box;
     }
 
-    public static Vector2 TextOutlined(string text, Vector2 pos, Color color, Color outline, float thickness = 1, Align align = Align.TopLeft, float size = 0, bool mono = false, ImDrawListPtr? list = null)
+    public static Vector2 TextOutlined(string text, Vector2 pos, Color color, Color outline, float thickness = 1, Align align = Align.TopLeft, float size = 0, FontFace face = FontFace.Regular, ImDrawListPtr? list = null)
     {
-        var (font, px, origin, measured) = Place(text, pos, align, size, mono);
+        var (font, px, origin, measured) = Place(text, pos, align, size, face);
         var target = list ?? Background;
         var ring = EColor.U32(outline);
         foreach (var offset in Stroke) ImGui.AddText(target, font, px, origin + offset * thickness, ring, text);
@@ -51,18 +51,18 @@ public static class Draw
         return measured;
     }
 
-    public static Vector2 TextShadow(string text, Vector2 pos, Color color, Color shadow, Vector2? offset = null, Align align = Align.TopLeft, float size = 0, bool mono = false, ImDrawListPtr? list = null)
+    public static Vector2 TextShadow(string text, Vector2 pos, Color color, Color shadow, Vector2? offset = null, Align align = Align.TopLeft, float size = 0, FontFace face = FontFace.Regular, ImDrawListPtr? list = null)
     {
-        var (font, px, origin, measured) = Place(text, pos, align, size, mono);
+        var (font, px, origin, measured) = Place(text, pos, align, size, face);
         var target = list ?? Background;
         ImGui.AddText(target, font, px, origin + (offset ?? Vector2.One), EColor.U32(shadow), text);
         ImGui.AddText(target, font, px, origin, EColor.U32(color), text);
         return measured;
     }
 
-    public static Vector2 TextBackground(string text, Vector2 pos, Color color, Color background, Vector2? padding = null, float rounding = 0, Align align = Align.TopLeft, float size = 0, bool mono = false, ImDrawListPtr? list = null)
+    public static Vector2 TextBackground(string text, Vector2 pos, Color color, Color background, Vector2? padding = null, float rounding = 0, Align align = Align.TopLeft, float size = 0, FontFace face = FontFace.Regular, ImDrawListPtr? list = null)
     {
-        var (font, px, origin, measured) = Place(text, pos, align, size, mono);
+        var (font, px, origin, measured) = Place(text, pos, align, size, face);
         var target = list ?? Background;
         var pad = padding ?? new Vector2(4, 2);
         if (background.A > 0) target.AddRectFilled(origin - pad, origin + measured + pad, EColor.U32(background), rounding);
@@ -70,7 +70,7 @@ public static class Draw
         return measured + pad * 2;
     }
 
-    public static Vector2 MeasureText(string text, float size = 0, bool mono = false) => Place(text, Vector2.Zero, Align.TopLeft, size, mono).Measured;
+    public static Vector2 MeasureText(string text, float size = 0, FontFace face = FontFace.Regular) => Place(text, Vector2.Zero, Align.TopLeft, size, face).Measured;
 
     public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, ImDrawListPtr? list = null) => (list ?? Background).AddLine(a, b, EColor.U32(color), thickness);
 
@@ -328,12 +328,11 @@ public static class Draw
         return (centre - right * h.X + up * h.Y, centre + right * h.X + up * h.Y, centre + right * h.X - up * h.Y, centre - right * h.X - up * h.Y);
     }
 
-    static (ImFontPtr Font, float Size, Vector2 Origin, Vector2 Measured) Place(string text, Vector2 pos, Align align, float size, bool mono)
+    static (ImFontPtr Font, float Size, Vector2 Origin, Vector2 Measured) Place(string text, Vector2 pos, Align align, float size, FontFace face)
     {
-        var font = mono ? Fonts.Mono : Fonts.Regular;
+        var (font, faceSize) = Fonts.Of(face);
         if (font.IsNull) font = ImGui.GetFont();
-        var px = size > 0 ? size : mono ? Fonts.MonoSize : BaseSize;
-        if (px <= 0) px = ImGui.GetFontSize();
+        var px = size > 0 ? size : faceSize > 0 ? faceSize : ImGui.GetFontSize();
         var measured = ImGui.CalcTextSizeA(font, px, float.MaxValue, 0, text);
         return (font, px, pos - AlignOffset(measured, align), measured);
     }

@@ -102,7 +102,7 @@ public sealed class SettingsWindowTests : IDisposable
     static uint ErrorColour => EColor.U32(EColor.Bad);
 
     static List<Quad> Buttons(List<Quad> scene) =>
-        [.. scene.Where(quad => !quad.Glyph && quad.Min.X > PaneLeft && (quad.Col == Normal(ImGuiCol.Button) || quad.Col == Dimmed(ImGuiCol.Button)) && quad.Width > quad.Height * 1.2f).OrderBy(quad => quad.Min.Y).ThenBy(quad => quad.Min.X)];
+        [.. scene.Where(quad => !quad.Glyph && quad.Min.X > PaneLeft && (quad.Col == Normal(ImGuiCol.Button) || quad.Col == Dimmed(ImGuiCol.Button) || quad.Col == Normal(ImGuiCol.ButtonActive) || quad.Col == Dimmed(ImGuiCol.ButtonActive)) && quad.Width > quad.Height * 1.2f).OrderBy(quad => quad.Min.Y).ThenBy(quad => quad.Min.X)];
 
     static List<Quad> Frames(List<Quad> scene) =>
         [.. scene.Where(quad => !quad.Glyph && quad.Min.X > PaneLeft && quad.Col == Normal(ImGuiCol.FrameBg)).OrderBy(quad => quad.Min.Y).ThenBy(quad => quad.Min.X)];
@@ -188,6 +188,31 @@ public sealed class SettingsWindowTests : IDisposable
     {
         var settings = slot.Instance!.SettingsObject!;
         return (ToggleNode)settings.GetType().GetField("Show")!.GetValue(settings)!;
+    }
+
+    [Fact]
+    public void ThemeSaveIsThePrimaryButton()
+    {
+        using var host = Discovered();
+        var themes = Themes("Plain");
+        var window = Window(host, themes);
+        window.Page = SettingsPage.Theme;
+        var buttons = Buttons(Settled(window));
+        Assert.Equal(Normal(ImGuiCol.ButtonActive), buttons[0].Col);
+        Assert.Equal(Normal(ImGuiCol.Button), buttons[1].Col);
+    }
+
+    [Fact]
+    public void TheGradientsSectionShowsAPickerPerStop()
+    {
+        File.WriteAllText(Path.Combine(_themes, "Graded.json"), """{ "Gradients": { "Button": { "Top": "#FF0000FF", "Bottom": "#00FF00FF", "Text": "#0000FFFF" } } }""");
+        using var host = Discovered();
+        var themes = Themes("Graded");
+        var window = Window(host, themes);
+        window.Page = SettingsPage.Theme;
+        var scene = Settled(window);
+        foreach (var colour in new[] { System.Drawing.Color.Red, System.Drawing.Color.Lime, System.Drawing.Color.Blue })
+            Assert.Contains(scene, quad => !quad.Glyph && quad.Col == EColor.U32(colour));
     }
 
     [Fact]
@@ -664,9 +689,11 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(untouched.Mono.Size, themes.Current.Fonts.Mono.Size);
 
         sliders = Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - 140) < 1).ToList();
-        Click(window, new Vector2(sliders[1].Max.X - 1, sliders[1].Centre.Y));
+        Click(window, new Vector2(sliders[3].Max.X - 1, sliders[3].Centre.Y));
         Settled(window);
         Assert.Equal(40f, themes.Current.Fonts.Mono.Size);
+        Assert.Equal(untouched.Bold, themes.Current.Fonts.Bold);
+        Assert.Equal(untouched.Label, themes.Current.Fonts.Label);
         Assert.Equal(untouched.Regular.File, themes.Current.Fonts.Regular.File);
     }
 
@@ -679,7 +706,7 @@ public sealed class SettingsWindowTests : IDisposable
         window.Page = SettingsPage.Theme;
         var untouched = themes.Current.Fonts;
 
-        var mono = Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - (260 - ImGui.GetFrameHeight())) < 1.5f).ToList()[2];
+        var mono = Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - (260 - ImGui.GetFrameHeight())) < 1.5f).ToList()[4];
         Click(window, mono.Centre);
         Click(window, FirstItemBelow(Quad.Capture(), mono).Centre);
         Settled(window);
@@ -687,5 +714,7 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(themes.FontFiles()[0], themes.Current.Fonts.Mono.File);
         Assert.NotEqual(untouched.Mono.File, themes.Current.Fonts.Mono.File);
         Assert.Equal(untouched.Regular, themes.Current.Fonts.Regular);
+        Assert.Equal(untouched.Bold, themes.Current.Fonts.Bold);
+        Assert.Equal(untouched.Label, themes.Current.Fonts.Label);
     }
 }

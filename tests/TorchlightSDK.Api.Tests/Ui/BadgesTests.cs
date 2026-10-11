@@ -153,6 +153,34 @@ public class BadgesTests
     }
 
     [Fact]
+    public void ANullColourNeverDerivesAnythingFromTheHeaderColourAndTextUsesTheTextColour()
+    {
+        UiFrame.Io();
+        var colours = ImGui.GetStyle().Colors;
+        var header = colours[(int)ImGuiCol.Header];
+        var text = colours[(int)ImGuiCol.Text];
+        try
+        {
+            colours[(int)ImGuiCol.Header] = new Vector4(1 / 255f, 2 / 255f, 9 / 255f, 1);
+            colours[(int)ImGuiCol.Text] = new Vector4(0.2f, 0.4f, 0.6f, 1);
+            uint textU32 = 0;
+            var capture = Draw(() =>
+            {
+                textU32 = ImGui.GetColorU32(ImGuiCol.Text);
+                Badges.Draw("Hi");
+            });
+
+            Assert.Contains(capture.Verts, v => (v.Col & 0xFFFF) == 0x0201);
+            Assert.Contains(capture.Verts, v => v.Col == textU32);
+        }
+        finally
+        {
+            colours[(int)ImGuiCol.Header] = header;
+            colours[(int)ImGuiCol.Text] = text;
+        }
+    }
+
+    [Fact]
     public void AnOutlineBadgeStrokesTheRingAndReadsInTheFillColour()
     {
         var outline = Draw(() => Badges.Draw("Hi", Dark, outline: true));

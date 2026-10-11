@@ -121,7 +121,7 @@ void Frame()
 
 try
 {
-    overlay.Run(Frame);
+    overlay.Run(Frame, themes.Shade);
 }
 catch (Exception ex)
 {

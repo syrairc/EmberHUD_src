@@ -14,6 +14,16 @@ public static partial class Controls
 
     public readonly record struct GroupButton(string Text, SColor? Color = null, string? Sheet = null, int Cell = 0, IconSide Side = IconSide.Left);
 
+    public static bool PrimaryButton(string label, Vector2 size = default)
+    {
+        var colours = ImGui.GetStyle().Colors;
+        ImGui.PushStyleColor(ImGuiCol.Button, colours[(int)ImGuiCol.ButtonActive]);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, colours[(int)ImGuiCol.HeaderHovered]);
+        var clicked = ImGui.Button(label, size);
+        ImGui.PopStyleColor(2);
+        return clicked;
+    }
+
     public static int GroupCount(int n) => n < 2 ? 0 : Math.Min(n, 5);
 
     public static int ButtonGroup(string id, GroupButton[]? buttons, int selected = -1, IconSheet[]? sheets = null, float iconSize = 16f, bool desaturate = false)
@@ -43,8 +53,8 @@ public static partial class Controls
             SColor bas = b.Color ?? EColor.FromVector4(
                 style.Colors[(int)(on && picker ? ImGuiCol.Header : ImGuiCol.Button)]);
             SColor fill = on ? bas
-                             : desaturate ? EColor.Desaturate(bas)
-                                          : EColor.Fade(bas, 0.3f);
+                             : desaturate && b.Color.HasValue ? EColor.Desaturate(bas)
+                                                              : EColor.Fade(bas, 0.3f);
             uint bg = EColor.U32(fill);
             uint fg = b.Color.HasValue && (on || desaturate)
                 ? EColor.U32(EColor.Contrast(fill))
