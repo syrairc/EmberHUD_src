@@ -9,8 +9,11 @@ internal sealed class FakeMemory : IReadBackend
 
     public void Map(long address, int size) => _regions.Add((address, new byte[size]));
 
+    public List<(nint Address, int Length)> Reads { get; } = [];
+
     public bool TryRead(nint address, Span<byte> target)
     {
+        Reads.Add((address, target.Length));
         foreach (var (start, bytes) in _regions)
         {
             if (address < start || address + target.Length > start + bytes.Length) continue;

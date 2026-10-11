@@ -114,7 +114,7 @@ void Frame()
 
     var snapshot = reader.Current;
     var state = snapshot.State;
-    if (state.Player is { } player) state = state with { Player = player with { Position = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency) } };
+    if (state.Player is { } player) state = state with { Player = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency) is { } position ? player with { Position = position } : null };
     Game.State = state;
     Map.View = null;
     gameIcons?.Pump();

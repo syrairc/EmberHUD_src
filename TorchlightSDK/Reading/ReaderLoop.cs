@@ -4,10 +4,13 @@ namespace TorchlightSDK.Host.Reading;
 
 internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds = 8) : IDisposable
 {
+    private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(2);
+
     private readonly ManualResetEventSlim _stop = new();
     private readonly HashSet<string> _logged = [];
     private Thread? _thread;
     private IGameSource? _source;
+    private bool _disposed;
     private volatile ReaderSnapshot _current = new(GameState.Empty, 0);
 
     public ReaderSnapshot Current => _current;
@@ -30,6 +33,7 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
                 {
                     lastGood = new ReaderSnapshot(state, Stopwatch.GetTimestamp());
                     _current = lastGood;
+                    _logged.Clear();
                 }
                 else
                 {
@@ -46,8 +50,10 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _stop.Set();
-        _thread?.Join();
+        if (_thread?.Join(JoinTimeout) == false) return;
         _source?.Dispose();
         _stop.Dispose();
     }

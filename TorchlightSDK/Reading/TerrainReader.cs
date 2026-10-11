@@ -6,11 +6,15 @@ namespace TorchlightSDK.Host.Reading;
 
 internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0)
 {
+    internal const int RetryEveryReads = 30;
+
     private readonly record struct GridKey(int Cols, int Rows, int CellSize, Vector2 Origin, bool OddRowShift);
 
     private readonly record struct Header(GridKey Key, nint Grid, nint Cells, bool IsHybrid);
 
     private GridKey _key;
+    private GridKey? _failedKey;
+    private int _skips;
     private Terrain? _terrain;
 
     public int Generation { get; private set; } = firstGeneration;
@@ -23,9 +27,17 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
         if (_terrain is not null && header.Key == _key)
             return _terrain;
 
+        if (_failedKey == header.Key && ++_skips < RetryEveryReads)
+            return null;
+
         var terrain = Build(header);
         if (terrain is null)
-            return Forget();
+        {
+            Forget();
+            _failedKey = header.Key;
+            _skips = 0;
+            return null;
+        }
 
         _key = header.Key;
         _terrain = terrain;
@@ -37,6 +49,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
     {
         _key = default;
         _terrain = null;
+        _failedKey = null;
         return null;
     }
 

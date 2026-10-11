@@ -205,4 +205,75 @@ public class TerrainReaderTests
         world.SetGrid(4, 4, allWalkable, hybrid: (0, 2, 2, [0, 1, 0, 0]));
         Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
     }
+
+    private static bool ReadCells(FakeWorld world, TerrainReader reader, long cells)
+    {
+        world.Memory.Reads.Clear();
+        reader.Read(unchecked((nint)world.Scene));
+        return world.Memory.Reads.Any(read => read.Address == unchecked((nint)cells));
+    }
+
+    [Fact]
+    public void BadCellsPointerIsNotRetriedForTheSameGridKey()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        const long garbage = 0x7000_0000_0000L;
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
+        var reader = new TerrainReader(world.Memory);
+
+        Assert.True(ReadCells(world, reader, garbage));
+        Assert.False(ReadCells(world, reader, garbage));
+        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+    }
+
+    [Fact]
+    public void ALatchedKeyIsRetriedEveryFewReadsSoAnAreaThatFinishesLoadingGetsTerrain()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        const long garbage = 0x7000_0000_0000L;
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
+        var reader = new TerrainReader(world.Memory);
+        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        world.SetGrid(4, 3, FourByThree);
+
+        for (var i = 1; i < TerrainReader.RetryEveryReads; i++)
+            Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+
+        Assert.NotNull(reader.Read(unchecked((nint)world.Scene)));
+    }
+
+    [Fact]
+    public void ANewGridKeyRetriesAfterABadCellsRead()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        const long garbage = 0x7000_0000_0000L;
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
+        var reader = new TerrainReader(world.Memory);
+        ReadCells(world, reader, garbage);
+
+        world.SetGrid(4, 3, FourByThree, originX: 64);
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
+
+        Assert.True(ReadCells(world, reader, garbage));
+    }
+
+    [Fact]
+    public void LosingTheGridClearsTheBadKeyLatch()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        const long garbage = 0x7000_0000_0000L;
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
+        var reader = new TerrainReader(world.Memory);
+        reader.Read(unchecked((nint)world.Scene));
+        world.Memory.Write(world.Scene + Offsets.SceneGridModule, 0L);
+        reader.Read(unchecked((nint)world.Scene));
+
+        world.SetGrid(4, 3, FourByThree);
+
+        Assert.NotNull(reader.Read(unchecked((nint)world.Scene)));
+    }
 }

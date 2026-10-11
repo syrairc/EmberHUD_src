@@ -64,7 +64,7 @@ public class PlayerSmootherNonFiniteTests
         var good = smoother.Update(new Vector3(10, 20, 0), 0, 0, 1000);
         var after = smoother.Update(new Vector3(float.NaN, 5, 0), 1, 1, 1000);
         Assert.Equal(good, after);
-        Assert.True(float.IsFinite(smoother.Update(new Vector3(float.PositiveInfinity, 0, 0), 2, 2, 1000).X));
+        Assert.True(float.IsFinite(smoother.Update(new Vector3(float.PositiveInfinity, 0, 0), 2, 2, 1000)!.Value.X));
     }
 
     [Theory]
@@ -89,18 +89,18 @@ public class PlayerSmootherNonFiniteTests
     [InlineData(0, float.NaN)]
     [InlineData(1, float.PositiveInfinity)]
     [InlineData(2, float.NegativeInfinity)]
-    public void NonFiniteFirstSampleReturnsDefault(int axis, float value)
+    public void NonFiniteFirstSampleReturnsNoPlayer(int axis, float value)
     {
         var smoother = new PlayerSmoother();
 
-        Assert.Equal(default, smoother.Update(With(axis, value), 0, 0, 1000));
+        Assert.Null(smoother.Update(With(axis, value), 0, 0, 1000));
     }
 
     [Fact]
     public void FirstFiniteSampleAfterNonFiniteOnesIsShownAsIs()
     {
         var smoother = new PlayerSmoother();
-        smoother.Update(new Vector3(float.NaN, 0, 0), 0, 0, 1000);
+        Assert.Null(smoother.Update(new Vector3(float.NaN, 0, 0), 0, 0, 1000));
 
         Assert.Equal(new Vector3(7, 8, 9), smoother.Update(new Vector3(7, 8, 9), 1, 1, 1000));
     }
@@ -114,7 +114,7 @@ public class PlayerSmootherNonFiniteTests
 
         var recovered = smoother.Update(new Vector3(12, 20, 0), 1040, 1040, 1000);
 
-        Assert.True(float.IsFinite(recovered.X) && float.IsFinite(recovered.Y) && float.IsFinite(recovered.Z));
+        Assert.True(recovered is { X: var x, Y: var y, Z: var z } && float.IsFinite(x) && float.IsFinite(y) && float.IsFinite(z));
         Assert.Equal(good, recovered);
         Assert.Equal(new Vector3(12, 20, 0), smoother.Update(new Vector3(12, 20, 0), 1040, 1100, 1000));
     }

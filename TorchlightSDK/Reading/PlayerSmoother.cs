@@ -16,9 +16,9 @@ internal sealed class PlayerSmoother
     private Vector3 _shown;
     private Vector3 _last;
 
-    public Vector3 Update(Vector3 target, long sampleAt, long now, long frequency)
+    public Vector3? Update(Vector3 target, long sampleAt, long now, long frequency)
     {
-        if (!float.IsFinite(target.X) || !float.IsFinite(target.Y) || !float.IsFinite(target.Z)) return _last;
+        if (!float.IsFinite(target.X) || !float.IsFinite(target.Y) || !float.IsFinite(target.Z)) return _started ? _last : null;
 
         if (!_started || Vector3.Distance(target, _shown) > SnapDistance)
         {
