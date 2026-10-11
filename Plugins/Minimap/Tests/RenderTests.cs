@@ -87,7 +87,7 @@ public sealed class RenderTests
     [Test]
     public void TheWallsStyleDrawsTheOldWallLinesAndNoRegion()
     {
-        void WallsStyle(Main main) => main.Settings.View.DrawStyle.Value = "Walls";
+        void WallsStyle(Main main) { main.Settings.View.DrawStyle.Value = "Walls"; main.Settings.View.OffsetY.Value = 0; }
         var perLine = 0;
         TestFrame.Run(() =>
         {

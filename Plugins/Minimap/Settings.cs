@@ -19,11 +19,11 @@ public sealed class ViewTab
     public HotkeyNode ZoomIn = new(new Hotkey(Key.PageUp));
     public HotkeyNode ZoomOut = new(new Hotkey(Key.PageDown));
     public ToggleNode FollowPlayer = new(true);
-    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.06f, 0.002f, 4);
+    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.037f, 0.002f, 4);
     [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);
     [Menu("Vertical scale", "Squashes the map vertically after the rotation, the game camera is isometric")] public RangeNode<float> VerticalScale = new(1, 0.2f, 1.5f);
     public RangeNode<float> OffsetX = new(0, -960, 960);
-    public RangeNode<float> OffsetY = new(0, -960, 960);
+    public RangeNode<float> OffsetY = new(-50, -960, 960);
     [Menu("Draw style", "Region fills the walkable area like the game's Tab map - white where you've been, blue where you haven't. Walls draws the old wall lines")] public ChoiceNode DrawStyle = new("Region", "Region", "Walls");
     [Menu("Region fill", "Fill of the walkable area you haven't explored yet")] public ColorNode RegionFill = new(Color.FromArgb(0x1F, GameColors.MinimapUnexplored));
     [Menu("Region outline", "Outline around the whole walkable area")] public ColorNode RegionOutline = new(GameColors.MinimapUnexplored);

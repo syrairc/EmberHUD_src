@@ -21,7 +21,7 @@ public class LiveReaderTests
         Assert.NotNull(state.Terrain);
         Assert.Equal(77, Assert.Single(state.Entities).CfgId);
         Assert.Null(state.Player);
-        Assert.Equal("live - no local player", state.Status);
+        Assert.Equal("live - no local player - entities 1, map icons 0", state.Status);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class LiveReaderTests
         var (world, _) = WorldWithPlayerAt(100, 200);
         using var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
-        Assert.Equal("live", state.Status);
+        Assert.Equal("live - entities 1, map icons 0", state.Status);
         Assert.Equal(new Vector3(100, 200, 0), state.Player!.Position);
         Assert.Equal(new Vector2(0, 1), state.Player.Forward);
         Assert.Equal([11], state.Entities.Select(e => e.Id));
@@ -159,7 +159,7 @@ public class LiveReaderTests
         world.BreakPlayerMgr();
         reader.TryRead(out var state, out _);
         Assert.Null(state.Player);
-        Assert.Equal("live - no local player", state.Status);
+        Assert.Equal("live - no local player - entities 2, map icons 0", state.Status);
         Assert.Equal(2, state.Entities.Length);
     }
 

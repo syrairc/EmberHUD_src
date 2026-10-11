@@ -27,7 +27,7 @@ Builds the host into a temp dir and runs every test project under `tests\`. Sing
 T=$(mktemp -d); dotnet build tests/TorchlightSDK.Tests -o "$T" && "$T/TorchlightSDK.Tests.exe"
 ```
 
-Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-dependent, win-x64) -> plugins / fonts / themes / licences / game icon art (`..\assets\icons` -> `GameIcons\`) staged -> `TorchlightSDK.exe --check` -> allow-list copy into `..\dist` (local only, never pushed). `pwsh scripts/release.tests.ps1` tests it (stub dotnet, run by hand). Obfuscar on `TorchlightSDK.dll` and the leak scan come with the full release plan - keep the Obfuscar `Mapping.txt` then to read a user's stack trace.
+Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-dependent, win-x64) -> plugins / fonts / themes / licences / game icon art (`..\assets\icons` -> `GameIcons\`) staged -> `TorchlightSDK.exe --check` -> allow-list copy into `..\dist` (local only, never pushed, the user runs it from there - the wipe keeps `Config` / `Cache` / `Logs` / `imgui.ini` and refuses while anything runs from `dist`). `pwsh scripts/release.tests.ps1` tests it (stub dotnet, run by hand). Obfuscar on `TorchlightSDK.dll` and the leak scan come with the full release plan - keep the Obfuscar `Mapping.txt` then to read a user's stack trace.
 
 ## Layout
 

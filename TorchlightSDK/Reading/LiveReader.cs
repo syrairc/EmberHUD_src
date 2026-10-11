@@ -37,9 +37,11 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         foreach (var entity in entities)
             positions[entity.Id] = new Vector2(entity.Position.X, entity.Position.Y);
 
-        state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain, rotation)
+        var icons = _icons.Read(_minimap, positions);
+        var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}";
+        state = new GameState(status, _terrain.Generation, player, entities, terrain, rotation)
         {
-            MapIcons = _icons.Read(_minimap, positions),
+            MapIcons = icons,
         };
         return true;
     }

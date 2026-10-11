@@ -103,6 +103,11 @@ try {
         Set-Content "$box/repo/dist/keep.txt" keep
         Set-Content "$box/repo/dist/old/old.bin" old
         Set-Content "$box/repo/dist/README.md" readme
+        New-Item -ItemType Directory -Force "$box/repo/dist/Config/Plugins", "$box/repo/dist/Logs", "$box/repo/dist/Cache" | Out-Null
+        Set-Content "$box/repo/dist/Config/Plugins/Minimap.json" mine
+        Set-Content "$box/repo/dist/Logs/torchlightsdk.log" log
+        Set-Content "$box/repo/dist/Cache/plugin.bin" cache
+        Set-Content "$box/repo/dist/imgui.ini" layout
     }
     function FailsAt([string]$stage, [string]$message) {
         ResetDist
@@ -168,7 +173,15 @@ try {
         (Test-Path "$dist/Plugins/Sample/Main.cs") -and (Test-Path "$dist/Plugins/Sample/defaults.json") -and (Test-Path "$dist/Plugins/Sample/Icons/dot.svg") -and
         -not (Test-Path "$dist/Plugins/Sample/Icons/deep") -and -not (Test-Path "$dist/Plugins/Sample/bin") -and -not (Test-Path "$dist/Plugins/Sample/notes.txt") -and -not (Test-Path "$dist/Plugins/Plugins.csproj") -and
         (Test-Path "$dist/GameIcons/index.json") -and (Test-Path "$dist/GameIcons/a.png") -and -not (Test-Path "$dist/GameIcons/notes.txt") -and
-        (Test-Path "$dist/TorchlightSDK.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and -not (Test-Path "$dist/Logs")) 'a full release keeps .git, README.md, .gitignore and LICENSE*, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences and the game icon art, and leaves no pdb, Logs or work dir'
+        (Test-Path "$dist/TorchlightSDK.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and
+        (Get-Content "$dist/Config/Plugins/Minimap.json" -ErrorAction SilentlyContinue) -eq 'mine' -and (Get-Content "$dist/Logs/torchlightsdk.log" -ErrorAction SilentlyContinue) -eq 'log' -and -not (Test-Path "$dist/Logs/check.txt") -and
+        (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout') 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences and the game icon art, and leaves no pdb, Logs or work dir'
+
+    ResetDist
+    Copy-Item "$env:SystemRoot\System32\PING.EXE" "$box/repo/dist/TorchlightSDK.exe"
+    $running = Start-Process "$box/repo/dist/TorchlightSDK.exe" -ArgumentList '-n', '60', '127.0.0.1' -WindowStyle Hidden -PassThru
+    try { Refuses "$box/repo/dist" $box '-Out with a program running from it' }
+    finally { Stop-Process -Id $running.Id -Force -ErrorAction SilentlyContinue; $running.WaitForExit() }
 
     Rename-Item "$box/repo/assets" 'assets-off'
     ResetDist

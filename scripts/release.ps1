@@ -43,7 +43,10 @@ foreach ($asset in $assets) {
 }
 if (-not (Get-ChildItem "$src/Plugins" -Directory -ErrorAction SilentlyContinue | Where-Object Name -notin 'bin', 'obj')) { throw "no plugin sources under $src/Plugins" }
 
+$userData = 'Config', 'Cache', 'Logs', 'imgui.ini'
 $assertWipeable = {
+    $running = @(Get-CimInstance Win32_Process -Property ExecutablePath | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith("$Out\", [StringComparison]::OrdinalIgnoreCase) })
+    if ($running) { throw "$($running[0].ExecutablePath) is running - close it first, refusing to wipe $Out" }
     for ($segment = $Out; $segment; $segment = Split-Path $segment -Parent) {
         $item = Get-Item -LiteralPath $segment -Force -ErrorAction SilentlyContinue
         if ($item -and $item.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { throw "$segment is a junction or symlink - refusing to wipe through it" }
@@ -125,12 +128,12 @@ try {
 
     & $assertWipeable
     [IO.Directory]::CreateDirectory($Out) | Out-Null
-    Get-ChildItem -LiteralPath $Out -Force | Where-Object { $_.Name -notin '.git', '.gitignore', 'README.md' -and -not (-not $_.PSIsContainer -and $_.Name -in 'LICENSE', 'LICENSE.md', 'LICENSE.txt') } | Remove-Item -Recurse -Force
+    Get-ChildItem -LiteralPath $Out -Force | Where-Object { $_.Name -notin @('.git', '.gitignore', 'README.md') + $userData -and -not (-not $_.PSIsContainer -and $_.Name -in 'LICENSE', 'LICENSE.md', 'LICENSE.txt') } | Remove-Item -Recurse -Force
     $files | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } } | Copy-Item -Destination $Out
     foreach ($dir in $folders) { Copy-Item (Join-Path $publish $dir) $Out -Recurse }
 
     $root = (Resolve-Path -LiteralPath $Out).Path
-    $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' }) $root
+    $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and ($_.FullName.Substring($root.Length + 1) -split '[\\/]')[0] -notin $userData }) $root
     if ($private) { throw "private files in $root - $($private.FullName -join ', ')" }
 
     Write-Host "release ready in $root"

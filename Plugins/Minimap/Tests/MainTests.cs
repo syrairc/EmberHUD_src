@@ -51,7 +51,7 @@ public sealed class MainTests
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
         Check.Equal<Vector2?>(new Vector2(970, 535), view?.ToScreen(new Vector3(4, 7, 0)));
-        Check.Equal<float?>(0.06f, view?.Scale);
+        Check.Equal<float?>(0.037f, view?.Scale);
     }
 
     [Test]
@@ -60,6 +60,7 @@ public sealed class MainTests
         var settings = new Settings();
         settings.View.Rotation.Value = 90;
         settings.View.VerticalScale.Value = 0.5f;
+        settings.View.OffsetY.Value = 0;
 
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
@@ -75,6 +76,7 @@ public sealed class MainTests
     {
         var settings = new Settings();
         settings.View.FollowPlayer.Value = false;
+        settings.View.OffsetY.Value = 0;
         settings.View.Rotation.Value = 90;
 
         var view = Main.ViewFor(settings, null, Tall, new Vector2(1000, 500));
@@ -114,6 +116,7 @@ public sealed class MainTests
     {
         var settings = new Settings();
         settings.View.FollowPlayer.Value = false;
+        settings.View.OffsetY.Value = 0;
         settings.View.Rotation.Value = 30;
 
         Check.Equal<float?>(120f, Main.ViewFor(settings, null, Tall, new Vector2(1000, 500), 90)?.RotationDegrees);
@@ -138,8 +141,11 @@ public sealed class MainTests
 
         Check.Equal(0.002f, zoom.Min);
         Check.Equal(4f, zoom.Max);
-        Check.Equal(0.06f, zoom.Value);
+        Check.Equal(0.037f, zoom.Value);
     }
+
+    [Test]
+    public void TheDefaultViewSitsFiftyPixelsAboveTheMiddle() => Check.Equal(-50f, new Settings().View.OffsetY.Value);
 
     [Test]
     public void RotationAndVerticalScaleRangesAndDefaults()
@@ -159,6 +165,7 @@ public sealed class MainTests
     {
         var settings = new Settings();
         settings.View.FollowPlayer.Value = false;
+        settings.View.OffsetY.Value = 0;
 
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Tall, new Vector2(1000, 500));
 
