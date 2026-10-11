@@ -12,6 +12,11 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
     private long _nextScan;
     private int? _generation;
 
+    public nint Widget => _widget;
+
+    public float? ReadHeadingDegrees() =>
+        _widget != 0 && memory.TryRead(_widget + Offsets.MinimapHeading, out float heading) && float.IsFinite(heading) ? heading : null;
+
     public float? ReadRotationDegrees(int generation)
     {
         if (_generation != generation)
@@ -121,7 +126,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
         return false;
     }
 
-    private bool TryReadName(uint index, out string name)
+    internal bool TryReadName(uint index, out string name)
     {
         name = "";
         var block = index / Offsets.FNameBlockSize;

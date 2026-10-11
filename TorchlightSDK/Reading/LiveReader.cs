@@ -8,6 +8,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly TerrainReader _terrain = new(memory, firstAreaId);
     private readonly MinimapReader _minimap = new(memory, moduleBase);
+    private readonly MapIconReader _icons = new(memory);
     private int _generation = firstAreaId;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
@@ -26,12 +27,25 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             _anchor = null;
         }
 
-        var player = playerPosition is { } position ? new Player(position, UpdateForward(position)) : null;
+        var rotation = _minimap.ReadRotationDegrees(_terrain.Generation);
+        var heading = _minimap.ReadHeadingDegrees();
+        var player = playerPosition is { } position ? new Player(position, Forward(UpdateForward(position), heading)) : null;
         if (player is null)
             _anchor = null;
-        state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain, _minimap.ReadRotationDegrees(_terrain.Generation));
+
+        var positions = new Dictionary<int, Vector2>(entities.Length);
+        foreach (var entity in entities)
+            positions[entity.Id] = new Vector2(entity.Position.X, entity.Position.Y);
+
+        state = new GameState(player is null ? "live - no local player" : "live", _terrain.Generation, player, entities, terrain, rotation)
+        {
+            MapIcons = _icons.Read(_minimap, positions),
+        };
         return true;
     }
+
+    private static Vector2 Forward(Vector2 moved, float? heading) =>
+        heading is { } degrees ? new Vector2(MathF.Cos(degrees * MathF.PI / 180), MathF.Sin(degrees * MathF.PI / 180)) : moved;
 
     private Vector2 UpdateForward(Vector3 position)
     {
