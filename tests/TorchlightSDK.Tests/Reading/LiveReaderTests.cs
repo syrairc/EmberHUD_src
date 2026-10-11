@@ -21,7 +21,7 @@ public class LiveReaderTests
         Assert.NotNull(state.Terrain);
         Assert.Equal(77, Assert.Single(state.Entities).CfgId);
         Assert.Null(state.Player);
-        Assert.Equal("live - no local player - entities 1, map icons 0", state.Status);
+        Assert.Equal("live - no local player - entities 1, map icons 0, explored off", state.Status);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class LiveReaderTests
         var (world, _) = WorldWithPlayerAt(100, 200);
         using var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
-        Assert.Equal("live - entities 1, map icons 0", state.Status);
+        Assert.Equal("live - entities 1, map icons 0, explored off", state.Status);
         Assert.Equal(new Vector3(100, 200, 0), state.Player!.Position);
         Assert.Equal(new Vector2(0, 1), state.Player.Forward);
         Assert.Equal([11], state.Entities.Select(e => e.Id));
@@ -159,7 +159,7 @@ public class LiveReaderTests
         world.BreakPlayerMgr();
         reader.TryRead(out var state, out _);
         Assert.Null(state.Player);
-        Assert.Equal("live - no local player - entities 2, map icons 0", state.Status);
+        Assert.Equal("live - no local player - entities 2, map icons 0, explored off", state.Status);
         Assert.Equal(2, state.Entities.Length);
     }
 
@@ -229,14 +229,17 @@ public class LiveReaderTests
     }
 
     [Fact]
-    public void ExploredStaysNullUntilTheProbeConfirmsTheChain()
+    public void PublishesTheGamesExploredTrailAndCountsItInTheStatus()
     {
         var world = new FakeWorld();
         world.PublishEntities();
-        world.AddMinimap(0.25f);
+        var minimap = world.AddMinimap(0.25f);
+        world.SetLevel(110, 0);
+        world.SetExplored(minimap, 0.4f, 1000, ("110_0", [new Vector3(1, 2, 3)]));
         using var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
-        Assert.Null(state.Explored);
+        Assert.Equal([new Vector2(1, 2)], state.Explored!.Points);
+        Assert.EndsWith("explored 1", state.Status);
     }
 
     [Fact]
@@ -289,5 +292,20 @@ public class LiveReaderTests
         using var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Equal(1040, Assert.Single(state.MapIcons).Type);
+    }
+
+    [Fact]
+    public void AFollowIconForAnEntityInNoKindMapGetsItsScenePosition()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(72, 67, true, 30, 40, 0, mapOffset: FakeWorld.Unregistered));
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 108);
+        world.SetFollowIcons(minimap, (72, 2642u, 108u));
+        using var reader = ReaderFor(world);
+
+        reader.TryRead(out var state, out _);
+
+        Assert.Equal([new MapIcon(2642, "", new Vector2(30, 40), 1, 0, 72)], state.MapIcons);
     }
 }

@@ -23,4 +23,16 @@ internal static class ReadExtensions
         values = new T[count];
         return count == 0 || backend.TryRead(address, MemoryMarshal.AsBytes(values.AsSpan()));
     }
+
+    public static bool TryReadTMapAllocationBits(this IReadBackend backend, nint map, int num, out uint[] bits)
+    {
+        bits = [];
+        if (!backend.TryRead(map + Offsets.TMapSecondaryBits, out nint secondary))
+            return false;
+        if (secondary != 0)
+            return backend.TryReadArray(secondary, (num + 31) / 32, out bits);
+
+        return num <= Offsets.TMapInlineBitCount &&
+               backend.TryReadArray(map + Offsets.TMapInlineBits, Offsets.TMapInlineBitCount / 32, out bits);
+    }
 }

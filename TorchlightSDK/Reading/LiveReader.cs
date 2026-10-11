@@ -9,6 +9,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly TerrainReader _terrain = new(memory, firstAreaId);
     private readonly MinimapReader _minimap = new(memory, moduleBase);
     private readonly MapIconReader _icons = new(memory);
+    private readonly ExploredReader _explored = new(memory);
     private int _generation = firstAreaId;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
@@ -37,11 +38,13 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         foreach (var entity in entities)
             positions[entity.Id] = new Vector2(entity.Position.X, entity.Position.Y);
 
-        var icons = _icons.Read(_minimap, positions);
-        var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}";
+        var icons = _icons.Read(_minimap, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
+        var explored = _explored.Read(_minimap.Widget, scene);
+        var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Points.Length)}";
         state = new GameState(status, _terrain.Generation, player, entities, terrain, rotation)
         {
             MapIcons = icons,
+            Explored = explored,
         };
         return true;
     }

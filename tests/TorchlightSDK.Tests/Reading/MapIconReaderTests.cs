@@ -292,4 +292,19 @@ public class MapIconReaderTests
         world.Memory.Write(minimap.Widget + Offsets.MinimapTaskTypesA + Offsets.TArrayNum, 1);
         Assert.Equal([10], Read(readers).Select(icon => icon.Type));
     }
+
+    [Fact]
+    public void AFollowIconForAnEntityWeDontTrackUsesTheLookedUpPosition()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 108);
+        world.SetFollowIcons(minimap, (72, 2642u, 108u));
+        var readers = ReadersFor(world);
+        readers.Minimap.ReadRotationDegrees(1);
+
+        var icons = readers.Icons.Read(readers.Minimap, NoEntities, id => id == 72 ? new Vector2(-625, -24197) : null);
+
+        Assert.Equal([new MapIcon(2642, "", new Vector2(-625, -24197), 1, 0, 72)], icons);
+    }
 }

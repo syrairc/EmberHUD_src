@@ -433,4 +433,17 @@ public class LogicWorldReaderTests
         Assert.False(reader.TryReadScene(out _, out var failure));
         Assert.Contains("map", failure);
     }
+
+    [Fact]
+    public void AnEntityInNoKindMapCanStillBeFoundByIdForItsPosition()
+    {
+        var world = new FakeWorld();
+        var vigil = world.AddEntity(72, 67, true, -625.5, -24197, 5000, mapOffset: FakeWorld.Unregistered);
+        world.PublishEntities(4, world.AddEntity(5, 77, true, 1, 2, 0), vigil);
+        var reader = ReaderFor(world);
+
+        Assert.True(reader.TryReadEntityPosition((nint)world.Scene, 72, out var at));
+        Assert.Equal(new System.Numerics.Vector3(-625.5f, -24197, 5000), at);
+        Assert.False(reader.TryReadEntityPosition((nint)world.Scene, 76, out _));
+    }
 }

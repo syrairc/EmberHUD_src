@@ -63,6 +63,27 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return (playerPosition, [.. entities]);
     }
 
+    public bool TryReadEntityPosition(nint scene, int id, out Vector3 position)
+    {
+        position = default;
+        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
+            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
+            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
+            !memory.TryRead(bucketArray + (nint)(unchecked((uint)id) % bucketCount) * nint.Size, out nint node))
+            return false;
+
+        for (var chainLength = 0; node != 0 && chainLength < Offsets.MaxChain; chainLength++)
+        {
+            if (!memory.TryRead(node + Offsets.NodeKey, out uint key) || !memory.TryRead(node + Offsets.NodeNext, out nint next))
+                return false;
+            if (unchecked((int)key) == id)
+                return memory.TryRead(node + Offsets.NodeEntity, out nint entity) && TryReadPosition(entity, out position);
+            node = next;
+        }
+
+        return false;
+    }
+
     private Dictionary<int, (EntityKind Kind, nint Value)> ReadKinds()
     {
         var kinds = new Dictionary<int, (EntityKind, nint)>();

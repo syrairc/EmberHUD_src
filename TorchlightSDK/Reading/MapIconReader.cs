@@ -13,7 +13,7 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
     private nint _widget;
     private long _nextIconMapRead;
 
-    public MapIcon[] Read(MinimapReader minimap, IReadOnlyDictionary<int, Vector2> positions)
+    public MapIcon[] Read(MinimapReader minimap, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?>? findPosition = null)
     {
         var widget = minimap.Widget;
         if (widget != _widget)
@@ -32,7 +32,7 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
         if (ReadList(widget, area, _taskTypes ?? NoTaskTypes, positions) is not { } icons)
             return [];
 
-        AddFollowIcons(widget, area, positions, icons);
+        AddFollowIcons(widget, area, positions, findPosition, icons);
         ResolveTextures(minimap, widget, icons);
         for (var i = 0; i < icons.Count; i++)
             icons[i] = icons[i] with { Texture = _textures.GetValueOrDefault(icons[i].Type, "") };
@@ -94,7 +94,7 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
         return types;
     }
 
-    private void AddFollowIcons(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions, List<MapIcon> icons)
+    private void AddFollowIcons(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?>? findPosition, List<MapIcon> icons)
     {
         if (!TryReadIdMap(widget + Offsets.MinimapFollowTypes, out var types) || types.Count == 0 ||
             !TryReadIdMap(widget + Offsets.MinimapFollowAreas, out var areas))
@@ -102,7 +102,9 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
 
         foreach (var (id, type) in types)
         {
-            if (id <= 0 || type is 0 or > int.MaxValue || !areas.TryGetValue(id, out var serial) || serial != area || !positions.TryGetValue(id, out var position) || !Plausible(position))
+            if (id <= 0 || type is 0 or > int.MaxValue || !areas.TryGetValue(id, out var serial) || serial != area)
+                continue;
+            if ((positions.TryGetValue(id, out var live) ? live : findPosition?.Invoke(id)) is not { } position || !Plausible(position))
                 continue;
             icons.RemoveAll(icon => icon.EntityId == id);
             icons.Add(new MapIcon((int)type, "", position, 1, 0, id));

@@ -1,3 +1,4 @@
+using System.Numerics;
 using TorchlightSDK.Host;
 using TorchlightSDK.Host.Memory;
 
@@ -275,6 +276,46 @@ internal sealed class FakeWorld
         Memory.Write(map + Offsets.TMapNum, elements.Length);
         Memory.Write(minimap.Widget + Offsets.MinimapActiveIconMap, map);
         return map;
+    }
+
+    public void SetLevel(int levelId, int instance)
+    {
+        if (!Memory.TryReadPtr((nint)(Scene + Offsets.SceneGeometry), out var geometry) || geometry == 0)
+        {
+            geometry = (nint)Alloc(0x100);
+            Memory.Write(Scene + Offsets.SceneGeometry, (long)geometry);
+        }
+        Memory.Write(geometry + Offsets.GeometryLevelId, levelId);
+        Memory.Write(geometry + Offsets.GeometryLevelInstance, instance);
+    }
+
+    public void SetExplored(FakeMinimap minimap, float brushSize, int mapSide, params (string Key, Vector3[] Points)?[] records)
+    {
+        Memory.Write(minimap.Widget + Offsets.MinimapBrushSize, brushSize);
+        Memory.Write(minimap.Widget + Offsets.MinimapMapSide, mapSide);
+        var save = Alloc(0x100);
+        var map = save + Offsets.SaveRecords;
+        var data = Alloc(Math.Max(1, records.Length) * Offsets.SaveRecordStride);
+        var bits = new uint[Offsets.TMapInlineBitCount / 32];
+        for (var i = 0; i < records.Length; i++)
+        {
+            if (records[i] is not { } record) continue;
+            bits[i / 32] |= 1u << (i % 32);
+            var element = data + i * Offsets.SaveRecordStride;
+            var text = Alloc((record.Key.Length + 1) * sizeof(char));
+            Memory.WriteArray(text, (record.Key + "\0").ToCharArray());
+            Memory.Write(element, text);
+            Memory.Write(element + Offsets.TArrayNum, record.Key.Length + 1);
+            var points = Alloc(Math.Max(1, record.Points.Length) * Offsets.SavePointStride);
+            Memory.WriteArray(points, record.Points);
+            Memory.Write(element + Offsets.SaveRecordPos, points);
+            Memory.Write(element + Offsets.SaveRecordPos + Offsets.TArrayNum, record.Points.Length);
+        }
+
+        Memory.Write(map, data);
+        Memory.Write(map + Offsets.TMapNum, records.Length);
+        Memory.WriteArray(map + Offsets.TMapInlineBits, bits);
+        Memory.Write(minimap.Widget + Offsets.MinimapSaveObject, save);
     }
 
     public void MoveEntity(FakeEntity entity, double x, double y, double z)
