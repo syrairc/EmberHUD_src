@@ -309,4 +309,47 @@ public class MinimapReaderTests
         reader.ReadRotationDegrees(1);
         Assert.Null(reader.ReadHeadingDegrees());
     }
+
+    [Fact]
+    public void TheWidgetTheGameBoundWinsOverANewerReadableOne()
+    {
+        var world = new FakeWorld();
+        var bound = world.AddMinimap(0.25f);
+        world.AddMinimap(0.5f);
+        world.BindMinimap(bound);
+        var reader = ReaderFor(world, new Clock());
+
+        Assert.Equal(-90f, reader.ReadRotationDegrees(1));
+        Assert.Equal((nint)bound.Widget, reader.Widget);
+    }
+
+    [Fact]
+    public void BindingANewWidgetSwitchesOnTheNextReadWithoutWaitingForARescan()
+    {
+        var clock = new Clock();
+        var world = new FakeWorld();
+        var old = world.AddMinimap(0.25f);
+        world.BindMinimap(old);
+        var reader = ReaderFor(world, clock);
+        Assert.Equal(-90f, reader.ReadRotationDegrees(1));
+
+        var fresh = world.AddMinimap(0.5f);
+        world.BindMinimap(fresh, serial: 9);
+        clock.Now = 1;
+
+        Assert.Equal(-180f, reader.ReadRotationDegrees(1));
+        Assert.Equal(-180f, reader.ReadRotationDegrees(2));
+    }
+
+    [Fact]
+    public void AStaleWeakPointerFallsBackToTheScan()
+    {
+        var world = new FakeWorld();
+        var bound = world.AddMinimap(0.25f);
+        world.AddMinimap(0.5f);
+        world.BindMinimap(bound, serial: 7, weakSerial: 6);
+        var reader = ReaderFor(world, new Clock());
+
+        Assert.Equal(-180f, reader.ReadRotationDegrees(1));
+    }
 }

@@ -305,7 +305,7 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TheRegionRebuildsAtMostOnceASecondAndOnlyWhenTheTrailGrew()
+    public void TheRegionRebuildsAtMostFourTimesASecondAndOnlyWhenTheTrailGrew()
     {
         try
         {
@@ -315,10 +315,10 @@ public sealed class MainTests
 
             TickTwiceAt(main, 0, Scene.State(terrain: _cell, explored: one));
             Check.Equal(1, _uploads.Count, "the first build is at once");
-            TickTwiceAt(main, 500, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(1, _uploads.Count, "grew, but not a second yet");
-            TickTwiceAt(main, 1000, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(2, _uploads.Count, "a second later");
+            TickTwiceAt(main, 125, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "grew, but not a quarter second yet");
+            TickTwiceAt(main, 250, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(2, _uploads.Count, "a quarter second later");
             TickTwiceAt(main, 2500, Scene.State(terrain: _cell, explored: two));
             Check.Equal(2, _uploads.Count, "nothing grew, no rebuild");
             Check.Equal("region-1", _uploads[^1]);

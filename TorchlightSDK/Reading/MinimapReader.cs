@@ -19,6 +19,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
 
     public float? ReadRotationDegrees(int generation)
     {
+        var bound = BoundWidget();
         if (_generation != generation)
         {
             _generation = generation;
@@ -26,7 +27,9 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
             _nextScan = 0;
         }
 
-        if (_widget == 0 && !TryFindWidget())
+        if (bound != 0)
+            _widget = bound;
+        else if (_widget == 0 && !TryFindWidget())
             return null;
 
         if (TryReadTurns(out var turns))
@@ -37,6 +40,22 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
 
         _widget = 0;
         return null;
+    }
+
+    private nint BoundWidget()
+    {
+        if (!memory.TryReadPtr(moduleBase + Offsets.MiniMapMgrGlobalRva, out var manager) ||
+            !memory.TryRead(manager + Offsets.MiniMapMgrWidget, out uint index) ||
+            !memory.TryRead(manager + Offsets.MiniMapMgrWidget + sizeof(uint), out int serial) || serial == 0 ||
+            index / Offsets.GObjectsPerChunk >= Offsets.MaxGObjectChunks ||
+            !memory.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
+            !memory.TryReadPtr(chunks + (nint)(index / Offsets.GObjectsPerChunk) * nint.Size, out var chunk) ||
+            !memory.TryReadArray(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, Offsets.GObjectsItemSize, out byte[] item) ||
+            BitConverter.ToInt32(item, Offsets.GObjectsItemSerial) != serial)
+            return 0;
+
+        var widget = (nint)BitConverter.ToInt64(item, 0);
+        return widget != 0 && (widget == _widget || IsWidget(widget)) ? widget : 0;
     }
 
     private bool TryFindWidget()

@@ -52,7 +52,7 @@ public sealed class Main : Plugin<Settings>
         var view = Settings.View;
         var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
         var now = Clock();
-        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), view.RegionFill.Value, view.ExploredFill.Value))) return;
+        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 250 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), view.RegionFill.Value, view.ExploredFill.Value))) return;
 
         _regionAt = now;
         var area = state.AreaId;

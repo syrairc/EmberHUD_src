@@ -33,6 +33,7 @@ internal sealed class FakeWorld
         FightMgr = Alloc(0x1000);
         Memory.Write(ModuleBase + Offsets.FightMgrGlobalRva, FightMgr);
         Memory.Map(ModuleBase + Offsets.PlayerMgrGlobalRva, 8);
+        Memory.Map(ModuleBase + Offsets.MiniMapMgrGlobalRva, 8);
         Memory.Map(ModuleBase + Offsets.GObjectsGlobalRva, 0x20);
         Memory.Map(ModuleBase + Offsets.FNamePoolRva, Offsets.FNameBlocks + 8 * 4);
         _nameBlock = Alloc(Offsets.FNameBlockSize * Offsets.FNameEntryStride);
@@ -109,6 +110,19 @@ internal sealed class FakeWorld
         Memory.Write(map + Offsets.TMapSecondaryBits, secondary);
     }
 
+    private readonly Dictionary<long, int> _serials = [];
+
+    public void BindMinimap(FakeMinimap minimap, int serial = 7, int? weakSerial = null)
+    {
+        var index = _objects.Single(o => o.Value == minimap.Widget).Key;
+        _serials[index] = serial;
+        PlaceObject(index, minimap.Widget);
+        var manager = Alloc(0x100);
+        Memory.Write(manager + Offsets.MiniMapMgrWidget, (uint)index);
+        Memory.Write(manager + Offsets.MiniMapMgrWidget + 4, weakSerial ?? serial);
+        Memory.Write(ModuleBase + Offsets.MiniMapMgrGlobalRva, manager);
+    }
+
     public long PlaceObject(long index, long obj)
     {
         _objects[index] = obj;
@@ -121,7 +135,11 @@ internal sealed class FakeWorld
             if (inChunk.Length == 0) continue;
             var size = c < chunkCount - 1 ? Offsets.GObjectsPerChunk : (int)(count - (long)c * Offsets.GObjectsPerChunk);
             var chunk = Alloc(size * Offsets.GObjectsItemSize);
-            foreach (var (i, o) in inChunk) Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, o);
+            foreach (var (i, o) in inChunk)
+            {
+                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, o);
+                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize + Offsets.GObjectsItemSerial, _serials.GetValueOrDefault(i));
+            }
             Memory.Write(chunks + c * 8, chunk);
         }
 
