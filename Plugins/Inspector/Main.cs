@@ -81,11 +81,15 @@ public sealed class Main : Plugin<Settings>
     internal static bool Gone(Pin pin) =>
         pin.Address != 0 && (!Memory.Attached || (pin.ClassAtPin != 0 ? !Ue.TryObject(pin.Address, out var obj) || obj.ClassAddress != pin.ClassAtPin : !Memory.TryRead(pin.Address, out long _)));
 
+    public override void Initialize()
+    {
+        RegisterHotkey("Toggle window", "Opens and closes the Inspector", () => Open = !Open, new Hotkey(Key.F6));
+        RegisterHotkey("Pick mode", "Hover things in the world and click to pin a window for them. The game gets no clicks while it's on, Esc leaves", () => Picking = !Picking, new Hotkey(Key.F7));
+    }
+
     public override void Tick()
     {
-        if (Settings.Toggle.Pressed) Open = !Open;
-        if (Settings.Pick.Pressed) Picking = !Picking;
-        else if (Picking && Input.Pressed(new Hotkey(Key.Escape))) Picking = false;
+        if (Picking && Input.Pressed(new Hotkey(Key.Escape))) Picking = false;
         if (!Picking) Actors = [];
     }
 

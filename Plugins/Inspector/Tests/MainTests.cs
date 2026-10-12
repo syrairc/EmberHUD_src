@@ -67,19 +67,29 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TickTogglesTheWindowOnTheHotkey()
+    public void TheToggleHotkeyOpensAndClosesTheWindow()
     {
         var main = new Main();
+        main.Initialize();
         TestInput.Hold();
-        main.Tick();
+        TestInput.Dispatch(main);
         Check.That(!main.Open, "no key, no toggle");
         TestInput.Hold(Key.F6);
-        main.Tick();
+        TestInput.Dispatch(main);
         Check.That(main.Open, "press opens");
         TestInput.Hold();
         TestInput.Hold(Key.F6);
-        main.Tick();
+        TestInput.Dispatch(main);
         Check.That(!main.Open, "second press closes");
+    }
+
+    [Test]
+    public void RegistersTwoHotkeysWithTheOldDefaults()
+    {
+        var main = new Main();
+        main.Initialize();
+        Check.Equal("Toggle window,Pick mode", string.Join(",", main.Hotkeys.Select(binding => binding.Id)));
+        Check.Equal("F6,F7", string.Join(",", main.Hotkeys.Select(binding => binding.Default.Key)));
     }
 
     [Test]

@@ -75,8 +75,9 @@ public sealed class PickTests
     public void PickModeTogglesOnItsHotkeyAndEscLeaves()
     {
         var main = new Main();
+        main.Initialize();
         TestInput.Hold(Key.F7);
-        main.Tick();
+        TestInput.Dispatch(main);
         Check.That(main.Picking, "F7 starts pick mode");
         TestInput.Hold();
         TestInput.Hold(Key.Escape);
