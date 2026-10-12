@@ -5,7 +5,7 @@ using Hexa.NET.ImGui;
 
 namespace Aember.Host.Ui;
 
-internal enum SettingsPage { General, Theme, Plugin }
+internal enum SettingsPage { General, Plugin }
 
 internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, Func<string?> buildWarning)
 {
@@ -28,8 +28,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
     void DrawList()
     {
-        if (ImGui.Selectable("General", Page == SettingsPage.General)) Page = SettingsPage.General;
-        if (ImGui.Selectable("Theme", Page == SettingsPage.Theme)) Page = SettingsPage.Theme;
+        if (ImGui.Selectable("Aember Settings", Page == SettingsPage.General)) Page = SettingsPage.General;
         ImGui.Separator();
         foreach (var slot in plugins.Slots.OrderByDescending(slot => slot.Enabled).ThenBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase))
         {
@@ -52,10 +51,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         switch (Page)
         {
             case SettingsPage.General:
-                DrawGeneral();
-                break;
-            case SettingsPage.Theme:
-                DrawTheme();
+                Windows.TabBar("aember", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys));
                 break;
             case SettingsPage.Plugin when Selected is { } slot:
                 DrawPlugin(slot);
@@ -107,12 +103,15 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.PopID();
     }
 
-    void DrawGeneral()
+    bool DrawHotkeys()
     {
-        Section("Hotkeys");
         Controls.Hotkey("Settings window", ref sdk.Hotkeys.Settings, "settings");
         Controls.Hotkey("Quit", ref sdk.Hotkeys.Quit, "quit");
+        return false;
+    }
 
+    bool DrawGeneral()
+    {
         Section("Game");
         ImGui.TextUnformatted(Game.State.Status);
         if (buildWarning() is { } warning) ImGui.TextColored(new Vector4(1, 0.85f, 0.3f, 1), Text.EscPct(warning));
@@ -123,9 +122,10 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
         Section("Log");
         Controls.LogView("log", logs.Snapshot(), 0);
+        return false;
     }
 
-    void DrawTheme()
+    bool DrawTheme()
     {
         ImGui.SetNextItemWidth(260);
         if (ImGui.BeginCombo("Theme", themes.Name))
@@ -213,5 +213,6 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
         Section("Style");
         ImGui.ShowStyleEditor();
+        return false;
     }
 }

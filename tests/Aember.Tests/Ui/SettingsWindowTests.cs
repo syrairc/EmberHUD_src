@@ -173,6 +173,13 @@ public sealed class SettingsWindowTests : IDisposable
         Frame(window);
     }
 
+    void OpenTab(SettingsWindow window, int tab)
+    {
+        window.Page = SettingsPage.General;
+        var labels = PageRows(Settled(window))[0].OrderBy(glyph => glyph.Min.X).ToList();
+        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length }[tab]].Centre);
+    }
+
     PluginHost Discovered(params string[] good)
     {
         foreach (var name in good) _fixture.Write(name, "Main.cs", PluginFixture.Source(name, "", "public ToggleNode Show = new(true);"));
@@ -196,7 +203,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Plain");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
         var buttons = Buttons(Settled(window));
         Assert.Equal(Normal(ImGuiCol.ButtonActive), buttons[0].Col);
         Assert.Equal(Normal(ImGuiCol.Button), buttons[1].Col);
@@ -209,7 +216,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Graded");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
         var scene = Settled(window);
         foreach (var colour in new[] { System.Drawing.Color.Red, System.Drawing.Color.Lime, System.Drawing.Color.Blue })
             Assert.Contains(scene, quad => !quad.Glyph && quad.Col == EColor.U32(colour));
@@ -231,9 +238,9 @@ public sealed class SettingsWindowTests : IDisposable
         var window = new SettingsWindow(_fixture.Sdk, host, themes, logs, () => "warning: built for 100% %s another build");
         window.Toggle();
 
-        foreach (var page in new[] { SettingsPage.General, SettingsPage.Theme })
+        foreach (var tab in new[] { 0, 1, 2 })
         {
-            window.Page = page;
+            OpenTab(window, tab);
             TestFrame.Run(window.Draw);
             TestFrame.Run(window.Draw);
         }
@@ -268,8 +275,7 @@ public sealed class SettingsWindowTests : IDisposable
 
             Assert.Equal(
                 [
-                    (Normal(ImGuiCol.Text), "General".Length),
-                    (Normal(ImGuiCol.Text), "Theme".Length),
+                    (Normal(ImGuiCol.Text), "AemberSettings".Length),
                     (Normal(ImGuiCol.Text), "Bb".Length),
                     (Normal(ImGuiCol.Text), "bbbbb".Length),
                     (ErrorColour, "!Cccccc".Length),
@@ -290,19 +296,15 @@ public sealed class SettingsWindowTests : IDisposable
     {
         using var host = Discovered("Aaaa", "Bb");
         var window = Window(host);
-        window.Page = SettingsPage.Theme;
 
-        Click(window, ListRows(Settled(window))[2][0].Centre);
+        Click(window, ListRows(Settled(window))[1][0].Centre);
         Assert.Equal(SettingsPage.Plugin, window.Page);
         Assert.Same(Slot(host, "Aaaa"), window.Selected);
 
         Click(window, ListRows(Settled(window))[0][0].Centre);
         Assert.Equal(SettingsPage.General, window.Page);
 
-        Click(window, ListRows(Settled(window))[1][0].Centre);
-        Assert.Equal(SettingsPage.Theme, window.Page);
-
-        Click(window, ListRows(Settled(window))[3][0].Centre);
+        Click(window, ListRows(Settled(window))[2][0].Centre);
         Assert.Equal(SettingsPage.Plugin, window.Page);
         Assert.Same(Slot(host, "Bb"), window.Selected);
     }
@@ -531,7 +533,7 @@ public sealed class SettingsWindowTests : IDisposable
         File.WriteAllText(dll, "x");
         var warning = (string?)"built for 100% %s another build";
         var window = Window(host, warning: () => warning);
-        window.Page = SettingsPage.General;
+        OpenTab(window, 0);
         var yellow = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 0.85f, 0.3f, 1));
 
         Assert.Equal(warning!.Count(letter => letter != ' '), Settled(window).Count(quad => quad.Glyph && quad.Col == yellow));
@@ -548,21 +550,18 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
-    public void TheGeneralPageShowsBothHotkeysTheGameStatusAndTheLog()
+    public void TheGeneralTabShowsTheGameStatusAndTheLog()
     {
         using var host = Discovered();
         var logs = new LogBuffer();
         logs.Add(new string('W', 37));
         TestGame.Set(GameState.Empty with { Status = new string('Q', 31) });
         var window = Window(host, logs: logs);
-        window.Page = SettingsPage.General;
+        OpenTab(window, 0);
 
         try
         {
             var scene = Settled(window);
-            var buttons = Buttons(scene);
-            Assert.Equal(_fixture.Sdk.Hotkeys.Settings.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[0]));
-            Assert.Equal(_fixture.Sdk.Hotkeys.Quit.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[1]));
             Assert.Contains(PageRows(scene), row => row.Count == 31);
             Assert.Contains(PageRows(scene), row => row.Count == 37);
         }
@@ -573,14 +572,25 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void TheHotkeysTabShowsBothHotkeyPickers()
+    {
+        using var host = Discovered();
+        var window = Window(host);
+        OpenTab(window, 2);
+
+        var scene = Settled(window);
+        var buttons = Buttons(scene);
+        Assert.Equal(_fixture.Sdk.Hotkeys.Settings.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[0]));
+        Assert.Equal(_fixture.Sdk.Hotkeys.Quit.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[1]));
+        Assert.Equal(2, buttons.Count);
+    }
+
+    [Fact]
     public void TheThemePageFollowsTheCurrentThemeIntoSdkSettings()
     {
         using var host = Discovered();
         var window = Window(host, Themes("Other"));
-        window.Page = SettingsPage.Theme;
-        Assert.Equal("Torchlight", _fixture.Sdk.Theme);
-
-        Settled(window);
+        OpenTab(window, 1);
 
         Assert.Equal("Other", _fixture.Sdk.Theme);
     }
@@ -591,7 +601,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Plain");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
 
         var combo = Frames(Settled(window))[0];
         Click(window, combo.Centre);
@@ -607,7 +617,7 @@ public sealed class SettingsWindowTests : IDisposable
     {
         using var host = Discovered();
         var window = Window(host, Themes("Plain"));
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
         var original = ImGui.GetStyle().GrabMinSize;
         var file = Path.Combine(_themes, "Plain.json");
 
@@ -634,7 +644,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Plain");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
 
         Quad SaveAs() => Buttons(Settled(window))[2];
         void Type(string text)
@@ -676,7 +686,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Plain");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
         var untouched = themes.Current.Fonts;
 
         Settled(window);
@@ -703,7 +713,7 @@ public sealed class SettingsWindowTests : IDisposable
         using var host = Discovered();
         var themes = Themes("Plain");
         var window = Window(host, themes);
-        window.Page = SettingsPage.Theme;
+        OpenTab(window, 1);
         var untouched = themes.Current.Fonts;
 
         var mono = Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - (260 - ImGui.GetFrameHeight())) < 1.5f).ToList()[4];
