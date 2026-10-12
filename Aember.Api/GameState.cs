@@ -15,6 +15,8 @@ public sealed record GameState(string Status, int AreaId, Player? Player, Entity
     public ExploredTrail? Explored { get; init; }
 
     public Camera? Camera { get; init; }
+
+    public GameUi Ui { get; init; } = GameUi.Empty;
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward);

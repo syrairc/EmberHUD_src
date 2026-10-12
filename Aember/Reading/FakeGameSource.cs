@@ -14,6 +14,9 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float CellSize = 25f;
     private const float TrailRadius = 250f;
     private static readonly Vector2 Center = new(1000, 1000);
+    private const float UiCycleSeconds = 10f;
+    private const float InventoryOpenSeconds = 4f;
+    private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
@@ -36,10 +39,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             MapIcons = SceneIcons,
             Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now),
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
+            Ui = UiAt(now),
         };
         failure = null;
         return true;
     }
+
+    internal static GameUi UiAt(long now) =>
+        now / (double)Stopwatch.Frequency % UiCycleSeconds < InventoryOpenSeconds ? InventoryOpen : GameUi.Empty;
 
     internal ExploredTrail Sample(int areaId, Vector2 at, long now)
     {

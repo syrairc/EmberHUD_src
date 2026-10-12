@@ -62,6 +62,22 @@ public sealed class UeTests : IDisposable
     }
 
     [Fact]
+    public void TryObjectAcceptsBlueprintGeneratedObjects()
+    {
+        var ue = new TestUe();
+        var bpClassClass = ue.Class("WidgetBlueprintGeneratedClass", ue.Class("BlueprintGeneratedClass", ue.MetaClass));
+        var userWidget = ue.Class("UserWidget");
+        var host = TestMemory.Alloc(0x80);
+        TestMemory.Write(host + TestUe.Layout.ObjectClass, bpClassClass);
+        TestMemory.Write(host + TestUe.Layout.ObjectName, ue.Name("UIPageHost_C"));
+        TestMemory.Write(host + TestUe.Layout.StructSuper, userWidget);
+        var page = ue.Object("UIPageHost_C_1", host);
+
+        Assert.True(Ue.TryObject(page, out var obj));
+        Assert.True(obj.IsA("UserWidget"));
+    }
+
+    [Fact]
     public void UObjKnowsItsNameClassOuterAndAncestry()
     {
         var ue = new TestUe();

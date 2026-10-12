@@ -42,11 +42,13 @@ internal sealed class LiveGameSource : IGameSource
         if (!GameProcess.TryAttach(pid, ref _rejectedBuild, out _game, out _attachFailure)) return false;
         _reader = new LiveReader(_game!.Backend, _game.ModuleBase, _lastAreaId);
         Aember.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
+        GameUi.Finder = _reader.FindRect;
         return true;
     }
 
     private void Detach()
     {
+        GameUi.Finder = null;
         Aember.Memory.Use(null);
         _reader?.Dispose();
         _reader = null;

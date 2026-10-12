@@ -133,4 +133,17 @@ public class FakeGameSourceTests
         Assert.Equal(960, at.X, 0.5f);
         Assert.Equal(540, at.Y, 0.5f);
     }
+
+    [Fact]
+    public void FakeInventoryOpensAndCloses()
+    {
+        var second = Stopwatch.Frequency;
+
+        var open = FakeGameSource.UiAt(1 * second).Get(PanelKind.Inventory);
+        Assert.NotNull(open);
+        Assert.False(open.Value.FullScreen);
+        Assert.True(open.Value.Max.X > open.Value.Min.X);
+        Assert.Same(GameUi.Empty, FakeGameSource.UiAt(6 * second));
+        Assert.NotNull(FakeGameSource.UiAt(11 * second).Get(PanelKind.Inventory));
+    }
 }

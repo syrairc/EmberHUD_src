@@ -26,6 +26,7 @@ public sealed class GeneralTab
 
     public ToggleNode Show = new(true);
     public ToggleNode FollowPlayer = new(true);
+    [Menu("Hide behind full-screen panels", "Nothing draws while the game has a full-screen panel open, e.g. the big map or the talent tree")] public ToggleNode HideBehindPanels = new(true);
     [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(DefaultZoom, 0.002f, 4);
     [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);
     [Menu("Vertical scale", "Squashes the map vertically after the rotation, the game camera is isometric")] public RangeNode<float> VerticalScale = new(1, 0.2f, 1.5f);

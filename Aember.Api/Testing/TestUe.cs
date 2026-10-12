@@ -47,6 +47,8 @@ public sealed class TestUe
 
     public nint Class(string name, nint super = 0, int size = 0x40, params TestProp[] props) => Struct(name, MetaClass, super, size, props);
 
+    public nint BlueprintClass(string name, nint generatedClass, nint super) => Struct(name, generatedClass, super, 0x40, []);
+
     public nint ScriptStruct(string name, int size, params TestProp[] props)
     {
         if (_scriptStructClass == 0) _scriptStructClass = Class("ScriptStruct");

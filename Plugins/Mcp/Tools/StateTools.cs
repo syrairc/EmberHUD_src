@@ -89,6 +89,15 @@ internal static class StateTools
             ["hasTerrain"] = state.Terrain is not null,
             ["mapIcons"] = state.MapIcons.Length,
             ["minimapRotation"] = state.MinimapRotation is { } rotation ? Num.F(rotation) : null,
+            ["panels"] = new JsonArray([.. state.Ui.Panels.Select(panel => (JsonNode)new JsonObject
+            {
+                ["name"] = panel.Name,
+                ["kind"] = panel.Kind.ToString(),
+                ["min"] = new JsonArray(Num.F(panel.Min.X), Num.F(panel.Min.Y)),
+                ["max"] = new JsonArray(Num.F(panel.Max.X), Num.F(panel.Max.Y)),
+                ["fullScreen"] = panel.FullScreen,
+                ["address"] = Hex.Of(panel.Address),
+            })]),
         };
         if (state.Player is { } player)
             result["player"] = new JsonObject { ["x"] = Num.F(player.Position.X), ["y"] = Num.F(player.Position.Y), ["z"] = Num.F(player.Position.Z), ["forwardX"] = Num.F(player.Forward.X), ["forwardY"] = Num.F(player.Forward.Y) };

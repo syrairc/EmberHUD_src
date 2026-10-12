@@ -55,12 +55,35 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void StateListsTheOpenGamePanels()
+    {
+        TestGame.Set(GameState.Empty with
+        {
+            Ui = new GameUi([
+                new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false) { Address = 0x1F2E },
+                new GamePanel("WorldMapTitle_C", PanelKind.WorldMap, Vector2.Zero, new Vector2(3440, 1440), true),
+            ]),
+        });
+        var panels = Wire.Run(Tools, "get_state")["panels"]!.AsArray();
+        Check.Equal(2, panels.Count);
+        Check.Equal("PCBag_C", (string?)panels[0]!["name"]);
+        Check.Equal("Inventory", (string?)panels[0]!["kind"]);
+        Check.Equal("2400,200", string.Join(',', panels[0]!["min"]!.AsArray().Select(v => (double)v!)));
+        Check.Equal("3300,1200", string.Join(',', panels[0]!["max"]!.AsArray().Select(v => (double)v!)));
+        Check.Equal(false, (bool)panels[0]!["fullScreen"]!);
+        Check.Equal("0x1F2E", (string?)panels[0]!["address"]);
+        Check.Equal(true, (bool)panels[1]!["fullScreen"]!);
+        Check.Equal("WorldMap", (string?)panels[1]!["kind"]);
+    }
+
+    [Test]
     public void AnEmptyGameStillAnswers()
     {
         TestGame.Set(GameState.Empty);
         var result = Wire.Run(Tools, "get_state");
         Check.Equal("starting", (string?)result["status"]);
         Check.That(result["player"] is null && result["camera"] is null, "no player or camera");
+        Check.Equal(0, result["panels"]!.AsArray().Count);
         Check.Equal(0, Entities(new JsonObject()).Count);
     }
 

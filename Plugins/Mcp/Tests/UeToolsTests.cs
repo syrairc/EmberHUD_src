@@ -119,6 +119,16 @@ public sealed class UeToolsTests
     }
 
     [Test]
+    public void ClassByNameFindsBlueprintClasses()
+    {
+        var ue = new TestUe();
+        var widgetBlueprintClass = ue.Class("WidgetBlueprintGeneratedClass", ue.MetaClass);
+        ue.BlueprintClass("UIPageHost_C", widgetBlueprintClass, ue.Class("UserWidget"));
+        var result = Wire.Run(Tools, "ue_class", Args(("class", "UIPageHost_C")));
+        Check.Equal("UserWidget", (string?)result["super"]![0]);
+    }
+
+    [Test]
     public void ObjectFormatsFieldsAndExpandsToTheDepth()
     {
         var world = new World();

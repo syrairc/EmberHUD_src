@@ -48,7 +48,7 @@ public sealed class Main : Plugin<Settings>
         }
         if (view.Show.Value && !WallsStyle) UpdateRegion(state);
 
-        if (view.Show.Value) Map.View = ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation);
+        Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation);
     }
 
     void UpdateRegion(GameState state)
@@ -93,9 +93,12 @@ public sealed class Main : Plugin<Settings>
         return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX.Value, view.OffsetY.Value) } : null;
     }
 
+    internal static bool Hidden(Settings settings, GameUi ui) =>
+        !settings.General.Show.Value || settings.General.HideBehindPanels.Value && ui.AnyFullScreen;
+
     public override void Render()
     {
-        if (!Settings.General.Show.Value || Map.View is not { } map) return;
+        if (Hidden(Settings, Game.State.Ui) || Map.View is not { } map) return;
         var viewport = ImGui.GetIO().DisplaySize;
         var state = Game.State;
 

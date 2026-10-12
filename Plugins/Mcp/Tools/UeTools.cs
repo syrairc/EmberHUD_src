@@ -88,7 +88,7 @@ internal static class UeTools
     }
 
     static UStructInfo? ByName(string name) =>
-        Ue.Objects().Where(obj => obj.Name == name && (obj.Class?.Name is "Class" or "ScriptStruct")).Select(obj => Ue.Struct(obj.Address)).FirstOrDefault(info => info is not null);
+        Ue.Objects().Where(obj => obj.Name == name && (obj.IsA("Class") || obj.Class?.Name == "ScriptStruct")).Select(obj => Ue.Struct(obj.Address)).FirstOrDefault(info => info is not null);
 
     static JsonObject Prop(UProp prop)
     {

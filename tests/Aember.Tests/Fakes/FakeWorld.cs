@@ -176,11 +176,12 @@ internal sealed class FakeWorld
         return cls;
     }
 
-    public long AddObject(long cls, string name)
+    public long AddObject(long cls, string name, uint nameNumber = 0)
     {
         var obj = Alloc(0x400);
         Memory.Write(obj + Offsets.UObjectClass, cls);
         Memory.Write(obj + Offsets.UObjectName, AddName(name));
+        Memory.Write(obj + Offsets.UObjectName + Offsets.FNameNumber, nameNumber);
         PlaceObject(_nextObjectIndex++, obj);
         return obj;
     }

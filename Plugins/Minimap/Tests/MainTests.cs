@@ -202,6 +202,27 @@ public sealed class MainTests
     }
 
     [Test]
+    public void AFullScreenPanelWithdrawsThePublishedViewAndClosingItRestoresIt()
+    {
+        var map = new GameUi([new GamePanel("Map", PanelKind.WorldMap, Vector2.Zero, new Vector2(3440, 1440), true)]);
+        var bag = new GameUi([new GamePanel("Bag", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
+        var main = Scene.Plugin();
+        Map.View = null;
+
+        TestGame.Set(InArea() with { Ui = bag });
+        TestFrame.Run(main.Tick);
+        Check.That(Map.View is not null, "side panel");
+
+        TestGame.Set(InArea() with { Ui = map });
+        TestFrame.Run(main.Tick);
+        Check.That(Map.View is null, "full screen panel");
+
+        TestGame.Set(InArea());
+        TestFrame.Run(main.Tick);
+        Check.That(Map.View is not null, "closed");
+    }
+
+    [Test]
     public void AHiddenMapPublishesNoView()
     {
         TestGame.Set(InArea());
@@ -433,6 +454,22 @@ public sealed class MainTests
         {
             TestGame.UseTextures(null, null);
         }
+    }
+
+    [Test]
+    public void HidesOnlyBehindFullScreenPanelsWhenAsked()
+    {
+        var settings = new Settings();
+        var bag = new GameUi([new GamePanel("Bag", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
+        var map = new GameUi([new GamePanel("Map", PanelKind.WorldMap, Vector2.Zero, new Vector2(3440, 1440), true)]);
+
+        Check.That(!Main.Hidden(settings, GameUi.Empty), "nothing open");
+        Check.That(!Main.Hidden(settings, bag), "side panel");
+        Check.That(Main.Hidden(settings, map), "full screen panel");
+        settings.General.HideBehindPanels.Value = false;
+        Check.That(!Main.Hidden(settings, map), "toggle off");
+        settings.General.Show.Value = false;
+        Check.That(Main.Hidden(settings, GameUi.Empty), "map off");
     }
 
     [Test]

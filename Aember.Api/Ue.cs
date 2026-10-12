@@ -100,9 +100,18 @@ public static class Ue
         if (Layout is not { } l || at == 0) return false;
         var cache = Current();
         return Memory.TryRead(at + l.ObjectClass, out nint cls) && cls != 0 &&
-               Memory.TryRead(cls + l.ObjectClass, out nint meta) && meta != 0 &&
-               ReadName(meta + l.ObjectName, cache) == l.ClassClassName &&
+               Memory.TryRead(cls + l.ObjectClass, out nint meta) && IsClassClass(l, meta, cache) &&
                ReadName(at + l.ObjectName, cache) is not null;
+    }
+
+    static bool IsClassClass(UeLayout l, nint meta, Cache cache)
+    {
+        for (var depth = 0; meta != 0 && depth < MaxSuperDepth; depth++)
+        {
+            if (ReadName(meta + l.ObjectName, cache) == l.ClassClassName) return true;
+            if (!Memory.TryRead(meta + l.StructSuper, out meta)) return false;
+        }
+        return false;
     }
 
     public static UStructInfo? Struct(nint at) => Struct(at, 0, Current());

@@ -25,6 +25,29 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void WithoutAUiChainTheUiIsEmpty()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities();
+        using var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Same(GameUi.Empty, state.Ui);
+    }
+
+    [Fact]
+    public void FindRectSurvivesADisposedBackend()
+    {
+        using var reader = new LiveReader(new DisposedBackend(), 0);
+        Assert.Null(reader.FindRect(1, "Any"));
+    }
+
+    private sealed class DisposedBackend : Aember.Host.Memory.IReadBackend
+    {
+        public bool TryRead(nint address, Span<byte> target) => throw new ObjectDisposedException("process");
+    }
+
+    [Fact]
     public void KeepsTheSameTerrainInstanceAcrossReads()
     {
         var world = new FakeWorld();

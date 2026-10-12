@@ -62,6 +62,7 @@ internal sealed class ApiTree
         new("Terrain", s => s.Terrain),
         new("Explored", s => s.Explored),
         new("Camera", s => s.Camera),
+        new("Game UI", s => s.Ui.Panels),
         new("Map view", _ => Map.View),
     ];
 

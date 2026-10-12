@@ -11,9 +11,24 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly MapIconReader _icons = new(memory, moduleBase);
     private readonly ExploredReader _explored = new(memory);
     private readonly CameraReader _camera = new(memory);
+    private GameUiReader? _uiReader;
     private int _generation = firstAreaId;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
+
+    private GameUiReader UiReader => _uiReader ??= new(memory, moduleBase, _minimap.TryReadName);
+
+    internal (Vector2 Min, Vector2 Max)? FindRect(nint page, string childName)
+    {
+        try
+        {
+            return UiReader.FindRect(page, childName);
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
+    }
 
     public bool TryRead(out GameState state, out string? failure)
     {
@@ -48,6 +63,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             MapIcons = icons,
             Explored = explored,
             Camera = _world.TryReadLocalPawn(out var pawn) ? _camera.Read(pawn) : null,
+            Ui = UiReader.Read(),
         };
         return true;
     }
