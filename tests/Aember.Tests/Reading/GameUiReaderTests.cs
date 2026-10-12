@@ -64,7 +64,7 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
-    public void UnknownHostedPageIsFullScreenOther()
+    public void UnknownHostedPageIsOtherAndNotFullScreen()
     {
         var world = new FakeWorld();
         var ui = new FakeUi(world);
@@ -73,7 +73,7 @@ public sealed class GameUiReaderTests
 
         var panel = Assert.Single(Reader(world).Read().Panels);
 
-        Assert.Equal(new GamePanel("SomethingNew_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), true) { Address = (nint)page }, panel);
+        Assert.Equal(new GamePanel("SomethingNew_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false) { Address = (nint)page }, panel);
     }
 
     [Fact]

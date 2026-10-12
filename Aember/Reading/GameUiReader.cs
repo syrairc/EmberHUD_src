@@ -16,7 +16,7 @@ internal sealed class GameUiReader(IReadBackend memory, nint moduleBase, TryName
         .ToDictionary(f => f[0], f => new PanelSpec(Enum.Parse<PanelKind>(f[1]), f[2], f[3] == "1"));
 
     private static readonly HashSet<string> Hud = [.. Offsets.HudPages.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
-    private static readonly PanelSpec Unknown = new(PanelKind.Other, "", true);
+    private static readonly PanelSpec Unknown = new(PanelKind.Other, "", false);
 
     private readonly ConcurrentDictionary<(nint Class, string Ancestor), bool> _isA = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
