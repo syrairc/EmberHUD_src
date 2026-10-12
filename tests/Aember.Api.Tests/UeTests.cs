@@ -228,6 +228,8 @@ public sealed class UeTests : IDisposable
 
         Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", 0x0C, 8, 1, 0, 0, null)));
         Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", -4, 4, 1, 0, 0, null)));
+        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", int.MaxValue - 2, 8, 1, 0, 0, null)));
+        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", 0x04, int.MaxValue, 1, 0, 0, null)));
         TestMemory.Clear();
         Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", 0, 4, 1, 0, 0, null)));
     }

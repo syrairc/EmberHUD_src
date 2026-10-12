@@ -16,6 +16,8 @@ public sealed class FirstPartyPluginTests
         Assert.Contains("PASS Sample compile", report.ToString());
         Assert.Contains("PASS Sample SampleTests.StatusTextShowsTheGameStatus", report.ToString());
         Assert.Contains("PASS Sample SampleTests.TickTogglesVisibilityOnTheHotkey", report.ToString());
+        Assert.Contains("PASS Mcp compile", report.ToString());
+        Assert.Contains("PASS Mcp RpcTests.DiscoverNamesBothVersionsAndIsCacheable", report.ToString());
         Assert.Contains("PASS Inspector compile", report.ToString());
         Assert.Contains("PASS Inspector MainTests.FrozenHoldsTheSnapshotUntilResume", report.ToString());
         Assert.DoesNotContain(" defaults - ", report.ToString());

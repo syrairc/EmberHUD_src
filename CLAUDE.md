@@ -46,9 +46,11 @@ Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-depend
 | `Aember\Offsets` | `Offsets.*` (generated `Offsets.g.cs` + sealed `offsets.bin`), regenerate with `pwsh scripts/gen-offsets.ps1` |
 | `offsets` | `layout.want` - every offset, limit and game class / parameter name (quoted strings) the live reader uses, never literals in host code |
 | `tools\OffsetGen` | want file -> AES-GCM sealed table + `Offsets.g.cs` |
-| `Plugins` | first-party plugin sources (`Sample`, `Minimap`, `Inspector`) |
+| `Plugins` | first-party plugin sources (`Sample`, `Minimap`, `Inspector`, `Mcp`) |
 | `tests` | xunit v3 suites |
 | `scripts` | `build.ps1`, `gen-offsets.ps1`, `live-build.ps1`, `release.ps1`, `release.tests.ps1` |
+
+`Plugins\Mcp` hosts a read-only MCP server (spec 2026-07-28, legacy initialize answered) on `127.0.0.1:50902` when `Serve` is on - off by default, token in `Config\Mcp\bridge-token.txt`, `Config\Mcp\bridge-port.txt` holds the port actually bound. The plugin settings page has the `claude mcp add --transport http aember <url> --header "X-Bridge-Token: <token>"` command. 21 tools: state, memory, UE reflection, watches, recordings. Design -> `..\docs\superpowers\specs\2026-10-11-mcp-design.md`. The agent never starts the server against the real game - the user turns `Serve` on.
 
 Planned:
 
