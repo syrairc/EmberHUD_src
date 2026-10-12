@@ -232,7 +232,7 @@ RectChildRetryMilliseconds = 1000
 PageHostClassName = "UIPageHost_C"
 PanelWidgetClassName = "PanelWidget"
 UserWidgetClassName = "UserWidget"
-GamePanels = "PCBag_C,Inventory,PCBagMain,0;WareHouse_C,Stash,,1;WorldMapTitle_C,WorldMap,,1;Skill_C,Skills,,1;Talent_C,Talents,,1;NewStore_C,Vendor,,1;Setting_C,Settings,,1"
+GamePanels = "PCBag_C,Inventory,PCBagMain,0;WareHouse_C,Stash,,1;WorldMapTitle_C,WorldMap,,1;Skill_C,Skills,,1;Talent_C,Talents,,1;NewStore_C,Vendor,,1;Setting_C,Settings,,1;S9Taro_C,Other,,1"
 HudPages = "MiniMap_C CtrlPad_C HpBarPlayerBot_C Fight_C TipBtnHoverItem_C FightUnderAttack_C ScrollNoticeItem_C GamepadTipsItem_C"
 
 UeClassClassName = "Class"
