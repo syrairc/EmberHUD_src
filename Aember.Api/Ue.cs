@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Aember;
 
-public sealed record UProp(string Name, string Type, int Offset, int Size, int ArrayDim, byte BoolMask, nint Struct, UProp? Element);
+public sealed record UProp(string Name, string Type, int Offset, int Size, int ArrayDim, byte BoolMask, nint Struct, UProp? Element, string Owner = "", nint Enum = 0, UProp? Key = null, UProp? Value = null, int Stride = 0);
 
 public sealed record UStructInfo(nint Address, string Name, UStructInfo? Super, int Size, UProp[] Properties)
 {
@@ -44,14 +44,36 @@ public readonly record struct UObj(nint Address)
     }
 }
 
+public readonly record struct UEntry(nint Address, UProp Key, UProp? Value);
+
 public static class Ue
 {
     const int MaxSuperDepth = 64;
     const int MaxFields = 4096;
+    const int MaxEnumNames = 4096;
     const int MaxStringChars = 512;
+    const int MaxSparseSlots = 65536;
+    const int MaxEntryStride = 4096;
     static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     static readonly Lock Gate = new();
     static volatile Cache _cache = new(-1);
+
+    public static UEntry[] Entries(nint at, UProp prop, int max)
+    {
+        var key = prop.Type switch { "MapProperty" => prop.Key, "SetProperty" => prop.Element, _ => null };
+        if (Layout is not { } l || key is null || prop.Stride <= 0 || prop.Stride > MaxEntryStride || max <= 0 || prop.Type == "MapProperty" && prop.Value is null) return [];
+        if (!Memory.TryRead(at, out nint data) || data == 0 ||
+            !Memory.TryRead(at + l.ArrayNum, out int slots) || slots <= 0 || slots > MaxSparseSlots ||
+            !Memory.TryRead(at + l.SparseNumBits, out int bits) || bits < slots)
+            return [];
+        var flagsAt = Memory.TryRead(at + l.SparseFlagsSecondary, out nint secondary) && secondary != 0 ? secondary : slots <= l.SparseInlineBits ? at + l.SparseFlagsInline : 0;
+        var words = new byte[(slots + 31) / 32 * 4];
+        if (flagsAt == 0 || Memory.Read(flagsAt, words) != words.Length) return [];
+        List<UEntry> entries = [];
+        for (var slot = 0; slot < slots && entries.Count < max; slot++)
+            if (((words[slot >> 3] >> (slot & 7)) & 1) != 0) entries.Add(new UEntry(data + slot * prop.Stride, key, prop.Value));
+        return [.. entries];
+    }
 
     internal static UeLayout? Layout => Memory.Layout;
 
@@ -104,6 +126,29 @@ public static class Ue
                ReadName(at + l.ObjectName, cache) is not null;
     }
 
+    public static bool TryWeak(int index, int serial, out UObj obj)
+    {
+        obj = default;
+        if (Layout is not { } l || index < 0 || serial == 0 || !Memory.TryRead(Memory.ObjectArray, out nint chunks) || chunks == 0) return false;
+        var chunk = index / l.ObjectsPerChunk;
+        if (chunk >= l.MaxObjectChunks || !Memory.TryRead(chunks + chunk * nint.Size, out nint start) || start == 0) return false;
+        var item = start + index % l.ObjectsPerChunk * l.ObjectItemSize;
+        return Memory.TryRead(item, out nint at) && at != 0 &&
+               Memory.TryRead(item + l.ObjectItemSerial, out int actual) && actual == serial &&
+               TryObject(at, out obj);
+    }
+
+    public static nint DefaultObject(UStructInfo cls) =>
+        Layout is { } l && Memory.TryRead(cls.Address + l.ClassDefaultObject, out nint at) && at != 0 && TryObject(at, out _) ? at : 0;
+
+    static string SoftPath(ReadOnlySpan<byte> container, UProp prop, UeLayout l)
+    {
+        var at = prop.Offset + l.SoftPathName;
+        if (at < 0 || at > container.Length - 8) return "??";
+        if (TryWeak(BitConverter.ToInt32(container[prop.Offset..]), BitConverter.ToInt32(container[(prop.Offset + l.WeakSerial)..]), out var target)) return Pointer(target.Address);
+        return NameOf(BitConverter.ToInt32(container[at..]), BitConverter.ToInt32(container[(at + 4)..]), Current()) switch { null => "??", "None" => "null", var path => path };
+    }
+
     static bool IsClassClass(UeLayout l, nint meta, Cache cache)
     {
         for (var depth = 0; meta != 0 && depth < MaxSuperDepth; depth++)
@@ -124,7 +169,7 @@ public static class Ue
         return prop.Type switch
         {
             "BoolProperty" => (v[0] & prop.BoolMask) != 0 ? "true" : "false",
-            "ByteProperty" => v[0].ToString(Invariant),
+            "ByteProperty" => Enumerated(prop, v[0]),
             "Int8Property" => ((sbyte)v[0]).ToString(Invariant),
             "Int16Property" => BitConverter.ToInt16(v).ToString(Invariant),
             "UInt16Property" => BitConverter.ToUInt16(v).ToString(Invariant),
@@ -134,15 +179,47 @@ public static class Ue
             "UInt64Property" => BitConverter.ToUInt64(v).ToString(Invariant),
             "FloatProperty" => BitConverter.ToSingle(v).ToString("0.###", Invariant),
             "DoubleProperty" => BitConverter.ToDouble(v).ToString("0.###", Invariant),
-            "EnumProperty" => (prop.Size switch { 1 => (long)v[0], 2 => BitConverter.ToInt16(v), 4 => BitConverter.ToInt32(v), _ => BitConverter.ToInt64(v) }).ToString(Invariant),
+            "EnumProperty" => Enumerated(prop, prop.Size switch { 1 => v[0], 2 => BitConverter.ToInt16(v), 4 => BitConverter.ToInt32(v), _ => BitConverter.ToInt64(v) }),
             "NameProperty" => NameOf(BitConverter.ToInt32(v), BitConverter.ToInt32(v[4..]), Current()) ?? "??",
             "StrProperty" => FString((nint)BitConverter.ToInt64(v), BitConverter.ToInt32(v[l.ArrayNum..])),
-            "ObjectProperty" or "ClassProperty" or "SoftObjectProperty" or "LazyObjectProperty" => Pointer((nint)BitConverter.ToInt64(v)),
+            "ObjectProperty" or "ClassProperty" => Pointer((nint)BitConverter.ToInt64(v)),
+            "WeakObjectProperty" or "LazyObjectProperty" => BitConverter.ToInt32(v) < 0 || BitConverter.ToInt32(v[l.WeakSerial..]) == 0 ? "null" : TryWeak(BitConverter.ToInt32(v), BitConverter.ToInt32(v[l.WeakSerial..]), out var weak) ? Pointer(weak.Address) : "stale",
+            "SoftObjectProperty" => SoftPath(container, prop, l),
             "ArrayProperty" or "MapProperty" or "SetProperty" => $"[{BitConverter.ToInt32(v[l.ArrayNum..])}]",
             "StructProperty" => Struct(prop.Struct)?.Name ?? "struct",
             _ => prop.Type,
         };
     }
+
+    public static string? EnumName(nint enumAt, long value)
+    {
+        if (Layout is not { } l || enumAt == 0) return null;
+        foreach (var (known, name) in EnumNames(l, enumAt, Current()))
+            if (known == value) return name;
+        return null;
+    }
+
+    static (long Value, string Name)[] EnumNames(UeLayout l, nint at, Cache cache)
+    {
+        if (cache.Enums.TryGetValue(at, out var cached)) return cached;
+        if (!Memory.TryRead(at + l.EnumNames, out nint data) || data == 0 ||
+            !Memory.TryRead(at + l.EnumNames + l.ArrayNum, out int count) || count <= 0 || count > MaxEnumNames)
+            return [];
+        var raw = new byte[count * l.EnumNameStride];
+        if (Memory.Read(data, raw) != raw.Length) return [];
+        List<(long, string)> names = [];
+        for (var i = 0; i < count; i++)
+        {
+            var entry = raw.AsSpan(i * l.EnumNameStride);
+            if (NameOf(BitConverter.ToInt32(entry), BitConverter.ToInt32(entry[4..]), cache) is not { } text) continue;
+            var cut = text.LastIndexOf("::", StringComparison.Ordinal);
+            names.Add((BitConverter.ToInt64(entry[8..]), cut < 0 ? text : text[(cut + 2)..]));
+        }
+        return cache.Enums[at] = [.. names];
+    }
+
+    static string Enumerated(UProp prop, long value) =>
+        prop.Enum != 0 && EnumName(prop.Enum, value) is { } name ? $"{name} ({value.ToString(Invariant)})" : value.ToString(Invariant);
 
     static string? Name(int index, Cache cache)
     {
@@ -178,7 +255,7 @@ public static class Ue
         Memory.TryRead(at + l.StructChildProperties, out nint field);
         for (var guard = 0; field != 0 && guard < MaxFields; guard++)
         {
-            if (Prop(l, field, 0, cache) is { } prop) own.Add(prop);
+            if (Prop(l, field, 0, cache) is { } prop) own.Add(prop with { Owner = name });
             if (!Memory.TryRead(field + l.FieldNext, out field)) break;
         }
         return cache.Structs[at] = new UStructInfo(at, name, super, size, [.. (super?.Properties ?? []).Concat(own).OrderBy(p => p.Offset)]);
@@ -201,8 +278,16 @@ public static class Ue
             mask = Memory.TryRead(field + l.BoolFieldMask, out byte fieldMask) && fieldMask != 0 ? fieldMask : byte.MaxValue;
             if (Memory.TryRead(field + l.BoolByteOffset, out byte byteOffset)) offset += byteOffset;
         }
-        var element = type == "ArrayProperty" && inner != 0 ? Prop(l, inner, depth + 1, cache) : null;
-        return new UProp(name, type, offset, size, dim, mask, type == "StructProperty" ? inner : 0, element);
+        nint enumAt = 0;
+        if (type == "EnumProperty") Memory.TryRead(field + l.EnumPropertyEnum, out enumAt);
+        else if (type == "ByteProperty") Memory.TryRead(field + l.BytePropertyEnum, out enumAt);
+        var element = type is "ArrayProperty" or "SetProperty" && inner != 0 ? Prop(l, inner, depth + 1, cache) : null;
+        var key = type == "MapProperty" && inner != 0 ? Prop(l, inner, depth + 1, cache) : null;
+        var value = type == "MapProperty" && Memory.TryRead(field + l.MapPropertyValue, out nint valueField) && valueField != 0 ? Prop(l, valueField, depth + 1, cache) : null;
+        var stride = 0;
+        if (type == "MapProperty") Memory.TryRead(field + l.MapElementSize, out stride);
+        else if (type == "SetProperty") Memory.TryRead(field + l.SetElementSize, out stride);
+        return new UProp(name, type, offset, size, dim, mask, type == "StructProperty" ? inner : 0, element, "", enumAt, key, value, stride);
     }
 
     static string Pointer(nint at) =>
@@ -223,5 +308,6 @@ public static class Ue
         public int Generation { get; } = generation;
         public ConcurrentDictionary<int, string> Names { get; } = new();
         public ConcurrentDictionary<nint, UStructInfo> Structs { get; } = new();
+        public ConcurrentDictionary<nint, (long Value, string Name)[]> Enums { get; } = new();
     }
 }

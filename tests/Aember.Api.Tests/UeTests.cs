@@ -260,4 +260,225 @@ public sealed class UeTests : IDisposable
         Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", 0x500, 0x7FFFFF00, 1, 0, 0, null)));
         Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", int.MaxValue, int.MaxValue, 1, 0, 0, null)));
     }
+
+    [Fact]
+    public void PropertiesCarryTheirDeclaringClass()
+    {
+        var ue = new TestUe();
+        var actor = ue.Class("Actor", 0, 0x40, new TestProp("Tags", "IntProperty", 0x30));
+        var pawn = ue.Class("Pawn", actor, 0x50, new TestProp("Health", "IntProperty", 0x40));
+
+        var info = Ue.Struct(pawn)!;
+
+        Assert.Equal("Actor", info.Property("Tags")!.Owner);
+        Assert.Equal("Pawn", info.Property("Health")!.Owner);
+    }
+
+    [Fact]
+    public void MapAndSetPropertiesKeepKeyValueElementAndStride()
+    {
+        var ue = new TestUe();
+        var cls = ue.Class("Holder", 0, 0x80,
+            new TestProp("Parts", "MapProperty", 0x30, 0x50, Key: new TestProp("Parts", "IntProperty", 0, 4), Value: new TestProp("Parts", "ObjectProperty", 8, 8), Stride: 0x18),
+            new TestProp("Ids", "SetProperty", 0x60, 0x50, Element: new TestProp("Ids", "IntProperty", 0, 4), Stride: 0x10));
+
+        var info = Ue.Struct(cls)!;
+        var parts = info.Property("Parts")!;
+        var ids = info.Property("Ids")!;
+
+        Assert.Equal("IntProperty", parts.Key!.Type);
+        Assert.Equal(8, parts.Value!.Offset);
+        Assert.Equal(0x18, parts.Stride);
+        Assert.Equal("IntProperty", ids.Element!.Type);
+        Assert.Equal(0x10, ids.Stride);
+    }
+
+    [Fact]
+    public void EnumValuesShowTheirNameAndFallBackToTheNumber()
+    {
+        var ue = new TestUe();
+        var rarity = ue.Enum("ERarity", ("Normal", 0), ("Magic", 1), ("Rare", 3));
+        var cls = ue.Class("Thing", 0, 0x40,
+            new TestProp("Rarity", "EnumProperty", 0x30, 1, Enum: rarity),
+            new TestProp("Tier", "ByteProperty", 0x31, 1, Enum: rarity),
+            new TestProp("Plain", "ByteProperty", 0x32, 1));
+        var info = Ue.Struct(cls)!;
+        var bytes = new byte[0x40];
+        bytes[0x30] = 3;
+        bytes[0x31] = 9;
+        bytes[0x32] = 3;
+
+        Assert.Equal("Rare (3)", Ue.Format(bytes, info.Property("Rarity")!));
+        Assert.Equal("9", Ue.Format(bytes, info.Property("Tier")!));
+        Assert.Equal("3", Ue.Format(bytes, info.Property("Plain")!));
+        Assert.Equal("Magic", Ue.EnumName(rarity, 1));
+        Assert.Null(Ue.EnumName(0, 1));
+    }
+
+    [Fact]
+    public void AnEnumWithAGarbageNameCountResolvesNothing()
+    {
+        var ue = new TestUe();
+        var broken = ue.Enum("EBroken", ("A", 0));
+        TestMemory.Write(broken + TestUe.Layout.EnumNames + TestUe.Layout.ArrayNum, 1 << 30);
+
+        Assert.Null(Ue.EnumName(broken, 0));
+    }
+
+    static UProp IntMap(int stride = 0x18) => new("Map", "MapProperty", 0, 0x50, 1, 0, 0, null, Key: new UProp("Map", "IntProperty", 0, 4, 1, 0, 0, null), Value: new UProp("Map", "IntProperty", 8, 4, 1, 0, 0, null), Stride: stride);
+
+    static (int Key, int Value)[] Pairs(UEntry[] entries) =>
+        [.. entries.Select(e => (Memory.TryRead(e.Address + e.Key.Offset, out int k) ? k : -1, Memory.TryRead(e.Address + e.Value!.Offset, out int v) ? v : -1))];
+
+    [Fact]
+    public void MapEntriesSkipFreeSlots()
+    {
+        var ue = new TestUe();
+        var map = ue.SparseArray(5, 0x18, [1, 3], (element, slot) =>
+        {
+            TestMemory.Write(element, 100 + slot);
+            TestMemory.Write(element + 8, 200 + slot);
+        });
+
+        Assert.Equal([(100, 200), (102, 202), (104, 204)], Pairs(Ue.Entries(map, IntMap(), 100)));
+    }
+
+    [Fact]
+    public void MapEntriesReadTheSecondaryBitArrayAndHonourMax()
+    {
+        var ue = new TestUe();
+        int[] free = [1, 9, 31, 32, 150];
+        var map = ue.SparseArray(200, 0x18, free, (element, slot) =>
+        {
+            TestMemory.Write(element, slot);
+            TestMemory.Write(element + 8, slot * 2);
+        });
+
+        var all = Pairs(Ue.Entries(map, IntMap(), 1000));
+        var some = Pairs(Ue.Entries(map, IntMap(), 7));
+
+        Assert.Equal(Enumerable.Range(0, 200).Except(free), all.Select(p => p.Key));
+        Assert.Equal((199, 398), all[^1]);
+        Assert.Equal([0, 2, 3, 4, 5, 6, 7], some.Select(p => p.Key));
+    }
+
+    [Fact]
+    public void SetEntriesUseTheElementProp()
+    {
+        var ue = new TestUe();
+        var set = ue.SparseArray(3, 0x10, [], (element, slot) => TestMemory.Write(element, 7 + slot));
+        var prop = new UProp("Ids", "SetProperty", 0, 0x50, 1, 0, 0, new UProp("Ids", "IntProperty", 0, 4, 1, 0, 0, null), Stride: 0x10);
+
+        var entries = Ue.Entries(set, prop, 10);
+
+        Assert.Equal(3, entries.Length);
+        Assert.All(entries, e => Assert.Null(e.Value));
+        Assert.True(Memory.TryRead(entries[2].Address, out int last));
+        Assert.Equal(9, last);
+    }
+
+    [Fact]
+    public void GarbageMapsGiveNoEntries()
+    {
+        var ue = new TestUe();
+        var map = ue.SparseArray(4, 0x18, [], (_, _) => { });
+
+        TestMemory.Write(map + TestUe.Layout.ArrayNum, 1 << 30);
+        Assert.Empty(Ue.Entries(map, IntMap(), 100));
+
+        TestMemory.Write(map + TestUe.Layout.ArrayNum, 4);
+        Assert.Empty(Ue.Entries(map, IntMap(0), 100));
+        Assert.Empty(Ue.Entries(map, IntMap(), 0));
+        Assert.Empty(Ue.Entries(0x10, IntMap(), 100));
+
+        TestMemory.Write(map + TestUe.Layout.ArrayNum, 200);
+        TestMemory.Write(map + TestUe.Layout.SparseNumBits, 200);
+        Assert.Empty(Ue.Entries(map, IntMap(), 100));
+        Assert.Empty(Ue.Entries(map, new UProp("x", "IntProperty", 0, 4, 1, 0, 0, null), 100));
+    }
+
+    [Fact]
+    public void WeakPointersResolveOnlyWhileTheSerialMatches()
+    {
+        var ue = new TestUe();
+        var actor = ue.Class("Actor", 0, 0x40, new TestProp("Parent", "WeakObjectProperty", 0x30, 8));
+        var hero = ue.Object("Hero", actor);
+        var info = Ue.Struct(actor)!;
+        var bytes = new byte[0x40];
+        var (index, serial) = ue.Weak(hero);
+
+        BitConverter.GetBytes(index).CopyTo(bytes, 0x30);
+        BitConverter.GetBytes(serial).CopyTo(bytes, 0x34);
+        Assert.Equal("Actor Hero", Ue.Format(bytes, info.Property("Parent")!));
+
+        BitConverter.GetBytes(serial + 1).CopyTo(bytes, 0x34);
+        Assert.Equal("stale", Ue.Format(bytes, info.Property("Parent")!));
+
+        BitConverter.GetBytes(-1).CopyTo(bytes, 0x30);
+        Assert.Equal("null", Ue.Format(bytes, info.Property("Parent")!));
+
+        BitConverter.GetBytes(1_000_000).CopyTo(bytes, 0x30);
+        Assert.Equal("stale", Ue.Format(bytes, info.Property("Parent")!));
+        Assert.False(Ue.TryWeak(-5, 1, out _));
+
+        BitConverter.GetBytes(0L).CopyTo(bytes, 0x30);
+        Assert.Equal("null", Ue.Format(bytes, info.Property("Parent")!));
+        Assert.False(Ue.TryWeak(0, 0, out _));
+    }
+
+    [Fact]
+    public void SoftPointersShowTheirAssetPath()
+    {
+        var ue = new TestUe();
+        var cls = ue.Class("Holder", 0, 0x60, new TestProp("Icon", "SoftObjectProperty", 0x30, 0x28));
+        var info = Ue.Struct(cls)!;
+        var bytes = new byte[0x60];
+
+        Assert.Equal("null", Ue.Format(bytes, info.Property("Icon")!));
+        BitConverter.GetBytes(ue.Name("/Game/Icons/Boss")).CopyTo(bytes, 0x30 + TestUe.Layout.SoftPathName);
+        Assert.Equal("/Game/Icons/Boss", Ue.Format(bytes, info.Property("Icon")!));
+
+        var hero = ue.Object("Hero", cls);
+        var (index, serial) = ue.Weak(hero);
+        BitConverter.GetBytes(index).CopyTo(bytes, 0x30);
+        BitConverter.GetBytes(serial).CopyTo(bytes, 0x30 + TestUe.Layout.WeakSerial);
+        Assert.Equal("Holder Hero", Ue.Format(bytes, info.Property("Icon")!));
+
+        BitConverter.GetBytes(serial + 1).CopyTo(bytes, 0x30 + TestUe.Layout.WeakSerial);
+        Assert.Equal("/Game/Icons/Boss", Ue.Format(bytes, info.Property("Icon")!));
+
+        BitConverter.GetBytes(4000).CopyTo(bytes, 0x30 + TestUe.Layout.SoftPathName);
+        Assert.Equal("??", Ue.Format(bytes, info.Property("Icon")!));
+    }
+
+    [Fact]
+    public void LazyPointersFormatLikeWeakOnes()
+    {
+        var ue = new TestUe();
+        var cls = ue.Class("Holder", 0, 0x40, new TestProp("Lazy", "LazyObjectProperty", 0x30, 0x1C));
+        var hero = ue.Object("Hero", cls);
+        var info = Ue.Struct(cls)!;
+        var bytes = new byte[0x50];
+
+        Assert.Equal("null", Ue.Format(bytes, info.Property("Lazy")!));
+        var (index, serial) = ue.Weak(hero);
+        BitConverter.GetBytes(index).CopyTo(bytes, 0x30);
+        BitConverter.GetBytes(serial).CopyTo(bytes, 0x30 + TestUe.Layout.WeakSerial);
+        Assert.Equal("Holder Hero", Ue.Format(bytes, info.Property("Lazy")!));
+    }
+
+    [Fact]
+    public void TheDefaultObjectComesFromTheClass()
+    {
+        var ue = new TestUe();
+        var actor = ue.Class("Actor");
+        var info = Ue.Struct(actor)!;
+        Assert.Equal((nint)0, Ue.DefaultObject(info));
+
+        var cdo = ue.DefaultFor(actor);
+
+        Assert.Equal(cdo, Ue.DefaultObject(info));
+        TestMemory.Write(actor + TestUe.Layout.ClassDefaultObject, (nint)0x10);
+        Assert.Equal((nint)0, Ue.DefaultObject(info));
+    }
 }

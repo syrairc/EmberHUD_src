@@ -33,6 +33,7 @@ public sealed class Main : Plugin<Settings>
     internal ApiTree Browser { get; } = new();
     internal Snapshots Snapshots { get; }
     internal RawTree Raw { get; }
+    internal Explorer Explorer { get; }
     internal List<Pin> Pins { get; } = [];
     internal GameState Shown => _frozen ?? Game.State;
     internal bool Frozen => _frozen is not null;
@@ -41,6 +42,7 @@ public sealed class Main : Plugin<Settings>
     {
         Snapshots = new Snapshots(() => Clock());
         Raw = new RawTree(Snapshots);
+        Explorer = new Explorer(Raw, Snapshots);
     }
 
     internal void Freeze()
@@ -140,7 +142,7 @@ public sealed class Main : Plugin<Settings>
         });
         yield return ("Objects", () =>
         {
-            Raw.Objects(state.AreaId);
+            Explorer.Draw(state.AreaId);
             return false;
         });
         yield return ("Address", () =>
@@ -164,7 +166,11 @@ public sealed class Main : Plugin<Settings>
                 {
                     ImGui.Separator();
                     if (Gone(pin)) ImGui.TextDisabled(Memory.Attached ? "gone" : "not attached (--fake or no game)");
-                    else Raw.Node($"raw{pin.Id}", pin.Address, 0);
+                    else
+                    {
+                        Raw.View.Toolbar();
+                        Raw.Node($"raw{pin.Id}", pin.Address, 0);
+                    }
                 }
             }
             ImGui.End();

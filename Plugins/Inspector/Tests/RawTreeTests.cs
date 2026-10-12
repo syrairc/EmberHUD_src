@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Numerics;
 using Aember;
 using Aember.Testing;
@@ -108,55 +107,19 @@ public sealed class RawTreeTests
         Frame(() =>
         {
             raw.Globals();
-            raw.Objects(1);
             raw.Address();
             raw.Node("detached", 0x10000, 0);
         });
     }
 
     [Test]
-    public void GlobalsDrawAndTheObjectsSnapshotListsEveryObject()
+    public void GlobalsDraw()
     {
         var (_, hero) = World();
         TestMemory.Global("FightMgr", hero);
-        var raw = new RawTree(new Snapshots(() => 0)) { ObjectsJob = new(inline: true), OpenAll = true };
+        var raw = new RawTree(new Snapshots(() => 0)) { OpenAll = true };
 
         Frame(raw.Globals);
-        Frame(() => raw.Objects(1));
-        Frame(() => raw.Objects(1));
-
-        var row = raw.ObjectRows.Single(r => r.Name == "Hero");
-        Check.Equal("Actor", row.Class);
-        Check.Equal(hero, row.Address);
-    }
-
-    [Test]
-    public void TheObjectsSnapshotRefreshesOnAnAreaChange()
-    {
-        var (ue, _) = World();
-        var raw = new RawTree(new Snapshots(() => 0)) { ObjectsJob = new(inline: true) };
-        Frame(() => raw.Objects(1));
-        Frame(() => raw.Objects(1));
-        var before = raw.ObjectRows.Length;
-
-        ue.Object("Late", ue.Class("Thing"));
-        Frame(() => raw.Objects(1));
-        Check.Equal(before, raw.ObjectRows.Length);
-        Frame(() => raw.Objects(2));
-        Frame(() => raw.Objects(2));
-        Check.Equal(before + 2, raw.ObjectRows.Length);
-    }
-
-    [Test]
-    public void AFaultedObjectsJobLeavesNoRowsAndDoesNotThrow()
-    {
-        World();
-        var raw = new RawTree(new Snapshots(() => 0)) { ObjectsJob = new(inline: true) };
-        raw.ObjectsJob.Start(() => throw new InvalidOperationException("boom"));
-
-        Frame(() => raw.Objects(1));
-
-        Check.Equal(0, raw.ObjectRows.Length);
     }
 
     [Test]
@@ -171,19 +134,5 @@ public sealed class RawTreeTests
         var raw = new RawTree(new Snapshots(() => 0)) { OpenAll = true };
 
         Frame(() => raw.Node("odd", obj, 0));
-    }
-
-    [Test]
-    public void TheObjectsTableOnlyDrawsTheRowsInView()
-    {
-        var raw = new RawTree(new Snapshots(() => 0)) { ObjectsJob = new(inline: true) };
-        World();
-        Frame(() => raw.Objects(1));
-        Frame(() => raw.Objects(1));
-        raw.ObjectRows = [.. Enumerable.Range(0, 5000).Select(i => new ObjectRow(i, $"Thing{i}", "Thing", "Outer", 0x10000 + i * 0x100))];
-
-        Frame(() => raw.Objects(1));
-
-        Check.That(raw.RowsDrawn is > 0 and < 200, $"the table drew {raw.RowsDrawn} of 5000 rows");
     }
 }

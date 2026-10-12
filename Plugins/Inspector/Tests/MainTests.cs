@@ -108,4 +108,14 @@ public sealed class MainTests
         Check.That(main.Browser.Selected is null, "selection survived Dispose");
         Check.Equal(0, Walker.ErrorsLogged);
     }
+
+    [Test]
+    public void TheExplorerSitsBehindTheObjectsTab()
+    {
+        var main = new Main { Open = true };
+        TestGame.Set(Samples.Rich);
+
+        Check.That(main.Explorer is not null, "explorer exists");
+        TestFrame.Run(main.Render);
+    }
 }

@@ -68,7 +68,11 @@ internal sealed class LiveGameSource : IGameSource
             Offsets.FPropertyArrayDim, Offsets.FPropertyElementSize, Offsets.FPropertyOffset, Offsets.FPropertyInner, Offsets.FBoolByteOffset, Offsets.FBoolFieldMask,
             Offsets.GObjectsNumElements, Offsets.GObjectsPerChunk, Offsets.GObjectsItemSize, Offsets.GObjectsItemFlags, Offsets.GObjectsPendingKill, Offsets.MaxGObjectChunks,
             Offsets.FNameBlocks, Offsets.FNameBlockSize, Offsets.FNameEntryStride, Offsets.FNameLengthShift, Offsets.MaxFNameBlocks, Offsets.MaxNameLength,
-            Offsets.TArrayNum, Offsets.UeClassClassName, Offsets.DefaultObjectPrefix);
+            Offsets.TArrayNum, Offsets.UeClassClassName, Offsets.DefaultObjectPrefix,
+            Offsets.UClassDefaultObject, Offsets.UEnumNames, Offsets.UEnumNameStride, Offsets.FEnumPropertyEnum, Offsets.FBytePropertyEnum,
+            Offsets.FMapPropertyValue, Offsets.FMapElementSize, Offsets.FSetElementSize,
+            Offsets.SparseFlagsInline, Offsets.SparseFlagsSecondary, Offsets.SparseNumBits, Offsets.SparseInlineBits,
+            Offsets.GObjectsItemSerial, Offsets.WeakPtrSerial, Offsets.SoftPathName);
         return new MemorySource(ReadOrFalse(backend), moduleBase, globals, layout, moduleBase + Offsets.FNamePoolRva, moduleBase + Offsets.GObjectsGlobalRva);
     }
 

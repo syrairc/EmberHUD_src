@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Aember.Testing;
 
-public sealed record TestProp(string Name, string Type, int Offset, int Size = 4, byte BoolMask = 0, nint Struct = 0, TestProp? Element = null);
+public sealed record TestProp(string Name, string Type, int Offset, int Size = 4, byte BoolMask = 0, nint Struct = 0, TestProp? Element = null, nint Enum = 0, TestProp? Key = null, TestProp? Value = null, int Stride = 0);
 
 public sealed class TestUe
 {
@@ -13,7 +13,11 @@ public sealed class TestUe
         PropertyArrayDim: 0x30, PropertyElementSize: 0x34, PropertyOffset: 0x40, PropertyInner: 0x48, BoolByteOffset: 0x50, BoolFieldMask: 0x51,
         ObjectsNum: 0x10, ObjectsPerChunk: 4, ObjectItemSize: 0x10, ObjectItemFlags: 0x08, PendingKillFlag: 0x4, MaxObjectChunks: 64,
         NameBlocks: 0x08, NameBlockSize: 4096, NameEntryStride: 2, NameLengthShift: 6, MaxNameBlocks: 4, MaxNameLength: 128,
-        ArrayNum: 8, ClassClassName: "Class", DefaultPrefix: "Default__");
+        ArrayNum: 8, ClassClassName: "Class", DefaultPrefix: "Default__",
+        ClassDefaultObject: 0x68, EnumNames: 0x50, EnumNameStride: 16, EnumPropertyEnum: 0x58, BytePropertyEnum: 0x60,
+        MapPropertyValue: 0x68, MapElementSize: 0x70, SetElementSize: 0x78,
+        SparseFlagsInline: 0x10, SparseFlagsSecondary: 0x20, SparseNumBits: 0x28, SparseInlineBits: 128,
+        ObjectItemSerial: 0x0C, WeakSerial: 4, SoftPathName: 0x10);
 
     readonly nint _nameBlock;
     readonly nint _array;
@@ -41,6 +45,27 @@ public sealed class TestUe
 
     public nint MetaClass { get; }
 
+    public nint SparseArray(int slots, int stride, int[] free, Action<nint, int> fill)
+    {
+        var at = TestMemory.Alloc(0x50);
+        var data = TestMemory.Alloc(Math.Max(1, slots) * stride);
+        var words = new int[Math.Max(1, (slots + 31) / 32)];
+        for (var slot = 0; slot < slots; slot++)
+        {
+            if (free.Contains(slot)) continue;
+            fill(data + slot * stride, slot);
+            words[slot / 32] |= 1 << slot % 32;
+        }
+        var inline = slots <= Layout.SparseInlineBits;
+        var flags = inline ? at + Layout.SparseFlagsInline : TestMemory.Alloc(words.Length * 4);
+        for (var i = 0; i < words.Length; i++) TestMemory.Write(flags + i * 4, words[i]);
+        if (!inline) TestMemory.Write(at + Layout.SparseFlagsSecondary, flags);
+        TestMemory.Write(at, data);
+        TestMemory.Write(at + Layout.ArrayNum, slots);
+        TestMemory.Write(at + Layout.SparseNumBits, slots);
+        return at;
+    }
+
     public int Name(string text) => AddName(text, false);
 
     public int WideName(string text) => AddName(text, true);
@@ -62,6 +87,39 @@ public sealed class TestUe
         Header(at, name, cls, outer);
         Register(at, pendingKill);
         return at;
+    }
+
+    nint _enumClass;
+
+    public nint Enum(string name, params (string Name, long Value)[] values)
+    {
+        if (_enumClass == 0) _enumClass = Class("Enum");
+        var at = TestMemory.Alloc(0x80);
+        Header(at, name, _enumClass, 0);
+        var names = TestMemory.Alloc(Math.Max(16, values.Length * Layout.EnumNameStride));
+        for (var i = 0; i < values.Length; i++)
+        {
+            TestMemory.Write(names + i * Layout.EnumNameStride, Name($"{name}::{values[i].Name}"));
+            TestMemory.Write(names + i * Layout.EnumNameStride + 8, values[i].Value);
+        }
+        TestMemory.Write(at + Layout.EnumNames, names);
+        TestMemory.Write(at + Layout.EnumNames + Layout.ArrayNum, values.Length);
+        Register(at, false);
+        return at;
+    }
+
+    public (int Index, int Serial) Weak(nint obj)
+    {
+        Memory.TryRead(obj + Layout.ObjectIndex, out int index);
+        return (index, index + 1000);
+    }
+
+    public nint DefaultFor(nint cls)
+    {
+        var name = Ue.ReadName(cls + Layout.ObjectName) ?? "Thing";
+        var cdo = Object($"{Layout.DefaultPrefix}{name}", cls);
+        TestMemory.Write(cls + Layout.ClassDefaultObject, cdo);
+        return cdo;
     }
 
     public void Null() => Register(0, false);
@@ -108,7 +166,7 @@ public sealed class TestUe
 
     nint Field(TestProp prop)
     {
-        var field = TestMemory.Alloc(0x60);
+        var field = TestMemory.Alloc(0x80);
         if (!_fieldClasses.TryGetValue(prop.Type, out var fieldClass))
         {
             fieldClass = _fieldClasses[prop.Type] = TestMemory.Alloc(0x10);
@@ -121,6 +179,10 @@ public sealed class TestUe
         TestMemory.Write(field + Layout.PropertyOffset, prop.Offset);
         if (prop.Struct != 0) TestMemory.Write(field + Layout.PropertyInner, prop.Struct);
         if (prop.Element is { } element) TestMemory.Write(field + Layout.PropertyInner, Field(element));
+        if (prop.Key is { } key) TestMemory.Write(field + Layout.PropertyInner, Field(key));
+        if (prop.Value is { } value) TestMemory.Write(field + Layout.MapPropertyValue, Field(value));
+        if (prop.Enum != 0) TestMemory.Write(field + (prop.Type == "EnumProperty" ? Layout.EnumPropertyEnum : Layout.BytePropertyEnum), prop.Enum);
+        if (prop.Stride != 0) TestMemory.Write(field + (prop.Type == "MapProperty" ? Layout.MapElementSize : Layout.SetElementSize), prop.Stride);
         if (prop.BoolMask != 0) TestMemory.Write(field + Layout.BoolFieldMask, prop.BoolMask);
         return field;
     }
@@ -140,6 +202,7 @@ public sealed class TestUe
         Memory.TryRead(slot, out nint items);
         var item = items + _count % Layout.ObjectsPerChunk * Layout.ObjectItemSize;
         TestMemory.Write(item, obj);
+        TestMemory.Write(item + Layout.ObjectItemSerial, _count + 1000);
         TestMemory.Write(item + Layout.ObjectItemFlags, pendingKill ? Layout.PendingKillFlag : 0);
         _count++;
         TestMemory.Write(_array + Layout.ObjectsNum, _count);
