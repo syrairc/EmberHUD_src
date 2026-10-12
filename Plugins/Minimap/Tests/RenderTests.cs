@@ -187,11 +187,12 @@ public sealed class RenderTests
     [Test]
     public void WallsMarkersAndTheArrowAllDraw()
     {
-        var full = Drawn(Busy(Facing(Vector2.UnitX)));
+        Action<Main> fixedSize = main => main.Settings.Icons.ScaleWithZoom.Value = false;
+        var full = Drawn(Busy(Facing(Vector2.UnitX)), configure: fixedSize);
 
-        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), entities: false)), "markers draw");
-        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), terrain: false)), "walls draw");
-        Check.That(full > Drawn(Busy(null)), "the arrow draws");
+        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), entities: false), configure: fixedSize), "markers draw");
+        Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), terrain: false), configure: fixedSize), "walls draw");
+        Check.That(full > Drawn(Busy(null), configure: fixedSize), "the arrow draws");
     }
 
     [Test]
@@ -451,6 +452,7 @@ public sealed class RenderTests
         {
             var drawn = Drawn(Scene.State(entities: [rare], terrain: terrain), configure: main =>
             {
+                main.Settings.Icons.ScaleWithZoom.Value = false;
                 main.Settings.Icons.RareMonsters.Scale = 1.5f;
                 main.Settings.Icons.RareMonsters.Colour = Color.DeepSkyBlue;
             });
@@ -591,6 +593,7 @@ public sealed class RenderTests
             Map.View = null;
             var main = Scene.Plugin();
             main.Settings.Icons.GameIconScale.Value = 2;
+            main.Settings.Icons.ScaleWithZoom.Value = false;
             main.Settings.Icons.Found.Add(FoundT(scale: 1.5f));
             TestFrame.Run(() =>
             {
@@ -601,6 +604,35 @@ public sealed class RenderTests
                 var quad = Enumerable.Range(list.VtxBuffer.Size - 4, 4).Select(i => list.VtxBuffer[i].Pos).ToArray();
                 Check.Equal(72f, quad.Max(p => p.X) - quad.Min(p => p.X));
                 Check.Equal(72f, quad.Max(p => p.Y) - quad.Min(p => p.Y));
+            });
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Test]
+    public void GameIconsGrowWithTheMapZoom()
+    {
+        TestGame.UseGameIcons(name => name == "T" ? Ready : null);
+        try
+        {
+            var player = new Player(new Vector3(12, 12, 0), Vector2.UnitX);
+            TestGame.Set(Scene.State(player: player, terrain: Scene.Cells(3, 3, false, (1, 1)), icons: [Portal with { Texture = "T", Size = 1, Position = new Vector2(12, 12) }]));
+            Map.View = null;
+            var main = Scene.Plugin();
+            main.Settings.General.Zoom.Value = GeneralTab.DefaultZoom * 2;
+            main.Settings.Icons.ZoomScaleFactor.Value = 1;
+            main.Settings.Icons.Found.Add(FoundT(scale: 1));
+            TestFrame.Run(() =>
+            {
+                main.Tick();
+                main.Tick();
+                var list = Draw.Background;
+                main.Render();
+                var quads = Enumerable.Range(0, list.VtxBuffer.Size / 4).Select(q => Enumerable.Range(q * 4, 4).Select(i => list.VtxBuffer[i].Pos).ToArray());
+                Check.That(quads.Any(quad => MathF.Abs(quad.Max(p => p.X) - quad.Min(p => p.X) - 48f) < 0.01f), "a 48px icon quad at twice the default zoom");
             });
         }
         finally

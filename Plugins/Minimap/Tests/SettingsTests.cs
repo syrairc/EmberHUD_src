@@ -223,4 +223,40 @@ public sealed class SettingsTests
             ImGui.End();
         });
     }
+
+    [Test]
+    public void IconsKeepTheirSizeAtTheDefaultZoom() => Check.Equal(1f, new Settings().Icons.ZoomScale(GeneralTab.DefaultZoom));
+
+    [Test]
+    public void ZoomScaleFollowsTheFactorAsAPower()
+    {
+        var icons = new Settings().Icons;
+        icons.ZoomScaleFactor.Value = 1;
+        Check.That(MathF.Abs(icons.ZoomScale(GeneralTab.DefaultZoom * 1.5f) - 1.5f) < 1e-4f);
+        icons.ZoomScaleFactor.Value = 0.5f;
+        Check.That(MathF.Abs(icons.ZoomScale(GeneralTab.DefaultZoom * 1.69f) - 1.3f) < 1e-4f);
+        icons.ZoomScaleFactor.Value = 0;
+        Check.Equal(1f, icons.ZoomScale(GeneralTab.DefaultZoom * 3));
+    }
+
+    [Test]
+    public void ZoomScaleIsClampedToMinAndMax()
+    {
+        var icons = new Settings().Icons;
+        icons.ZoomScaleFactor.Value = 1;
+        icons.ZoomScaleMin.Value = 0.5f;
+        icons.ZoomScaleMax.Value = 2;
+        Check.Equal(2f, icons.ZoomScale(GeneralTab.DefaultZoom * 10));
+        Check.Equal(0.5f, icons.ZoomScale(GeneralTab.DefaultZoom / 10));
+    }
+
+    [Test]
+    public void ZoomScaleIsOneWhenOffOrTheScaleIsBad()
+    {
+        var icons = new Settings().Icons;
+        Check.Equal(1f, icons.ZoomScale(0));
+        Check.Equal(1f, icons.ZoomScale(float.NaN));
+        icons.ScaleWithZoom.Value = false;
+        Check.Equal(1f, icons.ZoomScale(GeneralTab.DefaultZoom * 2));
+    }
 }

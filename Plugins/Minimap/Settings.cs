@@ -22,9 +22,11 @@ public sealed class IconStyle
 
 public sealed class GeneralTab
 {
+    internal const float DefaultZoom = 0.037f;
+
     public ToggleNode Show = new(true);
     public ToggleNode FollowPlayer = new(true);
-    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.037f, 0.002f, 4);
+    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(DefaultZoom, 0.002f, 4);
     [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);
     [Menu("Vertical scale", "Squashes the map vertically after the rotation, the game camera is isometric")] public RangeNode<float> VerticalScale = new(1, 0.2f, 1.5f);
     public RangeNode<float> OffsetX = new(0, -960, 960);
@@ -65,6 +67,10 @@ public sealed class IconsTab
 {
     [Menu("Game icons", "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise")] public ToggleNode UseGameIcons = new(true);
     [Menu("Game icon scale", "Scales every game icon on top of its own row scale")] public RangeNode<float> GameIconScale = new(1, 0.25f, 4);
+    [Menu("Scale with zoom", "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size")] public ToggleNode ScaleWithZoom = new(true);
+    [Menu("Zoom scale factor", "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size")] public RangeNode<float> ZoomScaleFactor = new(0.5f, 0, 1);
+    [Menu("Zoom scale min", "Smallest icon multiplier when zoomed out")] public RangeNode<float> ZoomScaleMin = new(0.5f, 0.1f, 1);
+    [Menu("Zoom scale max", "Largest icon multiplier when zoomed in")] public RangeNode<float> ZoomScaleMax = new(2, 1, 4);
     public IconStyle NormalMonsters = Row("Normal monsters", "marker:Dot", 0xEBEBEB, 0.75f);
     public IconStyle MagicMonsters = Row("Magic monsters", "marker:Dot", 0x598CFF, 0.75f);
     public IconStyle RareMonsters = Row("Rare monsters", "svg:elite", 0xFFD933, 1.25f);
@@ -82,6 +88,11 @@ public sealed class IconsTab
 
     static IconStyle Row(string name, string icon, int rgb, float scale, bool show = true) =>
         new() { Name = name, Icon = icon, Colour = Color.FromArgb(0xFF, Color.FromArgb(rgb)), Scale = scale, Show = show };
+
+    public float ZoomScale(float mapScale) =>
+        ScaleWithZoom.Value && mapScale > 0 && float.IsFinite(mapScale)
+            ? Math.Clamp(MathF.Pow(mapScale / GeneralTab.DefaultZoom, ZoomScaleFactor.Value), ZoomScaleMin.Value, ZoomScaleMax.Value)
+            : 1;
 
     public IEnumerable<IconStyle> Fixed => [NormalMonsters, MagicMonsters, RareMonsters, Bosses, Minions, Npcs, OtherPlayers, MapObjects, Destructibles];
 

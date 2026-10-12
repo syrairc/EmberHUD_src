@@ -106,6 +106,7 @@ public sealed class Main : Plugin<Settings>
         }
 
         _overridden.Clear();
+        var zoomScale = Settings.Icons.ZoomScale(map.Scale);
         foreach (var entity in state.Entities)
         {
             var row = Settings.Icons.FixedFor(entity);
@@ -117,12 +118,12 @@ public sealed class Main : Plugin<Settings>
             if (row is not { Show: true }) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
-            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale, row.Colour, null);
+            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, row.Colour, null);
         }
 
-        foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport);
+        foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport, zoomScale);
 
-        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport);
+        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport, zoomScale);
     }
 
     void DrawWalls(MapView map, Vector2 viewport)
@@ -165,7 +166,7 @@ public sealed class Main : Plugin<Settings>
         return false;
     }
 
-    void DrawIcon(MapIcon icon, MapView map, Vector2 viewport)
+    void DrawIcon(MapIcon icon, MapView map, Vector2 viewport, float zoomScale)
     {
         if (icon.EntityId != 0 && _overridden.Contains(icon.EntityId)) return;
         var at = map.ToScreen(new Vector3(icon.Position, 0));
@@ -173,7 +174,7 @@ public sealed class Main : Plugin<Settings>
         var icons = Settings.Icons;
         var row = icons.FoundFor(icon.Texture);
         if (row is { Show: false }) return;
-        var size = GameIconSize * (float.IsFinite(icon.Size) && icon.Size > 0 ? icon.Size : 1) * icons.GameIconScale.Value * (row?.Scale ?? 1);
+        var size = GameIconSize * (float.IsFinite(icon.Size) && icon.Size > 0 ? icon.Size : 1) * icons.GameIconScale.Value * (row?.Scale ?? 1) * zoomScale;
         var name = row?.Icon ?? "";
         var colour = row?.Colour ?? Color.White;
         if (name.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal))
@@ -186,11 +187,11 @@ public sealed class Main : Plugin<Settings>
         else Draw.Icon(name, at, size / 2, colour, null);
     }
 
-    void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport)
+    void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport, float zoomScale)
     {
         if (!Visible(at, at, viewport)) return;
         var player = Settings.Map.Player;
-        var size = player.Size.Value;
+        var size = player.Size.Value * zoomScale;
         var colour = player.Colour.Value;
         if (ArrowPoints(at, forward, size) is not { } arrow)
         {
@@ -198,7 +199,7 @@ public sealed class Main : Plugin<Settings>
             return;
         }
 
-        if (Settings.Icons.UseGameIcons.Value && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(GameIconSize * Settings.Icons.GameIconScale.Value), new Vector2(forward.Y, -forward.X), Color.White);
+        if (Settings.Icons.UseGameIcons.Value && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(GameIconSize * Settings.Icons.GameIconScale.Value * zoomScale), new Vector2(forward.Y, -forward.X), Color.White);
         else Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
     }
 
