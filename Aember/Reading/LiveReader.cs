@@ -10,6 +10,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly MinimapReader _minimap = new(memory, moduleBase);
     private readonly MapIconReader _icons = new(memory);
     private readonly ExploredReader _explored = new(memory);
+    private readonly CameraReader _camera = new(memory);
     private int _generation = firstAreaId;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
@@ -46,6 +47,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         {
             MapIcons = icons,
             Explored = explored,
+            Camera = _world.TryReadLocalPawn(out var pawn) ? _camera.Read(pawn) : null,
         };
         return true;
     }

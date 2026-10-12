@@ -36,7 +36,7 @@ Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-depend
 
 | Path | What |
 |---|---|
-| `Aember.Api` | public API - plugin base, settings nodes, game state records, `Map` / `Terrain` / `WallExtractor`, drawing, textures, fonts, input, logging, widgets (`Aember.Ui`), plugin test helpers (`Aember.Testing`) |
+| `Aember.Api` | public API - plugin base, settings nodes, game state records, `Camera`, `Map` / `Terrain` / `WallExtractor`, raw reads (`Memory`) and the UE reflection walker (`Ue`, layout handed over by the host), drawing, textures, fonts, input, logging, widgets (`Aember.Ui`), plugin test helpers (`Aember.Testing`, incl. `TestMemory` / `TestUe`) |
 | `Aember` | host - overlay, plugin compiler / loader, settings window, `--check` runner |
 | `Aember\Reading` | game source seam (`IGameSource`), fake game, reader loop, player smoother, live reader (`LogicWorldReader`, `FightMapReader`, `MonsterRarityReader`, `MinimapReader`, `TerrainReader`, `LiveReader`, `LiveGameSource`) |
 | `Aember\Memory` | `IReadBackend` + `ReadProcessMemory` backend, read extensions, `GameProcess` (attach, exe size check) |
@@ -46,7 +46,7 @@ Release: `pwsh scripts/release.ps1` - tests -> Release publish (framework-depend
 | `Aember\Offsets` | `Offsets.*` (generated `Offsets.g.cs` + sealed `offsets.bin`), regenerate with `pwsh scripts/gen-offsets.ps1` |
 | `offsets` | `layout.want` - every offset, limit and game class / parameter name (quoted strings) the live reader uses, never literals in host code |
 | `tools\OffsetGen` | want file -> AES-GCM sealed table + `Offsets.g.cs` |
-| `Plugins` | first-party plugin sources (`Sample`, `Minimap`) |
+| `Plugins` | first-party plugin sources (`Sample`, `Minimap`, `Inspector`) |
 | `tests` | xunit v3 suites |
 | `scripts` | `build.ps1`, `gen-offsets.ps1`, `live-build.ps1`, `release.ps1`, `release.tests.ps1` |
 

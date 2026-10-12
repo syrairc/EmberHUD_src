@@ -41,15 +41,44 @@ internal sealed class LiveGameSource : IGameSource
         if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
         if (!GameProcess.TryAttach(pid, ref _rejectedBuild, out _game, out _attachFailure)) return false;
         _reader = new LiveReader(_game!.Backend, _game.ModuleBase, _lastAreaId);
+        Aember.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         return true;
     }
 
     private void Detach()
     {
+        Aember.Memory.Use(null);
         _reader?.Dispose();
         _reader = null;
         _game?.Dispose();
         _game = null;
         _attachFailure = "game closed - waiting for it to start again";
     }
+
+    internal static MemorySource SourceFor(IReadBackend backend, nint moduleBase)
+    {
+        int[] rvas = [Offsets.FNamePoolRva, Offsets.GObjectsGlobalRva, Offsets.LogicWorldGlobalRva, Offsets.FightMgrGlobalRva, Offsets.PlayerMgrGlobalRva, Offsets.MiniMapMgrGlobalRva];
+        var globals = Offsets.GlobalLabels.Split(' ').Zip(rvas).ToDictionary(pair => pair.First, pair => moduleBase + pair.Second);
+        var layout = new UeLayout(
+            Offsets.UObjectInternalIndex, Offsets.UObjectClass, Offsets.UObjectName, Offsets.UObjectOuter,
+            Offsets.UStructSuper, Offsets.UStructChildProperties, Offsets.UStructPropertiesSize,
+            Offsets.FFieldClass, Offsets.FFieldNext, Offsets.FFieldName, Offsets.FFieldClassName,
+            Offsets.FPropertyArrayDim, Offsets.FPropertyElementSize, Offsets.FPropertyOffset, Offsets.FPropertyInner, Offsets.FBoolByteOffset, Offsets.FBoolFieldMask,
+            Offsets.GObjectsNumElements, Offsets.GObjectsPerChunk, Offsets.GObjectsItemSize, Offsets.GObjectsItemFlags, Offsets.GObjectsPendingKill, Offsets.MaxGObjectChunks,
+            Offsets.FNameBlocks, Offsets.FNameBlockSize, Offsets.FNameEntryStride, Offsets.FNameLengthShift, Offsets.MaxFNameBlocks, Offsets.MaxNameLength,
+            Offsets.TArrayNum, Offsets.UeClassClassName, Offsets.DefaultObjectPrefix);
+        return new MemorySource(ReadOrFalse(backend), moduleBase, globals, layout, moduleBase + Offsets.FNamePoolRva, moduleBase + Offsets.GObjectsGlobalRva);
+    }
+
+    private static MemoryRead ReadOrFalse(IReadBackend backend) => (address, into) =>
+    {
+        try
+        {
+            return backend.TryRead(address, into);
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+    };
 }

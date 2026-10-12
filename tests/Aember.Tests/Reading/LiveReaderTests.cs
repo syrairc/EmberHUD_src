@@ -308,4 +308,20 @@ public class LiveReaderTests
 
         Assert.Equal([new MapIcon(2642, "", new Vector2(30, 40), 1, 0, 72)], state.MapIcons);
     }
+
+    [Fact]
+    public void TheCameraComesFromTheLocalPawn()
+    {
+        var world = new FakeWorld();
+        var (pawn, _) = world.SetLocalPlayer(5);
+        var controller = world.Alloc(0x400);
+        var manager = world.Alloc(0x2000);
+        world.Memory.Write(pawn + Offsets.PawnController, controller);
+        world.Memory.Write(controller + Offsets.ControllerCameraManager, manager);
+        world.Memory.Write(manager + Offsets.CameraCache + Offsets.PovFov, 75f);
+
+        ReaderFor(world).TryRead(out var state, out _);
+
+        Assert.Equal(75, state.Camera?.Fov);
+    }
 }

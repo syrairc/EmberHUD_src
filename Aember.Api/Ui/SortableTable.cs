@@ -13,6 +13,23 @@ public sealed class TableColumn<T>
 
 public static class SortableTable
 {
+    sealed class Cache
+    {
+        public object? Items;
+        public int Count = -1;
+        public string Filter = "";
+        public List<int> Visible = [];
+        public List<int>? Sorted;
+        public int Column = -1;
+        public bool Ascending;
+        public int Frame;
+    }
+
+    static readonly Dictionary<uint, Cache> Caches = [];
+
+    internal static int FilterBuilds;
+    internal static int SortBuilds;
+
     public static void Draw<T>(string id, IList<T>? items, TableColumn<T>[]? columns, ref string filter, Func<T, string?>? filterText = null, float maxHeight = 0f)
     {
         if (items is null || columns is not { Length: > 0 }) return;
@@ -30,7 +47,21 @@ public static class SortableTable
             if (avail > 0f && avail < maxHeight) maxHeight = avail;
         }
 
-        var visible = VisibleIndices(items, filterText, filter);
+        var frame = ImGui.GetFrameCount();
+        var key = ImGui.GetID("t");
+        if (!Caches.TryGetValue(key, out var cache)) Caches[key] = cache = new Cache();
+        cache.Frame = frame;
+        if (Caches.Count > 8) foreach (var stale in Caches.Where(pair => pair.Value.Frame < frame - 1).Select(pair => pair.Key).ToList()) Caches.Remove(stale);
+        if (!ReferenceEquals(cache.Items, items) || cache.Count != items.Count || cache.Filter != filter)
+        {
+            FilterBuilds++;
+            cache.Items = items;
+            cache.Count = items.Count;
+            cache.Filter = filter;
+            cache.Visible = VisibleIndices(items, filterText, filter);
+            cache.Sorted = null;
+        }
+        var visible = cache.Visible;
 
         var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersOuter | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable | ImGuiTableFlags.Sortable | ImGuiTableFlags.SortTristate | ImGuiTableFlags.NoSavedSettings;
         if (maxHeight > 0f) flags |= ImGuiTableFlags.ScrollY;
@@ -50,7 +81,16 @@ public static class SortableTable
         if (!specs.IsNull && specs.SpecsCount > 0)
         {
             var s = specs.Specs;
-            SortIndices(visible, items, columns[s.ColumnIndex].SortKey, s.SortDirection == ImGuiSortDirection.Ascending);
+            var ascending = s.SortDirection == ImGuiSortDirection.Ascending;
+            if (cache.Sorted is null || cache.Column != s.ColumnIndex || cache.Ascending != ascending)
+            {
+                SortBuilds++;
+                cache.Column = s.ColumnIndex;
+                cache.Ascending = ascending;
+                cache.Sorted = [.. cache.Visible];
+                SortIndices(cache.Sorted, items, columns[s.ColumnIndex].SortKey, ascending);
+            }
+            visible = cache.Sorted;
         }
 
         if (maxHeight > 0f)
@@ -87,11 +127,13 @@ public static class SortableTable
     internal static void SortIndices<T>(List<int>? idx, IList<T>? items, Func<T, IComparable?>? key, bool asc)
     {
         if (idx is null || items is null || key is null) return;
+        var keys = new IComparable?[items.Count];
+        foreach (var i in idx) keys[i] = key(items[i]);
         idx.Sort((a, b) =>
         {
-            var ka = key(items[a]);
-            var kb = key(items[b]);
-            var c = ka is null ? (kb is null ? 0 : -1) : kb is null ? 1 : ka.CompareTo(kb);
+            var ka = keys[a];
+            var kb = keys[b];
+            var c = ka is null ? (kb is null ? 0 : -1) : kb is null ? 1 : ka is string sa && kb is string sb ? string.Compare(sa, sb, StringComparison.OrdinalIgnoreCase) : ka.CompareTo(kb);
             return c != 0 ? (asc ? c : -c) : a.CompareTo(b);
         });
     }

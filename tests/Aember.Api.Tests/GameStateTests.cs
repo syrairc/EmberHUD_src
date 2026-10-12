@@ -44,4 +44,15 @@ public class GameStateTests
         Assert.Null(GameState.Empty.Explored);
         Assert.Equal("starting", state.Status);
     }
+
+    [Fact]
+    public void CameraAndEntityAddressDefaultToNothingAndKeepTheirInitValues()
+    {
+        var entity = new Entity(1, 2, Vector3.Zero, EntityKind.Monster, Rarity.Normal);
+
+        Assert.Null(GameState.Empty.Camera);
+        Assert.Equal(0, entity.Address);
+        Assert.Equal((nint)0x1000, (entity with { Address = 0x1000 }).Address);
+        Assert.Equal(90, (GameState.Empty with { Camera = new Camera(Vector3.Zero, Vector3.Zero, 90) }).Camera?.Fov);
+    }
 }

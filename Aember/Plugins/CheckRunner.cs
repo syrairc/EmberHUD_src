@@ -56,6 +56,7 @@ internal static class CheckRunner
                         Game.State = GameState.Empty;
                         Map.View = null;
                         TestInput.Hold();
+                        TestMemory.Clear();
                         Log.CurrentPlugin.Value = name;
                         method.Invoke(method.IsStatic ? null : Activator.CreateInstance(method.DeclaringType), null);
                         report.WriteLine($"PASS {label}");
