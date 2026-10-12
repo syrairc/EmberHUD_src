@@ -107,7 +107,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
     private bool IsWidget(nint obj) =>
         memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && IsMinimapClass(cls) &&
         memory.TryRead(obj + Offsets.UObjectName, out uint nameIndex) && TryReadName(nameIndex, out var name) &&
-        !name.StartsWith(Offsets.MinimapDefaultPrefix, StringComparison.Ordinal);
+        !name.StartsWith(Offsets.DefaultObjectPrefix, StringComparison.Ordinal);
 
     private bool IsMinimapClass(nint cls)
     {

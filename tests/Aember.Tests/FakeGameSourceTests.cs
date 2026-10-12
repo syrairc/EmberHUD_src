@@ -122,4 +122,15 @@ public class FakeGameSourceTests
         Assert.Equal([new Vector2(state.Player!.Position.X, state.Player.Position.Y)], state.Explored!.Points);
         Assert.Equal(250f, state.Explored.Radius);
     }
+
+    [Fact]
+    public void TheFakeCameraLooksAtThePlayer()
+    {
+        new FakeGameSource(() => 0).TryRead(out var state, out _);
+
+        var at = state.Camera!.ToScreen(state.Player!.Position, new Vector2(1920, 1080))!.Value;
+
+        Assert.Equal(960, at.X, 0.5f);
+        Assert.Equal(540, at.Y, 0.5f);
+    }
 }

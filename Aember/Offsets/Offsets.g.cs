@@ -2,7 +2,7 @@ namespace Aember.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0x2A, 0x84, 0xD8, 0xF9, 0xBE, 0x67, 0x6D, 0xD2, 0x2F, 0x89, 0x8F, 0x46, 0x53, 0x71, 0xC8, 0xD3, 0xC4, 0xB0, 0xA8, 0x04, 0x08, 0x30, 0x75, 0xE3, 0x0C, 0x7F, 0xC3, 0x38, 0xF2, 0x1A, 0xD7, 0x5D];
+    internal static ReadOnlySpan<byte> Seed => [0xA6, 0x88, 0xD4, 0xE1, 0x31, 0x50, 0x8A, 0xBE, 0x48, 0x18, 0x2C, 0x29, 0x86, 0x1D, 0x33, 0x4F, 0xF3, 0xB2, 0xC1, 0x3B, 0x58, 0x07, 0xA2, 0x76, 0x37, 0x4C, 0x2C, 0x9A, 0x55, 0x78, 0x19, 0x93];
     internal static int KnownExeSize => T[0];
     internal static int LogicWorldGlobalRva => T[1];
     internal static int WorldScene => T[2];
@@ -144,9 +144,33 @@ internal static partial class Offsets
     internal static int MaxChain => T[138];
     internal static int MaxCells => T[139];
     internal static int PebImageBase => T[140];
+    internal static int UObjectOuter => T[141];
+    internal static int UStructSuper => T[142];
+    internal static int UStructChildProperties => T[143];
+    internal static int UStructPropertiesSize => T[144];
+    internal static int FFieldClass => T[145];
+    internal static int FFieldNext => T[146];
+    internal static int FFieldName => T[147];
+    internal static int FFieldClassName => T[148];
+    internal static int FPropertyArrayDim => T[149];
+    internal static int FPropertyElementSize => T[150];
+    internal static int FPropertyOffset => T[151];
+    internal static int FPropertyInner => T[152];
+    internal static int FBoolByteOffset => T[153];
+    internal static int FBoolFieldMask => T[154];
+    internal static int GObjectsItemFlags => T[155];
+    internal static int GObjectsPendingKill => T[156];
+    internal static int PawnController => T[157];
+    internal static int ControllerCameraManager => T[158];
+    internal static int CameraCache => T[159];
+    internal static int PovLocation => T[160];
+    internal static int PovRotation => T[161];
+    internal static int PovFov => T[162];
     internal static string MinimapClassName => S[0];
-    internal static string MinimapDefaultPrefix => S[1];
+    internal static string DefaultObjectPrefix => S[1];
     internal static string MinimapRotateParam => S[2];
     internal static string ExploredRecordKey => S[3];
     internal static string PakAesKey => S[4];
+    internal static string UeClassClassName => S[5];
+    internal static string GlobalLabels => S[6];
 }

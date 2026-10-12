@@ -36,6 +36,16 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void EntitiesCarryTheirLogicAddress()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(7, 1180000, true, 10, 20, 0);
+        world.PublishEntities(monster);
+
+        Assert.Equal((nint)monster.Address, Assert.Single(Read(world)).Address);
+    }
+
+    [Fact]
     public void KindComesFromTheFightMgrMapTheIdIsIn()
     {
         var world = new FakeWorld();

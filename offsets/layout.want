@@ -147,7 +147,7 @@ MaxSaveRecords = 64
 MaxExploredPoints = 65536
 
 MinimapClassName = "MiniMap_C"
-MinimapDefaultPrefix = "Default__"
+DefaultObjectPrefix = "Default__"
 MinimapRotateParam = "Rotate"
 ExploredRecordKey = "{0}_{1}"
 
@@ -159,3 +159,30 @@ MaxChain = 64
 MaxCells = 4000000
 PebImageBase = 0x10
 PakAesKey = "4F17B93C3F6BC5566B505A9445EE2F620C6FBB4EF99AFD7AD6F50F361C1B34E0"
+
+UObjectOuter = 32
+UStructSuper = 0x40
+UStructChildProperties = 0x50
+UStructPropertiesSize = 0x58
+FFieldClass = 8
+FFieldNext = 0x20
+FFieldName = 0x28
+FFieldClassName = 0
+FPropertyArrayDim = 0x38
+FPropertyElementSize = 0x3C
+FPropertyOffset = 0x4C
+FPropertyInner = 0x78
+FBoolByteOffset = 0x79
+FBoolFieldMask = 0x7B
+GObjectsItemFlags = 8
+GObjectsPendingKill = 0x20000000
+
+PawnController = 0x258
+ControllerCameraManager = 0x2B8
+CameraCache = 0x1BE0
+PovLocation = 0x10
+PovRotation = 0x1C
+PovFov = 0x28
+
+UeClassClassName = "Class"
+GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"

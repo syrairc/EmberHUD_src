@@ -260,6 +260,82 @@ public class SortableTableTests
     }
 
     [Fact]
+    public void TheVisibleListIsOnlyRebuiltWhenItsInputsChange()
+    {
+        var probe = new Probe { WithFilterBox = false };
+        try
+        {
+            probe.Frame();
+            var builds = SortableTable.FilterBuilds;
+            probe.Frame();
+            probe.Frame();
+            Assert.Equal(builds, SortableTable.FilterBuilds);
+
+            probe.Rows = [.. Weights];
+            probe.Frame();
+            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
+            probe.Frame();
+            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
+
+            probe.Rows.Add(("delta", 4f));
+            probe.Frame();
+            Assert.Equal(builds + 2, SortableTable.FilterBuilds);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ChangingTheFilterRebuildsTheVisibleListOnce()
+    {
+        var probe = new Probe();
+        try
+        {
+            probe.Frame();
+            probe.Frame();
+            var builds = SortableTable.FilterBuilds;
+            probe.Filter = "al";
+            probe.Frame();
+            probe.Frame();
+            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
+            Assert.Equal(new[] { 1 }, probe.Drawn);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void TheSortIsOnlyRebuiltWhenTheColumnOrDirectionChanges()
+    {
+        var probe = new Probe { WithFilterBox = false };
+        try
+        {
+            probe.Frame();
+            probe.Frame();
+            var sorts = SortableTable.SortBuilds;
+            UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
+            var ascending = SortableTable.SortBuilds;
+            Assert.Equal(sorts + 1, ascending);
+            probe.Frame();
+            probe.Frame();
+            Assert.Equal(ascending, SortableTable.SortBuilds);
+            UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
+            Assert.Equal(ascending + 1, SortableTable.SortBuilds);
+            Assert.Equal(new[] { 1, 0, 2 }, probe.Drawn);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void StringKeysSortOrdinallyIgnoringCase()
+    {
+        List<string> rows = ["beta", "Alpha", "gamma", "Beta2"];
+        var idx = new List<int> { 0, 1, 2, 3 };
+
+        SortableTable.SortIndices(idx, rows, r => r, true);
+
+        Assert.Equal(new[] { 1, 0, 3, 2 }, idx);
+    }
+
+    [Fact]
     public void AFixedWidthColumnKeepsItsDeclaredWidth()
     {
         var probe = new Probe { WithFilterBox = false };

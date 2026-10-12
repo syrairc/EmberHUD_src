@@ -113,9 +113,9 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return kinds;
     }
 
-    private bool TryReadLocalPlayerId(out int id)
+    public bool TryReadLocalPawn(out nint pawn)
     {
-        id = 0;
+        pawn = 0;
         if (!memory.TryReadPtr(moduleBase + Offsets.PlayerMgrGlobalRva, out var playerMgr) ||
             !memory.TryRead(playerMgr + Offsets.PlayerMgrEntity, out uint index) ||
             !memory.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
@@ -124,7 +124,14 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             !memory.TryRead(obj + Offsets.UObjectInternalIndex, out uint internalIndex) || internalIndex != index)
             return false;
 
-        return memory.TryRead(obj + Offsets.UObjectEntityId, out id);
+        pawn = obj;
+        return true;
+    }
+
+    private bool TryReadLocalPlayerId(out int id)
+    {
+        id = 0;
+        return TryReadLocalPawn(out var pawn) && memory.TryRead(pawn + Offsets.UObjectEntityId, out id);
     }
 
     private bool TryReadPosition(nint entity, out Vector3 position)
@@ -159,7 +166,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             rarity = _rarity.Read(monsterCfgId, entity);
         }
 
-        result = new Entity(id, (int)cfgId, position, kind, rarity);
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity };
         return true;
     }
 
