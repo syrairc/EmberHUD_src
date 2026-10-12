@@ -222,16 +222,24 @@ public sealed class MainTests
         try
         {
             TestInput.Hold();
-            TestFrame.Run(main.Tick);
+            TestInput.Dispatch(main);
             Check.That(main.Settings.View.Show.Value, "no key, no toggle");
             TestInput.Hold(Key.F10);
-            TestFrame.Run(main.Tick);
+            TestInput.Dispatch(main);
             Check.That(!main.Settings.View.Show.Value, "press hides");
         }
         finally
         {
             TestInput.Hold();
         }
+    }
+
+    [Test]
+    public void RegistersFourHotkeysWithTheOldDefaults()
+    {
+        var hotkeys = Scene.Plugin().Hotkeys;
+        Check.Equal("Toggle map,Zoom in,Zoom out,Re-check rotation", string.Join(",", hotkeys.Select(binding => binding.Id)));
+        Check.Equal("F10,PageUp,PageDown,F9", string.Join(",", hotkeys.Select(binding => binding.Default.Key)));
     }
 
     [Test]
@@ -244,11 +252,11 @@ public sealed class MainTests
         {
             TestInput.Hold();
             TestInput.Hold(Key.PageUp);
-            TestFrame.Run(main.Tick);
+            TestInput.Dispatch(main);
             Check.Equal(main.Settings.View.Zoom.Max, main.Settings.View.Zoom.Value);
             TestInput.Hold();
             TestInput.Hold(Key.PageDown);
-            TestFrame.Run(main.Tick);
+            TestInput.Dispatch(main);
             Check.Equal(main.Settings.View.Zoom.Max / 1.25f, main.Settings.View.Zoom.Value);
         }
         finally
@@ -267,7 +275,7 @@ public sealed class MainTests
         {
             TestInput.Hold();
             TestInput.Hold(Key.PageDown);
-            TestFrame.Run(main.Tick);
+            TestInput.Dispatch(main);
             Check.Equal(0.002f, main.Settings.View.Zoom.Value);
         }
         finally

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Hexa.NET.ImGui;
 using Aember;
 using Aember.Testing;
@@ -40,26 +41,37 @@ public sealed class SampleTests
     public void TickTogglesVisibilityOnTheHotkey()
     {
         var plugin = new Main();
+        plugin.Initialize();
         try
         {
             TestInput.Hold();
-            plugin.Tick();
+            TestInput.Dispatch(plugin);
             Check.That(plugin.Settings.Display.Show.Value, "no key, no toggle");
             TestInput.Hold(Key.F8);
-            plugin.Tick();
+            TestInput.Dispatch(plugin);
             Check.That(!plugin.Settings.Display.Show.Value, "press hides");
             TestInput.Hold(Key.F8);
-            plugin.Tick();
+            TestInput.Dispatch(plugin);
             Check.That(!plugin.Settings.Display.Show.Value, "held key does not toggle again");
             TestInput.Hold();
             TestInput.Hold(Key.F8);
-            plugin.Tick();
+            TestInput.Dispatch(plugin);
             Check.That(plugin.Settings.Display.Show.Value, "second press shows");
         }
         finally
         {
             TestInput.Hold();
         }
+    }
+
+    [Test]
+    public void RegistersTheToggleHotkeyOnF8()
+    {
+        var plugin = new Main();
+        plugin.Initialize();
+        var binding = plugin.Hotkeys.Single();
+        Check.Equal("Toggle", binding.Id);
+        Check.Equal(Key.F8, binding.Default.Key);
     }
 
     [Test]

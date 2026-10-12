@@ -10,6 +10,7 @@ internal sealed class SdkSettings : PluginSettings
     public bool AutoReload;
     public string GameIconsDirectory = "";
     public Dictionary<string, PluginState> Plugins = [];
+    public Dictionary<string, Dictionary<string, Hotkey>> PluginHotkeys = [];
 }
 
 [Obfuscation(Exclude = true, ApplyToMembers = true)]

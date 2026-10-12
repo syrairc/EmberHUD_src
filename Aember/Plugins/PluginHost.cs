@@ -48,7 +48,11 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         SyncWatchers();
         foreach (var slot in _slots)
-            if (slot.Enabled) Call(slot, PluginStage.Tick, plugin => plugin.Tick());
+            if (slot.Enabled) Call(slot, PluginStage.Tick, plugin =>
+            {
+                plugin.DispatchHotkeys();
+                plugin.Tick();
+            });
         if (Environment.TickCount64 - _savedAt >= 2000) SaveAll();
     }
 
@@ -78,6 +82,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     public void SaveAll()
     {
         _savedAt = Environment.TickCount64;
+        foreach (var slot in _slots) SyncHotkeys(slot);
         foreach (var slot in _slots)
             if (slot.Instance?.SettingsObject is { } settings) Guard(slot, PluginStage.Settings, () => Write(SettingsPath(slot), SettingsJson.Serialize(settings)));
         Write(Path.Combine(_config, "sdk.json"), SettingsJson.Serialize(sdk));
@@ -240,8 +245,43 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
 
     void Enable(PluginSlot slot)
     {
-        if (!slot.Initialized) slot.Initialized = Call(slot, PluginStage.Initialize, plugin => plugin.Initialize());
+        if (!slot.Initialized)
+        {
+            slot.Initialized = Call(slot, PluginStage.Initialize, plugin => plugin.Initialize());
+            if (slot.Initialized) ApplyHotkeys(slot);
+        }
         if (slot.Initialized) Call(slot, PluginStage.Enable, plugin => plugin.OnEnable());
+    }
+
+    void ApplyHotkeys(PluginSlot slot)
+    {
+        if (slot.Instance is not { } plugin || !sdk.PluginHotkeys.TryGetValue(slot.Name, out var saved)) return;
+        foreach (var binding in plugin.Hotkeys)
+            if (saved.TryGetValue(binding.Id, out var key)) binding.Value = key;
+    }
+
+    void SyncHotkeys(PluginSlot slot)
+    {
+        if (slot.Instance is not { } plugin || !slot.Initialized) return;
+        var saved = sdk.PluginHotkeys.GetValueOrDefault(slot.Name) ?? [];
+        foreach (var binding in plugin.Hotkeys)
+        {
+            if (binding.Value == binding.Default) saved.Remove(binding.Id);
+            else saved[binding.Id] = binding.Value;
+        }
+        if (saved.Count == 0) sdk.PluginHotkeys.Remove(slot.Name);
+        else sdk.PluginHotkeys[slot.Name] = saved;
+    }
+
+    internal string? ConflictFor(Hotkey key, HotkeyBinding? self)
+    {
+        if (key.Key == Key.None) return null;
+        if (sdk.Hotkeys.Settings == key) return "Aember / Settings window";
+        if (sdk.Hotkeys.Quit == key) return "Aember / Quit";
+        foreach (var slot in _slots.Where(slot => slot.Enabled && slot.Initialized && slot.Instance is not null))
+            foreach (var binding in slot.Instance!.Hotkeys)
+                if (!ReferenceEquals(binding, self) && binding.Value == key) return $"{slot.Name} / {binding.Id}";
+        return null;
     }
 
     void Unload(PluginSlot slot)

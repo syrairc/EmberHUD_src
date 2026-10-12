@@ -202,6 +202,135 @@ public sealed class PluginHostTests : IDisposable
         Assert.Equal("Ctrl+F12", sdk["Hotkeys"]!["Quit"]!.GetValue<string>());
     }
 
+    const string TwoHotkeys = """
+        public static int Fired;
+        public override void Initialize()
+        {
+            RegisterHotkey("Fire", "Fires", () => Fired++, new Hotkey(Key.F1));
+            RegisterHotkey("Zoom", "Closer", () => Log.Info("zoom"), new Hotkey(Key.F2), "View");
+        }
+        public override void Tick() => Log.Info("tick " + Fired);
+        """;
+
+    JsonNode ReadSdk() => JsonNode.Parse(File.ReadAllText(Path.Combine(_fixture.Root, "Config", "sdk.json")))!;
+
+    [Fact]
+    public void AHotkeyPressFiresItsCallbackBeforeTheTickOfAnEnabledPlugin()
+    {
+        _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
+        using var host = Start();
+        host.SetEnabled(Slot(host, "Hk"), true);
+        try
+        {
+            TestInput.Hold(Key.F2);
+            host.TickAll();
+        }
+        finally
+        {
+            TestInput.Hold();
+        }
+        Assert.Equal(["zoom", "tick 0"], _log.Messages("Hk"));
+    }
+
+    [Fact]
+    public void ADisabledPluginsHotkeysDoNotFire()
+    {
+        _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
+        using var host = Start();
+        try
+        {
+            TestInput.Hold(Key.F2);
+            host.TickAll();
+        }
+        finally
+        {
+            TestInput.Hold();
+        }
+        Assert.Empty(_log.Messages("Hk"));
+    }
+
+    [Fact]
+    public void AThrowingCallbackErrorsOnlyThatPluginAndOthersKeepFiring()
+    {
+        _fixture.Write("Thrower", "Main.cs", PluginFixture.Source("Thrower", """
+            public override void Initialize() => RegisterHotkey("Boom", "Throws", () => throw new InvalidOperationException("boom"), new Hotkey(Key.F3));
+            """));
+        _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", PluginFixture.Lifecycle));
+        using var host = Start();
+        host.SetEnabled(Slot(host, "Thrower"), true);
+        host.SetEnabled(Slot(host, "Good"), true);
+        try
+        {
+            TestInput.Hold(Key.F3);
+            host.TickAll();
+            host.TickAll();
+        }
+        finally
+        {
+            TestInput.Hold();
+        }
+        Assert.Equal(PluginStage.Tick, Slot(host, "Thrower").ErrorStage);
+        Assert.Equal(2, _log.Messages("Good").Count(message => message == "tick"));
+    }
+
+    [Fact]
+    public void ARebindIsAppliedAfterInitializeAndSavedOnlyWhileItDiffersFromTheDefault()
+    {
+        _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
+        _fixture.Sdk.PluginHotkeys["Hk"] = new() { ["View/Zoom"] = new Hotkey(Key.F5) };
+        using var host = Start();
+        var slot = Slot(host, "Hk");
+        host.SetEnabled(slot, true);
+        Assert.Equal(new Hotkey(Key.F5), slot.Instance!.Hotkeys[1].Value);
+        Assert.Equal(new Hotkey(Key.F1), slot.Instance.Hotkeys[0].Value);
+        host.SaveAll();
+        var saved = ReadSdk()["PluginHotkeys"]!["Hk"]!.AsObject();
+        Assert.Equal(["View/Zoom"], saved.Select(pair => pair.Key));
+        Assert.Equal("F5", saved["View/Zoom"]!.GetValue<string>());
+        slot.Instance.Hotkeys[1].Value = new Hotkey(Key.F2);
+        host.SaveAll();
+        Assert.Null(ReadSdk()["PluginHotkeys"]!["Hk"]);
+    }
+
+    [Fact]
+    public void ARebindSurvivesAReload()
+    {
+        _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
+        using var host = Start();
+        var slot = Slot(host, "Hk");
+        host.SetEnabled(slot, true);
+        slot.Instance!.Hotkeys[0].Value = new Hotkey(Key.F7);
+        host.Reload(slot);
+        PluginFixture.Settle(host);
+        Assert.Equal(new Hotkey(Key.F7), slot.Instance!.Hotkeys[0].Value);
+    }
+
+    [Fact]
+    public void AStaleOverrideForAHotkeyThePluginNoLongerRegistersIsKeptAndNeverThrows()
+    {
+        _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
+        _fixture.Sdk.PluginHotkeys["Hk"] = new() { ["Gone"] = new Hotkey(Key.F9) };
+        using var host = Start();
+        host.SetEnabled(Slot(host, "Hk"), true);
+        host.SaveAll();
+        Assert.Equal("F9", ReadSdk()["PluginHotkeys"]!["Hk"]!["Gone"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void ConflictForNamesTheOtherHolderAndIgnoresNoneAndSelf()
+    {
+        _fixture.Write("A", "Main.cs", PluginFixture.Source("A", TwoHotkeys));
+        _fixture.Write("B", "Main.cs", PluginFixture.Source("B", TwoHotkeys));
+        using var host = Start();
+        host.SetEnabled(Slot(host, "A"), true);
+        host.SetEnabled(Slot(host, "B"), true);
+        Assert.Equal("B / Fire", host.ConflictFor(new Hotkey(Key.F1), Slot(host, "A").Instance!.Hotkeys[0]));
+        Assert.Equal("Aember / Settings window", host.ConflictFor(new Hotkey(Key.F11), null));
+        Assert.Equal("Aember / Quit", host.ConflictFor(new Hotkey(Key.F12, KeyModifiers.Ctrl), null));
+        Assert.Null(host.ConflictFor(default, null));
+        Assert.Null(host.ConflictFor(new Hotkey(Key.F8), null));
+    }
+
     [Fact]
     public void SettingsLayerCodeThenDefaultsJsonThenTheUserFile()
     {

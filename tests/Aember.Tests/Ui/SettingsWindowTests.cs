@@ -50,6 +50,7 @@ public sealed class SettingsWindowTests : IDisposable
 
     public void Dispose()
     {
+        Controls.HotkeyConflict = (_, _) => null;
         _log.Dispose();
         _fixture.Dispose();
         Directory.Delete(_themes, true);
@@ -583,6 +584,65 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(_fixture.Sdk.Hotkeys.Settings.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[0]));
         Assert.Equal(_fixture.Sdk.Hotkeys.Quit.ToString().Replace(" ", "").Length, GlyphsIn(scene, buttons[1]));
         Assert.Equal(2, buttons.Count);
+    }
+
+    PluginHost WithHotkeys()
+    {
+        _fixture.Write("Zeta", "Main.cs", PluginFixture.Source("Zeta", """
+            public override void Initialize() => RegisterHotkey("Magnify", "Closer", () => { }, new Hotkey(Key.F3));
+            """));
+        _fixture.Write("alpha", "Main.cs", PluginFixture.Source("alpha", """
+            public override void Initialize()
+            {
+                RegisterHotkey("Teleport", "Jumps", () => { }, new Hotkey(Key.F2), "Movement");
+                RegisterHotkey("Blink", "Short jump", () => { }, new Hotkey(Key.F1));
+            }
+            """));
+        var host = _fixture.Host();
+        host.Discover(_fixture.Plugins);
+        PluginFixture.Settle(host);
+        host.SetEnabled(Slot(host, "Zeta"), true);
+        host.SetEnabled(Slot(host, "alpha"), true);
+        return host;
+    }
+
+    [Fact]
+    public void TheHotkeysTabListsAemberThenEnabledPluginsByNameWithUncategorisedRowsBeforeCategories()
+    {
+        using var host = WithHotkeys();
+        var window = Window(host);
+        OpenTab(window, 2);
+
+        var counts = PageRows(Settled(window)).Select(row => row.Count).SkipWhile(count => count != "Aember".Length).ToList();
+
+        Assert.Equal(
+            ["Aember".Length, "F11".Length + "Settingswindow".Length, "Ctrl+F12".Length + "Quit".Length,
+             "alpha".Length, "F1".Length + "Blink".Length, "Movement".Length, "F2".Length + "Teleport".Length,
+             "Zeta".Length, "F3".Length + "Magnify".Length],
+            counts);
+    }
+
+    [Fact]
+    public void ADisabledPluginIsNotListed()
+    {
+        using var host = WithHotkeys();
+        host.SetEnabled(Slot(host, "Zeta"), false);
+        var window = Window(host);
+        OpenTab(window, 2);
+
+        Assert.DoesNotContain(PageRows(Settled(window)), row => row.Count == "Zeta".Length);
+    }
+
+    [Fact]
+    public void AKeyBoundTwiceDrawsInTheErrorColour()
+    {
+        using var host = WithHotkeys();
+        Controls.HotkeyConflict = host.ConflictFor;
+        Slot(host, "Zeta").Instance!.Hotkeys[0].Value = new Hotkey(Key.F1);
+        var window = Window(host);
+        OpenTab(window, 2);
+
+        Assert.Contains(Settled(window), quad => quad.Glyph && quad.Min.X > PaneLeft && quad.Col == ErrorColour);
     }
 
     [Fact]

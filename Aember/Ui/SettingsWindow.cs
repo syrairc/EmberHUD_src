@@ -105,8 +105,16 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
     bool DrawHotkeys()
     {
+        Section("Aember");
         Controls.Hotkey("Settings window", ref sdk.Hotkeys.Settings, "settings");
         Controls.Hotkey("Quit", ref sdk.Hotkeys.Quit, "quit");
+        foreach (var slot in plugins.Slots.Where(slot => slot.Enabled && slot.Initialized && slot.Instance is { Hotkeys.Count: > 0 }).OrderBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            Section(slot.Name);
+            ImGui.PushID(slot.Name);
+            Controls.HotkeyTable(slot.Instance!);
+            ImGui.PopID();
+        }
         return false;
     }
 

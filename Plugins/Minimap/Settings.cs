@@ -15,10 +15,6 @@ public sealed class MarkerStyle
 public sealed class ViewTab
 {
     public ToggleNode Show = new(true);
-    public HotkeyNode ToggleMap = new(new Hotkey(Key.F10));
-    public HotkeyNode ZoomIn = new(new Hotkey(Key.PageUp));
-    public HotkeyNode ZoomOut = new(new Hotkey(Key.PageDown));
-    [Menu("Re-check rotation", "Drops the cached game minimap widget and finds it again, use when the map stops following the game's rotation")] public HotkeyNode RescanRotation = new(new Hotkey(Key.F9));
     public ToggleNode FollowPlayer = new(true);
     [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(0.037f, 0.002f, 4);
     [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);

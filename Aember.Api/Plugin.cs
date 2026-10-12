@@ -22,6 +22,23 @@ public abstract class Plugin
 
     public virtual void Dispose() { }
 
+    readonly List<HotkeyBinding> _hotkeys = [];
+
+    public IReadOnlyList<HotkeyBinding> Hotkeys => _hotkeys;
+
+    protected void RegisterHotkey(string name, string description, Action callback, Hotkey? defaultKey = null, string? category = null)
+    {
+        var binding = new HotkeyBinding(name, description, callback, defaultKey ?? default, category);
+        if (_hotkeys.Any(existing => existing.Id == binding.Id)) throw new InvalidOperationException($"hotkey '{binding.Id}' is already registered");
+        _hotkeys.Add(binding);
+    }
+
+    internal void DispatchHotkeys()
+    {
+        foreach (var binding in _hotkeys)
+            if (Input.Pressed(binding.Value)) binding.Callback();
+    }
+
     internal virtual PluginSettings? SettingsObject { get => null; set { } }
 
     internal virtual Type? SettingsType => null;

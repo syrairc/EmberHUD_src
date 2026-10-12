@@ -18,5 +18,10 @@ public static class Scene
     public static GameState State(Player? player = null, Entity[]? entities = null, Terrain? terrain = null, int area = 1, float? rotation = null, MapIcon[]? icons = null, ExploredTrail? explored = null) =>
         new("test", area, player, entities ?? [], terrain, rotation) { MapIcons = icons ?? [], Explored = explored };
 
-    public static Main Plugin() => new() { WallJob = new(inline: true), RegionJob = new(inline: true) };
+    public static Main Plugin()
+    {
+        var main = new Main { WallJob = new(inline: true), RegionJob = new(inline: true) };
+        main.Initialize();
+        return main;
+    }
 }

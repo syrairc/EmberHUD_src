@@ -19,14 +19,19 @@ public sealed class Main : Plugin<Settings>
 
     bool WallsStyle => Settings.View.DrawStyle.Value == "Walls";
 
+    public override void Initialize()
+    {
+        RegisterHotkey("Toggle map", "Shows or hides the minimap", () => Settings.View.Show.Value = !Settings.View.Show.Value, new Hotkey(Key.F10));
+        RegisterHotkey("Zoom in", "Zooms the map in", () => SetZoom(Settings.View.Zoom.Value * 1.25f), new Hotkey(Key.PageUp));
+        RegisterHotkey("Zoom out", "Zooms the map out", () => SetZoom(Settings.View.Zoom.Value / 1.25f), new Hotkey(Key.PageDown));
+        RegisterHotkey("Re-check rotation", "Drops the cached game minimap widget and finds it again, use when the map stops following the game's rotation", Game.RescanMinimap, new Hotkey(Key.F9));
+    }
+
+    void SetZoom(float value) => Settings.View.Zoom.Value = Math.Clamp(value, Settings.View.Zoom.Min, Settings.View.Zoom.Max);
+
     public override void Tick()
     {
         var view = Settings.View;
-        if (view.ToggleMap.Pressed) view.Show.Value = !view.Show.Value;
-        if (view.RescanRotation.Pressed) Game.RescanMinimap();
-        if (view.ZoomIn.Pressed) view.Zoom.Value = MathF.Min(view.Zoom.Value * 1.25f, view.Zoom.Max);
-        if (view.ZoomOut.Pressed) view.Zoom.Value = MathF.Max(view.Zoom.Value / 1.25f, view.Zoom.Min);
-
         var state = Game.State;
         if (WallJob.TakeFinished() is { } done) _walls = done.GetAwaiter().GetResult();
         if (_walls.AreaId != state.AreaId) _walls = Walls.Empty;

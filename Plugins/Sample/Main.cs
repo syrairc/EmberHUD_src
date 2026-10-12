@@ -6,10 +6,7 @@ namespace Sample;
 
 public sealed class Main : Plugin<Settings>
 {
-    public override void Tick()
-    {
-        if (Settings.Display.Toggle.Pressed) Settings.Display.Show.Value = !Settings.Display.Show.Value;
-    }
+    public override void Initialize() => RegisterHotkey("Toggle", "Shows or hides the marker", () => Settings.Display.Show.Value = !Settings.Display.Show.Value, new Hotkey(Key.F8));
 
     public override void Render()
     {

@@ -8,4 +8,6 @@ public static class TestInput
         Input.KeyDown = held.Contains;
         Input.NewFrame(false);
     }
+
+    public static void Dispatch(Plugin plugin) => plugin.DispatchHotkeys();
 }

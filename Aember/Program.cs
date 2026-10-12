@@ -7,6 +7,7 @@ using Aember.Host.Overlay;
 using Aember.Host.Plugins;
 using Aember.Host.Reading;
 using Aember.Host.Ui;
+using Aember.Ui;
 
 var root = AppContext.BaseDirectory;
 var pluginsDirectory = Path.Combine(root, "Plugins");
@@ -90,6 +91,7 @@ Textures.Uploader = textures.Upload;
 Textures.Resolver = textures.Resolve;
 Textures.Releaser = textures.Release;
 using var plugins = new PluginHost(sdk, root, textures.ReleaseAll);
+Controls.HotkeyConflict = plugins.ConflictFor;
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
 var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), sdk.Theme, overlay.BeforeFrame);
