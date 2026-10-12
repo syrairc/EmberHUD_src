@@ -17,7 +17,7 @@ public class MapIconReaderTests
     private static (MinimapReader Minimap, MapIconReader Icons) ReadersFor(FakeWorld world, Clock? clock = null)
     {
         Func<long>? now = clock is null ? null : () => clock.Now;
-        return (new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), now), new MapIconReader(world.Memory, now));
+        return (new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), now), new MapIconReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), now));
     }
 
     private static MapIcon[] Read((MinimapReader Minimap, MapIconReader Icons) readers, IReadOnlyDictionary<int, Vector2>? positions = null)
@@ -186,6 +186,99 @@ public class MapIconReaderTests
         clock.Now = Offsets.MinimapRescanMilliseconds;
 
         Assert.Equal("New_Portal", Read(readers)[0].Texture);
+    }
+
+    [Fact]
+    public void IconsCarryTheEnumNameOfTheirType()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(2662, 1, 2), new FakeIcon(10, 3, 4));
+        world.SetMapIconInfoTable(5, (2662, "S15MonsterNormal"), (10, "Portal"));
+
+        var icons = Read(ReadersFor(world));
+
+        Assert.Equal("S15MonsterNormal", icons.Single(icon => icon.Type == 2662).Name);
+        Assert.Equal("Portal", icons.Single(icon => icon.Type == 10).Name);
+    }
+
+    [Fact]
+    public void AMissingOrUnloadedRowGivesNoNameAndIsRetried()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(2662, 1, 2));
+        world.SetMapIconInfoTable(5, (2662, null));
+        var clock = new Clock();
+        var readers = ReadersFor(world, clock);
+
+        Assert.Equal("", Read(readers)[0].Name);
+        world.SetMapIconInfoTable(5, (2662, "S15MonsterNormal"));
+        clock.Now += 2000;
+        Assert.Equal("S15MonsterNormal", Read(readers)[0].Name);
+    }
+
+    [Fact]
+    public void GarbageEnumStringsAreRejected()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(1, 1, 2), new FakeIcon(2, 3, 4), new FakeIcon(3, 5, 6));
+        world.SetMapIconInfoTable(5, (1, "x"), (2, "y"), (3, "Bad\u0001Name"));
+        world.SetMapIconInfoRaw(1, 0, 4);
+        world.SetMapIconInfoRaw(2, 0x1000, 100000);
+
+        var icons = Read(ReadersFor(world));
+
+        Assert.All(icons, icon => Assert.Equal("", icon.Name));
+    }
+
+    [Fact]
+    public void ANameIsReadOncePerType()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(2662, 1, 2));
+        world.SetMapIconInfoTable(5, (2662, "S15MonsterNormal"));
+        var readers = ReadersFor(world);
+        Read(readers);
+        world.SetMapIconInfoTable(5, (2662, "Changed"));
+
+        Assert.Equal("S15MonsterNormal", Read(readers)[0].Name);
+    }
+
+    [Fact]
+    public void KnownTexturesDoNotRescanTheIconMapWhileANameIsStillMissing()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(10, 1, 2));
+        world.SetMapIconInfoTable(5, (10, null));
+        var map = world.SetIconMap(minimap, (10, world.AddTexture("UI_MiniMap_Portal")));
+        world.Memory.TryReadPtr((nint)map, out var data);
+        var clock = new Clock();
+        var readers = ReadersFor(world, clock);
+        Assert.Equal("UI_MiniMap_Portal", Read(readers)[0].Texture);
+        world.Memory.Reads.Clear();
+        clock.Now += 2000;
+
+        Assert.Equal("UI_MiniMap_Portal", Read(readers)[0].Texture);
+
+        Assert.DoesNotContain(world.Memory.Reads, r => r.Address == data);
+    }
+
+    [Fact]
+    public void NamesResolveEvenWhenTheIconMapIsUnreadable()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, new FakeIcon(10, 1, 2));
+        world.SetMapIconInfoTable(5, (10, "Portal"));
+
+        var icon = Assert.Single(Read(ReadersFor(world)));
+
+        Assert.Equal("Portal", icon.Name);
+        Assert.Equal("", icon.Texture);
     }
 
     [Fact]

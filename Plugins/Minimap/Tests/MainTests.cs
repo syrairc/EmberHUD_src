@@ -45,8 +45,8 @@ public sealed class MainTests
     public void FollowingPutsThePlayerAtTheMiddlePlusTheOffset()
     {
         var settings = new Settings();
-        settings.View.OffsetX.Value = 10;
-        settings.View.OffsetY.Value = -5;
+        settings.General.OffsetX.Value = 10;
+        settings.General.OffsetY.Value = -5;
 
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
@@ -58,9 +58,9 @@ public sealed class MainTests
     public void RotationAndVerticalScaleGoIntoTheFollowingView()
     {
         var settings = new Settings();
-        settings.View.Rotation.Value = 90;
-        settings.View.VerticalScale.Value = 0.5f;
-        settings.View.OffsetY.Value = 0;
+        settings.General.Rotation.Value = 90;
+        settings.General.VerticalScale.Value = 0.5f;
+        settings.General.OffsetY.Value = 0;
 
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen);
 
@@ -75,9 +75,9 @@ public sealed class MainTests
     public void RotationAndVerticalScaleGoIntoTheFittedView()
     {
         var settings = new Settings();
-        settings.View.FollowPlayer.Value = false;
-        settings.View.OffsetY.Value = 0;
-        settings.View.Rotation.Value = 90;
+        settings.General.FollowPlayer.Value = false;
+        settings.General.OffsetY.Value = 0;
+        settings.General.Rotation.Value = 90;
 
         var view = Main.ViewFor(settings, null, Tall, new Vector2(1000, 500));
 
@@ -97,7 +97,7 @@ public sealed class MainTests
     public void TheRotationSettingIsAnExtraOffsetOnTopOfTheGameRotation()
     {
         var settings = new Settings();
-        settings.View.Rotation.Value = 15;
+        settings.General.Rotation.Value = 15;
 
         Check.Equal<float?>(-75f, Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen, -90)?.RotationDegrees);
     }
@@ -106,7 +106,7 @@ public sealed class MainTests
     public void AnUnknownGameRotationCountsAsZero()
     {
         var settings = new Settings();
-        settings.View.Rotation.Value = 20;
+        settings.General.Rotation.Value = 20;
 
         Check.Equal<float?>(20f, Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, Screen, null)?.RotationDegrees);
     }
@@ -115,9 +115,9 @@ public sealed class MainTests
     public void TheFittedViewAddsTheGameRotationToo()
     {
         var settings = new Settings();
-        settings.View.FollowPlayer.Value = false;
-        settings.View.OffsetY.Value = 0;
-        settings.View.Rotation.Value = 30;
+        settings.General.FollowPlayer.Value = false;
+        settings.General.OffsetY.Value = 0;
+        settings.General.Rotation.Value = 30;
 
         Check.Equal<float?>(120f, Main.ViewFor(settings, null, Tall, new Vector2(1000, 500), 90)?.RotationDegrees);
     }
@@ -137,7 +137,7 @@ public sealed class MainTests
     [Test]
     public void ZoomRangeGoesFromAThousandthToFour()
     {
-        var zoom = new Settings().View.Zoom;
+        var zoom = new Settings().General.Zoom;
 
         Check.Equal(0.002f, zoom.Min);
         Check.Equal(4f, zoom.Max);
@@ -145,12 +145,12 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TheDefaultViewSitsFiftyPixelsAboveTheMiddle() => Check.Equal(-50f, new Settings().View.OffsetY.Value);
+    public void TheDefaultViewSitsFiftyPixelsAboveTheMiddle() => Check.Equal(-50f, new Settings().General.OffsetY.Value);
 
     [Test]
     public void RotationAndVerticalScaleRangesAndDefaults()
     {
-        var view = new Settings().View;
+        var view = new Settings().General;
 
         Check.Equal(-180f, view.Rotation.Min);
         Check.Equal(180f, view.Rotation.Max);
@@ -164,8 +164,8 @@ public sealed class MainTests
     public void NotFollowingFitsTheWalls()
     {
         var settings = new Settings();
-        settings.View.FollowPlayer.Value = false;
-        settings.View.OffsetY.Value = 0;
+        settings.General.FollowPlayer.Value = false;
+        settings.General.OffsetY.Value = 0;
 
         var view = Main.ViewFor(settings, new Vector3(4, 7, 0), Tall, new Vector2(1000, 500));
 
@@ -206,7 +206,7 @@ public sealed class MainTests
     {
         TestGame.Set(InArea());
         var main = Scene.Plugin();
-        main.Settings.View.Show.Value = false;
+        main.Settings.General.Show.Value = false;
         Map.View = null;
 
         TestFrame.Run(main.Tick);
@@ -223,10 +223,10 @@ public sealed class MainTests
         {
             TestInput.Hold();
             TestInput.Dispatch(main);
-            Check.That(main.Settings.View.Show.Value, "no key, no toggle");
+            Check.That(main.Settings.General.Show.Value, "no key, no toggle");
             TestInput.Hold(Key.F10);
             TestInput.Dispatch(main);
-            Check.That(!main.Settings.View.Show.Value, "press hides");
+            Check.That(!main.Settings.General.Show.Value, "press hides");
         }
         finally
         {
@@ -247,17 +247,17 @@ public sealed class MainTests
     {
         TestGame.Set(InArea());
         var main = Scene.Plugin();
-        main.Settings.View.Zoom.Value = main.Settings.View.Zoom.Max;
+        main.Settings.General.Zoom.Value = main.Settings.General.Zoom.Max;
         try
         {
             TestInput.Hold();
             TestInput.Hold(Key.PageUp);
             TestInput.Dispatch(main);
-            Check.Equal(main.Settings.View.Zoom.Max, main.Settings.View.Zoom.Value);
+            Check.Equal(main.Settings.General.Zoom.Max, main.Settings.General.Zoom.Value);
             TestInput.Hold();
             TestInput.Hold(Key.PageDown);
             TestInput.Dispatch(main);
-            Check.Equal(main.Settings.View.Zoom.Max / 1.25f, main.Settings.View.Zoom.Value);
+            Check.Equal(main.Settings.General.Zoom.Max / 1.25f, main.Settings.General.Zoom.Value);
         }
         finally
         {
@@ -270,13 +270,13 @@ public sealed class MainTests
     {
         TestGame.Set(InArea());
         var main = Scene.Plugin();
-        main.Settings.View.Zoom.Value = 0.0025f;
+        main.Settings.General.Zoom.Value = 0.0025f;
         try
         {
             TestInput.Hold();
             TestInput.Hold(Key.PageDown);
             TestInput.Dispatch(main);
-            Check.Equal(0.002f, main.Settings.View.Zoom.Value);
+            Check.Equal(0.002f, main.Settings.General.Zoom.Value);
         }
         finally
         {
@@ -289,7 +289,7 @@ public sealed class MainTests
     {
         TestGame.Set(InArea());
         var main = Scene.Plugin();
-        main.Settings.View.FollowPlayer.Value = false;
+        main.Settings.General.FollowPlayer.Value = false;
         Map.View = null;
 
         TickTwice(main);
@@ -302,7 +302,7 @@ public sealed class MainTests
     {
         TestGame.Set(InArea());
         var main = Scene.Plugin();
-        main.Settings.View.FollowPlayer.Value = false;
+        main.Settings.General.FollowPlayer.Value = false;
         TickTwice(main);
 
         TestGame.Set(Scene.State(area: 2));
@@ -351,7 +351,7 @@ public sealed class MainTests
             Check.Equal(1, _uploads.Count, "same cell");
             TickTwiceAt(main, 2000, At(25));
             Check.Equal(2, _uploads.Count, "next cell");
-            main.Settings.View.ExploredFill.Value = Color.Red;
+            main.Settings.Map.Region.ExploredFill.Value = Color.Red;
             TickTwiceAt(main, 3000, At(25));
             Check.Equal(3, _uploads.Count, "new colour");
         }
@@ -404,7 +404,7 @@ public sealed class MainTests
         try
         {
             var main = RegionPlugin();
-            main.Settings.View.DrawStyle.Value = "Walls";
+            main.Settings.Map.DrawStyle.Value = "Walls";
             TickTwiceAt(main, 0, Scene.State(terrain: _cell));
 
             Check.Equal(0, _uploads.Count);
@@ -421,11 +421,11 @@ public sealed class MainTests
         try
         {
             var main = RegionPlugin();
-            main.Settings.View.Show.Value = false;
+            main.Settings.General.Show.Value = false;
             TickTwiceAt(main, 0, Scene.State(terrain: _cell));
             Check.Equal(0, _uploads.Count, "hidden");
 
-            main.Settings.View.Show.Value = true;
+            main.Settings.General.Show.Value = true;
             TickTwiceAt(main, 10, Scene.State(terrain: _cell));
             Check.Equal(1, _uploads.Count, "shown");
         }
@@ -449,8 +449,8 @@ public sealed class MainTests
             TickTwiceAt(main, 0, Scene.State(terrain: strip, area: 1, explored: new([new Vector2(5, 5)], 4)));
             TickTwiceAt(main, 10, Scene.State(terrain: strip, area: 2, explored: new([new Vector2(35, 5)], 4)));
 
-            var view = main.Settings.View;
-            Check.Equal(view.RegionFill.Value.A, last![3], "the old area's explored cell is not carried over");
+            var view = main.Settings.Map.Region;
+            Check.Equal(view.Fill.Value.A, last![3], "the old area's explored cell is not carried over");
             Check.Equal(view.ExploredFill.Value.A, last[6 * 4 + 3], "the new area's trail is stamped");
         }
         finally

@@ -25,9 +25,12 @@ internal sealed class SvgIconStore
     readonly HashSet<string> _failed = new(StringComparer.OrdinalIgnoreCase);
     bool _off;
 
+    public IReadOnlyList<string> Names { get; }
+
     public SvgIconStore(IReadOnlyDictionary<string, string> sources, Func<string, byte[], int, int, bool> upload, TextureLookup lookup, Action<string> release, Func<string, int, DecodedImage>? rasterize = null, bool inline = false)
     {
         _sources = sources;
+        Names = [.. sources.Keys.Order(StringComparer.Ordinal)];
         _upload = upload;
         _lookup = lookup;
         _release = release;

@@ -12,6 +12,66 @@ public class ControlsIconsTests
     static readonly ImTextureRef Texture = new() { TexID = new ImTextureID(1ul) };
 
     [Fact]
+    public void TheGameSheetListsEveryGameIconByIconName()
+    {
+        Draw.GameIconNames = ["UI_MiniMap_Portal", "UI_MiniMap_BOSS"];
+        try
+        {
+            var sheet = Controls.IconSheet.GameIcons();
+            Assert.Equal(2, sheet.Count);
+            Assert.Equal("game:UI_MiniMap_BOSS", sheet.Label!(0));
+            Assert.Equal("game:UI_MiniMap_Portal", sheet.Label!(1));
+            Assert.Null(sheet.Texture);
+            Assert.NotNull(sheet.DrawCell);
+        }
+        finally { Draw.GameIconNames = []; }
+    }
+
+    [Fact]
+    public void TheSvgSheetKeepsTheFullIconNames()
+    {
+        Draw.SvgIconNames = ["svg:quest", "svg:elite"];
+        try
+        {
+            var sheet = Controls.IconSheet.SvgIcons();
+            Assert.Equal("svg:elite", sheet.Label!(0));
+            Assert.Equal("svg:quest", sheet.Label!(1));
+        }
+        finally { Draw.SvgIconNames = []; }
+    }
+
+    [Fact]
+    public void OnlyVisibleCellsResolveTheirIcon()
+    {
+        var names = Enumerable.Range(0, 500).Select(i => $"T{i:D3}").ToArray();
+        Draw.GameIconNames = names;
+        var asked = new HashSet<string>();
+        Draw.GameIcons = name => { asked.Add(name); return null; };
+        try
+        {
+            Controls.IconSheet[] sheets = [Controls.IconSheet.GameIcons()];
+            var icon = "game:T000";
+            for (var frame = 0; frame < 2; frame++)
+                UiFrame.Run("test", () =>
+                {
+                    if (frame == 0)
+                    {
+                        ImGui.PushID("big");
+                        ImGui.OpenPopup("##iconpick");
+                        ImGui.PopID();
+                    }
+                    Controls.IconPicker("big", sheets, ref icon, Color.White);
+                });
+            Assert.InRange(asked.Count, 1, 150);
+        }
+        finally
+        {
+            Draw.GameIconNames = [];
+            Draw.GameIcons = null;
+        }
+    }
+
+    [Fact]
     public void AnInRangeCellPassesThrough() => Assert.Equal(2f, Controls.CellUv(ZeroBased, 2).uv0.X);
 
     [Fact]
@@ -72,8 +132,6 @@ public class ControlsIconsTests
         var sprite = new Sprite(Texture, Vector2.Zero, Vector2.One);
         var sheet = "Demo";
         var index = 1;
-        var tint = Color.White;
-        var drawSize = 24;
         var changed = false;
 
         UiFrame.Run("test", () =>
@@ -86,8 +144,6 @@ public class ControlsIconsTests
             Controls.IconImage(sheets, "Demo", 1, 20, Color.White);
             Controls.IconImage(sheets, "renamed", 1, 20, Color.White);
             changed |= Controls.IconPicker("pick", sheets, ref sheet, ref index, Color.White);
-            changed |= Controls.IconPicker("sized", sheets, ref sheet, ref index, ref tint, ref drawSize);
-            changed |= Controls.IconPicker("tinted", sheets, ref sheet, ref index, ref tint, tintEnabled: false);
         });
 
         Assert.False(changed);
@@ -101,18 +157,16 @@ public class ControlsIconsTests
         Controls.IconSheet[] sheets = [Controls.IconSheet.Grid("Demo", Texture, new GridAtlas(64, 64, 32, 2), 4, i => "cell " + i), Controls.IconSheet.Atlas("Game", null)];
         var sheet = "Demo";
         var index = 1;
-        var tint = Color.White;
-        var drawSize = 24;
         for (var frame = 0; frame < 2; frame++)
             UiFrame.Run("test", () =>
             {
                 if (frame == 0)
                 {
-                    ImGui.PushID("sized");
+                    ImGui.PushID("pick");
                     ImGui.OpenPopup("##iconpick");
                     ImGui.PopID();
                 }
-                Controls.IconPicker("sized", sheets, ref sheet, ref index, ref tint, ref drawSize);
+                Controls.IconPicker("pick", sheets, ref sheet, ref index, Color.White);
             });
     }
 
@@ -321,12 +375,11 @@ public class ControlsIconsTests
 
     static bool GridDrawn(ImGuiWindowPtr popup) => GridWindows(popup).Any();
 
-    sealed class Rig(string id, Controls.IconSheet[] sheets, bool preview = false, bool tintEnabled = true) : IDisposable
+    sealed class Rig(string id, Controls.IconSheet[] sheets) : IDisposable
     {
         public string Sheet = "Demo";
         public int Index = 1;
         public Color Tint = Color.White;
-        public int DrawSize = 24;
         public bool Changed;
         public bool Open;
         public ImGuiWindowPtr Popup;
@@ -335,9 +388,7 @@ public class ControlsIconsTests
 
         public void Body()
         {
-            Changed |= preview
-                ? tintEnabled ? Controls.IconPicker(id, sheets, ref Sheet, ref Index, ref Tint, ref DrawSize) : Controls.IconPicker(id, sheets, ref Sheet, ref Index, ref Tint, tintEnabled: false)
-                : Controls.IconPicker(id, sheets, ref Sheet, ref Index, Tint);
+            Changed |= Controls.IconPicker(id, sheets, ref Sheet, ref Index, Tint);
             if (!_captured)
             {
                 Button = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2;
@@ -459,22 +510,6 @@ public class ControlsIconsTests
         Assert.False(rig.Open);
     }
 
-    [Fact]
-    public void WithAPreviewPickingACellKeepsThePopupOpen()
-    {
-        using var rig = new Rig("p-preview", TwoSheets(), preview: true);
-        rig.OpenPopup();
-        var (uv0, uv1) = new GridAtlas(64, 64, 32, 2).UVPair(2);
-        var cell = CellCentre(rig.Popup, uv0, uv1);
-        Assert.NotNull(cell);
-
-        rig.ClickAt(cell.Value);
-
-        Assert.True(rig.Changed);
-        Assert.Equal(2, rig.Index);
-        Assert.True(rig.Open);
-    }
-
     static Vector2 SecondRadio(ImGuiWindowPtr popup)
     {
         Assert.False(popup.IsNull);
@@ -540,45 +575,144 @@ public class ControlsIconsTests
     }
 
     [Fact]
-    public void ThePreviewDrawsTheStoredCellAtTheChosenSizeAndTint()
+    public void OpacityIsTheAlphaAsAPercent()
     {
-        using var rig = new Rig("p-size", TwoSheets(), preview: true);
-        rig.Tint = Color.Red;
-        rig.DrawSize = 40;
-        rig.OpenPopup();
-        var popup = rig.Popup;
-        var (uv0, uv1) = new GridAtlas(64, 64, 32, 2).UVPair(1);
-
-        var verts = popup.DrawList.VtxBuffer;
-        var found = false;
-        for (var i = 0; i + 2 < verts.Size; i++)
-            if (verts[i].Uv == uv0 && verts[i + 2].Uv == uv1)
-            {
-                found = true;
-                Assert.Equal(new Vector2(40), verts[i + 2].Pos - verts[i].Pos);
-                Assert.Equal(Packed(Color.Red), verts[i].Col);
-            }
-        Assert.True(found);
+        Assert.Equal(100, Controls.OpacityOf(Color.FromArgb(255, 1, 2, 3)));
+        Assert.Equal(0, Controls.OpacityOf(Color.FromArgb(0, 1, 2, 3)));
+        Assert.Equal(50, Controls.OpacityOf(Color.FromArgb(128, 1, 2, 3)));
+        Assert.Equal(Color.FromArgb(217, 10, 20, 30), Controls.WithOpacity(Color.FromArgb(255, 10, 20, 30), 85));
+        Assert.Equal(Color.FromArgb(0, 10, 20, 30), Controls.WithOpacity(Color.FromArgb(255, 10, 20, 30), -5));
+        Assert.Equal(Color.FromArgb(255, 10, 20, 30), Controls.WithOpacity(Color.FromArgb(9, 10, 20, 30), 120));
     }
 
     [Fact]
-    public void ADisabledTintPreviewsWhiteWhileTheSwatchKeepsTheColour()
+    public void ResetGoesBackToTheResetIconWhiteAndOne()
     {
-        using var rig = new Rig("p-white", TwoSheets(), preview: true, tintEnabled: false);
-        rig.Tint = Color.Red;
-        rig.OpenPopup();
-        var popup = rig.Popup;
-        var (uv0, uv1) = new GridAtlas(64, 64, 32, 2).UVPair(1);
+        var icon = "svg:elite";
+        var colour = Color.FromArgb(40, 255, 0, 0);
+        var scale = 2.5f;
+        Controls.ResetStyle(ref icon, ref colour, ref scale, "game:UI_MiniMap_Portal");
+        Assert.Equal("game:UI_MiniMap_Portal", icon);
+        Assert.Equal(Color.White.ToArgb(), colour.ToArgb());
+        Assert.Equal(1f, scale);
 
-        var verts = popup.DrawList.VtxBuffer;
-        var found = false;
-        for (var i = 0; i + 2 < verts.Size; i++)
-            if (verts[i].Uv == uv0 && verts[i + 2].Uv == uv1)
+        Controls.ResetStyle(ref icon, ref colour, ref scale, null);
+        Assert.Equal("game:UI_MiniMap_Portal", icon);
+    }
+
+    [Fact]
+    public void ResetGoesBackToTheGivenColourAndScale()
+    {
+        var icon = "marker:Dot";
+        var colour = Color.White;
+        var scale = 3f;
+        Controls.ResetStyle(ref icon, ref colour, ref scale, "svg:elite", Color.FromArgb(0xFF, 0xFF, 0xD9, 0x33), 1.25f);
+        Assert.Equal("svg:elite", icon);
+        Assert.Equal(Color.FromArgb(0xFF, 0xFF, 0xD9, 0x33).ToArgb(), colour.ToArgb());
+        Assert.Equal(1.25f, scale);
+    }
+
+    [Fact]
+    public void AnEmptyNamedSheetShowsNoGrid()
+    {
+        Controls.IconSheet[] sheets = [new() { Name = "Game", Count = 0, Label = i => "x" + i, DrawCell = (_, _, _, _, _) => { } }];
+        using var rig = new Rig("p-empty", sheets);
+
+        rig.OpenPopup();
+
+        Assert.True(rig.Open);
+        Assert.False(GridDrawn(rig.Popup));
+    }
+
+    [Fact]
+    public void AnOpenStyledPickerDrawsBalancedFramesAndLeavesTheStyleAlone()
+    {
+        Draw.GameIconNames = ["UI_MiniMap_Portal"];
+        Draw.SvgIconNames = ["svg:elite"];
+        try
+        {
+            var icon = "game:UI_MiniMap_Portal";
+            var colour = Color.FromArgb(200, 255, 140, 26);
+            var scale = 1.4f;
+            var changed = false;
+            for (var frame = 0; frame < 2; frame++)
+                UiFrame.Run("test", () =>
+                {
+                    if (frame == 0)
+                    {
+                        ImGui.PushID("styled");
+                        ImGui.OpenPopup("##iconstyle");
+                        ImGui.PopID();
+                    }
+                    changed |= Controls.IconPicker("styled", ref icon, ref colour, ref scale);
+                });
+            Assert.False(changed);
+            Assert.Equal("game:UI_MiniMap_Portal", icon);
+            Assert.Equal(1.4f, scale);
+        }
+        finally
+        {
+            Draw.GameIconNames = [];
+            Draw.SvgIconNames = [];
+        }
+    }
+
+    [Fact]
+    public void TheStyledPickerButtonDrawsTheIconInItsColour()
+    {
+        var icon = "marker:Square";
+        var colour = Color.Red;
+        var scale = 1f;
+        var drawn = Capture(() => Controls.IconPicker("button", ref icon, ref colour, ref scale, size: 20));
+        Assert.Contains(drawn.Verts, v => v.Col == Packed(Color.Red));
+    }
+
+    [Fact]
+    public void PickingInTheStyledPickerWritesTheIconAndKeepsThePopupOpen()
+    {
+        Draw.GameIconNames = ["UI_MiniMap_Portal", "UI_MiniMap_BOSS"];
+        Draw.SvgIconNames = [];
+        try
+        {
+            var icon = "marker:Square";
+            var colour = Color.White;
+            var scale = 1f;
+            var open = false;
+            var popup = default(ImGuiWindowPtr);
+            void Body()
             {
-                found = true;
-                Assert.Equal(Packed(Color.White), verts[i].Col);
+                Controls.IconPicker("styled-pick", ref icon, ref colour, ref scale);
+                ImGui.PushID("styled-pick");
+                open = ImGui.IsPopupOpen("##iconstyle");
+                popup = ImGuiP.FindWindowByName($"##Popup_{ImGui.GetID("##iconstyle"):x8}");
+                ImGui.PopID();
             }
-        Assert.True(found);
-        Assert.Equal(Color.Red, rig.Tint);
+            UiFrame.Run("test", () =>
+            {
+                ImGui.PushID("styled-pick");
+                ImGui.OpenPopup("##iconstyle");
+                ImGui.PopID();
+                Body();
+            });
+            UiFrame.Run("test", Body);
+            Assert.True(open);
+            var grid = GridWindows(popup).First();
+            var style = ImGui.GetStyle();
+
+            UiFrame.Click("test", grid.Pos + style.WindowPadding + new Vector2(10, 10), Body);
+            UiFrame.Run("test", Body);
+
+            Assert.Equal("game:UI_MiniMap_BOSS", icon);
+            Assert.True(open);
+        }
+        finally
+        {
+            Draw.GameIconNames = [];
+            Draw.SvgIconNames = [];
+            UiFrame.Run("test", () =>
+            {
+                if (ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)) ImGuiP.ClosePopupToLevel(0, true);
+            });
+        }
     }
 }

@@ -8,7 +8,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly TerrainReader _terrain = new(memory, firstAreaId);
     private readonly MinimapReader _minimap = new(memory, moduleBase);
-    private readonly MapIconReader _icons = new(memory);
+    private readonly MapIconReader _icons = new(memory, moduleBase);
     private readonly ExploredReader _explored = new(memory);
     private readonly CameraReader _camera = new(memory);
     private int _generation = firstAreaId;

@@ -65,9 +65,46 @@ public sealed class SettingsJsonTests
         public Dictionary<string, int> Counts = new() { ["a"] = 1 };
     }
 
+    public sealed class Row
+    {
+        public string Key = "";
+        public Color Colour = Color.White;
+        public float Scale = 1;
+    }
+
+    public sealed class WithRows : PluginSettings
+    {
+        public ToggleNode On = new(true);
+        public List<Row> Rows = [];
+    }
+
     readonly List<string> _reports = [];
 
     Sample Load(string? defaults, string? user) => (Sample)SettingsJson.Load(typeof(Sample), defaults, user, _reports.Add);
+
+    [Fact]
+    public void UnknownTopLevelKeysAreIgnored()
+    {
+        var loaded = (WithRows)SettingsJson.Load(typeof(WithRows), null, """{ "View": { "Zoom": 0.5 }, "Markers": { "Portal": { "Radius": 6 } } }""", _reports.Add);
+
+        Assert.True(loaded.On.Value);
+        Assert.Empty(loaded.Rows);
+        Assert.Empty(_reports);
+    }
+
+    [Fact]
+    public void AListOfPlainRowsRoundTrips()
+    {
+        var settings = new WithRows();
+        settings.Rows.Add(new Row { Key = "UI_MiniMap_Portal", Colour = Color.FromArgb(0x80, 0x33, 0xCC, 0xFF), Scale = 1.5f });
+
+        var loaded = (WithRows)SettingsJson.Load(typeof(WithRows), null, SettingsJson.Serialize(settings), _reports.Add);
+
+        Assert.Equal("UI_MiniMap_Portal", Assert.Single(loaded.Rows).Key);
+        Assert.Equal(Color.FromArgb(0x80, 0x33, 0xCC, 0xFF).ToArgb(), loaded.Rows[0].Colour.ToArgb());
+        Assert.Equal(1.5f, loaded.Rows[0].Scale);
+        Assert.Empty(_reports);
+    }
 
     [Fact]
     public void SerializeWritesNodesAsBareValues()

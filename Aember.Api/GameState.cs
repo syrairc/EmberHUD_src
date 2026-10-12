@@ -24,6 +24,9 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public nint Address { get; init; }
 }
 
-public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId);
+public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)
+{
+    public string Name { get; init; } = "";
+}
 
 public sealed record ExploredTrail(Vector2[] Points, float Radius);

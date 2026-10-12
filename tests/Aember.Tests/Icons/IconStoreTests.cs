@@ -40,6 +40,9 @@ public sealed class IconStoreTests : IDisposable
         return IconStore.Open(_directory, Upload, Lookup, inline: true)!;
     }
 
+    [Fact]
+    public void NamesListsTheIndexKeysSortedOrdinal() => Assert.Equal(["Broken", "Gone", "UI_MiniMap_Portal"], Open().Names);
+
     IconStore OpenTwoPngs(Func<string, byte[], int, int, bool> upload)
     {
         WriteIndex("""{"icons":{"A":{"file":"A.png"},"B":{"file":"B.png"}}}""");

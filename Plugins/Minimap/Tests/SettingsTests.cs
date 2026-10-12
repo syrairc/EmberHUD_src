@@ -12,80 +12,83 @@ public sealed class SettingsTests
 {
     static Entity Of(EntityKind kind, Rarity rarity = Rarity.Normal) => new(1, 1000, Vector3.Zero, kind, rarity);
 
+    static MapIcon Icon(string texture, string name = "", int type = 1, int entity = 0) => new(type, texture, Vector2.Zero, 1, 0, entity) { Name = name };
+
     [Test]
-    public void MonstersPickTheStyleOfTheirRarity()
+    public void MonstersPickTheFixedRowOfTheirRarity()
     {
         var s = new Settings();
-
-        Check.That(ReferenceEquals(s.Markers.NormalMonster, s.MarkerFor(Of(EntityKind.Monster, Rarity.Normal))));
-        Check.That(ReferenceEquals(s.Markers.MagicMonster, s.MarkerFor(Of(EntityKind.Monster, Rarity.Magic))));
-        Check.That(ReferenceEquals(s.Markers.RareMonster, s.MarkerFor(Of(EntityKind.Monster, Rarity.Rare))));
-        Check.That(ReferenceEquals(s.Markers.BossMonster, s.MarkerFor(Of(EntityKind.Monster, Rarity.Boss))));
+        Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Normal))));
+        Check.That(ReferenceEquals(s.Icons.MagicMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Magic))));
+        Check.That(ReferenceEquals(s.Icons.RareMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Rare))));
+        Check.That(ReferenceEquals(s.Icons.Bosses, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Boss))));
     }
 
     [Test]
-    public void EveryOtherKindHasItsOwnStyle()
+    public void OtherKindsMapToTheirFixedRowOrNone()
     {
         var s = new Settings();
-
-        Check.That(ReferenceEquals(s.Markers.Ally, s.MarkerFor(Of(EntityKind.Ally))));
-        Check.That(ReferenceEquals(s.Markers.OtherPlayer, s.MarkerFor(Of(EntityKind.Player))));
-        Check.That(ReferenceEquals(s.Markers.Portal, s.MarkerFor(Of(EntityKind.Portal))));
-        Check.That(ReferenceEquals(s.Markers.Npc, s.MarkerFor(Of(EntityKind.Npc))));
-        Check.That(ReferenceEquals(s.Markers.Interactive, s.MarkerFor(Of(EntityKind.Interactive))));
-        Check.That(ReferenceEquals(s.Markers.Coffin, s.MarkerFor(Of(EntityKind.Coffin))));
-        Check.That(ReferenceEquals(s.Markers.Altar, s.MarkerFor(Of(EntityKind.Altar))));
-        Check.That(ReferenceEquals(s.Markers.Elevator, s.MarkerFor(Of(EntityKind.Elevator))));
-        Check.That(ReferenceEquals(s.Markers.MapObject, s.MarkerFor(Of(EntityKind.MapObject))));
-        Check.That(ReferenceEquals(s.Markers.Destructible, s.MarkerFor(Of(EntityKind.Destructible))));
+        Check.That(ReferenceEquals(s.Icons.Minions, s.Icons.FixedFor(Of(EntityKind.Ally))));
+        Check.That(ReferenceEquals(s.Icons.OtherPlayers, s.Icons.FixedFor(Of(EntityKind.Player))));
+        Check.That(ReferenceEquals(s.Icons.Npcs, s.Icons.FixedFor(Of(EntityKind.Npc))));
+        Check.That(ReferenceEquals(s.Icons.MapObjects, s.Icons.FixedFor(Of(EntityKind.MapObject))));
+        Check.That(ReferenceEquals(s.Icons.Destructibles, s.Icons.FixedFor(Of(EntityKind.Destructible))));
+        foreach (var kind in new[] { EntityKind.Portal, EntityKind.Interactive, EntityKind.Coffin, EntityKind.Altar, EntityKind.Elevator })
+            Check.That(s.Icons.FixedFor(Of(kind)) is null, kind.ToString());
     }
 
     [Test]
-    public void AHiddenKindIsNotDrawn()
+    public void FixedRowsComeInTheTableOrder() =>
+        Check.Equal("Normal monsters,Magic monsters,Rare monsters,Bosses,Minions,NPCs,Other players,Map objects,Destructibles", string.Join(",", new Settings().Icons.Fixed.Select(row => row.Name)));
+
+    [Test]
+    public void OnlyMinionsAreHiddenByDefault() =>
+        Check.Equal("Minions", string.Join(",", new Settings().Icons.Fixed.Where(row => !row.Show).Select(row => row.Name)));
+
+    [Test]
+    public void DiscoveryAddsEachTextureOnceAndSkipsEmptyOnes()
     {
         var s = new Settings();
-        s.Markers.MagicMonster.Show.Value = false;
-        s.Markers.Portal.Show.Value = false;
-
-        Check.That(s.MarkerFor(Of(EntityKind.Monster, Rarity.Magic)) is null);
-        Check.That(s.MarkerFor(Of(EntityKind.Portal)) is null);
-        Check.That(s.MarkerFor(Of(EntityKind.Monster, Rarity.Rare)) is not null);
+        s.Icons.Discover([Icon("UI_MiniMap_Portal", "Portal"), Icon(""), Icon("UI_MiniMap_Portal", "Portal"), Icon("UI_MiniMap_BOSS")]);
+        Check.Equal(2, s.Icons.Found.Count);
+        var portal = s.Icons.FoundFor("UI_MiniMap_Portal")!;
+        Check.Equal("Portal", portal.Name);
+        Check.Equal("game:UI_MiniMap_Portal", portal.Icon);
+        Check.Equal("UI_MiniMap_BOSS", s.Icons.FoundFor("UI_MiniMap_BOSS")!.Name);
+        Check.That(s.Icons.FoundFor("") is null);
     }
 
     [Test]
-    public void EntitiesTheGameMarksGetSvgIconsAndTheRestKeepPlainMarkers()
+    public void AGameNameUpgradesOnlyRowsStillShowingTheirTexture()
     {
-        Check.Equal("svg:portal", Settings.IconFor(Scene.Entity(EntityKind.Portal, Vector3.Zero)));
-        Check.Equal("svg:gem", Settings.IconFor(Scene.Entity(EntityKind.Interactive, Vector3.Zero)));
-        Check.Equal("svg:elite", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Rare)));
-        Check.Equal("svg:elite", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Boss)));
-        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Normal)));
-        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Magic)));
-        Check.Equal("marker:Square", Settings.IconFor(Scene.Entity(EntityKind.Npc, Vector3.Zero)));
-        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Ally, Vector3.Zero)));
-        Check.Equal("marker:Dot", Settings.IconFor(Scene.Entity(EntityKind.Player, Vector3.Zero)));
+        var s = new Settings();
+        s.Icons.Discover([Icon("A"), Icon("B")]);
+        s.Icons.FoundFor("B")!.Name = "My chest";
+        s.Icons.Discover([Icon("A", "S15MonsterNormal"), Icon("B", "Chest")]);
+        Check.Equal("S15MonsterNormal", s.Icons.FoundFor("A")!.Name);
+        Check.Equal("My chest", s.Icons.FoundFor("B")!.Name);
     }
 
     [Test]
-    public void PreloadedMapEntitiesGetTheirOwnIcons()
+    public void AReplacedFoundListIsLookedUpAfresh()
     {
-        Check.Equal("game:UI_MiniMap_S15guancai", Settings.IconFor(Scene.Entity(EntityKind.Coffin, Vector3.Zero)));
-        Check.Equal("svg:quest", Settings.IconFor(Scene.Entity(EntityKind.Altar, Vector3.Zero)));
-        Check.Equal("svg:portal", Settings.IconFor(Scene.Entity(EntityKind.Elevator, Vector3.Zero)));
-        Check.Equal("marker:Diamond", Settings.IconFor(Scene.Entity(EntityKind.MapObject, Vector3.Zero)));
-        Check.Equal("marker:Triangle", Settings.IconFor(Scene.Entity(EntityKind.Destructible, Vector3.Zero)));
+        var s = new Settings();
+        s.Icons.Discover([Icon("A")]);
+        s.Icons.Found = [new IconStyle { Key = "B", Name = "B" }];
+        Check.That(s.Icons.FoundFor("A") is null);
+        Check.That(s.Icons.FoundFor("B") is not null);
     }
 
     [Test]
-    public void PreloadedMapEntitiesAreShownByDefault()
+    public void NullOrKeylessFoundEntriesAreSkipped()
     {
-        var m = new Settings().Markers;
-        Check.That(new[] { m.Coffin, m.Altar, m.Elevator, m.MapObject, m.Destructible }.All(style => style.Show.Value));
+        var s = new Settings();
+        s.Icons.Found = [null!, new IconStyle { Key = null!, Name = "x" }, new IconStyle { Key = "A", Name = "A" }];
+        Check.That(s.Icons.FoundFor("A") is not null);
+        Check.That(s.Icons.FoundFor("B") is null);
+        s.Icons.Discover([Icon("B")]);
+        Check.That(s.Icons.FoundFor("B") is not null);
     }
-
-    [Test]
-    public void EveryMarkerHasADarkAccentByDefault() =>
-        Check.Equal(System.Drawing.Color.FromArgb(0x1A, 0x1A, 0x1A).ToArgb(), new Settings().Markers.RareMonster.Accent.Value.ToArgb());
 
     static int Drawn(Action draw)
     {
@@ -122,17 +125,6 @@ public sealed class SettingsTests
     }
 
     [Test]
-    public void TheMarkersSectionDraws()
-    {
-        var page = Height(new Settings().Draw);
-        var viewOnly = Height(() => SettingsDrawer.DrawNodes(new Settings().View));
-        var rowHeight = 0f;
-        TestFrame.Run(() => rowHeight = ImGui.GetFrameHeightWithSpacing());
-        var sections = 14 * rowHeight;
-        Check.That(page - viewOnly >= sections, $"markers drew (page {page}, view only {viewOnly}, fourteen sections {sections})");
-    }
-
-    [Test]
     public void FallbackShapesFollowTheIconTypeGroup()
     {
         foreach (var type in new[] { 2, 1040, 1050, 1060 }) Check.Equal(MarkerShape.Star, Settings.FallbackShape(type), $"type {type}");
@@ -147,25 +139,88 @@ public sealed class SettingsTests
     [Test]
     public void TheRegionLookIsTheDefaultWithTheGamesColours()
     {
-        var view = new Settings().View;
+        var map = new Settings().Map;
+        var region = map.Region;
 
-        Check.Equal("Region", view.DrawStyle.Value);
-        Check.That(view.DrawStyle.Options.SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", view.DrawStyle.Options));
-        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), view.RegionFill.Value.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), view.RegionOutline.Value.ToArgb());
-        Check.Equal(1.5f, view.RegionOutlineWidth.Value);
-        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), view.ExploredFill.Value.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), view.ExploredOutline.Value.ToArgb());
-        Check.Equal(2.5f, view.ExploredOutlineWidth.Value);
+        Check.Equal("Region", map.DrawStyle.Value);
+        Check.That(map.DrawStyle.Options.SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", map.DrawStyle.Options));
+        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), region.Fill.Value.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), region.Outline.Value.ToArgb());
+        Check.Equal(1.5f, region.OutlineWidth.Value);
+        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), region.ExploredFill.Value.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), region.ExploredOutline.Value.ToArgb());
+        Check.Equal(2.5f, region.ExploredOutlineWidth.Value);
     }
 
     [Test]
-    public void GameIconSettingsDefaultToOnAtAReadableSize()
+    public void GameIconsDefaultToOnAtScaleOne()
     {
-        var view = new Settings().View;
+        var icons = new Settings().Icons;
 
-        Check.That(view.UseGameIcons.Value, "on by default, a missing icon folder falls back to shapes anyway");
-        Check.Equal(24f, view.IconSize.Value);
-        Check.Equal(System.Drawing.Color.White.ToArgb(), view.IconTint.Value.ToArgb());
+        Check.That(icons.UseGameIcons.Value, "on by default, a missing icon folder falls back to shapes anyway");
+        Check.Equal(1f, icons.GameIconScale.Value);
+    }
+
+    [Test]
+    public void RenamingToBlankGoesBackToTheTextureName()
+    {
+        var row = new IconStyle { Key = "UI_MiniMap_S15guancai", Name = "Coffin" };
+        Settings.Rename(row, "  Vigil coffin ");
+        Check.Equal("Vigil coffin", row.Name);
+        Settings.Rename(row, "   ");
+        Check.Equal("UI_MiniMap_S15guancai", row.Name);
+    }
+
+    [Test]
+    public void TheFilterMatchesNameOrTexture()
+    {
+        IconStyle[] rows = [new() { Key = "UI_MiniMap_S15guancai", Name = "Vigil coffin" }, new() { Key = "UI_MiniMap_Portal", Name = "Portal" }];
+        Check.Equal("Vigil coffin", string.Join(",", Settings.Filtered(rows, "vigil").Select(r => r.Name)));
+        Check.Equal("Vigil coffin", string.Join(",", Settings.Filtered(rows, "guancai").Select(r => r.Name)));
+        Check.Equal(2, Settings.Filtered(rows, "").Count());
+    }
+
+    [Test]
+    public void TheSettingsPageDrawsWithBalancedFrames()
+    {
+        var s = new Settings();
+        s.Icons.Discover([Icon("UI_MiniMap_Portal", "Portal")]);
+        TestFrame.Run(() =>
+        {
+            ImGui.SetNextWindowSize(new Vector2(700, 600));
+            ImGui.Begin("settings");
+            s.Draw();
+            ImGui.End();
+        });
+    }
+
+    [Test]
+    public void TheMapAndIconsTabsDrawWithBalancedFrames()
+    {
+        var s = new Settings();
+        s.Icons.Discover([Icon("UI_MiniMap_Portal", "Portal"), Icon("UI_MiniMap_S15guancai", "Coffin")]);
+        s.Icons.RareMonsters.Show = false;
+        TestFrame.Run(() =>
+        {
+            ImGui.SetNextWindowSize(new Vector2(700, 600));
+            ImGui.Begin("settings");
+            s.DrawMap();
+            s.DrawIcons();
+            ImGui.End();
+        });
+    }
+
+    [Test]
+    public void ARenamedFixedRowStillDrawsTheIconsTab()
+    {
+        var s = new Settings();
+        s.Icons.NormalMonsters.Name = "Old label";
+        TestFrame.Run(() =>
+        {
+            ImGui.SetNextWindowSize(new Vector2(700, 600));
+            ImGui.Begin("settings");
+            s.DrawIcons();
+            ImGui.End();
+        });
     }
 }

@@ -36,6 +36,9 @@ public sealed class SvgIconStoreTests : IDisposable
     SvgIconStore Store(Func<string, int, DecodedImage>? rasterize = null, Func<string, byte[], int, int, bool>? upload = null, Action<string>? release = null, TextureLookup? lookup = null) =>
         new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square, ["svg:broken"] = "<svg><rect" }, upload ?? Upload, lookup ?? new TextureLookup(Lookup), release ?? new Action<string>(Release), rasterize, inline: true);
 
+    [Fact]
+    public void NamesListsTheSourceKeysSortedOrdinal() => Assert.Equal(["svg:broken", "svg:square"], Store().Names);
+
     static Sprite? Ready(SvgIconStore store, string icon, int pixels, Color colour, Color accent)
     {
         store.Resolve(icon, pixels, colour, accent);

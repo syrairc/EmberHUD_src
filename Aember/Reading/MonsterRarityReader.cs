@@ -36,22 +36,6 @@ internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
     private bool TryReadTier(uint configId, out uint tier)
     {
         tier = 0;
-        if (!memory.TryRead(moduleBase + Offsets.MonsterCfgBucketCountRva, out uint bucketCount) ||
-            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
-            !memory.TryReadPtr(moduleBase + Offsets.MonsterCfgBucketsRva, out var buckets) ||
-            !memory.TryReadPtr(buckets + (nint)(configId % bucketCount) * nint.Size, out var node))
-            return false;
-
-        for (var length = 0; length < Offsets.MaxChain; length++)
-        {
-            if (!memory.TryRead(node + Offsets.NodeKey, out uint key))
-                return false;
-            if (key == configId)
-                return memory.TryReadPtr(node + Offsets.NodeEntity, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
-            if (!memory.TryReadPtr(node + Offsets.NodeNext, out node))
-                return false;
-        }
-
-        return false;
+        return ConfigTable.TryFindRow(memory, moduleBase, Offsets.MonsterCfgBucketsRva, Offsets.MonsterCfgBucketCountRva, configId, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
     }
 }

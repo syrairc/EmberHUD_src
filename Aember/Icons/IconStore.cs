@@ -12,6 +12,8 @@ internal sealed class IconStore
 
     readonly string _directory;
     readonly Dictionary<string, string> _files;
+
+    public IReadOnlyList<string> Names { get; }
     readonly Func<string, byte[], int, int, bool> _upload;
     readonly TextureLookup _lookup;
     readonly BackgroundJob<Decoded> _job;
@@ -23,6 +25,7 @@ internal sealed class IconStore
     {
         _directory = directory;
         _files = files;
+        Names = [.. files.Keys.Order(StringComparer.Ordinal)];
         _upload = upload;
         _lookup = lookup;
         _job = new BackgroundJob<Decoded>(inline);

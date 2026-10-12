@@ -198,6 +198,8 @@ public static class Draw
 
     internal static Func<string, Sprite?>? GameIcons { get; set; }
 
+    internal static IReadOnlyList<string> GameIconNames { get; set; } = [];
+
     public static bool TryGameIcon(string texture, out Sprite sprite)
     {
         if (string.IsNullOrEmpty(texture))
@@ -218,6 +220,8 @@ public static class Draw
     public const string SvgIconPrefix = "svg:";
 
     internal static Func<string, int, Color, Color, Sprite?>? SvgIcons { get; set; }
+
+    internal static IReadOnlyList<string> SvgIconNames { get; set; } = [];
 
     public static void Icon(string? icon, Vector2 centre, float radius, Color color, IconAtlas? atlas, float glow = 0, Color? accent = null, Vector2? facing = null, ImDrawListPtr? list = null)
     {

@@ -1,18 +1,1 @@
-{
-  "Markers": {
-    "NormalMonster": { "Colour": "#EBEBEBFF", "Radius": 3 },
-    "MagicMonster": { "Colour": "#598CFFFF", "Radius": 3 },
-    "RareMonster": { "Colour": "#FFD933FF", "Radius": 5 },
-    "BossMonster": { "Colour": "#D94DFFFF", "Radius": 7 },
-    "Ally": { "Show": false, "Colour": "#4DE64DFF", "Radius": 3 },
-    "OtherPlayer": { "Colour": "#4DE6FFFF", "Radius": 4 },
-    "Portal": { "Colour": "#33CCFFFF", "Accent": "#FFFFFFFF", "Radius": 6 },
-    "Npc": { "Colour": "#4DFF4DFF", "Radius": 5 },
-    "Interactive": { "Colour": "#FFAA33FF", "Accent": "#FFF4E0FF", "Radius": 4 },
-    "Coffin": { "Colour": "#FF8C1AFF", "Radius": 7 },
-    "Altar": { "Colour": "#B266FFFF", "Accent": "#FFFFFFFF", "Radius": 6 },
-    "Elevator": { "Colour": "#33FFCCFF", "Accent": "#FFFFFFFF", "Radius": 5 },
-    "MapObject": { "Colour": "#C0C0C0FF", "Radius": 3 },
-    "Destructible": { "Colour": "#A0703CFF", "Radius": 3 }
-  }
-}
+{}

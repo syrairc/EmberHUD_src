@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using Aember;
@@ -87,12 +88,12 @@ public sealed class RenderTests
     [Test]
     public void TheWallsStyleDrawsTheOldWallLinesAndNoRegion()
     {
-        void WallsStyle(Main main) { main.Settings.View.DrawStyle.Value = "Walls"; main.Settings.View.OffsetY.Value = 0; }
+        void WallsStyle(Main main) { main.Settings.Map.DrawStyle.Value = "Walls"; main.Settings.General.OffsetY.Value = 0; }
         var perLine = 0;
         TestFrame.Run(() =>
         {
             var before = Draw.Background.VtxBuffer.Size;
-            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().View.WallThickness.Value);
+            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().Map.Walls.Thickness.Value);
             perLine = Draw.Background.VtxBuffer.Size - before;
         });
 
@@ -101,7 +102,7 @@ public sealed class RenderTests
 
     [Test]
     public void ADrawStyleItDoesNotKnowDrawsTheRegion() =>
-        Check.Equal(DrawnWithFill(OneCell()), DrawnWithFill(OneCell(), main => main.Settings.View.DrawStyle.Value = "region"));
+        Check.Equal(DrawnWithFill(OneCell()), DrawnWithFill(OneCell(), main => main.Settings.Map.DrawStyle.Value = "region"));
 
     static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
 
@@ -195,7 +196,7 @@ public sealed class RenderTests
 
     [Test]
     public void AMapHiddenAfterItWasPublishedDrawsNothing() =>
-        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: main => main.Settings.View.Show.Value = false));
+        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: main => main.Settings.General.Show.Value = false));
 
     [Test]
     public void AMapWithoutAViewDrawsNothing() =>
@@ -224,12 +225,12 @@ public sealed class RenderTests
     [Test]
     public void AHiddenKindDrawsLessThanAShownOne()
     {
-        var scene = Scene.State(player: Facing(Vector2.UnitX), entities: [Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0))]);
+        var scene = Scene.State(player: Facing(Vector2.UnitX), entities: [Scene.Entity(EntityKind.Monster, new Vector3(18, 12, 0), Rarity.Rare)]);
 
         var withMarker = Drawn(scene);
-        var without = Drawn(scene, configure: main => main.Settings.Markers.Portal.Show.Value = false);
+        var without = Drawn(scene, configure: main => main.Settings.Icons.RareMonsters.Show = false);
 
-        Check.That(withMarker > without, "the portal marker adds vertices");
+        Check.That(withMarker > without, "the rare marker adds vertices");
     }
 
     [Test]
@@ -251,7 +252,7 @@ public sealed class RenderTests
     [Test]
     public void TheArrowTurnsWithTheMapRotation()
     {
-        var tip = FarthestFromPlayer(new Vector2(0, -1), main => main.Settings.View.Rotation.Value = 90);
+        var tip = FarthestFromPlayer(new Vector2(0, -1), main => main.Settings.General.Rotation.Value = 90);
 
         Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward -Y turns right with a 90 degree map rotation");
     }
@@ -288,7 +289,7 @@ public sealed class RenderTests
     public void TheArrowFollowsTheVerticalScaleToo()
     {
         var plain = FarthestFromPlayer(new Vector2(1, 1));
-        var squashed = FarthestFromPlayer(new Vector2(1, 1), main => main.Settings.View.VerticalScale.Value = 0.3f);
+        var squashed = FarthestFromPlayer(new Vector2(1, 1), main => main.Settings.General.VerticalScale.Value = 0.3f);
 
         Check.That(MathF.Abs(squashed.Y) / MathF.Abs(squashed.X) < MathF.Abs(plain.Y) / MathF.Abs(plain.X), "arrow flattens with the map");
     }
@@ -331,7 +332,7 @@ public sealed class RenderTests
     [Test]
     public void TurningGameIconsOffDrawsTheMarkerEvenWhenTheTextureIsReady()
     {
-        var off = DrawnWith(_ => Ready, IconScene(Portal), main => main.Settings.View.UseGameIcons.Value = false);
+        var off = DrawnWith(_ => Ready, IconScene(Portal), main => main.Settings.Icons.UseGameIcons.Value = false);
 
         Check.Equal(DrawnWith(_ => null, IconScene(Portal)), off);
     }
@@ -437,29 +438,27 @@ public sealed class RenderTests
     [Test]
     public void AnEntityWithAnSvgIconAsksForItWithItsStyleAndDrawsOneQuad()
     {
-        var asked = new List<(string Icon, int Pixels, Color Colour, Color Accent)>();
+        var asked = new List<(string Icon, int Pixels, Color Colour)>();
         var terrain = Scene.Cells(3, 3, false, (1, 1));
-        var portal = Scene.Entity(EntityKind.Portal, new Vector3(15, 15, 0));
+        var rare = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
         var walls = Drawn(Scene.State(terrain: terrain));
-        TestGame.UseSvgIcons((icon, pixels, colour, accent) =>
+        TestGame.UseSvgIcons((icon, pixels, colour, _) =>
         {
-            asked.Add((icon, pixels, colour, accent));
+            asked.Add((icon, pixels, colour));
             return Ready;
         });
         try
         {
-            var drawn = Drawn(Scene.State(entities: [portal], terrain: terrain), configure: main =>
+            var drawn = Drawn(Scene.State(entities: [rare], terrain: terrain), configure: main =>
             {
-                main.Settings.Markers.Portal.Radius.Value = 6;
-                main.Settings.Markers.Portal.Colour.Value = Color.DeepSkyBlue;
-                main.Settings.Markers.Portal.Accent.Value = Color.White;
+                main.Settings.Icons.RareMonsters.Scale = 1.5f;
+                main.Settings.Icons.RareMonsters.Colour = Color.DeepSkyBlue;
             });
 
             Check.Equal(walls + 4, drawn);
-            Check.Equal("svg:portal", asked[^1].Icon);
+            Check.Equal("svg:elite", asked[^1].Icon);
             Check.Equal(12, asked[^1].Pixels);
             Check.Equal(Color.DeepSkyBlue.ToArgb(), asked[^1].Colour.ToArgb());
-            Check.Equal(Color.White.ToArgb(), asked[^1].Accent.ToArgb());
         }
         finally
         {
@@ -490,5 +489,133 @@ public sealed class RenderTests
         {
             TestGame.UseSvgIcons(null);
         }
+    }
+
+    static uint Packed(Color c) => (uint)(c.A << 24 | c.B << 16 | c.G << 8 | c.R);
+
+    static readonly Color FixedColour = Color.FromArgb(0xFF, 0x12, 0x34, 0x56);
+    static readonly Color FoundColour = Color.FromArgb(0xFF, 0x65, 0x43, 0x21);
+
+    static IconStyle FoundT(bool show = true, float scale = 1) => new() { Key = "T", Name = "T", Icon = "game:T", Colour = FoundColour, Scale = scale, Show = show };
+
+    static GameState LinkedScene(string texture = "T") =>
+        Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)), entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], icons: [Portal with { Texture = texture, EntityId = 1 }]);
+
+    static void FixedRare(Main main, bool overrideGameIcon = false)
+    {
+        var rare = main.Settings.Icons.RareMonsters;
+        rare.Icon = "marker:Square";
+        rare.Colour = FixedColour;
+        rare.OverrideGameIcon = overrideGameIcon;
+    }
+
+    static HashSet<uint> Colours(GameState state, Action<Main> configure)
+    {
+        var found = new HashSet<uint>();
+        TestGame.UseGameIcons(name => name == "T" ? Ready : null);
+        try
+        {
+            TestGame.Set(state);
+            Map.View = null;
+            var main = Scene.Plugin();
+            configure(main);
+            TestFrame.Run(() =>
+            {
+                main.Tick();
+                main.Tick();
+                var list = Draw.Background;
+                var first = list.VtxBuffer.Size;
+                main.Render();
+                for (var i = first; i < list.VtxBuffer.Size; i++) found.Add(list.VtxBuffer[i].Col);
+            });
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+        return found;
+    }
+
+    [Test]
+    public void AnEntityWithAGameIconDrawsOnlyTheGameIcon()
+    {
+        var colours = Colours(LinkedScene(), main =>
+        {
+            FixedRare(main);
+            main.Settings.Icons.Found.Add(FoundT());
+        });
+
+        Check.That(!colours.Contains(Packed(FixedColour)), "the fixed row is not drawn");
+        Check.That(colours.Contains(Packed(FoundColour)), "the game icon is drawn");
+    }
+
+    [Test]
+    public void OverrideGameIconDrawsTheFixedRowAndSkipsTheGameIcon()
+    {
+        var colours = Colours(LinkedScene(), main =>
+        {
+            FixedRare(main, overrideGameIcon: true);
+            main.Settings.Icons.Found.Add(FoundT());
+        });
+
+        Check.That(colours.Contains(Packed(FixedColour)), "the fixed row is drawn");
+        Check.That(!colours.Contains(Packed(FoundColour)), "the game icon is not drawn");
+    }
+
+    [Test]
+    public void AHiddenRowDrawsNothing()
+    {
+        var empty = Drawn(IconScene());
+
+        Check.That(DrawnWith(_ => Ready, IconScene(Portal with { Texture = "T" })) > empty, "a shown row draws");
+        Check.Equal(empty, DrawnWith(_ => Ready, IconScene(Portal with { Texture = "T" }), main => main.Settings.Icons.Found.Add(FoundT(show: false))));
+    }
+
+    [Test]
+    public void AnIconWithNoTextureStillDrawsTheFallbackShape()
+    {
+        var gold = Packed(Color.FromArgb(0xF9, 0xDD, 0x75));
+        var settings = default(Settings);
+
+        Check.That(Colours(IconScene(Portal with { Texture = "" }), main => settings = main.Settings).Contains(gold), "gold fallback drawn");
+        Check.Equal(0, settings!.Icons.Found.Count);
+    }
+
+    [Test]
+    public void GameIconSizeMultipliesBaseGameSizeGlobalScaleAndRowScale()
+    {
+        TestGame.UseGameIcons(name => name == "T" ? Ready : null);
+        try
+        {
+            TestGame.Set(IconScene(Portal with { Texture = "T", Size = 1 }));
+            Map.View = null;
+            var main = Scene.Plugin();
+            main.Settings.Icons.GameIconScale.Value = 2;
+            main.Settings.Icons.Found.Add(FoundT(scale: 1.5f));
+            TestFrame.Run(() =>
+            {
+                main.Tick();
+                main.Tick();
+                var list = Draw.Background;
+                main.Render();
+                var quad = Enumerable.Range(list.VtxBuffer.Size - 4, 4).Select(i => list.VtxBuffer[i].Pos).ToArray();
+                Check.Equal(72f, quad.Max(p => p.X) - quad.Min(p => p.X));
+                Check.Equal(72f, quad.Max(p => p.Y) - quad.Min(p => p.Y));
+            });
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Test]
+    public void FoundRowsAreRecordedWhileTicking()
+    {
+        TestGame.Set(IconScene(Portal with { Texture = "T" }));
+        var main = Scene.Plugin();
+        TestFrame.Run(() => main.Tick());
+
+        Check.That(main.Settings.Icons.FoundFor("T") is not null, "T discovered");
     }
 }

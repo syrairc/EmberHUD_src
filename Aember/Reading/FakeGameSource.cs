@@ -103,10 +103,10 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             .Where(e => e.Kind is EntityKind.Portal or EntityKind.Interactive || e.Rarity is Rarity.Rare or Rarity.Boss)
             .Select(e => e switch
             {
-                { Kind: EntityKind.Portal } => new MapIcon(10, "UI_MiniMap_Portal", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
-                { Kind: EntityKind.Interactive } => new MapIcon(2001, "UI_MiniMap_Entrepot", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
-                { Rarity: Rarity.Boss } => new MapIcon(2, "UI_MiniMap_BOSS", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
-                _ => new MapIcon(1040, "UI_Fight_IconBoss", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id),
+                { Kind: EntityKind.Portal } => new MapIcon(10, "UI_MiniMap_Portal", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id) { Name = "Portal" },
+                { Kind: EntityKind.Interactive } => new MapIcon(2001, "UI_MiniMap_Entrepot", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id) { Name = "Entrepot" },
+                { Rarity: Rarity.Boss } => new MapIcon(2, "UI_MiniMap_BOSS", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id) { Name = "Boss" },
+                _ => new MapIcon(1040, "UI_Fight_IconBoss", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id) { Name = "EliteBoss" },
             }),
     ];
 }

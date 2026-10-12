@@ -386,6 +386,55 @@ internal sealed class FakeWorld
         Memory.Write(ModuleBase + Offsets.MonsterCfgBucketCountRva, (uint)bucketCount);
     }
 
+    private bool _mapIconInfoMapped;
+    private readonly Dictionary<uint, long> _mapIconInfoRows = [];
+
+    public void SetMapIconInfoTable(int bucketCount, params (uint Type, string? Enum)[] rows)
+    {
+        if (!_mapIconInfoMapped)
+        {
+            Memory.Map(ModuleBase + Offsets.MapIconInfoBucketsRva, 8);
+            Memory.Map(ModuleBase + Offsets.MapIconInfoBucketCountRva, 4);
+            _mapIconInfoMapped = true;
+        }
+
+        var buckets = new long[bucketCount];
+        _mapIconInfoRows.Clear();
+        foreach (var (type, name) in rows)
+        {
+            var row = 0L;
+            if (name is not null)
+            {
+                row = Alloc(0x40);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(name);
+                var data = Alloc(Math.Max(8, bytes.Length));
+                Memory.WriteArray(data, bytes);
+                Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, data);
+                Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, (long)bytes.Length);
+                _mapIconInfoRows[type] = row;
+            }
+
+            var node = Alloc(0x20);
+            var bucket = (int)(type % bucketCount);
+            Memory.Write(node + Offsets.NodeKey, type);
+            Memory.Write(node + Offsets.NodeEntity, row);
+            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
+            buckets[bucket] = node;
+        }
+
+        var array = Alloc(Math.Max(8, bucketCount * 8));
+        Memory.WriteArray(array, buckets);
+        Memory.Write(ModuleBase + Offsets.MapIconInfoBucketsRva, array);
+        Memory.Write(ModuleBase + Offsets.MapIconInfoBucketCountRva, (uint)bucketCount);
+    }
+
+    public void SetMapIconInfoRaw(uint type, long data, long length)
+    {
+        var row = _mapIconInfoRows[type];
+        Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, data);
+        Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, length);
+    }
+
     public void BreakMonsterConfigTable() => Memory.Write(ModuleBase + Offsets.MonsterCfgBucketsRva, 0L);
 
     public void BreakPlayerMgr() => Memory.Write(ModuleBase + Offsets.PlayerMgrGlobalRva, 0L);

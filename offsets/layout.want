@@ -43,6 +43,12 @@ MonsterRecordCfgId = 0x120
 MonsterCfgBucketsRva = 0x76FEBD0
 MonsterCfgBucketCountRva = 0x76FEBDC
 MonsterCfgRarity = 0x1C
+MapIconInfoBucketsRva = 0x6E25AB0
+MapIconInfoBucketCountRva = 0x6E25ABC
+MapIconInfoEnum = 0x10
+ConfigStringData = 0
+ConfigStringLength = 8
+MaxIconNameLength = 64
 
 SceneGeometry = 96
 SceneGridModule = 176

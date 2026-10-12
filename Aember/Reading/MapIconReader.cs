@@ -3,11 +3,12 @@ using Aember.Host.Memory;
 
 namespace Aember.Host.Reading;
 
-internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMilliseconds = null)
+internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Func<long>? clockMilliseconds = null)
 {
     private static readonly HashSet<int> NoTaskTypes = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<int, string> _textures = [];
+    private readonly Dictionary<int, string> _names = [];
     private readonly Dictionary<nint, string> _textureNames = [];
     private HashSet<int>? _taskTypes;
     private nint _widget;
@@ -20,6 +21,7 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
         {
             _widget = widget;
             _textures.Clear();
+            _names.Clear();
             _textureNames.Clear();
             _taskTypes = null;
             _nextIconMapRead = 0;
@@ -33,9 +35,9 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
             return [];
 
         AddFollowIcons(widget, area, positions, findPosition, icons);
-        ResolveTextures(minimap, widget, icons);
+        ResolveTypes(minimap, widget, icons);
         for (var i = 0; i < icons.Count; i++)
-            icons[i] = icons[i] with { Texture = _textures.GetValueOrDefault(icons[i].Type, "") };
+            icons[i] = icons[i] with { Texture = _textures.GetValueOrDefault(icons[i].Type, ""), Name = _names.GetValueOrDefault(icons[i].Type, "") };
         return [.. icons];
     }
 
@@ -139,15 +141,42 @@ internal sealed class MapIconReader(IReadBackend memory, Func<long>? clockMillis
         return true;
     }
 
-    private void ResolveTextures(MinimapReader minimap, nint widget, List<MapIcon> icons)
+    private void ResolveTypes(MinimapReader minimap, nint widget, List<MapIcon> icons)
     {
-        if (icons.TrueForAll(icon => _textures.ContainsKey(icon.Type)))
+        var needNames = !icons.TrueForAll(icon => _names.ContainsKey(icon.Type));
+        var needTextures = !icons.TrueForAll(icon => _textures.ContainsKey(icon.Type));
+        if (!needNames && !needTextures)
             return;
         var now = _clock();
         if (now < _nextIconMapRead)
             return;
         _nextIconMapRead = now + Offsets.IconMapRereadMilliseconds;
 
+        if (needNames)
+            foreach (var type in icons.Select(icon => icon.Type).Distinct())
+                if (!_names.ContainsKey(type) && TryReadName(type, out var name))
+                    _names[type] = name;
+
+        if (needTextures)
+            ResolveTextures(minimap, widget, icons);
+    }
+
+    private bool TryReadName(int type, out string name)
+    {
+        name = "";
+        if (type <= 0 || !ConfigTable.TryFindRow(memory, moduleBase, Offsets.MapIconInfoBucketsRva, Offsets.MapIconInfoBucketCountRva, (uint)type, out var row) ||
+            !memory.TryReadPtr(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, out var data) ||
+            !memory.TryRead(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, out long length) ||
+            data == 0 || length <= 0 || length > Offsets.MaxIconNameLength ||
+            !memory.TryReadArray(data, (int)length, out byte[] bytes) ||
+            Array.Exists(bytes, b => b < 0x20 || b > 0x7E))
+            return false;
+        name = System.Text.Encoding.ASCII.GetString(bytes);
+        return true;
+    }
+
+    private void ResolveTextures(MinimapReader minimap, nint widget, List<MapIcon> icons)
+    {
         if (!memory.TryReadPtr(widget + Offsets.MinimapActiveIconMap, out var map) ||
             !memory.TryReadPtr(map, out var data) ||
             !memory.TryRead(map + Offsets.TMapNum, out int count) ||
