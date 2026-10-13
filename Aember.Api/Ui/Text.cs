@@ -13,14 +13,18 @@ public static class Text
         if (!string.IsNullOrEmpty(text) && ImGui.IsItemHovered()) ImGui.SetTooltip(EscPct(text));
     }
 
-    public static List<string> Wrap(string? text, float maxWidth, float scale)
+    public static List<string> Wrap(string? text, float maxWidth, float scale) => Wrap(text, maxWidth, s => ImGui.CalcTextSize(s).X * scale);
+
+    public static List<string> Wrap(string? text, float maxWidth, TextStyle style) => Wrap(text, maxWidth, s => Draw.MeasureText(s, style).X);
+
+    static List<string> Wrap(string? text, float maxWidth, Func<string, float> width)
     {
         var lines = new List<string>();
         var current = "";
         foreach (var word in (text ?? "").Split(' '))
         {
             var trial = current.Length == 0 ? word : current + " " + word;
-            if (current.Length > 0 && ImGui.CalcTextSize(trial).X * scale > maxWidth)
+            if (current.Length > 0 && width(trial) > maxWidth)
             {
                 lines.Add(current);
                 current = word;

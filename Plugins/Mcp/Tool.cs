@@ -16,6 +16,13 @@ internal sealed class Args(JsonObject? source)
 
     public string? OptStr(string name) => source?[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
+    public string[] Strings(string name, int min, int max)
+    {
+        if (source?[name] is not JsonArray array || array.Any(item => item is not JsonValue value || !value.TryGetValue<string>(out _)))
+            throw new ToolError($"{name} is required (array of strings)");
+        return array.Count >= min && array.Count <= max ? [.. array.Select(item => (string)item!)] : throw new ToolError($"{name} must have {min} to {max} entries");
+    }
+
     public int Int(string name, int fallback, int min, int max)
     {
         var node = source?[name];

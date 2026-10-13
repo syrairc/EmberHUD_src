@@ -84,9 +84,10 @@ internal sealed class FakeWorld
         return new FakeEntity(id, entity, map, value);
     }
 
-    public void WriteMap(int mapOffset, params (int Key, long Value)?[] slots)
+    public void WriteMap(int mapOffset, params (int Key, long Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);
+
+    public void WriteMapAt(long map, params (int Key, long Value)?[] slots)
     {
-        var map = FightMgr + mapOffset;
         var data = Alloc(Math.Max(Offsets.TMapElementStride, slots.Length * Offsets.TMapElementStride));
         var bits = new uint[Math.Max(4, (slots.Length + 31) / 32)];
         for (var i = 0; i < slots.Length; i++)

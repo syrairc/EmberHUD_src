@@ -1,0 +1,158 @@
+using System.Text;
+using Aember.Host.Memory;
+
+namespace Aember.Host.Reading;
+
+internal sealed class LocText(IReadBackend memory, nint moduleBase)
+{
+    private readonly Dictionary<string, string> _cache = [];
+    private byte _language = byte.MaxValue;
+
+    public string? Get(string key)
+    {
+        if (!memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language)) return null;
+        if (language != _language)
+        {
+            _cache.Clear();
+            _language = language;
+        }
+        if (_cache.TryGetValue(key, out var cached)) return cached;
+        if (!TryFind(language, key, out var text)) return null;
+        _cache[key] = text;
+        return text;
+    }
+
+    public ((string Key, string Text)[] Matches, bool Truncated) Find(string needle, int max)
+    {
+        List<(string, string)> found = [];
+        if (max <= 0 || !memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language) || !TryLanguageMap(language, out var map) ||
+            !memory.TryRead(map + Offsets.LocMapBucketCount, out uint count) || count == 0 || count > Offsets.MaxLocBuckets ||
+            !memory.TryReadPtr(map, out var bucketArray) || !memory.TryReadArray(bucketArray, (int)count, out nint[] buckets))
+            return ([], false);
+
+        HashSet<nint> seen = [];
+        foreach (var head in buckets)
+        {
+            var node = head;
+            for (var hops = 0; hops < Offsets.MaxChain && node != 0 && seen.Add(node); hops++)
+            {
+                if (seen.Count > Offsets.MaxLocScan) return ([.. found], true);
+                if (memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) && value != 0 &&
+                    TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out var text) && text.Contains(needle, StringComparison.OrdinalIgnoreCase) &&
+                    TryUtf8(node + Offsets.LocNodeKey, node + Offsets.LocNodeKeyLength, out var key))
+                {
+                    found.Add((key, text));
+                    if (found.Count >= max) return ([.. found], false);
+                }
+                if (!memory.TryReadPtr(node + Offsets.LocNodeNext, out node)) break;
+            }
+        }
+        return ([.. found], false);
+    }
+
+    private bool TryFind(byte language, string key, out string text)
+    {
+        text = "";
+        return TryLanguageMap(language, out var map) && TryLookup(map, Encoding.UTF8.GetBytes(key), out text);
+    }
+
+    private bool TryLanguageMap(byte language, out nint map)
+    {
+        map = 0;
+        if (!memory.TryRead(moduleBase + Offsets.LanguageBucketCountRva, out uint count) || count == 0 || count > Offsets.MaxBuckets ||
+            !memory.TryReadPtr(moduleBase + Offsets.LanguageBucketsRva, out var buckets) ||
+            !memory.TryReadPtr(buckets + (nint)(language % count) * nint.Size, out var node))
+            return false;
+
+        for (var hops = 0; hops < Offsets.MaxChain && node != 0; hops++)
+        {
+            if (!memory.TryRead(node, out byte found)) return false;
+            if (found == language)
+            {
+                map = node + Offsets.LanguageNodeMap;
+                return true;
+            }
+            if (!memory.TryReadPtr(node + Offsets.LanguageNodeNext, out node)) return false;
+        }
+        return false;
+    }
+
+    private bool TryLookup(nint map, byte[] key, out string text)
+    {
+        text = "";
+        var hash = Hash(key);
+        if (!memory.TryRead(map + Offsets.LocMapBucketCount, out uint count) || count == 0 || count > Offsets.MaxLocBuckets ||
+            !memory.TryReadPtr(map, out var buckets) ||
+            !memory.TryReadPtr(buckets + (nint)(hash % count) * nint.Size, out var node))
+            return false;
+
+        for (var hops = 0; hops < Offsets.MaxChain && node != 0; hops++)
+        {
+            if (memory.TryRead(node + Offsets.LocNodeHash, out ulong found) && found == hash && KeyMatches(node, key) &&
+                memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) && value != 0)
+                return TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out text);
+            if (!memory.TryReadPtr(node + Offsets.LocNodeNext, out node)) return false;
+        }
+        return false;
+    }
+
+    private bool KeyMatches(nint node, byte[] key)
+    {
+        if (!memory.TryRead(node + Offsets.LocNodeKeyLength, out int length) || length != key.Length ||
+            !memory.TryReadPtr(node + Offsets.LocNodeKey, out var at) || !memory.TryReadArray(at, length, out byte[] bytes))
+            return false;
+        return bytes.AsSpan().SequenceEqual(key);
+    }
+
+    internal bool TryUtf8(nint pointerAt, nint lengthAt, out string text)
+    {
+        text = "";
+        if (!memory.TryReadPtr(pointerAt, out var at) || at == 0 || !memory.TryRead(lengthAt, out int length) ||
+            length <= 0 || length > Offsets.MaxLocText || !memory.TryReadArray(at, length, out byte[] bytes))
+            return false;
+        text = Encoding.UTF8.GetString(bytes);
+        return true;
+    }
+
+    internal static uint Hash(ReadOnlySpan<byte> data)
+    {
+        var length = data.Length;
+        var hash = (uint)length;
+        var i = 0;
+        for (var n = length >> 2; n > 0; n--, i += 4)
+        {
+            hash += BitConverter.ToUInt16(data[i..]);
+            var tmp = ((uint)BitConverter.ToUInt16(data[(i + 2)..]) << 11) ^ hash;
+            hash = (hash << 16) ^ tmp;
+            hash += hash >> 11;
+        }
+
+        switch (length & 3)
+        {
+            case 3:
+                hash += BitConverter.ToUInt16(data[i..]);
+                hash ^= hash << 16;
+                hash ^= (uint)((sbyte)data[i + 2] << 18);
+                hash += hash >> 11;
+                break;
+            case 2:
+                hash += BitConverter.ToUInt16(data[i..]);
+                hash ^= hash << 11;
+                hash += hash >> 17;
+                break;
+            case 1:
+                hash += (uint)(sbyte)data[i];
+                hash ^= hash << 10;
+                hash += hash >> 1;
+                break;
+        }
+
+        hash ^= hash << 3;
+        hash += hash >> 5;
+        hash ^= hash << 4;
+        hash += hash >> 17;
+        hash ^= hash << 25;
+        hash += hash >> 6;
+        return hash;
+    }
+}

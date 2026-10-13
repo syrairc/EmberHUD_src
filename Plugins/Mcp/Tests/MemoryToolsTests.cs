@@ -1,5 +1,7 @@
 using System.Linq;
+using System.Numerics;
 using System.Text.Json.Nodes;
+using Aember;
 using Aember.Testing;
 
 namespace Mcp;
@@ -147,5 +149,73 @@ public sealed class MemoryToolsTests
         Check.Equal("0x10,0x48", string.Join(',', exact["offsets"]!.AsArray().Select(offset => (string?)offset)));
         var near = Wire.Run(Tools, "find_pointer_offset", new JsonObject { ["base"] = Hex.Of(at), ["target"] = Hex.Of(target), ["range"] = 0x100, ["within"] = 8 });
         Check.Equal("0x10,0x40,0x48", string.Join(',', near["offsets"]!.AsArray().Select(offset => (string?)offset)));
+    }
+
+    static readonly SceneEntity[] Listed =
+    [
+        new(1, 48, new Vector3(30, 0, 0), true, EntityKind.Monster, "") { Address = 0x1000 },
+        new(2, 77, new Vector3(10, 0, 5), false, null, "EMapGodOfWar") { Address = 0x2000 },
+        new(3, 66, null, true, null, ""),
+        new(4, 48, new Vector3(20, 0, 0), true, EntityKind.Monster, ""),
+    ];
+
+    static JsonObject ListScene(JsonObject? args = null, Player? player = null)
+    {
+        TestGame.Set(new GameState("playing", 12, player, [], null));
+        TestGame.UseScene(() => Listed);
+        try
+        {
+            return Wire.Run(Tools, "scene_entities", args);
+        }
+        finally
+        {
+            TestGame.UseScene(null);
+        }
+    }
+
+    static string Ids(JsonObject result) => string.Join(',', result["entities"]!.AsArray().Select(row => (int)row!["id"]!));
+
+    [Test]
+    public void SceneEntitiesListsNearestFirstWithEveryField()
+    {
+        var result = ListScene(player: new Player(Vector3.Zero, Vector2.UnitX));
+        Check.Equal(4, (int)result["total"]!);
+        Check.Equal(4, (int)result["returned"]!);
+        Check.Equal("2,4,1,3", Ids(result));
+        var statue = result["entities"]![0]!;
+        Check.Equal(77, (int)statue["cfgId"]!);
+        Check.Equal("EMapGodOfWar", (string?)statue["class"]);
+        Check.That(statue["kind"] is null, "unkinded is null");
+        Check.Equal(false, (bool)statue["alive"]!);
+        Check.Equal(5d, (double)statue["z"]!);
+        Check.Equal(10d, (double)statue["distance"]!);
+        Check.Equal("0x2000", (string?)statue["address"]);
+        Check.Equal("Monster", (string?)result["entities"]![1]!["kind"]);
+        var loose = result["entities"]![3]!;
+        Check.That(loose["x"] is null && loose["distance"] is null, "no position");
+    }
+
+    [Test]
+    public void SceneEntitiesFiltersAndLimits()
+    {
+        var player = new Player(Vector3.Zero, Vector2.UnitX);
+        Check.Equal("4,1", Ids(ListScene(new JsonObject { ["cfgId"] = 48 }, player)));
+        Check.Equal("2", Ids(ListScene(new JsonObject { ["class"] = "godof" }, player)));
+        Check.Equal("2,4", Ids(ListScene(new JsonObject { ["radius"] = 25 }, player)));
+        var limited = ListScene(new JsonObject { ["limit"] = 1 }, player);
+        Check.Equal(4, (int)limited["total"]!);
+        Check.Equal(1, (int)limited["returned"]!);
+        Check.Equal("1,2,3,4", Ids(ListScene()));
+        Check.That(Wire.Fails(Tools, "scene_entities", new JsonObject { ["limit"] = 0 }).Contains("between"), "limit range");
+    }
+
+    [Test]
+    public void SceneEntitiesWithoutAGameIsEmpty()
+    {
+        TestGame.UseScene(null);
+        TestGame.Set(GameState.Empty);
+        var result = Wire.Run(Tools, "scene_entities", new JsonObject { ["radius"] = 10 });
+        Check.Equal(0, (int)result["total"]!);
+        Check.Equal(0, result["entities"]!.AsArray().Count);
     }
 }

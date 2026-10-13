@@ -6,7 +6,7 @@ namespace Aember.Host.Reading;
 
 internal delegate bool TryName(uint index, out string name);
 
-internal sealed class GameUiReader(IReadBackend memory, nint moduleBase, TryName name, Func<long>? clockMilliseconds = null)
+internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, TryName name, Func<long>? clockMilliseconds = null)
 {
     private readonly record struct PanelSpec(PanelKind Kind, string RectChild, bool FullScreen);
 
@@ -22,6 +22,7 @@ internal sealed class GameUiReader(IReadBackend memory, nint moduleBase, TryName
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<nint, (nint Child, long RetryAt)> _rectChildren = [];
     private readonly ConcurrentDictionary<(nint Page, string Name), nint> _found = [];
+    private readonly Dictionary<string, nint> _hudChildren = [];
 
     public GameUi Read()
     {
@@ -29,6 +30,7 @@ internal sealed class GameUiReader(IReadBackend memory, nint moduleBase, TryName
         {
             _rectChildren.Clear();
             _found.Clear();
+            _hudChildren.Clear();
             return GameUi.Empty;
         }
 
@@ -74,6 +76,65 @@ internal sealed class GameUiReader(IReadBackend memory, nint moduleBase, TryName
         _found[key] = child;
         return Visible(child) ? rect : null;
     }
+
+    internal void ForgetHud() => _hudChildren.Clear();
+
+    internal string? HudText(string childName, int textOffset) =>
+        HudChild(childName) is var widget && widget != 0 && TryText(widget + textOffset, out var text) ? text : null;
+
+    internal string[] HudTexts(string panelName, int textOffset)
+    {
+        var panel = HudChild(panelName);
+        if (panel == 0) return [];
+        List<string> texts = [];
+        foreach (var item in PanelContents(panel, Offsets.MaxWidgetNodes))
+            if (Visible(item) && TryText(item + textOffset, out var text) && text.Length > 0)
+                texts.Add(text);
+        return [.. texts];
+    }
+
+    private nint HudChild(string childName)
+    {
+        if (_hudChildren.TryGetValue(childName, out var cached) && NameIs(cached, childName)) return cached;
+        _hudChildren.Remove(childName);
+        if (!TryHud(out var hud)) return 0;
+        var found = FindChild(hud, childName);
+        if (found != 0) _hudChildren[childName] = found;
+        return found;
+    }
+
+    private bool TryHud(out nint hud)
+    {
+        hud = 0;
+        if (!TryOverlay(out var overlay, out _)) return false;
+        foreach (var root in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
+        {
+            if (!TryUserWidget(root, out var page) || !TryClassName(page, out var pageClass)) continue;
+            if (pageClass == Offsets.PageHostClassName && (!TryHostedPage(page, out page) || !TryClassName(page, out pageClass))) continue;
+            if (pageClass != Offsets.HudPageClassName) continue;
+            hud = page;
+            return true;
+        }
+        return false;
+    }
+
+    private bool NameIs(nint widget, string childName) =>
+        memory.TryRead(widget + Offsets.UObjectName, out uint index) && name(index, out var found) && found == childName;
+
+    private bool TryText(nint fText, out string text)
+    {
+        text = "";
+        if (!memory.TryReadPtr(fText, out var data) || data == 0 ||
+            !memory.TryReadPtr(data + Offsets.TextDataString, out var chars) || chars == 0 ||
+            !memory.TryRead(data + Offsets.TextDataString + Offsets.FStringNum, out int count) || count <= 0 || count > Offsets.MaxFStringChars ||
+            !memory.TryReadArray(chars, count * 2, out byte[] bytes))
+            return false;
+        text = Markup().Replace(System.Text.Encoding.Unicode.GetString(bytes).TrimEnd('\0'), "");
+        return true;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("<[^>]*>")]
+    private static partial System.Text.RegularExpressions.Regex Markup();
 
     private (Vector2 Min, Vector2 Max)? RectOf(nint page, string rectChild, Vector2 origin)
     {

@@ -510,4 +510,45 @@ public class LogicWorldReaderTests
         Assert.Equal(new System.Numerics.Vector3(-625.5f, -24197, 5000), at);
         Assert.False(reader.TryReadEntityPosition((nint)world.Scene, 76, out _));
     }
+
+    private static SceneEntity[] ListScene(FakeWorld world) =>
+        ReaderFor(world).ListScene((nint)world.Scene, new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase)).TryReadName);
+
+    [Fact]
+    public void ListSceneListsEveryEntityWithKindAndClassWhenItHasThem()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(1, 48, true, 1, 2, 3, monsterCfgId: 1180001);
+        var loose = world.AddEntity(2, 66, false, 0, 0, 0, hasPosition: false, mapOffset: FakeWorld.Unregistered);
+        var statue = world.AddEntity(3, 77, false, 3, 3, 0, mapOffset: Offsets.FightMapGamePlay);
+        var altar = world.AddEntity(4, (uint)Offsets.SeasonAltarCfg, true, 4, 4, 9000, mapOffset: Offsets.FightMapGamePlay);
+        var coffin = world.AddEntity(5, (uint)Offsets.VigilCoffinCfg, true, 5, 5, 0, mapOffset: FakeWorld.Unregistered);
+        world.Memory.Write(statue.Value + Offsets.UObjectClass, world.AddClass("EMapGodOfWar"));
+        world.PublishEntities(monster, loose, statue, altar, coffin);
+
+        var listed = ListScene(world).ToDictionary(e => e.Id);
+
+        Assert.Equal(5, listed.Count);
+        Assert.Equal(new SceneEntity(1, 1180001, new Vector3(1, 2, 3), true, EntityKind.Monster, "") { Address = (nint)monster.Address }, listed[1]);
+        Assert.Equal(new SceneEntity(2, 66, null, false, null, "") { Address = (nint)loose.Address }, listed[2]);
+        Assert.Equal(new SceneEntity(3, 77, new Vector3(3, 3, 0), false, null, "EMapGodOfWar") { Address = (nint)statue.Address }, listed[3]);
+        Assert.Equal((EntityKind.Altar, new Vector3(4, 4, 9000)), (listed[4].Kind, listed[4].Position!.Value));
+        Assert.Equal(EntityKind.Coffin, listed[5].Kind);
+    }
+
+    [Fact]
+    public void ListSceneKeepsTheLocalPlayer()
+    {
+        var world = WorldWithPlayerAndMonster();
+        world.SetLocalPlayer(10);
+        Assert.Equal(EntityKind.Player, ListScene(world).Single(e => e.Id == 10).Kind);
+    }
+
+    [Fact]
+    public void ListSceneOfATornHashMapIsEmpty()
+    {
+        var world = WorldWithPlayerAndMonster();
+        world.Memory.Write(world.Nodes[0] + Offsets.NodeNext, 0x7777_0000_0000L);
+        Assert.Empty(ListScene(world));
+    }
 }

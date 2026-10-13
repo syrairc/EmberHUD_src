@@ -17,6 +17,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float UiCycleSeconds = 10f;
     private const float InventoryOpenSeconds = 4f;
     private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
+    private const float VigilCycleSeconds = 30f;
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
@@ -40,6 +41,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now),
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
             Ui = UiAt(now),
+            Map = MapAt(now),
         };
         failure = null;
         return true;
@@ -47,6 +49,15 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     internal static GameUi UiAt(long now) =>
         now / (double)Stopwatch.Frequency % UiCycleSeconds < InventoryOpenSeconds ? InventoryOpen : GameUi.Empty;
+
+    internal static MapInfo MapAt(long now)
+    {
+        var seconds = now / (double)Stopwatch.Frequency;
+        var vigil = (seconds % VigilCycleSeconds) switch { < 10 => ContentState.Pending, < 20 => ContentState.Active, _ => ContentState.Done };
+        return new MapInfo("Rainforest of Divine Legacy", 78, Math.Max(0, 272 - (int)(seconds % 60 * 4)), "1%", false,
+            [new MapContent("Vigil", "svg:quest", vigil), new MapContent("The Devil", "svg:gem", ContentState.Active, 1, 2), new MapContent("The Hermit", "svg:gem", ContentState.Pending)],
+            ["+15% additional Drop Quantity", "1 additional Rare monsters"]);
+    }
 
     internal ExploredTrail Sample(int areaId, Vector2 at, long now)
     {

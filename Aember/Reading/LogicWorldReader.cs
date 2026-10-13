@@ -29,16 +29,53 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 
     public (Vector3? PlayerPosition, Entity[] Entities) ReadWorld(nint scene)
     {
-        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
-            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
-            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
-            !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
-            return (null, []);
-
         var kinds = ReadKinds();
         var localPlayerId = TryReadLocalPlayerId(out var id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
         Vector3? playerPosition = null;
         var entities = new List<Entity>();
+        var whole = TryWalkScene(scene, (entityId, entity) =>
+        {
+            if (entityId == localPlayerId)
+                playerPosition = TryReadPosition(entity, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
+            else if (kinds.TryGetValue(entityId, out var kind) && TryReadEntity(entity, entityId, kind.Kind, kind.Value, out var result))
+                entities.Add(result);
+            else if (!kinds.ContainsKey(entityId) && memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) && cfgId == Offsets.VigilCoffinCfg &&
+                     TryReadEntity(entity, entityId, EntityKind.Coffin, 0, out var coffin))
+                entities.Add(coffin);
+        });
+
+        return (playerPosition, whole ? [.. entities] : []);
+    }
+
+    public SceneEntity[] ListScene(nint scene, TryName tryName)
+    {
+        var kinds = ReadKinds();
+        var listed = new List<SceneEntity>();
+        var whole = TryWalkScene(scene, (id, entity) =>
+        {
+            if (entity == 0 || !memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId)) return;
+            var mapped = kinds.TryGetValue(id, out var kind);
+            EntityKind? listedKind = (mapped, kind.Kind) switch
+            {
+                (false, _) => cfgId == Offsets.VigilCoffinCfg ? EntityKind.Coffin : null,
+                (true, EntityKind.Altar) when cfgId != Offsets.SeasonAltarCfg => null,
+                _ => kind.Kind,
+            };
+            if (listedKind == EntityKind.Monster && TryReadMonsterCfgId(kind.Value, out var monsterCfgId)) cfgId = monsterCfgId;
+            listed.Add(new SceneEntity(id, (int)cfgId, TryReadPosition(entity, out var position) ? position : null,
+                memory.TryRead(entity + Offsets.EntityAlive, out byte alive) && alive != 0, listedKind, mapped ? ClassName(kind.Value, tryName) : "") { Address = entity });
+        });
+        return whole ? [.. listed] : [];
+    }
+
+    private bool TryWalkScene(nint scene, Action<int, nint> visit)
+    {
+        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
+            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
+            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
+            !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
+            return false;
+
         var nodeCount = 0;
         foreach (var head in buckets)
         {
@@ -49,21 +86,23 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
                     !memory.TryRead(node + Offsets.NodeKey, out uint key) ||
                     !memory.TryRead(node + Offsets.NodeEntity, out nint entity) ||
                     !memory.TryRead(node + Offsets.NodeNext, out nint next))
-                    return (playerPosition, []);
+                    return false;
 
-                var entityId = unchecked((int)key);
-                if (entityId == localPlayerId)
-                    playerPosition = TryReadPosition(entity, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
-                else if (kinds.TryGetValue(entityId, out var kind) && TryReadEntity(entity, entityId, kind.Kind, kind.Value, out var result))
-                    entities.Add(result);
-                else if (!kinds.ContainsKey(entityId) && memory.TryRead(entity + Offsets.EntityCfgId, out uint cfgId) && cfgId == Offsets.VigilCoffinCfg &&
-                         TryReadEntity(entity, entityId, EntityKind.Coffin, 0, out var coffin))
-                    entities.Add(coffin);
+                visit(unchecked((int)key), entity);
                 node = next;
             }
         }
 
-        return (playerPosition, [.. entities]);
+        return true;
+    }
+
+    private string ClassName(nint obj, TryName tryName) =>
+        memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && memory.TryRead(cls + Offsets.UObjectName, out uint index) && tryName(index, out var name) ? name : "";
+
+    private bool TryReadMonsterCfgId(nint value, out uint cfgId)
+    {
+        cfgId = 0;
+        return memory.TryReadPtr(value + Offsets.MonsterRecord, out var record) && memory.TryRead(record + Offsets.MonsterRecordCfgId, out cfgId) && cfgId != 0;
     }
 
     public bool TryReadEntityPosition(nint scene, int id, out Vector3 position)
@@ -158,9 +197,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             return false;
 
         var rarity = Rarity.Normal;
-        if (kind == EntityKind.Monster &&
-            memory.TryReadPtr(value + Offsets.MonsterRecord, out var record) &&
-            memory.TryRead(record + Offsets.MonsterRecordCfgId, out uint monsterCfgId) && monsterCfgId != 0)
+        if (kind == EntityKind.Monster && TryReadMonsterCfgId(value, out var monsterCfgId))
         {
             cfgId = monsterCfgId;
             rarity = _rarity.Read(monsterCfgId, entity);

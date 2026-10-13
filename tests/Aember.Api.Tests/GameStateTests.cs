@@ -55,4 +55,14 @@ public class GameStateTests
         Assert.Equal((nint)0x1000, (entity with { Address = 0x1000 }).Address);
         Assert.Equal(90, (GameState.Empty with { Camera = new Camera(Vector3.Zero, Vector3.Zero, 90) }).Camera?.Fov);
     }
+
+    [Fact]
+    public void MapStartsNullAndSurvivesWith()
+    {
+        Assert.Null(GameState.Empty.Map);
+        var map = new MapInfo("Rainforest", 78, 272, "1%", false, [new MapContent("Vigil", "svg:quest", ContentState.Active)], ["+15% Drop Quantity"]);
+        var state = GameState.Empty with { Map = map };
+        Assert.Same(map, (state with { Status = "x" }).Map);
+        Assert.Equal(ContentState.Active, state.Map!.Content[0].State);
+    }
 }

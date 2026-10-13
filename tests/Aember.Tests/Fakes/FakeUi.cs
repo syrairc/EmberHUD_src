@@ -103,6 +103,16 @@ internal sealed class FakeUi
         _world.Memory.Write(userWidget + Offsets.UserWidgetTree, tree);
     }
 
+    public void Text(long widget, int offset, string text)
+    {
+        var chars = _world.Alloc((text.Length + 1) * 2);
+        _world.Memory.WriteArray(chars, System.Text.Encoding.Unicode.GetBytes(text + "\0"));
+        var data = _world.Alloc(0x40);
+        _world.Memory.Write(data + Offsets.TextDataString, chars);
+        _world.Memory.Write(data + Offsets.TextDataString + Offsets.FStringNum, text.Length + 1);
+        _world.Memory.Write(widget + offset, data);
+    }
+
     private long SubClass(string name, long super)
     {
         var cls = _world.AddClass(name);

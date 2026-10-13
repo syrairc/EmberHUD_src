@@ -77,6 +77,24 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetStateShowsTheMap()
+    {
+        TestGame.Set(GameState.Empty with { Map = new Aember.MapInfo("Rainforest", 78, 272, null, false, [new MapContent("Vigil", "svg:quest", ContentState.Done), new MapContent("The Devil", "game:x", ContentState.Active, 1, 2)], ["+15% Drop Quantity"]) });
+        var map = Wire.Run(Tools, "get_state")["map"]!;
+        Check.Equal("Rainforest", (string?)map["name"]);
+        Check.Equal(78, (int)map["monsterLevel"]!);
+        Check.Equal(272, (int)map["remaining"]!);
+        Check.That(map["xpGain"] is null, "unknown XP is null");
+        Check.Equal("Done", (string?)map["content"]![0]!["state"]);
+        Check.Equal(1, (int)map["content"]![0]!["total"]!);
+        Check.Equal(1, (int)map["content"]![1]!["done"]!);
+        Check.Equal(2, (int)map["content"]![1]!["total"]!);
+        Check.Equal("+15% Drop Quantity", (string?)map["modifiers"]![0]);
+        TestGame.Set(GameState.Empty);
+        Check.That(Wire.Run(Tools, "get_state")["map"] is null, "no map, no key");
+    }
+
+    [Test]
     public void AnEmptyGameStillAnswers()
     {
         TestGame.Set(GameState.Empty);

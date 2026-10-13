@@ -16,7 +16,11 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
+    private MapInfoReader? _mapInfo;
+
     private GameUiReader UiReader => _uiReader ??= new(memory, moduleBase, _minimap.TryReadName);
+
+    private MapInfoReader MapInfoReader => _mapInfo ??= new(memory, moduleBase, new LocText(memory, moduleBase), UiReader, _minimap.TryReadName);
 
     internal (Vector2 Min, Vector2 Max)? FindRect(nint page, string childName)
     {
@@ -64,6 +68,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             Explored = explored,
             Camera = _world.TryReadLocalPawn(out var pawn) ? _camera.Read(pawn) : null,
             Ui = UiReader.Read(),
+            Map = MapInfoReader.Read(scene, _terrain.Generation, entities.Count(e => e.Kind == EntityKind.Monster), icons),
         };
         return true;
     }

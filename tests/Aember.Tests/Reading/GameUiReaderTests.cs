@@ -1,5 +1,6 @@
 using System.Numerics;
 using Aember.Host;
+using Aember.Host.Memory;
 using Aember.Host.Reading;
 
 namespace Aember.Tests;
@@ -362,5 +363,133 @@ public sealed class GameUiReaderTests
         ui.SetChildren(root, moved);
         world.Memory.Write(slotCount, 1);
         Assert.Equal(new Vector2(2500, 250), Assert.Single(reader.Read().Panels).Min);
+    }
+
+    static (FakeWorld World, FakeUi Ui, long Box, long DetailRoot) HudWithMapPanel(FakeWorld? into = null, bool hosted = false)
+    {
+        var world = into ?? new FakeWorld();
+        var ui = new FakeUi(world);
+        var hud = ui.Widget(ui.UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var hudRoot = ui.Widget(ui.PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
+        var detail = ui.Widget(ui.UserClass("FightMapDetailView_C"), "FightMapDetailView_C_1", Vector2.Zero, new Vector2(400, 300));
+        var detailRoot = ui.Widget(ui.PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(400, 300));
+        var xp = ui.Widget(ui.PanelClass("UIShrinkTextBlock"), Offsets.MapXpWidget, Vector2.Zero, new Vector2(200, 20));
+        var box = ui.Widget(ui.PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
+        var richClass = ui.UserClass("UIRichTextBlock");
+        var first = ui.Widget(richClass, "UIRichTextBlock_1", Vector2.Zero, new Vector2(400, 20));
+        var second = ui.Widget(richClass, "UIRichTextBlock_2", Vector2.Zero, new Vector2(400, 20));
+        var stale = ui.Widget(richClass, "UIRichTextBlock_3", Vector2.Zero, new Vector2(400, 20), visibility: 1);
+        ui.Text(xp, Offsets.ShrinkTextContent, "Map Base XP gain: 100%");
+        ui.Text(first, Offsets.TextBlockText, "<RichText Id=\"100004\">+60</>% <RichText Id=\"100007\" HyperLinkType=\"1\" EventId=\"509\">Drop Quantity</>");
+        ui.Text(second, Offsets.TextBlockText, "<RichText>-6% Max Elemental Resistance for you</>");
+        ui.Text(stale, Offsets.TextBlockText, "<RichText>There are Coffins awaiting escort in this stage</>");
+        ui.SetTree(hud, hudRoot);
+        ui.SetChildren(hudRoot, detail);
+        ui.SetTree(detail, detailRoot);
+        ui.SetChildren(detailRoot, xp, box);
+        ui.SetChildren(box, first, second, stale);
+        ui.AddRoot(hosted ? ui.Host(hud) : hud);
+        return (world, ui, box, detailRoot);
+    }
+
+    [Fact]
+    public void HudTextFindsTheHudInsideAPageHost()
+    {
+        var (world, _, _, _) = HudWithMapPanel(hosted: true);
+        var reader = Reader(world);
+        Assert.Equal("Map Base XP gain: 100%", reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+        Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void HudTextReadsANamedWidgetInsideANestedUserWidget()
+    {
+        var (world, _, _, _) = HudWithMapPanel();
+        Assert.Equal("Map Base XP gain: 100%", Reader(world).HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+    }
+
+    [Fact]
+    public void HudTextsListsVisibleItemsWithMarkupStripped()
+    {
+        var (world, _, _, _) = HudWithMapPanel();
+        Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], Reader(world).HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void NoHudGivesNothing()
+    {
+        var world = new FakeWorld();
+        _ = new FakeUi(world);
+        var reader = Reader(world);
+        Assert.Null(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+        Assert.Empty(reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void AMissingChildGivesNothing()
+    {
+        var (world, _, _, _) = HudWithMapPanel();
+        Assert.Null(Reader(world).HudText("Nope", Offsets.TextBlockText));
+        Assert.Empty(Reader(world).HudTexts("Nope", Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void ABadStringIsSkipped()
+    {
+        var (world, ui, box, _) = HudWithMapPanel();
+        var huge = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_9", Vector2.Zero, new Vector2(400, 20));
+        ui.Text(huge, Offsets.TextBlockText, "x");
+        world.Memory.TryReadPtr((nint)(huge + Offsets.TextBlockText), out var data);
+        world.Memory.Write(data + Offsets.TextDataString + Offsets.FStringNum, Offsets.MaxFStringChars + 1);
+        var empty = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_10", Vector2.Zero, new Vector2(400, 20));
+        ui.SetChildren(box, huge, empty);
+        Assert.Empty(Reader(world).HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void FoundChildrenAreCachedNotWalkedAgain()
+    {
+        var (world, _, _, _) = HudWithMapPanel();
+        var reader = Reader(world);
+        Assert.NotNull(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+        var first = world.Memory.Reads.Count;
+        Assert.NotNull(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+        var second = world.Memory.Reads.Count - first;
+        Assert.True(second < first / 2, $"cached lookup took {second} reads, the walk took {first}");
+    }
+
+    static long ReplaceAffixBox(FakeUi ui, long detailRoot, string line)
+    {
+        var box = ui.Widget(ui.PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
+        var item = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_1", Vector2.Zero, new Vector2(400, 20));
+        ui.Text(item, Offsets.TextBlockText, line);
+        ui.SetChildren(box, item);
+        ui.SetChildren(detailRoot, box);
+        return box;
+    }
+
+    [Fact]
+    public void ForgetHudWalksAgainForAReplacedWidget()
+    {
+        var (world, ui, _, detailRoot) = HudWithMapPanel();
+        var reader = Reader(world);
+        Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
+        ReplaceAffixBox(ui, detailRoot, "+20% Drop Quantity");
+        Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
+        reader.ForgetHud();
+        Assert.Equal(["+20% Drop Quantity"], reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Fact]
+    public void LosingTheOverlayForgetsTheHud()
+    {
+        var (world, _, _, _) = HudWithMapPanel();
+        var reader = Reader(world);
+        Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
+        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GEngineGlobalRva, 0L);
+        Assert.Empty(reader.Read().Panels);
+        var (_, ui, _, detailRoot) = HudWithMapPanel(world);
+        ReplaceAffixBox(ui, detailRoot, "+20% Drop Quantity");
+        Assert.Equal(["+20% Drop Quantity"], reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
     }
 }

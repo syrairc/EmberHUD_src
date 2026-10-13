@@ -28,8 +28,7 @@ public static class Draw
 
     public static Vector2 Text(string text, Vector2 pos, Ui.TextStyle style, Align align = Align.TopLeft, ImDrawListPtr? list = null)
     {
-        var faceSize = Fonts.Of(style.Face).Size;
-        var size = (faceSize > 0 ? faceSize : ImGui.GetFontSize()) * (style.Scale > 0 ? style.Scale : 1);
+        var size = SizeOf(style);
         var box = MeasureText(text, size, style.Face);
         var min = pos - AlignOffset(box, align);
         var pad = new Vector2(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
@@ -71,6 +70,23 @@ public static class Draw
     }
 
     public static Vector2 MeasureText(string text, float size = 0, FontFace face = FontFace.Regular) => Place(text, Vector2.Zero, Align.TopLeft, size, face).Measured;
+
+    static float SizeOf(Ui.TextStyle style)
+    {
+        var faceSize = Fonts.Of(style.Face).Size;
+        return (faceSize > 0 ? faceSize : ImGui.GetFontSize()) * (style.Scale > 0 ? style.Scale : 1);
+    }
+
+    public static Vector2 MeasureText(string text, Ui.TextStyle style) => MeasureText(text, SizeOf(style), style.Face);
+
+    public static void RectGradient(Vector2 min, Vector2 max, Color left, Color right, ImDrawListPtr? list = null) =>
+        (list ?? Background).AddRectFilledMultiColor(min, max, EColor.U32(left), EColor.U32(right), EColor.U32(right), EColor.U32(left));
+
+    public static void Bar(Vector2 min, Vector2 max, float fraction, Color fill, Color track, ImDrawListPtr? list = null)
+    {
+        RectFilled(min, max, track, 0, list);
+        RectFilled(min, new Vector2(min.X + (max.X - min.X) * (float.IsNaN(fraction) ? 0 : Math.Clamp(fraction, 0, 1)), max.Y), fill, 0, list);
+    }
 
     public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, ImDrawListPtr? list = null) => (list ?? Background).AddLine(a, b, EColor.U32(color), thickness);
 

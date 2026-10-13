@@ -9,6 +9,7 @@ internal static class Registry
         .. StateTools.Create(status),
         .. MemoryTools.Create(maxRead),
         .. UeTools.Create(),
+        .. LocTools.Create(),
         .. WatchTools.Create(watches),
         .. RecordTools.Create(recorder, recordings),
     ];

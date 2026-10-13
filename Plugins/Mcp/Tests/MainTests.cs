@@ -287,7 +287,7 @@ public sealed class MainTests
             request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
             request.Headers.Add("Mcp-Method", "tools/list");
             var tools = ((JsonObject)JsonNode.Parse(client.Send(request).Content.ReadAsStringAsync().GetAwaiter().GetResult())!)["result"]!["tools"]!.AsArray();
-            Check.Equal(21, tools.Count);
+            Check.Equal(24, tools.Count);
             var names = tools.Select(tool => (string)tool!["name"]!).ToArray();
             Check.Equal(names.Length, names.Distinct().Count());
             Check.That(names.All(name => System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z0-9_.-]{1,128}$")), "names are header and spec safe");

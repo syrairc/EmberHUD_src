@@ -33,6 +33,12 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void NonAsciiStringsSurviveTheSealedTable()
+    {
+        Assert.Equal("实体ID", Offsets.TarotEntityVar);
+    }
+
+    [Fact]
     public void EmbeddedTableDecryptsToEveryWantFileString()
     {
         var want = WantEntries().Where(entry => entry.Value.StartsWith('"')).ToDictionary(entry => entry.Key, entry => entry.Value.Trim('"'));

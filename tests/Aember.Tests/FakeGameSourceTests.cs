@@ -146,4 +146,30 @@ public class FakeGameSourceTests
         Assert.Same(GameUi.Empty, FakeGameSource.UiAt(6 * second));
         Assert.NotNull(FakeGameSource.UiAt(11 * second).Get(PanelKind.Inventory));
     }
+
+    [Fact]
+    public void FakeMapCyclesVigilAndCountsEnemiesDown()
+    {
+        var f = Stopwatch.Frequency;
+        var start = FakeGameSource.MapAt(0);
+        Assert.Equal("Rainforest of Divine Legacy", start.Name);
+        Assert.Equal(78, start.MonsterLevel);
+        Assert.Equal(272, start.Remaining);
+        Assert.False(start.IsTown);
+        Assert.Equal(ContentState.Pending, start.Content[0].State);
+        Assert.Equal(ContentState.Active, FakeGameSource.MapAt(12 * f).Content[0].State);
+        Assert.Equal(ContentState.Done, FakeGameSource.MapAt(25 * f).Content[0].State);
+        Assert.True(FakeGameSource.MapAt(10 * f).Remaining < 272);
+        Assert.Equal(2, start.Modifiers.Length);
+        Assert.Equal(["Vigil", "The Devil", "The Hermit"], start.Content.Select(c => c.Name).ToArray());
+        Assert.Equal((1, 2), (start.Content[1].Done, start.Content[1].Total));
+    }
+
+    [Fact]
+    public void TryReadPublishesTheFakeMap()
+    {
+        using var source = new FakeGameSource(() => 0);
+        Assert.True(source.TryRead(out var state, out _));
+        Assert.Equal("Rainforest of Divine Legacy", state.Map!.Name);
+    }
 }

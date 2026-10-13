@@ -347,4 +347,29 @@ public class LiveReaderTests
 
         Assert.Equal(75, state.Camera?.Fov);
     }
+
+    [Fact]
+    public void PublishesTheMapInfo()
+    {
+        var world = MapInfoReaderTests.Demiman();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.SetMapInfo(4602, 3, 82, 112);
+        world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
+        using var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Equal(82, state.Map!.MonsterLevel);
+        Assert.NotNull(state.Terrain);
+    }
+
+    [Fact]
+    public void ABrokenInfoBlockLeavesNoMapButEntitiesStillPublish()
+    {
+        var world = MapInfoReaderTests.Demiman();
+        world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
+        world.Memory.Write(world.Scene + Offsets.SceneGeometry, 0L);
+        using var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Null(state.Map);
+        Assert.Single(state.Entities);
+    }
 }

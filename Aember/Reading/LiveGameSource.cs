@@ -43,18 +43,59 @@ internal sealed class LiveGameSource : IGameSource
         _reader = new LiveReader(_game!.Backend, _game.ModuleBase, _lastAreaId);
         Aember.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         GameUi.Finder = _reader.FindRect;
+        UseLookups(_game.Backend, _game.ModuleBase);
         return true;
     }
 
     private void Detach()
     {
         GameUi.Finder = null;
+        UseLookups(null, 0);
         Aember.Memory.Use(null);
         _reader?.Dispose();
         _reader = null;
         _game?.Dispose();
         _game = null;
         _attachFailure = "game closed - waiting for it to start again";
+    }
+
+    internal static void UseLookups(IReadBackend? backend, nint moduleBase)
+    {
+        if (backend is null)
+        {
+            Loc.Getter = null;
+            Loc.Finder = null;
+            Scene.Lister = null;
+            return;
+        }
+
+        var loc = new LocText(backend, moduleBase);
+        var finder = new LocText(backend, moduleBase);
+        var locGate = new Lock();
+        var findGate = new Lock();
+        var sceneGate = new Lock();
+        Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
+        Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
+        Scene.Lister = () => Guarded(sceneGate, () =>
+        {
+            var world = new LogicWorldReader(backend, moduleBase);
+            return world.TryReadScene(out var scene, out _) ? world.ListScene(scene, new MinimapReader(backend, moduleBase).TryReadName) : [];
+        }, []);
+    }
+
+    private static T Guarded<T>(Lock gate, Func<T> read, T fallback)
+    {
+        lock (gate)
+        {
+            try
+            {
+                return read();
+            }
+            catch (ObjectDisposedException)
+            {
+                return fallback;
+            }
+        }
     }
 
     internal static MemorySource SourceFor(IReadBackend backend, nint moduleBase)

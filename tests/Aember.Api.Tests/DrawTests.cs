@@ -692,4 +692,52 @@ public sealed class DrawTests
             TestGame.UseSvgIcons(null);
         }
     }
+
+    [Fact]
+    public void MeasureTextWithAStyleMatchesWhatTextReturns()
+    {
+        var style = new TextStyle { Scale = 1.5f, Face = FontFace.Bold };
+        Vector2 measured = default, drawn = default;
+        TestFrame.Run(() =>
+        {
+            measured = Draw.MeasureText("Monster level 78", style);
+            drawn = Draw.Text("Monster level 78", new Vector2(10, 10), style, Align.TopLeft, Draw.Foreground);
+        });
+        Assert.Equal(drawn, measured);
+        Assert.True(measured.X > 0);
+    }
+
+    [Fact]
+    public void RectGradientAddsOneQuad()
+    {
+        var added = 0;
+        TestFrame.Run(() =>
+        {
+            var list = Draw.Foreground;
+            var before = list.VtxBuffer.Size;
+            Draw.RectGradient(new Vector2(0, 0), new Vector2(100, 2), Color.Gold, Color.Transparent, list);
+            added = list.VtxBuffer.Size - before;
+        });
+        Assert.Equal(4, added);
+    }
+
+    [Fact]
+    public void BarFillsFromTheLeftAndClampsTheFraction()
+    {
+        var widths = new List<float>();
+        TestFrame.Run(() =>
+        {
+            var list = Draw.Foreground;
+            foreach (var fraction in new[] { 0.5f, float.NaN, -1f, 2f })
+            {
+                var before = list.VtxBuffer.Size;
+                Draw.Bar(new Vector2(10, 0), new Vector2(110, 10), fraction, Color.Gold, Color.Black, list);
+                Assert.Equal(8, list.VtxBuffer.Size - before);
+                var fill = Enumerable.Range(before + 4, 4).Select(v => list.VtxBuffer[v].Pos.X).ToList();
+                Assert.Equal(10, fill.Min());
+                widths.Add(fill.Max() - fill.Min());
+            }
+        });
+        Assert.Equal([50f, 0f, 0f, 100f], widths);
+    }
 }

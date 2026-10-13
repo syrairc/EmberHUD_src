@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 using System.Text.Json;
@@ -1176,5 +1177,27 @@ public class TextStyleTests
         {
             UiFrame.ClickAway("stacks", Body);
         }
+    }
+
+    [Fact]
+    public void WrapWithAStyleBreaksAtTheStyledWidth()
+    {
+        List<string> small = [], big = [];
+        TestFrame.Run(() =>
+        {
+            var width = Draw.MeasureText("one two three", new TextStyle()).X + 1;
+            small = Text.Wrap("one two three four five six", width, new TextStyle());
+            big = Text.Wrap("one two three four five six", width, new TextStyle { Scale = 2f });
+        });
+        Assert.Equal(["one two three", "four five six"], small);
+        Assert.True(big.Count > small.Count);
+    }
+
+    [Fact]
+    public void WrapWithAStyleKeepsALongWordWhole()
+    {
+        List<string> lines = [];
+        TestFrame.Run(() => lines = Text.Wrap("Supercalifragilistic", 5, new TextStyle()));
+        Assert.Equal(["Supercalifragilistic"], lines);
     }
 }
