@@ -11,7 +11,6 @@ public sealed class GameUiReaderTests
     static string PanelClass => FirstPanel[0];
     static PanelKind PanelKindOf => Enum.Parse<PanelKind>(FirstPanel[1]);
     static string RectChild => FirstPanel[2];
-    static bool PanelFullScreen => FirstPanel[3] == "1";
 
     static GameUiReader Reader(FakeWorld world, Func<long>? clock = null)
     {
@@ -48,7 +47,7 @@ public sealed class GameUiReaderTests
 
         Assert.Equal(PanelClass, panel.Name);
         Assert.Equal(PanelKindOf, panel.Kind);
-        Assert.Equal(PanelFullScreen, panel.FullScreen);
+        Assert.False(panel.FullScreen);
         Assert.Equal((nint)page, panel.Address);
         Assert.Equal(new Vector2(2400, 200), panel.Min);
         Assert.Equal(new Vector2(3300, 1200), panel.Max);
@@ -65,7 +64,7 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
-    public void UnknownHostedPageIsOtherAndNotFullScreen()
+    public void UnknownHostedPageIsOther()
     {
         var world = new FakeWorld();
         var ui = new FakeUi(world);
@@ -75,6 +74,22 @@ public sealed class GameUiReaderTests
         var panel = Assert.Single(Reader(world).Read().Panels);
 
         Assert.Equal(new GamePanel("SomethingNew_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false) { Address = (nint)page }, panel);
+    }
+
+    [Fact]
+    public void PanelsAreFullScreenWhileTheGameHidesItsOwnMinimap()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddRoot(ui.Host(ui.Widget(ui.UserClass("SomethingNew_C"), "SomethingNew_C_1", Vector2.Zero, new Vector2(3440, 1440))));
+        var gameMinimap = ui.Widget(ui.UserClass(Offsets.GameMinimapPage), Offsets.GameMinimapPage + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        ui.AddRoot(ui.Host(gameMinimap));
+        var reader = Reader(world);
+
+        Assert.False(Assert.Single(reader.Read().Panels).FullScreen);
+
+        world.Memory.Write(gameMinimap + Offsets.UWidgetVisibility, (byte)1);
+        Assert.True(Assert.Single(reader.Read().Panels).FullScreen);
     }
 
     [Fact]

@@ -2,7 +2,7 @@ namespace Aember.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0x1D, 0x8E, 0xBE, 0xE9, 0x84, 0xF4, 0x19, 0x00, 0xDB, 0x08, 0x2A, 0x9D, 0x7F, 0x9A, 0x02, 0xB2, 0xDE, 0x52, 0x0A, 0x56, 0x7D, 0x6C, 0x89, 0xD9, 0x09, 0x8A, 0x98, 0x47, 0xE1, 0xF6, 0xB7, 0x73];
+    internal static ReadOnlySpan<byte> Seed => [0xC9, 0xC8, 0xA3, 0xDD, 0xD8, 0x17, 0x9D, 0xB5, 0xAA, 0x23, 0xAF, 0x4F, 0x54, 0x88, 0x9C, 0x3A, 0x46, 0x4B, 0x79, 0x9A, 0x7D, 0xF9, 0x96, 0x10, 0xC7, 0x51, 0x67, 0x18, 0xC6, 0x6F, 0x74, 0xD5];
     internal static int KnownExeSize => T[0];
     internal static int LogicWorldGlobalRva => T[1];
     internal static int WorldScene => T[2];
@@ -287,18 +287,19 @@ internal static partial class Offsets
     internal static string UserWidgetClassName => S[21];
     internal static string GamePanels => S[22];
     internal static string HudPages => S[23];
-    internal static string TradePageClassName => S[24];
-    internal static string TradeItemBox => S[25];
-    internal static string TradeGrid => S[26];
-    internal static string TradePageText => S[27];
-    internal static string TradeNextArrow => S[28];
-    internal static string TradeCellFilled => S[29];
-    internal static string TradeCellStatus => S[30];
-    internal static string TradeCellQuantity => S[31];
-    internal static string TradeCellPrice => S[32];
-    internal static string TradeCellName => S[33];
-    internal static string TradeCellStatusText => S[34];
-    internal static string TradePriceTexture => S[35];
-    internal static string UeClassClassName => S[36];
-    internal static string GlobalLabels => S[37];
+    internal static string GameMinimapPage => S[24];
+    internal static string TradePageClassName => S[25];
+    internal static string TradeItemBox => S[26];
+    internal static string TradeGrid => S[27];
+    internal static string TradePageText => S[28];
+    internal static string TradeNextArrow => S[29];
+    internal static string TradeCellFilled => S[30];
+    internal static string TradeCellStatus => S[31];
+    internal static string TradeCellQuantity => S[32];
+    internal static string TradeCellPrice => S[33];
+    internal static string TradeCellName => S[34];
+    internal static string TradeCellStatusText => S[35];
+    internal static string TradePriceTexture => S[36];
+    internal static string UeClassClassName => S[37];
+    internal static string GlobalLabels => S[38];
 }

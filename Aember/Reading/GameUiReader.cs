@@ -8,15 +8,15 @@ internal delegate bool TryName(uint index, out string name);
 
 internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, TryName name, Func<long>? clockMilliseconds = null)
 {
-    private readonly record struct PanelSpec(PanelKind Kind, string RectChild, bool FullScreen);
+    private readonly record struct PanelSpec(PanelKind Kind, string RectChild);
 
     private static readonly Dictionary<string, PanelSpec> Specs = Offsets.GamePanels
         .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(entry => entry.Split(',', StringSplitOptions.TrimEntries))
-        .ToDictionary(f => f[0], f => new PanelSpec(Enum.Parse<PanelKind>(f[1]), f[2], f[3] == "1"));
+        .ToDictionary(f => f[0], f => new PanelSpec(Enum.Parse<PanelKind>(f[1]), f[2]));
 
     private static readonly HashSet<string> Hud = [.. Offsets.HudPages.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
-    private static readonly PanelSpec Unknown = new(PanelKind.Other, "", false);
+    private static readonly PanelSpec Unknown = new(PanelKind.Other, "");
 
     private readonly ConcurrentDictionary<(nint Class, string Ancestor), bool> _isA = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
@@ -38,6 +38,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         nint tradePage = 0;
         List<GamePanel> panels = [];
         HashSet<nint> seen = [];
+        var gameMinimapHidden = false;
         foreach (var root in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
         {
             if (!TryUserWidget(root, out var widget) || !TryClassName(widget, out var className)) continue;
@@ -49,12 +50,13 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             }
             else if (!Specs.ContainsKey(pageClass) && pageClass != Offsets.TradePageClassName) continue;
 
+            if (pageClass == Offsets.GameMinimapPage) gameMinimapHidden = !Visible(page);
             if (seen.Contains(page) || Hud.Contains(pageClass) || !Visible(widget) || !Visible(page)) continue;
             if (pageClass == Offsets.TradePageClassName) tradePage = page;
             var spec = Specs.GetValueOrDefault(pageClass, Unknown);
             if (RectOf(page, spec.RectChild, origin) is not { } rect) continue;
             seen.Add(page);
-            panels.Add(new GamePanel(pageClass, spec.Kind, rect.Min, rect.Max, spec.FullScreen) { Address = page });
+            panels.Add(new GamePanel(pageClass, spec.Kind, rect.Min, rect.Max, false) { Address = page });
         }
 
         if (tradePage != 0)
@@ -67,7 +69,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _rectChildren.Remove(gone);
         foreach (var gone in _found.Keys.Where(key => !seen.Contains(key.Page)))
             _found.TryRemove(gone, out _);
-        return panels.Count == 0 ? GameUi.Empty : new GameUi([.. panels]);
+        return panels.Count == 0 ? GameUi.Empty : new GameUi([.. panels.Select(p => p with { FullScreen = gameMinimapHidden })]);
     }
 
     public (Vector2 Min, Vector2 Max)? FindRect(nint page, string childName)
