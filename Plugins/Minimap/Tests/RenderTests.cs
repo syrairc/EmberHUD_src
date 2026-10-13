@@ -4,8 +4,8 @@ using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace Minimap;
 

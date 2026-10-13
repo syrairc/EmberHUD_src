@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace MapInfoPlugin;
 

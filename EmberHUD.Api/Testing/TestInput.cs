@@ -1,0 +1,13 @@
+namespace EmberHUD.Testing;
+
+public static class TestInput
+{
+    public static void Hold(params Key[] keys)
+    {
+        var held = keys.Select(key => (int)key).ToHashSet();
+        Input.KeyDown = held.Contains;
+        Input.NewFrame(false);
+    }
+
+    public static void Dispatch(Plugin plugin) => plugin.DispatchHotkeys();
+}

@@ -7,7 +7,7 @@ internal static class OffsetEmitter
     public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string>? stringNames = null)
     {
         var source = new StringBuilder();
-        source.AppendLine("namespace Aember.Host;");
+        source.AppendLine("namespace EmberHUD.Host;");
         source.AppendLine();
         source.AppendLine("internal static partial class Offsets");
         source.AppendLine("{");

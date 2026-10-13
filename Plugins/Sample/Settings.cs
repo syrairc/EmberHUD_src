@@ -1,6 +1,6 @@
 using System.Drawing;
-using Aember;
-using Aember.Ui;
+using EmberHUD;
+using EmberHUD.Ui;
 
 namespace Sample;
 

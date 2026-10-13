@@ -1,8 +1,8 @@
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace Mcp;
 
@@ -93,7 +93,7 @@ public sealed class StateToolsTests
     [Test]
     public void GetStateShowsTheMap()
     {
-        TestGame.Set(GameState.Empty with { Map = new Aember.MapInfo("Rainforest", 78, 272, null, false, [new MapContent("Vigil", "svg:quest", ContentState.Done), new MapContent("The Devil", "game:x", ContentState.Active, 1, 2)], ["+15% Drop Quantity"]) });
+        TestGame.Set(GameState.Empty with { Map = new EmberHUD.MapInfo("Rainforest", 78, 272, null, false, [new MapContent("Vigil", "svg:quest", ContentState.Done), new MapContent("The Devil", "game:x", ContentState.Active, 1, 2)], ["+15% Drop Quantity"]) });
         var map = Wire.Run(Tools, "get_state")["map"]!;
         Check.Equal("Rainforest", (string?)map["name"]);
         Check.Equal(78, (int)map["monsterLevel"]!);

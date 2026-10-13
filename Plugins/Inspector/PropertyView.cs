@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Aember;
-using Aember.Ui;
+using EmberHUD;
+using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
 namespace Inspector;

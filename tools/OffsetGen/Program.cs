@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using OffsetGen;
-using Aember.Host;
+using EmberHUD.Host;
 
 if (args.Length != 2)
 {

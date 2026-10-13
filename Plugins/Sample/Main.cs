@@ -1,6 +1,6 @@
 using System.Numerics;
 using Hexa.NET.ImGui;
-using Aember;
+using EmberHUD;
 
 namespace Sample;
 

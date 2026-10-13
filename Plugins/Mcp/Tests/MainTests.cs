@@ -8,8 +8,8 @@ using System.Net.Sockets;
 using System.Numerics;
 using System.Text;
 using System.Text.Json.Nodes;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace Mcp;
 

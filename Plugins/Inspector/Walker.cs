@@ -8,7 +8,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Aember;
+using EmberHUD;
 using Hexa.NET.ImGui;
 
 namespace Inspector;

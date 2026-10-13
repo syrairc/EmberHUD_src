@@ -1,8 +1,8 @@
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace Mcp;
 
@@ -55,11 +55,11 @@ public sealed class MemoryToolsTests
     public void ReadBytesDumpsHexAndAscii()
     {
         var at = Block();
-        TestMemory.WriteBytes(at, "Hello, Aember!!!"u8);
+        TestMemory.WriteBytes(at, "Hello, EmberHUD!"u8);
         var result = Wire.Run(Tools, "read_bytes", Args(at, ("length", 16)));
         Check.Equal(16, (int)result["read"]!);
         var dump = (string)result["dump"]!;
-        Check.That(dump.Contains("48 65 6C 6C 6F 2C 20 41 65 6D 62 65 72 21 21 21") && dump.EndsWith("Hello, Aember!!!"), dump);
+        Check.That(dump.Contains("48 65 6C 6C 6F 2C 20 45 6D 62 65 72 48 55 44 21") && dump.EndsWith("Hello, EmberHUD!"), dump);
         Check.That(dump.StartsWith(Hex.Of(at)), "line starts with the address");
         Check.Equal(2, ((string)Wire.Run(Tools, "read_bytes", Args(at, ("length", 17)))["dump"]!).Split('\n').Length);
     }

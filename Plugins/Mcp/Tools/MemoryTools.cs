@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
-using Aember;
+using EmberHUD;
 
 namespace Mcp;
 
@@ -72,7 +72,7 @@ internal static class MemoryTools
 
     static void RequireAttached()
     {
-        if (!Memory.Attached) throw new ToolError("memory is not attached - run Aember live with the game open");
+        if (!Memory.Attached) throw new ToolError("memory is not attached - run EmberHUD live with the game open");
     }
 
     static JsonObject Globals()

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using System.Numerics;
-using Aember;
+using EmberHUD;
 using Hexa.NET.ImGui;
 
 namespace Mcp;
@@ -72,7 +72,7 @@ public sealed class Main : Plugin<Settings>
     {
         base.DrawSettings();
         ImGui.Separator();
-        ImGui.TextDisabled("While on, anything holding the token can read this game's memory through Aember. Read-only, 127.0.0.1 only.");
+        ImGui.TextDisabled("While on, anything holding the token can read this game's memory through EmberHUD. Read-only, 127.0.0.1 only.");
         if (_http is null)
         {
             ImGui.TextDisabled(StartFailed ? "Failed to start - see the log" : "Stopped");
@@ -82,7 +82,7 @@ public sealed class Main : Plugin<Settings>
         ImGui.Text($"Watches {_watches.Count}, recorder {(Recorder.Active ? $"{Recorder.CurrentFile}, {Recorder.Frames} frames" : "idle")}");
         if (ImGui.SmallButton("Copy token")) ImGui.SetClipboardText(_token);
         ImGui.SameLine();
-        if (ImGui.SmallButton("Copy claude mcp add command")) ImGui.SetClipboardText($"claude mcp add --transport http aember {_http.Url} --header \"X-Bridge-Token: {_token}\"");
+        if (ImGui.SmallButton("Copy claude mcp add command")) ImGui.SetClipboardText($"claude mcp add --transport http emberhud {_http.Url} --header \"X-Bridge-Token: {_token}\"");
     }
 
     public override void OnDisable() => Stop();

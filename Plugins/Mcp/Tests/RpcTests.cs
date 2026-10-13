@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
-using Aember.Testing;
+using EmberHUD.Testing;
 
 namespace Mcp;
 
@@ -42,7 +42,7 @@ public sealed class RpcTests
         Check.Equal("2026-07-28", (string?)result["supportedVersions"]![0]);
         Check.Equal("2025-11-25", (string?)result["supportedVersions"]![1]);
         Check.That(result["capabilities"]!["tools"] is JsonObject, "tools capability");
-        Check.Equal("aember", (string?)result["_meta"]!["io.modelcontextprotocol/serverInfo"]!["name"]);
+        Check.Equal("emberhud", (string?)result["_meta"]!["io.modelcontextprotocol/serverInfo"]!["name"]);
         Check.Equal("9.9", (string?)result["_meta"]!["io.modelcontextprotocol/serverInfo"]!["version"]);
         Check.That((int)result["ttlMs"]! >= 0, "ttlMs");
         Check.Equal("public", (string?)result["cacheScope"]);
@@ -215,7 +215,7 @@ public sealed class RpcTests
         Check.Equal(200, init.Status);
         var result = Wire.Json(init)["result"]!;
         Check.Equal("2025-11-25", (string?)result["protocolVersion"]);
-        Check.Equal("aember", (string?)result["serverInfo"]!["name"]);
+        Check.Equal("emberhud", (string?)result["serverInfo"]!["name"]);
         Check.That(result["capabilities"]!["tools"] is JsonObject, "tools capability");
 
         var legacy = ("MCP-Protocol-Version", "2025-11-25");

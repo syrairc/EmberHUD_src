@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "Aember": {
-      "commandName": "Project",
-      "commandLineArgs": "--plugins ..\\..\\..\\..\\Plugins"
-    }
-  }
-}

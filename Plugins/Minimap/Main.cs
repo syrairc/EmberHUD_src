@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 using Hexa.NET.ImGui;
-using Aember;
+using EmberHUD;
 
 namespace Minimap;
 

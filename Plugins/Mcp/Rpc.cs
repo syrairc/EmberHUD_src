@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Aember;
+using EmberHUD;
 
 namespace Mcp;
 
@@ -18,7 +18,7 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
     public const int MaxResultChars = 1048576;
     const string VersionKey = "io.modelcontextprotocol/protocolVersion";
     const string ServerInfoKey = "io.modelcontextprotocol/serverInfo";
-    const string Instructions = "Read-only probe of a running Torchlight: Infinite process through Aember. Addresses are hex strings like 0x1F2E3D4C. Start with get_status. get_state and get_entities work on the fake game too, memory and ue tools need a live attach. watch_* samples every frame, record_* writes Game.State frames to disk and recording_* queries them.";
+    const string Instructions = "Read-only probe of a running Torchlight: Infinite process through EmberHUD. Addresses are hex strings like 0x1F2E3D4C. Start with get_status. get_state and get_entities work on the fake game too, memory and ue tools need a live attach. watch_* samples every frame, record_* writes Game.State frames to disk and recording_* queries them.";
     static readonly string[] Supported = [Modern, Legacy];
     readonly Dictionary<string, Tool> _byName = tools.ToDictionary(tool => tool.Name);
 
@@ -114,7 +114,7 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
         ["instructions"] = Instructions,
     };
 
-    JsonObject Info() => new() { ["name"] = "aember", ["version"] = serverVersion };
+    JsonObject Info() => new() { ["name"] = "emberhud", ["version"] = serverVersion };
 
     JsonObject List() => new()
     {

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "EmberHUD": {
+      "commandName": "Project",
+      "commandLineArgs": "--plugins ..\\..\\..\\..\\Plugins"
+    }
+  }
+}

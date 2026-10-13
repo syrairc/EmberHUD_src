@@ -2,14 +2,14 @@ param([string]$Out = (Join-Path $PSScriptRoot '..\..\dist'))
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
-$work = Join-Path ([IO.Path]::GetTempPath()) "aember-release-$([guid]::NewGuid().ToString('N'))"
+$work = Join-Path ([IO.Path]::GetTempPath()) "emberhud-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
 $ship = @(
-    'Aember.exe'
-    'Aember.dll'
-    'Aember.Api.dll'
-    'Aember.runtimeconfig.json'
-    'Aember.deps.json'
+    'Ember.exe'
+    'Ember.dll'
+    'EmberHUD.Api.dll'
+    'Ember.runtimeconfig.json'
+    'Ember.deps.json'
     'Hexa*.dll'
     'cimgui.dll'
     'ImGuiImpl.dll'
@@ -23,14 +23,14 @@ $ship = @(
     'HarfBuzzSharp.dll'
     'libSkiaSharp.dll'
     'libHarfBuzzSharp.dll'
-    'AemberLauncher.exe'
-    'AemberLauncher.dll'
-    'AemberLauncher.runtimeconfig.json'
-    'AemberLauncher.deps.json'
-    'AemberSetup.exe'
-    'AemberSetup.dll'
-    'AemberSetup.runtimeconfig.json'
-    'AemberSetup.deps.json'
+    'EmberLauncher.exe'
+    'EmberLauncher.dll'
+    'EmberLauncher.runtimeconfig.json'
+    'EmberLauncher.deps.json'
+    'EmberSetup.exe'
+    'EmberSetup.dll'
+    'EmberSetup.runtimeconfig.json'
+    'EmberSetup.deps.json'
     'ooz.dll'
     'BCnEncoder.dll'
     'Microsoft.Toolkit.HighPerformance.dll'
@@ -79,7 +79,7 @@ try {
     & "$PSScriptRoot/build.ps1"
     if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
 
-    foreach ($project in 'Aember/Aember.csproj', 'Aember.Launcher/Aember.Launcher.csproj', 'Aember.Setup/Aember.Setup.csproj') {
+    foreach ($project in 'EmberHUD/EmberHUD.csproj', 'EmberHUD.Launcher/EmberHUD.Launcher.csproj', 'EmberHUD.Setup/EmberHUD.Setup.csproj') {
         dotnet publish "$src/$project" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
         if ($LASTEXITCODE) { throw "publish failed for $project (exit $LASTEXITCODE)" }
     }
@@ -111,13 +111,13 @@ try {
 
     $folders = @('Plugins') + $assets.Dir
 
-    $check = Start-Process (Join-Path $publish 'Aember.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
+    $check = Start-Process (Join-Path $publish 'Ember.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
     $null = $check.Handle
-    if (-not $check.WaitForExit(300000)) { $check.Kill(); $check.WaitForExit(); throw 'Aember.exe --check timed out after 5 minutes' }
+    if (-not $check.WaitForExit(300000)) { $check.Kill(); $check.WaitForExit(); throw 'Ember.exe --check timed out after 5 minutes' }
     $report = Join-Path $publish 'Logs/check.txt'
-    if (-not (Test-Path $report)) { throw "Aember.exe --check exited $($check.ExitCode) without writing $report" }
+    if (-not (Test-Path $report)) { throw "Ember.exe --check exited $($check.ExitCode) without writing $report" }
     Get-Content $report | Write-Host
-    if ($check.ExitCode) { throw "Aember.exe --check failed (exit $($check.ExitCode))" }
+    if ($check.ExitCode) { throw "Ember.exe --check failed (exit $($check.ExitCode))" }
 
     $staged = @(Get-ChildItem -LiteralPath $publish -File | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } })
     foreach ($dir in $folders) { $staged += Get-ChildItem -LiteralPath (Join-Path $publish $dir) -Recurse -Force }

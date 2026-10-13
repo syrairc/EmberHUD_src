@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using Hexa.NET.ImGui;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 
 namespace Sample;
 

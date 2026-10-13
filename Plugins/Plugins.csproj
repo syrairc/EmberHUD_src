@@ -7,6 +7,6 @@
     <RootNamespace>Plugins</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Aember.Api\Aember.Api.csproj" />
+    <ProjectReference Include="..\EmberHUD.Api\EmberHUD.Api.csproj" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
-using Aember;
+using EmberHUD;
 
 namespace Minimap;
 

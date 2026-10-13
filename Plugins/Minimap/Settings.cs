@@ -4,8 +4,8 @@ using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
-using Aember;
-using Aember.Ui;
+using EmberHUD;
+using EmberHUD.Ui;
 
 namespace Minimap;
 
@@ -138,7 +138,7 @@ public sealed class IconsTab
                 if (existing.Name == existing.Key && !string.IsNullOrEmpty(icon.Name)) existing.Name = icon.Name;
                 continue;
             }
-            var row = new IconStyle { Key = icon.Texture, Name = string.IsNullOrEmpty(icon.Name) ? icon.Texture : icon.Name, Icon = Aember.Draw.GameIconPrefix + icon.Texture };
+            var row = new IconStyle { Key = icon.Texture, Name = string.IsNullOrEmpty(icon.Name) ? icon.Texture : icon.Name, Icon = EmberHUD.Draw.GameIconPrefix + icon.Texture };
             Found.Add(row);
             _found[row.Key] = row;
             _foundCount = Found.Count;
@@ -243,7 +243,7 @@ public sealed class Settings : PluginSettings
         ImGui.TableNextColumn();
         changed |= ImGui.Checkbox("##show", ref row.Show);
         ImGui.TableNextColumn();
-        changed |= Controls.IconPicker("icon", ref row.Icon, ref row.Colour, ref row.Scale, resetIcon: fixedDefault?.Icon ?? Aember.Draw.GameIconPrefix + row.Key, resetColour: fixedDefault?.Colour, resetScale: fixedDefault?.Scale ?? 1, baseSize: fixedRow ? Main.MarkerRadius * 2 : 24);
+        changed |= Controls.IconPicker("icon", ref row.Icon, ref row.Colour, ref row.Scale, resetIcon: fixedDefault?.Icon ?? EmberHUD.Draw.GameIconPrefix + row.Key, resetColour: fixedDefault?.Colour, resetScale: fixedDefault?.Scale ?? 1, baseSize: fixedRow ? Main.MarkerRadius * 2 : 24);
         using (Tables.Dim(!row.Show))
         {
             ImGui.TableNextColumn();

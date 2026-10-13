@@ -1,8 +1,8 @@
 using System;
 using System.Linq;
 using System.Numerics;
-using Aember;
-using Aember.Testing;
+using EmberHUD;
+using EmberHUD.Testing;
 using Hexa.NET.ImGui;
 
 namespace Inspector;
