@@ -31,9 +31,11 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _rectChildren.Clear();
             _found.Clear();
             _hudChildren.Clear();
+            if (++_tradeMisses >= 2) _tradePage = 0;
             return GameUi.Empty;
         }
 
+        nint tradePage = 0;
         List<GamePanel> panels = [];
         HashSet<nint> seen = [];
         foreach (var root in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
@@ -45,15 +47,22 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             {
                 if (!TryHostedPage(widget, out page) || !TryClassName(page, out pageClass)) continue;
             }
-            else if (!Specs.ContainsKey(pageClass)) continue;
+            else if (!Specs.ContainsKey(pageClass) && pageClass != Offsets.TradePageClassName) continue;
 
             if (seen.Contains(page) || Hud.Contains(pageClass) || !Visible(widget) || !Visible(page)) continue;
+            if (pageClass == Offsets.TradePageClassName) tradePage = page;
             var spec = Specs.GetValueOrDefault(pageClass, Unknown);
             if (RectOf(page, spec.RectChild, origin) is not { } rect) continue;
             seen.Add(page);
             panels.Add(new GamePanel(pageClass, spec.Kind, rect.Min, rect.Max, spec.FullScreen) { Address = page });
         }
 
+        if (tradePage != 0)
+        {
+            _tradePage = tradePage;
+            _tradeMisses = 0;
+        }
+        else if (++_tradeMisses >= 2) _tradePage = 0;
         foreach (var gone in _rectChildren.Keys.Where(page => !seen.Contains(page)).ToArray())
             _rectChildren.Remove(gone);
         foreach (var gone in _found.Keys.Where(key => !seen.Contains(key.Page)))

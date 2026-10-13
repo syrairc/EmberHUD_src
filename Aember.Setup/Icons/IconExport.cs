@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Aember.Host;
 using Aember.Setup.Pak;
 
 namespace Aember.Setup.Icons;
@@ -47,6 +48,7 @@ internal static partial class IconExport
             var config = UAsset.MapIconConfig(Read("UE_game/Content/Script/Data/ConfigView/config_map_icon.bin") ?? throw new InvalidDataException("config_map_icon.bin not found in the paks - game patched?"));
             Dictionary<string, List<string>> byShort = new(StringComparer.Ordinal);
             HashSet<string> wanted = new(config.Select(row => row.Texture).Where(texture => texture.Length > 0), StringComparer.Ordinal);
+            wanted.Add(Offsets.TradePriceTexture);
             foreach (var path in files.Keys.Where(path => path.EndsWith(".uasset", StringComparison.Ordinal)))
             {
                 var name = ShortName(path);

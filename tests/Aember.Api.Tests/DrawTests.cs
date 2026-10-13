@@ -321,6 +321,33 @@ public sealed class DrawTests
     });
 
     [Fact]
+    public void GlowRectIsTheBorderPlusOneFadingRingPerTwoPixelsOfSpread() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var min = new Vector2(10, 10);
+        var max = new Vector2(60, 90);
+        var start = list.VtxBuffer.Size;
+        Draw.Rect(min, max, Color.Gold, 3);
+        var border = list.VtxBuffer.Size - start;
+        start = list.VtxBuffer.Size;
+        Draw.Rect(min, max, Color.Gold, 2);
+        var ring = list.VtxBuffer.Size - start;
+
+        start = list.VtxBuffer.Size;
+        Draw.GlowRect(min, max, Color.Gold, 3, 0);
+        Assert.Equal(border, list.VtxBuffer.Size - start);
+
+        start = list.VtxBuffer.Size;
+        Draw.GlowRect(min, max, Color.Gold, 3, 8);
+        Assert.Equal(border + 4 * ring, list.VtxBuffer.Size - start);
+
+        start = list.VtxBuffer.Size;
+        Draw.GlowRect(min, max, Color.FromArgb(0, Color.Gold), 3, 8);
+        Draw.GlowRect(min, max, Color.Gold, 0, 8);
+        Assert.Equal(start, list.VtxBuffer.Size);
+    });
+
+    [Fact]
     public void ADotMarkerFillsItsRadiusAndGlowOnlyAddsTheHalo() => TestFrame.Run(() =>
     {
         var list = Draw.Background;

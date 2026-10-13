@@ -18,6 +18,8 @@ public sealed record GameState(string Status, int AreaId, Player? Player, Entity
 
     public GameUi Ui { get; init; } = GameUi.Empty;
 
+    public TradePage? Trade { get; init; }
+
     public MapInfo? Map { get; init; }
 }
 

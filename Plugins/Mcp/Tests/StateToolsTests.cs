@@ -18,6 +18,20 @@ public sealed class StateToolsTests
     static JsonArray Entities(JsonObject args) => Wire.Run(Tools, "get_entities", args)["entities"]!.AsArray();
 
     [Test]
+    public void GetStateShowsTheTradePage()
+    {
+        TestGame.Set(GameState.Empty with { Trade = new TradePage(2, false, 72, [new TradeListing(3, "Precious Ember", 3712, 297, null, new Vector2(1, 2), new Vector2(3, 4)), new TradeListing(7, "", 1442, 115, "Sold", Vector2.Zero, Vector2.One)], "game:fe") });
+        var trade = Wire.Run(Tools, "get_state")["trade"]!;
+        Check.Equal(2, (int)trade["page"]!);
+        Check.Equal(72, (int)trade["cellsPerPage"]!);
+        Check.Equal(2, (int)trade["count"]!);
+        Check.Equal(297L, (long)trade["listings"]![0]!["price"]!);
+        Check.Equal("Sold", (string?)trade["listings"]![1]!["status"]);
+        TestGame.Set(GameState.Empty);
+        Check.That(Wire.Run(Tools, "get_state")["trade"] is null, "no market, no trade");
+    }
+
+    [Test]
     public void StatusReportsServerAndGame()
     {
         TestMemory.Clear();

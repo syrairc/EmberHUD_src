@@ -47,7 +47,7 @@ public class IconExportTests
         using var temp = new TempDir();
         var (folder, paks) = Game(temp);
         var result = IconExport.Run(paks, folder, PakBuilder.Key, _ => { });
-        Assert.Equal(new ExportResult(3, 1, 0), result);
+        Assert.Equal(new ExportResult(3, 2, 0), result);
         Assert.Equal(Red, AssetBuilder.Pixels(Path.Combine(folder, "UI_MiniMap_Boss.png")).Rgba);
         Assert.Equal(UAsset.Crop(Atlas, 4, 4, 1, 1, 2, 2), AssetBuilder.Pixels(Path.Combine(folder, "Icon_Egg.png")).Rgba);
         Assert.False(File.Exists(Path.Combine(folder, "UI_Elsewhere.png")));
@@ -68,10 +68,24 @@ public class IconExportTests
         Assert.Equal("PF_B8G8R8A8", boss.GetProperty("format").GetString());
         Assert.Equal([2, 2], boss.GetProperty("size").EnumerateArray().Select(v => v.GetInt32()));
         Assert.False(boss.TryGetProperty("atlas", out _));
-        Assert.Equal(["UI_Ghost"], root.GetProperty("missing").EnumerateArray().Select(v => v.GetString()));
+        Assert.Equal(["UI_Ghost", Offsets.TradePriceTexture], root.GetProperty("missing").EnumerateArray().Select(v => v.GetString()));
         var row = root.GetProperty("map_icon_config")[0];
         Assert.Equal((2, "boss", "首领", "UI_MiniMap_Boss", 98), (row.GetProperty("id").GetInt32(), row.GetProperty("key").GetString(), row.GetProperty("label").GetString(), row.GetProperty("texture").GetString(), row.GetProperty("priority").GetInt32()));
         Assert.Contains("首领", File.ReadAllText(Path.Combine(folder, "index.json")));
+    }
+
+    [Fact]
+    public void ExportsTheMarketPriceIconFromOutsideTheIconFolders()
+    {
+        using var temp = new TempDir();
+        PakSource[] fe =
+        [
+            new($"UE_game/Content/Art/UI/Textures/Common/Icon/Item/128/{Offsets.TradePriceTexture}.uasset", AssetBuilder.Package("None", "Texture2D", "Default__Texture2D")),
+            new($"UE_game/Content/Art/UI/Textures/Common/Icon/Item/128/{Offsets.TradePriceTexture}.uexp", AssetBuilder.Texture("PF_B8G8R8A8", 2, 2, Bgra(Blue))),
+        ];
+        var (folder, paks) = Game(temp, fe);
+        IconExport.Run(paks, folder, PakBuilder.Key, _ => { });
+        Assert.Equal(Blue, AssetBuilder.Pixels(Path.Combine(folder, Offsets.TradePriceTexture + ".png")).Rgba);
     }
 
     [Fact]
@@ -127,7 +141,7 @@ public class IconExportTests
         using var temp = new TempDir();
         string[] flatNames = ["None", "PaperSprite", "Default__PaperSprite", "/Game/Art/UI/AtlasMap/Icon_Flat_Sprite", "/Game/Art/UI/AtlasMap/AtlasMap_Atlas", "StructProperty", "BakedSourceUV", "BakedSourceDimension"];
         var (folder, paks) = Game(temp, [[new("UE_game/Content/Art/UI/AtlasMap/Icon_Flat_Sprite.uasset", AssetBuilder.Package(flatNames)), new("UE_game/Content/Art/UI/AtlasMap/Icon_Flat_Sprite.uexp", AssetBuilder.Sprite(flatNames, (1, 1), (0, 0)))]]);
-        Assert.Equal(new ExportResult(3, 1, 1), IconExport.Run(paks, folder, PakBuilder.Key, _ => { }));
+        Assert.Equal(new ExportResult(3, 2, 1), IconExport.Run(paks, folder, PakBuilder.Key, _ => { }));
         using var index = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "index.json")));
         Assert.Equal(["Icon_Flat"], index.RootElement.GetProperty("failed").EnumerateObject().Select(failed => failed.Name));
     }

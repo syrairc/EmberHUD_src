@@ -36,6 +36,17 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void WithoutAMarketOpenTheTradeIsNull()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities();
+        using var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Null(state.Trade);
+    }
+
+    [Fact]
     public void FindRectSurvivesADisposedBackend()
     {
         using var reader = new LiveReader(new DisposedBackend(), 0);

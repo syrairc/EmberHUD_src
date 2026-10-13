@@ -18,6 +18,15 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float InventoryOpenSeconds = 4f;
     private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
     private const float VigilCycleSeconds = 30f;
+    private const float MarketPageSeconds = 15f;
+    private const int MarketPageCount = 3;
+    private const int MarketColumns = 18;
+    private const int MarketCells = MarketColumns * 4;
+    private const int MarketLastPageListings = 50;
+    private const int MarketSoldSlot = 7;
+    private static readonly TradeListing[][] MarketPages = BuildMarket();
+    private static readonly TradeListing[] MarketFirstPageSold = [.. MarketPages[0].Select(l => l.Slot == MarketSoldSlot ? l with { Name = "", Status = "Sold" } : l)];
+    private static readonly string MarketPriceIcon = Aember.Draw.GameIconPrefix + Offsets.TradePriceTexture;
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
@@ -42,6 +51,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
             Ui = UiAt(now),
             Map = MapAt(now),
+            Trade = TradeAt(now),
         };
         failure = null;
         return true;
@@ -57,6 +67,16 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         return new MapInfo("Rainforest of Divine Legacy", 78, Math.Max(0, 272 - (int)(seconds % 60 * 4)), "1%", false,
             [new MapContent("Vigil", "svg:quest", vigil), new MapContent("The Devil", "svg:gem", ContentState.Active, 1, 2), new MapContent("The Hermit", "svg:gem", ContentState.Pending)],
             ["+15% additional Drop Quantity", "1 additional Rare monsters"]);
+    }
+
+    internal static TradePage TradeAt(long now)
+    {
+        var seconds = now / (double)Stopwatch.Frequency;
+        var step = (long)(seconds / MarketPageSeconds);
+        var page = (int)(step % MarketPageCount) + 1;
+        var sold = step / MarketPageCount % 2 == 1;
+        var listings = page == 1 && sold ? MarketFirstPageSold : MarketPages[page - 1];
+        return new TradePage(page, page == MarketPageCount, MarketCells, listings, MarketPriceIcon);
     }
 
     internal ExploredTrail Sample(int areaId, Vector2 at, long now)
@@ -127,4 +147,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
                 _ => new MapIcon(1040, "UI_Fight_IconBoss", new Vector2(e.Position.X, e.Position.Y), 1, 0, e.Id) { Name = "EliteBoss" },
             }),
     ];
+
+    private static TradeListing[][] BuildMarket()
+    {
+        var random = new Random(23);
+        long[] stacks = [1000, 2000, 4999, 9999];
+        return [.. Enumerable.Range(0, MarketPageCount).Select(page =>
+        {
+            var count = page == MarketPageCount - 1 ? MarketLastPageListings : MarketCells;
+            return Enumerable.Range(0, count).Select(slot =>
+            {
+                var quantity = slot % 3 == 0 ? random.Next(1, 10000) : stacks[random.Next(stacks.Length)];
+                var price = Math.Max(1, (long)Math.Round(quantity * (0.08 + random.NextDouble() * 0.12)));
+                var min = new Vector2(203 + 169 * (slot % MarketColumns), 150 + 274 * (slot / MarketColumns));
+                return new TradeListing(slot, "Precious Ember", quantity, price, null, min, min + new Vector2(163, 267));
+            }).ToArray();
+        })];
+    }
 }

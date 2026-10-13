@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Aember.Host;
 
 namespace Aember.Tests;
 
@@ -171,5 +172,39 @@ public class FakeGameSourceTests
         using var source = new FakeGameSource(() => 0);
         Assert.True(source.TryRead(out var state, out _));
         Assert.Equal("Rainforest of Divine Legacy", state.Map!.Name);
+    }
+
+    [Fact]
+    public void TheFakeMarketFlipsThroughThreePagesWithAShortLastPage()
+    {
+        var second = Stopwatch.Frequency;
+        var first = FakeGameSource.TradeAt(1 * second);
+        var middle = FakeGameSource.TradeAt(16 * second);
+        var last = FakeGameSource.TradeAt(31 * second);
+        Assert.Equal((1, false, 72, 72), (first.Page, first.LastPage, first.CellsPerPage, first.Listings.Length));
+        Assert.Equal(2, middle.Page);
+        Assert.Equal((3, true, 72, 50), (last.Page, last.LastPage, last.CellsPerPage, last.Listings.Length));
+        Assert.Equal(1, FakeGameSource.TradeAt(46 * second).Page);
+        Assert.Equal(Aember.Draw.GameIconPrefix + Offsets.TradePriceTexture, first.PriceIcon);
+    }
+
+    [Fact]
+    public void TheFakeMarketPagesAreStableAndLaidOutLikeTheGame()
+    {
+        var second = Stopwatch.Frequency;
+        Assert.Equal(FakeGameSource.TradeAt(1 * second).Listings, FakeGameSource.TradeAt(10 * second).Listings);
+        var cell = FakeGameSource.TradeAt(1 * second).Listings[19];
+        Assert.Equal((19, new Vector2(203 + 169, 150 + 274), new Vector2(203 + 169 + 163, 150 + 274 + 267)), (cell.Slot, cell.Min, cell.Max));
+        Assert.All(FakeGameSource.TradeAt(1 * second).Listings, l => Assert.True(l.Quantity > 0 && l.Price > 0 && l.Name == "Precious Ember"));
+    }
+
+    [Fact]
+    public void OnEverySecondLapPageOneSlotSevenIsSold()
+    {
+        var second = Stopwatch.Frequency;
+        Assert.Null(FakeGameSource.TradeAt(1 * second).Listings[7].Status);
+        var sold = FakeGameSource.TradeAt(46 * second).Listings[7];
+        Assert.Equal(("", "Sold"), (sold.Name, sold.Status));
+        Assert.Null(FakeGameSource.TradeAt(91 * second).Listings[7].Status);
     }
 }

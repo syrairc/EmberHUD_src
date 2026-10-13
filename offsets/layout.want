@@ -301,5 +301,20 @@ UserWidgetClassName = "UserWidget"
 GamePanels = "PCBag_C,Inventory,PCBagMain,0;WareHouse_C,Stash,,1;WorldMapTitle_C,WorldMap,,1;Skill_C,Skills,,1;Talent_C,Talents,,1;NewStore_C,Vendor,,1;Setting_C,Settings,,1;MysteryArea_C,Other,,1;MysteryMapDetail_C,Other,,1;S9Taro_C,Other,,1"
 HudPages = "MiniMap_C CtrlPad_C HpBarPlayerBot_C Fight_C TipBtnHoverItem_C FightUnderAttack_C ScrollNoticeItem_C GamepadTipsItem_C"
 
+TradePageClassName = "AuctionHouseShowItemGoodV2_C"
+TradeItemBox = "AutoWrapBox_Item"
+TradeGrid = "WrapBox_Content"
+TradePageText = "Text_Page"
+TradeNextArrow = "UCanvasPanel_Right"
+TradeCellFilled = "CanvasPanel_Con"
+TradeCellStatus = "CanvasPanel_Status"
+TradeCellQuantity = "UUITextBlock_Num"
+TradeCellPrice = "UUITextBlock_PriceNum"
+TradeCellName = "UUITextBlock_Name"
+TradeCellStatusText = "UUITextBlock_Status"
+TradePriceTexture = "UI_Item_chuhuoyuanzhiV3_Icon_128"
+MaxTradeCells = 512
+TradeRefreshMilliseconds = 250
+
 UeClassClassName = "Class"
 GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"

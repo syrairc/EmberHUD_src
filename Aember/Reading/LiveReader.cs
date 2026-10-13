@@ -68,6 +68,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             Explored = explored,
             Camera = _world.TryReadLocalPawn(out var pawn) ? _camera.Read(pawn) : null,
             Ui = UiReader.Read(),
+            Trade = UiReader.ReadTrade(),
             Map = MapInfoReader.Read(scene, _terrain.Generation, entities.Count(e => e.Kind == EntityKind.Monster), icons),
         };
         return true;

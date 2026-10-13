@@ -169,6 +169,20 @@ public static class Draw
         }
     }
 
+    public static void GlowRect(Vector2 min, Vector2 max, Color color, float thickness = 2, float spread = 8, ImDrawListPtr? list = null)
+    {
+        if (color.A == 0 || thickness <= 0) return;
+        var target = list ?? Background;
+        var rings = (int)MathF.Ceiling(spread / 2);
+        for (var ring = rings; ring >= 1; ring--)
+        {
+            var grow = new Vector2(thickness / 2 + ring * 2);
+            var alpha = (int)(color.A * 0.5f * (1 - ring / (float)(rings + 1)));
+            target.AddRect(min - grow, max + grow, EColor.U32(Color.FromArgb(alpha, color)), 0, ImDrawFlags.None, 2);
+        }
+        target.AddRect(min, max, EColor.U32(color), 0, ImDrawFlags.None, thickness);
+    }
+
     public const string MarkerPrefix = "marker:";
 
     public static void Marker(Vector2 centre, float radius, Color color, MarkerShape shape = MarkerShape.Dot, float glow = 0, ImDrawListPtr? list = null)
