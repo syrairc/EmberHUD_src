@@ -11,6 +11,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
     private readonly MapIconReader _icons = new(memory, moduleBase);
     private readonly ExploredReader _explored = new(memory);
     private readonly CameraReader _camera = new(memory);
+    private readonly WoodStakeReader _woodStake = new(memory, moduleBase);
     private GameUiReader? _uiReader;
     private int _generation = firstAreaId;
     private Vector3? _anchor;
@@ -70,6 +71,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             Ui = UiReader.Read(),
             Trade = UiReader.ReadTrade(),
             Map = MapInfoReader.Read(scene, _terrain.Generation, entities.Count(e => e.Kind == EntityKind.Monster), icons),
+            WoodStake = _woodStake.Read(),
         };
         return true;
     }

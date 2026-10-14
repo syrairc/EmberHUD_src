@@ -32,6 +32,8 @@ public sealed record GameState(string Status, int AreaId, Player? Player, Entity
     public TradePage? Trade { get; init; }
 
     public MapInfo? Map { get; init; }
+
+    public WoodStakeStats? WoodStake { get; init; }
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward);
@@ -83,6 +85,8 @@ public enum ContentState : byte { Pending, Active, Done }
 public readonly record struct MapContent(string Name, string Icon, ContentState State, int Done = 0, int Total = 1);
 
 public sealed record MapInfo(string Name, int MonsterLevel, int? Remaining, string? XpGain, bool IsTown, MapContent[] Content, string[] Modifiers);
+
+public sealed record WoodStakeStats(bool Running, int Seconds, long Avg, long Cur, long Max, long CurUnlimited, long MaxUnlimited, long AvgUnlimited);
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 

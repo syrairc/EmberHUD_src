@@ -2,7 +2,7 @@ namespace EmberHUD.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0x4E, 0xF8, 0xF5, 0x7F, 0x18, 0xEF, 0x21, 0xE4, 0x95, 0x0D, 0xA8, 0xF4, 0x9D, 0x12, 0x5E, 0xFC, 0x01, 0x74, 0x66, 0x06, 0xC0, 0xB2, 0xB9, 0x18, 0xC8, 0xD8, 0xF0, 0xB9, 0x17, 0xEA, 0x62, 0xC5];
+    internal static ReadOnlySpan<byte> Seed => [0x14, 0x4C, 0x6E, 0x58, 0xCA, 0xE4, 0x99, 0x37, 0xC6, 0x5E, 0x0E, 0xF5, 0x9F, 0xAD, 0x96, 0xB4, 0x46, 0x47, 0x84, 0x5A, 0xE7, 0x86, 0x40, 0x3C, 0x1A, 0xA1, 0x26, 0xB6, 0x9E, 0xF0, 0x7D, 0x48];
     internal static int KnownExeSize => T[0];
     internal static int LogicWorldGlobalRva => T[1];
     internal static int WorldScene => T[2];
@@ -261,6 +261,20 @@ internal static partial class Offsets
     internal static int RectChildRetryMilliseconds => T[255];
     internal static int MaxTradeCells => T[256];
     internal static int TradeRefreshMilliseconds => T[257];
+    internal static int WoodStakeMgrGlobalRva => T[258];
+    internal static int WoodStakeRunning => T[259];
+    internal static int WoodStakeStatistic => T[260];
+    internal static int WoodStakeStatSeconds => T[261];
+    internal static int WoodStakeStatAvg => T[262];
+    internal static int WoodStakeStatCur => T[263];
+    internal static int WoodStakeStatMax => T[264];
+    internal static int WoodStakeStatCurUnlimited => T[265];
+    internal static int WoodStakeStatMaxUnlimited => T[266];
+    internal static int WoodStakeUnlimitedTotal => T[267];
+    internal static int BigNumberLimbs => T[268];
+    internal static int BigNumberCount => T[269];
+    internal static int BigNumberScale => T[270];
+    internal static int MaxWoodStakeSeconds => T[271];
     internal static string GameProcessName => S[0];
     internal static string TargetWindowClass => S[1];
     internal static string TargetWindowTitle => S[2];

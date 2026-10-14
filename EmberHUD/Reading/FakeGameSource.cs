@@ -52,9 +52,19 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Ui = UiAt(now),
             Map = MapAt(now),
             Trade = TradeAt(now),
+            WoodStake = WoodStakeAt(now),
         };
         failure = null;
         return true;
+    }
+
+    internal static WoodStakeStats WoodStakeAt(long now)
+    {
+        var seconds = now / (double)Stopwatch.Frequency;
+        var unlimited = (long)(6.0e12 + 2.5e12 * Math.Sin(seconds / 4));
+        const long Average = 6_200_000_000_000;
+        const long Cap = 5_000_000_000_000;
+        return new WoodStakeStats(true, (int)(seconds % 60), Cap, Math.Min(unlimited, Cap), Cap, unlimited, 8_500_000_000_000, Average);
     }
 
     internal static GameUi UiAt(long now) =>

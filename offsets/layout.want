@@ -318,5 +318,20 @@ TradePriceTexture = "UI_Item_chuhuoyuanzhiV3_Icon_128"
 MaxTradeCells = 512
 TradeRefreshMilliseconds = 250
 
+WoodStakeMgrGlobalRva = 0x69343B8
+WoodStakeRunning = 40
+WoodStakeStatistic = 240
+WoodStakeStatSeconds = 0
+WoodStakeStatAvg = 8
+WoodStakeStatCur = 16
+WoodStakeStatMax = 24
+WoodStakeStatCurUnlimited = 32
+WoodStakeStatMaxUnlimited = 40
+WoodStakeUnlimitedTotal = 152
+BigNumberLimbs = 8
+BigNumberCount = 64
+BigNumberScale = 100000000
+MaxWoodStakeSeconds = 86400
+
 UeClassClassName = "Class"
 GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"
