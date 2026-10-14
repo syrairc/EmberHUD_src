@@ -22,5 +22,10 @@ internal sealed class LogCapture : IDisposable
         lock (_lines) return [.. _lines.Where(line => plugin is null || line.Plugin == plugin).Select(line => line.Message)];
     }
 
+    public List<string?> Plugins()
+    {
+        lock (_lines) return [.. _lines.Select(line => line.Plugin)];
+    }
+
     public void Dispose() => Log.Sink = null;
 }

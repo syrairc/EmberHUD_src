@@ -10,9 +10,17 @@ public sealed class TextTests
     [InlineData("", "anything", true)]
     [InlineData("   ", "anything", true)]
     [InlineData("MAP", "chaos map roll", true)]
+    [InlineData("map chaos", "chaos map roll", true)]
+    [InlineData("map zzz", "chaos map roll", false)]
     [InlineData("xyz", "chaos map", false)]
     [InlineData("x", null, false)]
-    public void MatchesIsACaseInsensitiveContains(string filter, string? text, bool matches) => Assert.Equal(matches, Text.Matches(filter, text));
+    public void MatchesNeedsEveryWordSomewhereInAnyOrder(string filter, string? text, bool matches) => Assert.Equal(matches, Text.Matches(filter, text));
+
+    [Theory]
+    [InlineData("(", "rare (small)", true)]
+    [InlineData("[a", "x[ab]", true)]
+    [InlineData("(", "no brackets", false)]
+    public void MatchesFallsBackToContainsOnABadPattern(string filter, string text, bool matches) => Assert.Equal(matches, Text.Matches(filter, text));
 
     [Fact]
     public void EscPctDoublesPercentSigns()
@@ -25,45 +33,18 @@ public sealed class TextTests
     public void TipShowsRawTextWithPercentSignsWhenHovered()
     {
         const string raw = "50% done %s %d";
-        var expected = 0f;
-        var actual = 0f;
-        TestFrame.Run(() =>
+        var window = UiFrame.NextId("tip");
+        var at = Vector2.Zero;
+        void Body()
         {
-            ImGui.GetIO().AddMousePosEvent(20, 20);
-            ImGui.SetNextWindowPos(new Vector2(0, 0));
-            ImGui.Begin("host", ImGuiWindowFlags.NoTitleBar);
             ImGui.Button("tip");
-            ImGui.End();
-        });
-        TestFrame.Run(() =>
-        {
-            ImGui.SetNextWindowPos(new Vector2(0, 0));
-            ImGui.Begin("host", ImGuiWindowFlags.NoTitleBar);
-            ImGui.Button("tip");
+            at = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2;
             Text.Tip(raw);
-            ImGui.End();
-        });
-        TestFrame.Run(() =>
-        {
-            ImGui.SetNextWindowPos(new Vector2(0, 0));
-            ImGui.Begin("host", ImGuiWindowFlags.NoTitleBar);
-            ImGui.Button("tip");
-            Text.Tip(raw);
-            ImGui.End();
-        });
-        TestFrame.Run(() =>
-        {
-            ImGui.SetNextWindowPos(new Vector2(0, 0));
-            ImGui.Begin("host", ImGuiWindowFlags.NoTitleBar);
-            ImGui.Button("tip");
-            Text.Tip(raw);
-            ImGui.End();
-            var tooltip = ImGuiP.FindWindowByName("##Tooltip_00");
-            Assert.False(tooltip.IsNull);
-            actual = tooltip.Size.X;
-            expected = ImGui.CalcTextSize(raw).X + ImGui.GetStyle().WindowPadding.X * 2;
-        });
-        Assert.Equal(expected, actual, 1f);
+        }
+        UiFrame.Run(window, Body);
+        var tip = UiFrame.TooltipAt(window, at, Body);
+        Assert.NotNull(tip);
+        Assert.Equal(UiFrame.TextWidth(raw) + UiFrame.Style.WindowPadding.X * 2, tip.Size.X, 1f);
     }
 
     [Fact]
@@ -139,5 +120,27 @@ public sealed class TextTests
 
         Assert.Equal(text, string.Join(" ", lines));
         Assert.All(lines, line => Assert.True(line.Length <= limit || !line.Contains(' '), line));
+    }
+
+    [Fact]
+    public void WrapWithAStyleBreaksAtTheStyledWidth()
+    {
+        string[] small = [], big = [];
+        TestFrame.Run(() =>
+        {
+            var width = Draw.MeasureText("one two three", new TextStyle()).X + 1;
+            small = Text.Wrap("one two three four five six", width, new TextStyle());
+            big = Text.Wrap("one two three four five six", width, new TextStyle { Scale = 2f });
+        });
+        Assert.Equal(["one two three", "four five six"], small);
+        Assert.True(big.Length > small.Length);
+    }
+
+    [Fact]
+    public void WrapWithAStyleKeepsALongWordWhole()
+    {
+        string[] lines = [];
+        TestFrame.Run(() => lines = Text.Wrap("Supercalifragilistic", 5, new TextStyle()));
+        Assert.Equal(["Supercalifragilistic"], lines);
     }
 }

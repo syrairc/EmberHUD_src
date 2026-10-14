@@ -36,7 +36,7 @@ public class OffsetGenTests
     public void PackSealOpenUnpackRoundTrips()
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        var box = OffsetTable.Seal(OffsetTable.Pack([5, -1, 0x69331B8], []), key);
+        var box = OffsetEmitter.Seal(OffsetEmitter.Pack([5, -1, 0x69331B8], []), key);
         Assert.Equal([5, -1, 0x69331B8], OffsetTable.Unpack(OffsetTable.Open(box, key)));
         box[^1] ^= 1;
         Assert.ThrowsAny<CryptographicException>(() => OffsetTable.Open(box, key));
@@ -77,10 +77,10 @@ public class OffsetGenTests
     public void StringsRoundTripThroughPackSealOpen()
     {
         var key = RandomNumberGenerator.GetBytes(32);
-        var box = OffsetTable.Seal(OffsetTable.Pack([7, 8], ["MiniMap_C", "Rotate", "Default__"]), key);
+        var box = OffsetEmitter.Seal(OffsetEmitter.Pack([7, 8], ["MiniMap_C", "Rotate", "Default__"]), key);
         var plain = OffsetTable.Open(box, key);
         Assert.Equal([7, 8], OffsetTable.Unpack(plain));
         Assert.Equal(["MiniMap_C", "Rotate", "Default__"], OffsetTable.UnpackStrings(plain));
-        Assert.Empty(OffsetTable.UnpackStrings(OffsetTable.Pack([1], [])));
+        Assert.Empty(OffsetTable.UnpackStrings(OffsetEmitter.Pack([1], [])));
     }
 }

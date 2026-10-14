@@ -2,8 +2,11 @@ using System.Diagnostics;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds = 8) : IDisposable
+internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds) : IDisposable
 {
+    internal static int WaitMilliseconds(int tickMilliseconds, TimeSpan elapsed) =>
+        Math.Max(1, tickMilliseconds - (int)elapsed.TotalMilliseconds);
+
     private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(2);
 
     private readonly ManualResetEventSlim _stop = new();
@@ -24,8 +27,9 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
     private void Run()
     {
         var lastGood = _current;
-        while (!_stop.Wait(tickMilliseconds))
+        while (!_stop.IsSet)
         {
+            var started = Stopwatch.GetTimestamp();
             try
             {
                 _source ??= createSource();
@@ -46,6 +50,8 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
                 if (_logged.Add(cause)) log($"reader - {cause}");
                 _current = lastGood with { State = lastGood.State with { Status = $"read failed - {cause}" } };
             }
+
+            _stop.Wait(WaitMilliseconds(tickMilliseconds, Stopwatch.GetElapsedTime(started)));
         }
     }
 
@@ -59,3 +65,10 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
         _stop.Dispose();
     }
 }
+
+internal interface IGameSource : IDisposable
+{
+    bool TryRead(out GameState state, out string? failure);
+}
+
+internal sealed record ReaderSnapshot(GameState State, long PlayerAt);

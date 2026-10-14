@@ -20,9 +20,12 @@ internal static class ThemeGradients
     public static unsafe void Apply(ImDrawDataPtr data, ReadOnlySpan<GradientShade> shades, uint textRgb, List<GradientRun> runs, ReadOnlySpan<uint> blockerRgbs = default)
     {
         if (data.IsNull || shades.IsEmpty) return;
+        var background = ImGui.GetBackgroundDrawList(ImGui.GetMainViewport()).Handle;
+        var foreground = ImGui.GetForegroundDrawList(ImGui.GetMainViewport()).Handle;
         for (var n = 0; n < data.CmdListsCount; n++)
         {
             var list = data.CmdLists[n];
+            if (list.Handle == background || list.Handle == foreground) continue;
             Apply(new Span<ImDrawVert>(list.VtxBuffer.Data, list.VtxBuffer.Size), shades, textRgb, runs, blockerRgbs);
         }
     }

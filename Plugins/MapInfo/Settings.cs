@@ -53,7 +53,7 @@ public sealed class Settings : PluginSettings
     public SectionsTab Sections = new();
     public LookTab Look = new();
 
-    public override void Draw() => Windows.TabBar("mapinfo",
+    public override void Draw() => Layout.TabBar("mapinfo",
         ("General", DrawGeneral),
         ("Sections", DrawSections),
         ("Look", DrawLook));

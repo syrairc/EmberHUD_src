@@ -37,7 +37,7 @@ internal static class UeTools
         var includeDefaults = args.Bool("includeDefaults", false);
         var limit = args.Int("limit", 100, 1, 1000);
         var objects = Ue.Objects();
-        if (objects.Length == 0) throw new ToolError("no UObjects readable - GObjects is not resolved yet");
+        if (objects.Count == 0) throw new ToolError("no UObjects readable - GObjects is not resolved yet");
         var clock = Stopwatch.StartNew();
         var rows = new JsonArray();
         var scanned = 0;
@@ -56,7 +56,7 @@ internal static class UeTools
             rows.Add(Describe(obj));
             if (rows.Count >= limit) break;
         }
-        return new JsonObject { ["scanned"] = scanned, ["total"] = objects.Length, ["timedOut"] = timedOut, ["objects"] = rows };
+        return new JsonObject { ["scanned"] = scanned, ["total"] = objects.Count, ["timedOut"] = timedOut, ["objects"] = rows };
     }
 
     static JsonObject Describe(UObj obj) => new()
@@ -131,7 +131,7 @@ internal static class UeTools
             }
             var size = Math.Min(info.Size, MaxContainer);
             var bytes = new byte[Math.Max(size, 0)];
-            if (bytes.Length == 0 || Memory.Read(obj.Address, bytes) != bytes.Length)
+            if (bytes.Length == 0 || !Memory.Read(obj.Address, bytes))
             {
                 result["error"] = "memory unreadable";
                 return result;

@@ -80,7 +80,7 @@ public sealed class PluginCompilerTests
     [Fact]
     public void HostTypesAreOutOfReach()
     {
-        var result = Compile("namespace Probe; public static class A { public static object X => typeof(EmberHUD.Host.Plugins.PluginCache); }");
+        var result = Compile("namespace Probe; public static class A { public static object X => typeof(EmberHUD.Host.Plugins.PluginCompiler); }");
         Assert.Null(result.Assembly);
         Assert.Contains(result.Diagnostics, line => line.Contains("CS0234") && line.Contains("'Host'"));
     }

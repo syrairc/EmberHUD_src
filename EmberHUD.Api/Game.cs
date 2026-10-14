@@ -17,9 +17,21 @@ public enum EntityKind : byte { Monster, Ally, Player, Portal, Npc, Interactive,
 
 public enum Rarity : byte { Normal, Magic, Rare, Boss }
 
-public sealed record GameState(string Status, int AreaId, Player? Player, Entity[] Entities, Terrain? Terrain, float? MinimapRotation = null)
+public sealed record GameState
 {
-    public static readonly GameState Empty = new("starting", 0, null, [], null);
+    public static readonly GameState Empty = new();
+
+    public string Status { get; init; } = "starting";
+
+    public int AreaId { get; init; }
+
+    public Player? Player { get; init; }
+
+    public Entity[] Entities { get; init; } = [];
+
+    public Terrain? Terrain { get; init; }
+
+    public float? MinimapRotation { get; init; }
 
     public MapIcon[] MapIcons { get; init; } = [];
 
@@ -31,12 +43,15 @@ public sealed record GameState(string Status, int AreaId, Player? Player, Entity
 
     public TradePage? Trade { get; init; }
 
-    public MapInfo? Map { get; init; }
+    public MapInfo? Area { get; init; }
 
     public WoodStakeStats? WoodStake { get; init; }
 }
 
-public sealed record Player(Vector3 Position, Vector2 Forward);
+public sealed record Player(Vector3 Position, Vector2 Forward)
+{
+    public float FlatDistance(Vector3 at) => Vector2.Distance(new Vector2(Position.X, Position.Y), new Vector2(at.X, at.Y));
+}
 
 public readonly record struct Entity(int Id, int CfgId, Vector3 Position, EntityKind Kind, Rarity Rarity)
 {
@@ -48,36 +63,23 @@ public readonly record struct MapIcon(int Type, string Texture, Vector2 Position
     public string Name { get; init; } = "";
 }
 
-public sealed record ExploredTrail(Vector2[] Points, float Radius);
+public sealed record ExploredTrail(Vector2[] Buffer, int Count, float Radius)
+{
+    public ExploredTrail(Vector2[] points, float radius) : this(points, points.Length, radius) { }
+}
 
 public enum PanelKind : byte { Other, Inventory, Stash, WorldMap, Skills, Talents, Vendor, Settings }
 
 public readonly record struct GamePanel(string Name, PanelKind Kind, Vector2 Min, Vector2 Max, bool FullScreen)
 {
     public nint Address { get; init; }
-
-    public bool Contains(Vector2 point) => point.X >= Min.X && point.X < Max.X && point.Y >= Min.Y && point.Y < Max.Y;
 }
 
 public sealed record GameUi(GamePanel[] Panels)
 {
-    internal static volatile Func<nint, string, (Vector2 Min, Vector2 Max)?>? Finder;
-
     public static readonly GameUi Empty = new([]);
 
     public bool AnyFullScreen => Panels.Any(p => p.FullScreen);
-
-    public GamePanel? Get(PanelKind kind)
-    {
-        for (var i = Panels.Length - 1; i >= 0; i--)
-            if (Panels[i].Kind == kind) return Panels[i];
-        return null;
-    }
-
-    public bool Covers(Vector2 point) => Panels.Any(p => p.Contains(point));
-
-    public static (Vector2 Min, Vector2 Max)? Find(GamePanel panel, string childName) =>
-        panel.Address != 0 && Finder is { } finder ? finder(panel.Address, childName) : null;
 }
 
 public enum ContentState : byte { Pending, Active, Done }
@@ -92,23 +94,42 @@ public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeL
 
 public readonly record struct TradeListing(int Slot, string Name, long Quantity, long Price, string? Status, Vector2 Min, Vector2 Max);
 
-public sealed record Camera(Vector3 Location, Vector3 Rotation, float Fov)
+public sealed record Camera
 {
+    readonly Vector3 _forward;
+    readonly Vector3 _right;
+    readonly Vector3 _up;
+    readonly float _tanHalfFov;
+
+    public Camera(Vector3 location, Vector3 rotation, float fov)
+    {
+        Location = location;
+        Rotation = rotation;
+        Fov = fov;
+        var (sp, cp) = MathF.SinCos(rotation.X * MathF.PI / 180);
+        var (sy, cy) = MathF.SinCos(rotation.Y * MathF.PI / 180);
+        var (sr, cr) = MathF.SinCos(rotation.Z * MathF.PI / 180);
+        _forward = new Vector3(cp * cy, cp * sy, sp);
+        _right = new Vector3(sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp);
+        _up = new Vector3(-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp);
+        _tanHalfFov = float.IsFinite(fov) && fov > 0 && fov < 180 ? MathF.Tan(fov * MathF.PI / 360) : 0;
+    }
+
+    public Vector3 Location { get; }
+
+    public Vector3 Rotation { get; }
+
+    public float Fov { get; }
+
     public Vector2? ToScreen(Vector3 world, Vector2 viewport)
     {
-        if (!float.IsFinite(Fov) || Fov <= 0 || Fov >= 180) return null;
-        var (sp, cp) = MathF.SinCos(Rotation.X * MathF.PI / 180);
-        var (sy, cy) = MathF.SinCos(Rotation.Y * MathF.PI / 180);
-        var (sr, cr) = MathF.SinCos(Rotation.Z * MathF.PI / 180);
-        var forward = new Vector3(cp * cy, cp * sy, sp);
-        var right = new Vector3(sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, -sr * cp);
-        var up = new Vector3(-(cr * sp * cy + sr * sy), cy * sr - cr * sp * sy, cr * cp);
+        if (_tanHalfFov == 0) return null;
         var delta = world - Location;
-        var depth = Vector3.Dot(delta, forward);
+        var depth = Vector3.Dot(delta, _forward);
         if (depth < 1f) return null;
         var centre = viewport / 2;
-        var focal = centre.X / MathF.Tan(Fov * MathF.PI / 360);
-        var screen = new Vector2(centre.X + Vector3.Dot(delta, right) * focal / depth, centre.Y - Vector3.Dot(delta, up) * focal / depth);
+        var focal = centre.X / _tanHalfFov;
+        var screen = new Vector2(centre.X + Vector3.Dot(delta, _right) * focal / depth, centre.Y - Vector3.Dot(delta, _up) * focal / depth);
         return float.IsFinite(screen.X) && float.IsFinite(screen.Y) ? screen : null;
     }
 }
@@ -131,8 +152,6 @@ public static class Loc
     internal static Func<string, int, ((string Key, string Text)[] Matches, bool Truncated)>? Finder { get; set; }
 
     public static string? Get(string key) => Getter?.Invoke(key);
-
-    public static (string Key, string Text)[] Find(string needle, int max = 50) => Find(needle, max, out _);
 
     public static (string Key, string Text)[] Find(string needle, int max, out bool truncated)
     {

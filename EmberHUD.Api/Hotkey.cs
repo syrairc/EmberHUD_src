@@ -51,7 +51,7 @@ public readonly record struct Hotkey(Key Key, KeyModifiers Mods = KeyModifiers.N
         var name = parts[^1];
         var vk = name.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? int.TryParse(name.AsSpan(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var hex) ? hex : 0
-            : Enum.GetNames<Key>().FirstOrDefault(known => known.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } match ? (int)Enum.Parse<Key>(match) : 0;
+            : name.Length > 0 && !char.IsDigit(name[0]) && name.All(char.IsLetterOrDigit) && Enum.TryParse(name, true, out Key known) ? (int)known : 0;
         if (!IsBindable(vk)) return false;
         hotkey = new Hotkey((Key)vk, mods);
         return true;
@@ -59,4 +59,32 @@ public readonly record struct Hotkey(Key Key, KeyModifiers Mods = KeyModifiers.N
 
     internal static bool IsBindable(int virtualKey) =>
         virtualKey is >= 0x08 and <= 0xFE && virtualKey != (int)Key.Escape && virtualKey is not ((int)Key.Shift or (int)Key.Ctrl or (int)Key.Alt or >= 0xA0 and <= 0xA5 or 0x5B or 0x5C);
+}
+
+public sealed class HotkeyBinding
+{
+    public Hotkey Value;
+
+    internal HotkeyBinding(string name, string description, Action callback, Hotkey defaultKey, string? category)
+    {
+        Name = name;
+        Description = description;
+        Callback = callback;
+        Default = defaultKey;
+        Category = category;
+        Value = defaultKey;
+        Id = category is null ? name : $"{category}/{name}";
+    }
+
+    public string Name { get; }
+
+    public string Description { get; }
+
+    public string? Category { get; }
+
+    public Hotkey Default { get; }
+
+    public string Id { get; }
+
+    internal Action Callback { get; }
 }

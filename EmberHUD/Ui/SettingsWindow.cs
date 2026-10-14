@@ -5,77 +5,76 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal enum SettingsPage { General, Plugin }
-
 internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs)
 {
     internal const float ListWidth = 190f;
+    internal const float ControlWidth = 260f;
+    internal const float FontSliderWidth = 140f;
 
     bool _open;
     string _saveAs = "";
     readonly string[] _fontFilters = ["", "", "", ""];
     IReadOnlyList<string>? _fontFiles;
-    bool _fontsListed;
-
-    public SettingsPage Page { get; set; }
+    IReadOnlyList<string>? _themeNames;
 
     public PluginSlot? Selected { get; set; }
 
-    public void Toggle() => _open = !_open;
+    public void Toggle()
+    {
+        _open = !_open;
+        _fontFiles = null;
+        _themeNames = null;
+    }
 
     public void Draw()
     {
         if (!_open) return;
+        plugins.MarkSettingsOpen();
         ImGui.SetNextWindowSize(new Vector2(860, 560), ImGuiCond.FirstUseEver);
-        if (ImGui.Begin("EmberHUD###settings", ref _open, ImGuiWindowFlags.NoCollapse)) Windows.MasterDetail("settings", ListWidth, DrawList, DrawPage);
+        if (ImGui.Begin("EmberHUD###settings", ref _open, ImGuiWindowFlags.NoCollapse)) Layout.MasterDetail("settings", ListWidth, DrawList, DrawPage);
         ImGui.End();
     }
 
     void DrawList()
     {
-        if (ImGui.Selectable("EmberHUD Settings", Page == SettingsPage.General)) Page = SettingsPage.General;
+        if (ImGui.Selectable("EmberHUD Settings", Selected is null)) Selected = null;
         ImGui.Separator();
-        foreach (var slot in plugins.Slots.OrderByDescending(slot => slot.Enabled).ThenBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase))
+        var slots = plugins.Slots;
+        for (var i = 0; i < slots.Count; i++)
+            if (slots[i].Enabled) DrawRow(slots[i]);
+        for (var i = 0; i < slots.Count; i++)
+            if (!slots[i].Enabled) DrawRow(slots[i]);
+    }
+
+    void DrawRow(PluginSlot slot)
+    {
+        var errored = slot.ErrorStage is not null;
+        var colour = errored ? EColor.U32(EColor.Bad) : ImGui.GetColorU32(slot.Enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
+        var selected = Selected == slot;
+        using (new EColor.StyleColorScope(selected ? [] : [(ImGuiCol.Text, colour)]))
         {
-            var errored = slot.ErrorStage is not null;
-            var colour = errored ? EColor.U32(EColor.Bad) : ImGui.GetColorU32(slot.Enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
-            var selected = Page == SettingsPage.Plugin && Selected == slot;
-            using (new EColor.StyleColorScope(selected ? [] : [(ImGuiCol.Text, colour)]))
-            {
-                if (ImGui.Selectable($"{(errored ? "! " : "")}{slot.Name}{(slot.Compiling ? " (compiling)" : "")}###{slot.Name}", selected))
-                {
-                    Page = SettingsPage.Plugin;
-                    Selected = slot;
-                }
-            }
+            if (ImGui.Selectable($"{(errored ? "! " : "")}{slot.Name}{(slot.Compiling ? " (compiling)" : "")}###{slot.Name}", selected)) Selected = slot;
         }
     }
 
     void DrawPage()
     {
-        switch (Page)
-        {
-            case SettingsPage.General:
-                Windows.TabBar("emberhud", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys));
-                break;
-            case SettingsPage.Plugin when Selected is { } slot:
-                DrawPlugin(slot);
-                break;
-        }
+        if (Selected is { } slot) DrawPlugin(slot);
+        else Layout.TabBar("emberhud", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys));
     }
 
     void DrawPlugin(PluginSlot slot)
     {
         ImGui.PushID(slot.Name);
-        using (Fonts.UseBold()) ImGui.TextUnformatted(slot.Name);
+        using (Fonts.Use(FontFace.Bold)) ImGui.TextUnformatted(slot.Name);
         ImGui.SameLine();
         ImGui.BeginDisabled(slot.Compiling);
         if (ImGui.Button(slot.ErrorStage is null ? "Reload###reload" : "Retry###reload")) plugins.Reload(slot);
         ImGui.EndDisabled();
-        Layout.BeginTrailing("enable");
+        var trail = Layout.BeginTrailing("enable");
         var enabled = slot.Enabled;
         if (ImGui.Checkbox("Enabled", ref enabled)) plugins.SetEnabled(slot, enabled);
-        Layout.EndTrailing();
+        Layout.EndTrailing(trail);
 
         if (slot.ErrorStage is { } stage)
         {
@@ -95,7 +94,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.SameLine();
         if (ImGui.Button("Reset to defaults")) ImGui.OpenPopup("reset");
         ImGui.EndDisabled();
-        if (Windows.ConfirmModal("reset", $"Reset {slot.Name} to its defaults?", out var confirmed) && confirmed) plugins.ResetSettings(slot);
+        if (Layout.ConfirmModal("reset", $"Reset {slot.Name} to its defaults?", out var confirmed) && confirmed) plugins.ResetSettings(slot);
         ImGui.Separator();
 
         if (ImGui.BeginChild("body")) plugins.DrawSettings(slot);
@@ -108,11 +107,14 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         Controls.Section("EmberHUD");
         Controls.Hotkey("Settings window", ref sdk.Hotkeys.Settings, "settings");
         Controls.Hotkey("Quit", ref sdk.Hotkeys.Quit, "quit");
-        foreach (var slot in plugins.Slots.Where(slot => slot.Enabled && slot.Initialized && slot.Instance is { Hotkeys.Count: > 0 }).OrderBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase))
+        var slots = plugins.Slots;
+        for (var i = 0; i < slots.Count; i++)
         {
+            var slot = slots[i];
+            if (!slot.Enabled || !slot.Initialized || slot.Instance is not { } instance || instance.Hotkeys.Count == 0) continue;
             Controls.Section(slot.Name);
             ImGui.PushID(slot.Name);
-            Controls.HotkeyTable(slot.Instance!);
+            Controls.HotkeyTable(instance);
             ImGui.PopID();
         }
         return false;
@@ -134,31 +136,30 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
     IEnumerable<(string, string)> FontCandidates()
     {
-        _fontsListed = true;
         foreach (var file in _fontFiles ??= themes.FontFiles()) yield return (file, file);
     }
 
     bool DrawTheme()
     {
-        ImGui.SetNextItemWidth(260);
+        ImGui.SetNextItemWidth(ControlWidth);
         if (ImGui.BeginCombo("Theme", themes.Name))
         {
-            foreach (var name in themes.Names())
+            foreach (var name in _themeNames ??= themes.Names())
                 if (ImGui.Selectable(name, name == themes.Name)) themes.Use(name);
             ImGui.EndCombo();
         }
-        sdk.Theme = themes.Name;
         ImGui.SameLine();
         if (Controls.PrimaryButton("Save")) themes.SaveAs(themes.Name);
         ImGui.SameLine();
         if (ImGui.Button("Revert")) themes.Use(themes.Name);
-        ImGui.SetNextItemWidth(260);
+        ImGui.SetNextItemWidth(ControlWidth);
         ImGui.InputTextWithHint("##saveas", "New theme name", ref _saveAs, 64);
         ImGui.SameLine();
         ImGui.BeginDisabled(string.IsNullOrWhiteSpace(_saveAs) || _saveAs.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0);
         if (ImGui.Button("Save As"))
         {
             themes.SaveAs(_saveAs.Trim());
+            _themeNames = null;
             _saveAs = "";
         }
         ImGui.EndDisabled();
@@ -167,17 +168,16 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ThemeFont[] fonts = [themes.Current.Fonts.Regular, themes.Current.Fonts.Bold, themes.Current.Fonts.Label, themes.Current.Fonts.Mono];
         string[] labels = ["Regular", "Bold", "Label", "Mono"];
         var changed = false;
-        _fontsListed = false;
         for (var i = 0; i < fonts.Length; i++)
         {
             ImGui.PushID(i);
-            if (Combo.SearchCombo("file", fonts[i].File, FontCandidates(), ref _fontFilters[i], out var file, 260) && file is not null)
+            if (Combo.SearchCombo("file", fonts[i].File, FontCandidates(), ref _fontFilters[i], out var file, ControlWidth) && file is not null)
             {
                 fonts[i] = fonts[i] with { File = file };
                 changed = true;
             }
             ImGui.SameLine();
-            ImGui.SetNextItemWidth(140);
+            ImGui.SetNextItemWidth(FontSliderWidth);
             var size = fonts[i].Size;
             if (ImGui.SliderFloat(labels[i], ref size, 8, 40, "%.0f px"))
             {
@@ -186,7 +186,6 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
             }
             ImGui.PopID();
         }
-        if (!_fontsListed) _fontFiles = null;
         if (changed) themes.UseFonts(new ThemeFonts { Regular = fonts[0], Bold = fonts[1], Label = fonts[2], Mono = fonts[3] });
 
         Controls.Section("Gradients");

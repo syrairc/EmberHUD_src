@@ -2,7 +2,7 @@ using System.Text;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class LocTextTests
 {
@@ -139,16 +139,16 @@ public class LocTextTests
         Assert.True(truncated);
     }
 
-    static long LanguageMap(FakeWorld world)
+    static nint LanguageMap(FakeWorld world)
     {
-        world.Memory.TryReadPtr(unchecked((nint)(FakeWorld.ModuleBase + Offsets.LanguageBucketsRva)), out var languageBuckets);
+        world.Memory.TryReadPtr(FakeWorld.Module + Offsets.LanguageBucketsRva, out var languageBuckets);
         world.Memory.TryReadPtr(languageBuckets, out var languages);
         return languages + Offsets.LanguageNodeMap;
     }
 
-    static long BucketHead(FakeWorld world, int bucket)
+    static nint BucketHead(FakeWorld world, int bucket)
     {
-        world.Memory.TryReadPtr((nint)LanguageMap(world), out var buckets);
+        world.Memory.TryReadPtr(LanguageMap(world), out var buckets);
         world.Memory.TryReadPtr(buckets + bucket * 8, out var head);
         return head;
     }

@@ -1,62 +1,33 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class MapInfoReaderTests
 {
-    const int Map = 4602;
-    const int Town = 110;
-    const int MapScene = 3;
+    const int Map = FakeMapInfo.MapId;
+    const int Town = FakeMapInfo.TownId;
+    const int MapScene = FakeMapInfo.MapSceneType;
+    const string Coffins = FakeMapInfo.Coffins;
+    static readonly string[] VigilSpec = FakeMapInfo.VigilSpec;
+    static readonly int Vigil = FakeMapInfo.Vigil;
     static readonly int TownScene = int.Parse(Offsets.TownSceneTypes.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0]);
-    static readonly string[] VigilSpec = Offsets.MapContent.Split(';')[0].Split(',');
-    static readonly int Vigil = int.Parse(VigilSpec[2]);
-    const string Coffins = "There are Coffins awaiting escort in this stage";
     long _now;
+
+    MapInfo? Read(FakeWorld world, int third = 0) => ReaderFor(world).Read(world.Scene, 1, third, []);
 
     MapInfoReader ReaderFor(FakeWorld world)
     {
         var module = FakeWorld.Module;
-        var minimap = new MinimapReader(world.Memory, module);
-        return new(world.Memory, module, new LocText(world.Memory, module), new GameUiReader(world.Memory, module, minimap.TryReadName), minimap.TryReadName, () => _now);
-    }
-
-    internal static FakeWorld Demiman(bool withPanel = true, string[]? panelLines = null)
-    {
-        var world = new FakeWorld();
-        world.SetLanguageTable(2, 7,
-            (Offsets.LevelNameKey + Map, "Demiman Village"),
-            (Offsets.LevelNameKey + Town, "Ember's Rest"),
-            (Offsets.ModifierTextKey + Vigil, Coffins));
-        world.SetMapInfo(Map, MapScene, 82, 112);
-        world.SetModifiers(5111003, Vigil, 71020000);
-        if (withPanel) AddHud(world, panelLines ?? ["<RichText Id=\"100004\">+60</>% Drop Quantity", "-6% Max Elemental Resistance for you", Coffins]);
-        return world;
-    }
-
-    static void AddHud(FakeWorld world, string[] panelLines)
-    {
-        var ui = new FakeUi(world);
-        var hud = ui.Widget(ui.UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
-        var root = ui.Widget(ui.PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
-        var xp = ui.Widget(ui.PanelClass("UIShrinkTextBlock"), Offsets.MapXpWidget, Vector2.Zero, new Vector2(200, 20));
-        var box = ui.Widget(ui.PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
-        var rich = ui.UserClass("UIRichTextBlock");
-        var lines = panelLines
-            .Select((text, i) => { var item = ui.Widget(rich, $"UIRichTextBlock_{i + 1}", Vector2.Zero, new Vector2(400, 20)); ui.Text(item, Offsets.TextBlockText, text); return item; })
-            .ToArray();
-        ui.Text(xp, Offsets.ShrinkTextContent, "Map Base XP gain: 100%");
-        ui.SetTree(hud, root);
-        ui.SetChildren(root, xp, box);
-        ui.SetChildren(box, lines);
-        ui.AddRoot(hud);
+        var names = new Names(world.Memory, module);
+        return new(world.Memory, module, new LocText(world.Memory, module), new GameUiReader(world.Memory, module, names), names, () => _now);
     }
 
     [Fact]
     public void ReadsTheMapLikeTheGamePanel()
     {
-        var world = Demiman();
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 36, [])!;
+        var world = FakeMapInfo.Demiman();
+        var map = Read(world, 36)!;
         Assert.Equal("Demiman Village", map.Name);
         Assert.Equal(82, map.MonsterLevel);
         Assert.Equal(Offsets.RemainingAddsAlive == 1 ? 148 : 112, map.Remaining);
@@ -67,8 +38,8 @@ public class MapInfoReaderTests
     [Fact]
     public void VigilIsAContentRowAndItsLineIsDropped()
     {
-        var world = Demiman();
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var world = FakeMapInfo.Demiman();
+        var map = Read(world)!;
         var row = Assert.Single(map.Content);
         Assert.Equal(VigilSpec[0], row.Name);
         Assert.Equal(VigilSpec[3], row.Icon);
@@ -83,25 +54,25 @@ public class MapInfoReaderTests
     [InlineData(0x6_0000_0001, 0x6_0000_0001, ContentState.Done)]
     public void VigilStateFromTheS15Vars(long started, long done, ContentState expected)
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetGameplays((8100, [(Offsets.VigilStartedVar + "_EventsMember_3BE2", started), (Offsets.VigilDoneVar + "_EventsMember_0C50", done), ("CarEtyID_EventsMember_9D8C", 62)]));
-        Assert.Equal(expected, ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Content.Single().State);
+        Assert.Equal(expected, Read(world)!.Content.Single().State);
     }
 
     [Fact]
     public void AVarNameMustEndAtTheSuffix()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetGameplays((8100, [(Offsets.VigilDoneVar + "Time_EventsMember_1", 30)]));
-        Assert.Equal(ContentState.Pending, ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Content.Single().State);
+        Assert.Equal(ContentState.Pending, Read(world)!.Content.Single().State);
     }
 
     [Fact]
     public void NoContentWithoutItsModifier()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetModifiers(5111003);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Empty(map.Content);
         Assert.Contains(Coffins, map.Modifiers);
     }
@@ -109,9 +80,9 @@ public class MapInfoReaderTests
     [Fact]
     public void TownIsTown()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetMapInfo(Town, TownScene, 2, 1);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.True(map.IsTown);
         Assert.Equal("Ember's Rest", map.Name);
     }
@@ -119,8 +90,8 @@ public class MapInfoReaderTests
     [Fact]
     public void WithoutThePanelTheDataLinesStillShow()
     {
-        var world = Demiman(withPanel: false);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var world = FakeMapInfo.Demiman(withPanel: false);
+        var map = Read(world)!;
         Assert.Equal("Demiman Village", map.Name);
         Assert.Null(map.XpGain);
         Assert.Empty(map.Modifiers);
@@ -130,25 +101,25 @@ public class MapInfoReaderTests
     [Fact]
     public void UnknownLevelGivesAnEmptyName()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetMapInfo(9999, MapScene, 50, 10);
-        Assert.Equal("", ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Name);
+        Assert.Equal("", Read(world)!.Name);
     }
 
     [Fact]
     public void BrokenInfoBlockGivesNoMap()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.Memory.Write(world.Scene + Offsets.SceneGeometry, 0L);
-        Assert.Null(ReaderFor(world).Read((nint)world.Scene, 1, 0, []));
+        Assert.Null(Read(world));
     }
 
     [Fact]
     public void ModifierCountOverCapGivesNoContent()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.Memory.Write(world.Module() + Offsets.GridModuleModifierCount, (uint)Offsets.MaxModifiers + 1);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Empty(map.Content);
         Assert.Equal(82, map.MonsterLevel);
     }
@@ -156,28 +127,28 @@ public class MapInfoReaderTests
     [Fact]
     public void GameplayCountOverCapLeavesVigilPending()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetGameplays((8100, [(Offsets.VigilDoneVar + "_X", 1)]));
         world.Memory.Write(world.Scene + Offsets.SceneGameplayCount, (uint)Offsets.MaxGameplays + 1);
-        Assert.Equal(ContentState.Pending, ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Content.Single().State);
+        Assert.Equal(ContentState.Pending, Read(world)!.Content.Single().State);
     }
 
     [Fact]
     public void ANewAreaWalksTheHudAgainForTheNewAffixBox()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         var reader = ReaderFor(world);
-        reader.Read((nint)world.Scene, 1, 0, []);
-        AddHud(world, ["+20% Drop Quantity"]);
-        Assert.Equal(["+20% Drop Quantity"], reader.Read((nint)world.Scene, 2, 0, [])!.Modifiers);
+        reader.Read(world.Scene, 1, 0, []);
+        new FakeUi(world).MapHud(["+20% Drop Quantity"]);
+        Assert.Equal(["+20% Drop Quantity"], reader.Read(world.Scene, 2, 0, [])!.Modifiers);
     }
 
     [Fact]
     public void GarbageToSpawnGivesNoRemaining()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetMapInfo(Map, MapScene, 82, Offsets.MaxRemaining + 1);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Null(map.Remaining);
         Assert.Equal(82, map.MonsterLevel);
     }
@@ -194,16 +165,16 @@ public class MapInfoReaderTests
     [Fact]
     public void RefreshesOncePerIntervalAndAtOnceOnAreaChange()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         var reader = ReaderFor(world);
-        var first = reader.Read((nint)world.Scene, 1, 0, []);
+        var first = reader.Read(world.Scene, 1, 0, []);
         world.SetMapInfo(Map, MapScene, 82, 100);
         _now += Offsets.MapInfoRefreshMilliseconds - 1;
-        Assert.Same(first, reader.Read((nint)world.Scene, 1, 0, []));
+        Assert.Same(first, reader.Read(world.Scene, 1, 0, []));
         _now += 1;
-        Assert.Equal(100, reader.Read((nint)world.Scene, 1, 0, [])!.Remaining);
+        Assert.Equal(100, reader.Read(world.Scene, 1, 0, [])!.Remaining);
         world.SetMapInfo(Map, MapScene, 80, 100);
-        Assert.Equal(80, reader.Read((nint)world.Scene, 2, 0, [])!.MonsterLevel);
+        Assert.Equal(80, reader.Read(world.Scene, 2, 0, [])!.MonsterLevel);
     }
 
     static readonly MapIcon[] NoIcons = [];
@@ -214,7 +185,7 @@ public class MapInfoReaderTests
 
     static FakeWorld TarotMap()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetLanguageTable(2, 7,
             (Offsets.LevelNameKey + Map, "Demiman Village"),
             (Offsets.TarotNameKey + (5011 - Offsets.TarotNameBase), "The Devil"),
@@ -232,9 +203,9 @@ public class MapInfoReaderTests
 
     MapInfo AfterSeeingAllCards(FakeWorld world, MapInfoReader reader, MapIcon[] icons)
     {
-        reader.Read((nint)world.Scene, 1, 0, AllCardsStanding);
+        reader.Read(world.Scene, 1, 0, AllCardsStanding);
         _now += Offsets.MapInfoRefreshMilliseconds;
-        return reader.Read((nint)world.Scene, 1, 0, icons)!;
+        return reader.Read(world.Scene, 1, 0, icons)!;
     }
 
     [Fact]
@@ -264,7 +235,7 @@ public class MapInfoReaderTests
         var reader = ReaderFor(world);
         AfterSeeingAllCards(world, reader, [PortalIcon, CardIcon(106), CardIcon(107)]);
         _now += Offsets.MapInfoRefreshMilliseconds;
-        var devil = reader.Read((nint)world.Scene, 1, 0, NoIcons)!.Content.Single(c => c.Name == "The Devil");
+        var devil = reader.Read(world.Scene, 1, 0, NoIcons)!.Content.Single(c => c.Name == "The Devil");
         Assert.Equal((1, 2), (devil.Done, devil.Total));
     }
 
@@ -273,13 +244,13 @@ public class MapInfoReaderTests
     {
         var world = TarotMap();
         var reader = ReaderFor(world);
-        var cards = reader.Read((nint)world.Scene, 1, 0, [PortalIcon])!.Content.Where(c => c.Name.StartsWith("The ")).ToArray();
+        var cards = reader.Read(world.Scene, 1, 0, [PortalIcon])!.Content.Where(c => c.Name.StartsWith("The ")).ToArray();
         Assert.All(cards, c => Assert.Equal((0, ContentState.Pending), (c.Done, c.State)));
         _now += Offsets.MapInfoRefreshMilliseconds;
-        cards = reader.Read((nint)world.Scene, 1, 0, AllCardsStanding)!.Content.Where(c => c.Name.StartsWith("The ")).ToArray();
+        cards = reader.Read(world.Scene, 1, 0, AllCardsStanding)!.Content.Where(c => c.Name.StartsWith("The ")).ToArray();
         Assert.All(cards, c => Assert.Equal(0, c.Done));
         _now += Offsets.MapInfoRefreshMilliseconds;
-        var hermit = reader.Read((nint)world.Scene, 1, 0, [PortalIcon, CardIcon(105), CardIcon(107)])!.Content.Single(c => c.Name == "The Hermit");
+        var hermit = reader.Read(world.Scene, 1, 0, [PortalIcon, CardIcon(105), CardIcon(107)])!.Content.Single(c => c.Name == "The Hermit");
         Assert.Equal((1, 1, ContentState.Done), (hermit.Done, hermit.Total, hermit.State));
     }
 
@@ -290,7 +261,7 @@ public class MapInfoReaderTests
         var reader = ReaderFor(world);
         var devil = AfterSeeingAllCards(world, reader, [PortalIcon, CardIcon(106)]).Content.Single(c => c.Name == "The Devil");
         Assert.Equal(2, devil.Done);
-        devil = reader.Read((nint)world.Scene, 2, 0, NoIcons)!.Content.Single(c => c.Name == "The Devil");
+        devil = reader.Read(world.Scene, 2, 0, NoIcons)!.Content.Single(c => c.Name == "The Devil");
         Assert.Equal((0, 2), (devil.Done, devil.Total));
     }
 
@@ -298,7 +269,7 @@ public class MapInfoReaderTests
     public void TheHostAndUnknownTypesAreNotCards()
     {
         var world = TarotMap();
-        var names = ReaderFor(world).Read((nint)world.Scene, 1, 0, [PortalIcon])!.Content.Select(c => c.Name).ToArray();
+        var names = ReaderFor(world).Read(world.Scene, 1, 0, [PortalIcon])!.Content.Select(c => c.Name).ToArray();
         Assert.Equal(["The Devil", "The Hermit"], names.Where(n => n.StartsWith("The ")).Order().ToArray());
         Assert.Equal(2, names.Length - (names.Contains(VigilSpec[0]) ? 1 : 0));
     }
@@ -308,7 +279,7 @@ public class MapInfoReaderTests
     {
         var world = TarotMap();
         world.SetGameplays((5011, [("something_else_X", 1)]));
-        var devil = ReaderFor(world).Read((nint)world.Scene, 1, 0, [PortalIcon])!.Content.Single(c => c.Name == "The Devil");
+        var devil = ReaderFor(world).Read(world.Scene, 1, 0, [PortalIcon])!.Content.Single(c => c.Name == "The Devil");
         Assert.Equal((0, 1, ContentState.Pending), (devil.Done, devil.Total, devil.State));
     }
 
@@ -317,7 +288,7 @@ public class MapInfoReaderTests
     {
         var world = TarotMap();
         world.SetGameplays((5013, [(Offsets.TarotEntityVar + "_X", 200)]));
-        Assert.Contains(ReaderFor(world).Read((nint)world.Scene, 1, 0, [PortalIcon])!.Content, c => c.Name == "Tarot 5013");
+        Assert.Contains(ReaderFor(world).Read(world.Scene, 1, 0, [PortalIcon])!.Content, c => c.Name == "Tarot 5013");
     }
 
     static readonly string[][] StatueSpecs = [.. Offsets.Statues.Split(';').Select(s => s.Split(','))];
@@ -336,7 +307,7 @@ public class MapInfoReaderTests
 
     static FakeWorld ClaimedLines(params string[] lines)
     {
-        var world = Demiman(panelLines: lines);
+        var world = FakeMapInfo.Demiman(panelLines: lines);
         world.SetLanguageTable(2, 7,
             (Offsets.LevelNameKey + Map, "Demiman Village"),
             (Offsets.ModifierTextKey + Vigil, Coffins),
@@ -352,7 +323,7 @@ public class MapInfoReaderTests
     public void VoidPiratesAndKinsAreContentRows()
     {
         var world = ClaimedLines(PlaneAnchor, Kins, "<RichText Id=\"100004\">+60</>% Drop Quantity");
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Equal([VigilSpec[0], "Void Pirates", "Kins of Aeterna"], map.Content.Select(c => c.Name));
         Assert.All(map.Content.Skip(1), c => Assert.Equal((VoidPirates[3], ContentState.Pending), (c.Icon, c.State)));
     }
@@ -361,19 +332,19 @@ public class MapInfoReaderTests
     public void TheirGameLinesAreDropped()
     {
         var world = ClaimedLines(PlaneAnchor, Kins, "<RichText Id=\"100004\">+60</>% Drop Quantity");
-        Assert.Equal(["+60% Drop Quantity"], ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Modifiers);
+        Assert.Equal(["+60% Drop Quantity"], Read(world)!.Modifiers);
     }
 
     [Fact]
     public void DarkSurgeIsAContentRow()
     {
-        var world = Demiman(panelLines: ["<RichText Id=\"100004\">+60</>% Drop Quantity", DarkSurge]);
+        var world = FakeMapInfo.Demiman(panelLines: ["<RichText Id=\"100004\">+60</>% Drop Quantity", DarkSurge]);
         world.SetLanguageTable(2, 7,
             (Offsets.LevelNameKey + Map, "Demiman Village"),
             (Offsets.ModifierTextKey + Vigil, Coffins),
             (DarkSurgeSpec[5], DarkSurge));
         world.SetModifiers(5111003, Vigil, int.Parse(DarkSurgeSpec[2]));
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Equal([VigilSpec[0], "Dark Surge"], map.Content.Select(c => c.Name));
         Assert.Equal((DarkSurgeSpec[3], ContentState.Pending), (map.Content[1].Icon, map.Content[1].State));
         Assert.Equal(["+60% Drop Quantity"], map.Modifiers);
@@ -382,9 +353,9 @@ public class MapInfoReaderTests
     [Fact]
     public void MistvilleResidentIsAContentRow()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetModifiers(5111003, Vigil, int.Parse(MistvilleSpec[2]));
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        var map = Read(world)!;
         Assert.Equal([VigilSpec[0], "Mistville Resident"], map.Content.Select(c => c.Name));
         Assert.Equal((MistvilleSpec[3], ContentState.Pending), (map.Content[1].Icon, map.Content[1].State));
     }
@@ -393,7 +364,7 @@ public class MapInfoReaderTests
     public void VigilStillClaimsItsMapModifierLine()
     {
         var world = ClaimedLines(Coffins, "<RichText Id=\"100004\">+60</>% Drop Quantity");
-        Assert.Equal(["+60% Drop Quantity"], ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Modifiers);
+        Assert.Equal(["+60% Drop Quantity"], Read(world)!.Modifiers);
     }
 
     [Fact]
@@ -401,15 +372,15 @@ public class MapInfoReaderTests
     {
         var world = ClaimedLines(TrialOfWar);
         var reader = ReaderFor(world);
-        Assert.Equal([TrialOfWar], reader.Read((nint)world.Scene, 1, 0, [])!.Modifiers);
+        Assert.Equal([TrialOfWar], reader.Read(world.Scene, 1, 0, [])!.Modifiers);
         AddWar(world, 300);
         _now += Offsets.MapInfoRefreshMilliseconds;
-        Assert.Empty(reader.Read((nint)world.Scene, 1, 0, [])!.Modifiers);
+        Assert.Empty(reader.Read(world.Scene, 1, 0, [])!.Modifiers);
     }
 
     static FakeWorld StatueMap()
     {
-        var world = Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetLanguageTable(2, 7,
             (Offsets.LevelNameKey + Map, "Demiman Village"),
             (War[1], "Statue of War"),
@@ -417,12 +388,12 @@ public class MapInfoReaderTests
         return world;
     }
 
-    static long AddWar(FakeWorld world, int entityId, bool active = false) => world.AddStatue(entityId, War[0], War[3], Convert.ToInt32(War[4], 16), active);
+    static nint AddWar(FakeWorld world, int entityId, bool active = false) => world.AddStatue(entityId, War[0], War[3], Convert.ToInt32(War[4], 16), active);
 
     MapContent[] Statues(FakeWorld world, MapInfoReader reader, int area = 1)
     {
         _now += Offsets.MapInfoRefreshMilliseconds;
-        return [.. reader.Read((nint)world.Scene, area, 0, [])!.Content.Where(c => c.Name.StartsWith("Statue of "))];
+        return [.. reader.Read(world.Scene, area, 0, [])!.Content.Where(c => c.Name.StartsWith("Statue of "))];
     }
 
     [Fact]
@@ -433,7 +404,7 @@ public class MapInfoReaderTests
         var statue = AddWar(world, 300);
         var row = Assert.Single(Statues(world, reader));
         Assert.Equal(("Statue of War", War[2], ContentState.Pending), (row.Name, row.Icon, row.State));
-        var component = world.Memory.ReadTMapPointers((nint)(statue + Offsets.EntityComponents)).Single().Value;
+        var component = world.Memory.ReadTMapPointers(statue + Offsets.EntityComponents).Single().Value;
         world.Memory.Write(component + Convert.ToInt32(War[4], 16), (byte)1);
         Assert.Equal(ContentState.Active, Assert.Single(Statues(world, reader)).State);
     }
@@ -474,7 +445,7 @@ public class MapInfoReaderTests
         var reader = ReaderFor(world);
         AddWar(world, 300, active: true);
         Assert.Equal(ContentState.Active, Assert.Single(Statues(world, reader)).State);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.FightMgrGlobalRva, 0L);
+        world.Memory.Write(FakeWorld.Module + Offsets.FightMgrGlobalRva, 0L);
         for (var refresh = 0; refresh < Offsets.StatueAbsentRefreshes + 1; refresh++)
         {
             var row = Assert.Single(Statues(world, reader));
@@ -536,7 +507,7 @@ public class MapInfoReaderTests
         var world = StatueMap();
         world.AddStatue(303, "ESeasonGamePlayAltar");
         Assert.Empty(Statues(world, ReaderFor(world)));
-        Assert.DoesNotContain(ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!.Content, c => c.Name.Contains("Altar"));
+        Assert.DoesNotContain(Read(world)!.Content, c => c.Name.Contains("Altar"));
     }
 
     [Fact]
@@ -556,8 +527,8 @@ public class MapInfoReaderTests
     {
         var world = StatueMap();
         AddWar(world, 300);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.FightMgrGlobalRva, 0L);
-        var map = ReaderFor(world).Read((nint)world.Scene, 1, 0, [])!;
+        world.Memory.Write(FakeWorld.Module + Offsets.FightMgrGlobalRva, 0L);
+        var map = Read(world)!;
         Assert.DoesNotContain(map.Content, c => c.Name.StartsWith("Statue of "));
     }
 }

@@ -27,8 +27,14 @@ internal static class Samples
 
     public static readonly Camera Camera = new(new Vector3(-990, 20, 1000), new Vector3(-45, 0, 0), 90);
 
-    public static readonly GameState Rich = new GameState("ready", 7, Player, Entities, Terrain, -90)
+    public static readonly GameState Rich = new GameState
     {
+        Status = "ready",
+        AreaId = 7,
+        Player = Player,
+        Entities = Entities,
+        Terrain = Terrain,
+        MinimapRotation = -90,
         MapIcons = Icons,
         Explored = new ExploredTrail([new Vector2(1, 1)], 250),
         Camera = Camera,

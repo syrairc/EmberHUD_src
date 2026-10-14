@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using EmberHUD.Host.Overlay;
 using EmberHUD.Host.Ui;
+using EmberHUD.Launcher;
 using Hexa.NET.ImGui;
 using Vortice.Mathematics;
 
@@ -12,7 +13,7 @@ internal static class Program
     static unsafe int Main()
     {
         var root = AppContext.BaseDirectory;
-        using var logFile = OpenLog(root);
+        using var logFile = Launch.OpenLog(root, "setup");
         var logGate = new Lock();
         Log.Sink = (level, plugin, message) =>
         {
@@ -51,20 +52,8 @@ internal static class Program
         catch (Exception ex)
         {
             Log.Error(ex, "setup");
-            Win32.MessageBox(0, $"{ex.Message}{Environment.NewLine}see Logs\\setup.log", "EmberHUD Setup", 0x10);
+            Win32.MessageBox(0, $"{ex.Message}{Environment.NewLine}see Logs\\setup.log", "EmberHUD Setup", Win32.MB_ICONERROR);
             return 1;
-        }
-    }
-    internal static TextWriter OpenLog(string root)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.Combine(root, "Logs"));
-            return new StreamWriter(new FileStream(Path.Combine(root, "Logs", "setup.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return TextWriter.Null;
         }
     }
 }

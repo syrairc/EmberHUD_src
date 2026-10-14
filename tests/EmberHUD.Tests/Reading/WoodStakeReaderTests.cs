@@ -5,8 +5,8 @@ namespace EmberHUD.Tests.Reading;
 
 public class WoodStakeReaderTests
 {
-    private const long Module = 0x1_4000_0000;
-    private const long Mgr = 0x2_0000_0000;
+    private static readonly nint Module = unchecked((nint)0x1_4000_0000L);
+    private static readonly nint Mgr = unchecked((nint)0x2_0000_0000L);
 
     private static (FakeMemory Memory, WoodStakeReader Reader) Fixture()
     {
@@ -14,7 +14,7 @@ public class WoodStakeReaderTests
         memory.Map(Module + Offsets.WoodStakeMgrGlobalRva, 8);
         memory.Map(Mgr, 0x200);
         memory.Write(Module + Offsets.WoodStakeMgrGlobalRva, Mgr);
-        return (memory, new WoodStakeReader(memory, unchecked((nint)Module)));
+        return (memory, new WoodStakeReader(memory, Module));
     }
 
     private static void WriteStatistic(FakeMemory memory, int seconds, long avg, long cur, long max, long curUnlimited, long maxUnlimited)
@@ -123,6 +123,6 @@ public class WoodStakeReaderTests
         var memory = new FakeMemory();
         memory.Map(Module + Offsets.WoodStakeMgrGlobalRva, 8);
         memory.Write(Module + Offsets.WoodStakeMgrGlobalRva, Mgr);
-        Assert.Null(new WoodStakeReader(memory, unchecked((nint)Module)).Read());
+        Assert.Null(new WoodStakeReader(memory, Module).Read());
     }
 }

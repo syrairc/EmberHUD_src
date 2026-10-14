@@ -26,8 +26,6 @@ public static class SideNav
     internal const float RowPad = 8f;
     internal const float BadgePad = 2f;
 
-    static readonly Dictionary<uint, int> _sideTab = [];
-
     public static bool Rail(string id, NavItem[]? items, NavState? state, float collapsedWidth = 40f, float expandedWidth = 152f, float iconSize = 20f)
     {
         if (items is not { Length: > 0 } || state is null) return false;
@@ -60,46 +58,6 @@ public static class SideNav
 
         ImGui.PopID();
         return changed;
-    }
-
-    internal static int PickTab((string Label, Func<bool>? Body)[]? tabs, int want)
-    {
-        if (tabs is not { Length: > 0 }) return -1;
-        if (want >= 0 && want < tabs.Length && tabs[want].Body is not null) return want;
-        return Array.FindIndex(tabs, t => t.Body is not null);
-    }
-
-    public static bool SideTabs(string id, float leftWidth, params (string Label, Func<bool>? Body)[] tabs)
-    {
-        var key = ImGui.GetID(id);
-        var cur = PickTab(tabs, _sideTab.GetValueOrDefault(key, -1));
-        if (cur < 0) return false;
-
-        ImGui.PushID(id);
-        ImGui.BeginChild("##nav", new Vector2(leftWidth, 0), ImGuiChildFlags.Borders);
-        for (var i = 0; i < tabs.Length; i++)
-        {
-            if (tabs[i].Body is null)
-            {
-                ImGui.SeparatorText(tabs[i].Label);
-                continue;
-            }
-            if (ImGui.Selectable(tabs[i].Label + "##t" + i, i == cur)) cur = i;
-        }
-        ImGui.EndChild();
-        _sideTab[key] = cur;
-
-        ImGui.SameLine();
-        ImGui.BeginChild("##body", Vector2.Zero, ImGuiChildFlags.Borders);
-        try
-        {
-            return tabs[cur].Body!();
-        }
-        finally
-        {
-            ImGui.EndChild();
-            ImGui.PopID();
-        }
     }
 
     static int Resolve(NavItem[] items, NavState state)

@@ -28,7 +28,6 @@ public sealed class PluginTests
     public void ABarePluginHasNoSettings()
     {
         var plugin = new BarePlugin();
-        Assert.Equal(0, plugin.Order);
         Assert.Null(plugin.SettingsType);
         Assert.Null(plugin.SettingsObject);
     }

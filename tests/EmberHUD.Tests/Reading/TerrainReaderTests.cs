@@ -1,7 +1,7 @@
 using EmberHUD.Host.Memory;
 using EmberHUD.Host;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class TerrainReaderTests
 {
@@ -12,7 +12,7 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree, cellSize: 32, originX: -64, originY: 128);
-        var terrain = new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene));
+        var terrain = new TerrainReader(world.Memory).Read(world);
         Assert.NotNull(terrain);
         Assert.Equal((4, 3), (terrain.Cols, terrain.Rows));
         Assert.Equal(32f, terrain.CellSize);
@@ -27,7 +27,7 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 1, [1, 1, 0, 5], secondClearance: [1, 0, 1, 3]);
-        var terrain = new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene))!;
+        var terrain = new TerrainReader(world.Memory).Read(world)!;
         Assert.Equal([true, false, false, true], Enumerable.Range(0, 4).Select(col => terrain.IsWalkable(col, 0)));
     }
 
@@ -38,10 +38,10 @@ public class TerrainReaderTests
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory, 10);
         Assert.Equal(10, reader.Generation);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
         Assert.Equal(11, reader.Generation);
         world.SetGrid(4, 3, FourByThree, originX: 64);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
         Assert.Equal(12, reader.Generation);
     }
 
@@ -51,12 +51,12 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory);
-        var first = reader.Read(unchecked((nint)world.Scene));
-        Assert.Same(first, reader.Read(unchecked((nint)world.Scene)));
+        var first = reader.Read(world);
+        Assert.Same(first, reader.Read(world));
         Assert.Equal(1, reader.Generation);
 
         world.SetGrid(4, 3, FourByThree, cellSize: 64);
-        var second = reader.Read(unchecked((nint)world.Scene));
+        var second = reader.Read(world);
         Assert.NotSame(first, second);
         Assert.Equal(2, reader.Generation);
     }
@@ -72,9 +72,9 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
         world.SetGrid(cols, rows, Enumerable.Repeat((byte)1, cols * rows).ToArray(), cellSize, originX: originX, originY: originY);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
         Assert.Equal(2, reader.Generation);
     }
 
@@ -82,23 +82,23 @@ public class TerrainReaderTests
     public void DoubleBufferedGridSwapsDoNotRebuildOrBumpGeneration()
     {
         var world = new FakeWorld();
-        var sceneAt = (nint)world.Scene;
+        var sceneAt = world.Scene;
         world.SetGrid(4, 3, FourByThree);
-        world.Memory.TryRead(sceneAt + Offsets.SceneGeometry, out long geometryA);
-        world.Memory.TryRead(sceneAt + Offsets.SceneGridModule, out long moduleA);
+        world.Memory.TryRead(sceneAt + Offsets.SceneGeometry, out nint geometryA);
+        world.Memory.TryRead(sceneAt + Offsets.SceneGridModule, out nint moduleA);
         world.SetGrid(4, 3, FourByThree);
-        world.Memory.TryRead(sceneAt + Offsets.SceneGeometry, out long geometryB);
-        world.Memory.TryRead(sceneAt + Offsets.SceneGridModule, out long moduleB);
+        world.Memory.TryRead(sceneAt + Offsets.SceneGeometry, out nint geometryB);
+        world.Memory.TryRead(sceneAt + Offsets.SceneGridModule, out nint moduleB);
         Assert.NotEqual(moduleA, moduleB);
 
         var reader = new TerrainReader(world.Memory);
-        var first = reader.Read(sceneAt);
+        var first = reader.Read(world);
         for (var i = 0; i < 4; i++)
         {
             var (geometry, module) = i % 2 == 0 ? (geometryB, moduleB) : (geometryA, moduleA);
             world.Memory.Write(sceneAt + Offsets.SceneGeometry, geometry);
             world.Memory.Write(sceneAt + Offsets.SceneGridModule, module);
-            Assert.Same(first, reader.Read(sceneAt));
+            Assert.Same(first, reader.Read(world));
         }
 
         Assert.Equal(1, reader.Generation);
@@ -110,7 +110,7 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         var allWalkable = Enumerable.Repeat((byte)1, 16).ToArray();
         world.SetGrid(4, 4, allWalkable, hybrid: (2, 2, 2, [0, 1, 0, 0]));
-        var terrain = new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene))!;
+        var terrain = new TerrainReader(world.Memory).Read(world)!;
         Assert.False(terrain.IsWalkable(2, 0));
         Assert.False(terrain.IsWalkable(3, 1));
         Assert.True(terrain.IsWalkable(0, 0));
@@ -130,7 +130,7 @@ public class TerrainReaderTests
         world.Memory.Write(grid + Offsets.HybridCols, cols);
         world.Memory.Write(grid + Offsets.HybridRows, rows);
         var reader = new TerrainReader(world.Memory);
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        Assert.Null(reader.Read(world));
         Assert.Equal(0, reader.Generation);
     }
 
@@ -139,16 +139,16 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree, cellSize: 0);
-        Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
+        Assert.Null(new TerrainReader(world.Memory).Read(world));
         world.SetGrid(4, 3, FourByThree, originX: double.NaN);
-        Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
+        Assert.Null(new TerrainReader(world.Memory).Read(world));
     }
 
     [Fact]
     public void MissingGridModuleGivesNoTerrain()
     {
         var world = new FakeWorld();
-        Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
+        Assert.Null(new TerrainReader(world.Memory).Read(world));
     }
 
     [Fact]
@@ -157,11 +157,11 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory);
-        var first = reader.Read(unchecked((nint)world.Scene));
+        var first = reader.Read(world);
         world.Memory.Write(world.Scene + Offsets.SceneGridModule, 0L);
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        Assert.Null(reader.Read(world));
         world.SetGrid(4, 3, FourByThree);
-        Assert.NotSame(first, reader.Read(unchecked((nint)world.Scene)));
+        Assert.NotSame(first, reader.Read(world));
         Assert.Equal(2, reader.Generation);
     }
 
@@ -171,8 +171,8 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
         var reader = new TerrainReader(world.Memory);
-        world.Memory.Write(world.GridAddress + Offsets.HybridCells, 0x7000_0000_0000L);
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        world.Memory.Write(world.GridAddress + Offsets.HybridCells, FakeWorld.Unmapped);
+        Assert.Null(reader.Read(world));
         Assert.Equal(0, reader.Generation);
     }
 
@@ -183,7 +183,7 @@ public class TerrainReaderTests
         var allWalkable = Enumerable.Repeat((byte)1, 16).ToArray();
         world.SetGrid(4, 4, allWalkable, hybrid: (2, 2, int.MaxValue, [0, 1, 0, 0]));
         var reader = new TerrainReader(world.Memory);
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        Assert.Null(reader.Read(world));
         Assert.Equal(0, reader.Generation);
     }
 
@@ -193,14 +193,14 @@ public class TerrainReaderTests
         var world = new FakeWorld();
         var allWalkable = Enumerable.Repeat((byte)1, 16).ToArray();
         world.SetGrid(4, 4, allWalkable, hybrid: (0, 2, 2, [0, 1, 0, 0]));
-        Assert.Null(new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene)));
+        Assert.Null(new TerrainReader(world.Memory).Read(world));
     }
 
-    private static bool ReadCells(FakeWorld world, TerrainReader reader, long cells)
+    private static bool ReadCells(FakeWorld world, TerrainReader reader, nint cells)
     {
         world.Memory.Reads.Clear();
-        reader.Read(unchecked((nint)world.Scene));
-        return world.Memory.Reads.Any(read => read.Address == unchecked((nint)cells));
+        reader.Read(world);
+        return world.Memory.Reads.Any(read => read.Address == cells);
     }
 
     [Fact]
@@ -208,13 +208,13 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
-        const long garbage = 0x7000_0000_0000L;
+        var garbage = FakeWorld.Unmapped;
         world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
         var reader = new TerrainReader(world.Memory);
 
         Assert.True(ReadCells(world, reader, garbage));
         Assert.False(ReadCells(world, reader, garbage));
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        Assert.Null(reader.Read(world));
     }
 
     [Fact]
@@ -222,16 +222,16 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
-        const long garbage = 0x7000_0000_0000L;
+        var garbage = FakeWorld.Unmapped;
         world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
         var reader = new TerrainReader(world.Memory);
-        Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+        Assert.Null(reader.Read(world));
         world.SetGrid(4, 3, FourByThree);
 
         for (var i = 1; i < TerrainReader.RetryEveryReads; i++)
-            Assert.Null(reader.Read(unchecked((nint)world.Scene)));
+            Assert.Null(reader.Read(world));
 
-        Assert.NotNull(reader.Read(unchecked((nint)world.Scene)));
+        Assert.NotNull(reader.Read(world));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
-        const long garbage = 0x7000_0000_0000L;
+        var garbage = FakeWorld.Unmapped;
         world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
         var reader = new TerrainReader(world.Memory);
         ReadCells(world, reader, garbage);
@@ -255,15 +255,54 @@ public class TerrainReaderTests
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, FourByThree);
-        const long garbage = 0x7000_0000_0000L;
+        var garbage = FakeWorld.Unmapped;
         world.Memory.Write(world.GridAddress + Offsets.HybridCells, garbage);
         var reader = new TerrainReader(world.Memory);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
         world.Memory.Write(world.Scene + Offsets.SceneGridModule, 0L);
-        reader.Read(unchecked((nint)world.Scene));
+        reader.Read(world);
 
         world.SetGrid(4, 3, FourByThree);
 
-        Assert.NotNull(reader.Read(unchecked((nint)world.Scene)));
+        Assert.NotNull(reader.Read(world));
+    }
+
+    [Fact]
+    public void ASteadyHeaderIsTwoBlockReads()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        var reader = new TerrainReader(world.Memory);
+        reader.Read(world);
+        Assert.True(world.Memory.TryReadPtr(world.Scene + Offsets.SceneGeometry, out var geometry));
+        Assert.True(world.Memory.TryReadPtr(world.Scene + Offsets.SceneGridModule, out var module));
+        world.Memory.Reads.Clear();
+
+        reader.Read(geometry, module);
+
+        Assert.Equal([(geometry, Offsets.GeometryHeaderSize), (module + Offsets.GridModuleHybrid, Offsets.HybridHeaderSize)], world.Memory.Reads);
+    }
+
+    [Fact]
+    public void AGeometryBlockPastItsMappedMemoryGivesNoTerrain()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, FourByThree);
+        Assert.True(world.Memory.TryReadPtr(world.Scene + Offsets.SceneGridModule, out var module));
+        var truncated = world.Alloc(Offsets.GeometryHeaderSize - 1);
+
+        Assert.Null(new TerrainReader(world.Memory).Read(truncated, module));
+        Assert.Null(new TerrainReader(world.Memory).Read(0, module));
+        Assert.Null(new TerrainReader(world.Memory).Read(truncated, 0));
+    }
+}
+
+file static class TerrainReaderExtensions
+{
+    public static Terrain? Read(this TerrainReader reader, FakeWorld world)
+    {
+        world.Memory.TryReadPtr(world.Scene + Offsets.SceneGeometry, out var geometry);
+        world.Memory.TryReadPtr(world.Scene + Offsets.SceneGridModule, out var gridModule);
+        return reader.Read(geometry, gridModule);
     }
 }

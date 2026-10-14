@@ -29,7 +29,7 @@ public sealed class SvgRasterizerTests
     [Fact]
     public void EveryEffectTheIconsUseRenders()
     {
-        var image = SvgRasterizer.Rasterize(Effects, 128);
+        var image = SvgIcons.Rasterize(Effects, 128);
 
         Assert.Equal((255, 0, 0, 255), At(image, 12, 12));
         Assert.True(At(image, 12, 43).R > 200, "gradient top is light");
@@ -50,7 +50,7 @@ public sealed class SvgRasterizerTests
     [InlineData(256)]
     public void TheImageIsTheRequestedSquare(int pixels)
     {
-        var image = SvgRasterizer.Rasterize(Effects, pixels);
+        var image = SvgIcons.Rasterize(Effects, pixels);
 
         Assert.Equal(pixels, image.Width);
         Assert.Equal(pixels, image.Height);
@@ -60,7 +60,7 @@ public sealed class SvgRasterizerTests
     [Fact]
     public void AWideViewBoxFitsItsLongSideAndIsCentred()
     {
-        var image = SvgRasterizer.Rasterize("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32"><rect x="0" y="0" width="64" height="32" fill="#FF0000"/></svg>""", 64);
+        var image = SvgIcons.Rasterize("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32"><rect x="0" y="0" width="64" height="32" fill="#FF0000"/></svg>""", 64);
 
         Assert.Equal(0, At(image, 32, 8).A);
         Assert.Equal((255, 0, 0, 255), At(image, 1, 32));
@@ -71,8 +71,8 @@ public sealed class SvgRasterizerTests
     [Fact]
     public void MalformedOrEmptySvgThrows()
     {
-        Assert.ThrowsAny<Exception>(() => SvgRasterizer.Rasterize("<svg><rect", 32));
-        Assert.ThrowsAny<Exception>(() => SvgRasterizer.Rasterize("hello", 32));
-        Assert.Throws<InvalidDataException>(() => SvgRasterizer.Rasterize("""<svg xmlns="http://www.w3.org/2000/svg"/>""", 32));
+        Assert.ThrowsAny<Exception>(() => SvgIcons.Rasterize("<svg><rect", 32));
+        Assert.ThrowsAny<Exception>(() => SvgIcons.Rasterize("hello", 32));
+        Assert.Throws<InvalidDataException>(() => SvgIcons.Rasterize("""<svg xmlns="http://www.w3.org/2000/svg"/>""", 32));
     }
 }

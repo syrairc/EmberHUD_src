@@ -5,7 +5,7 @@ namespace EmberHUD.Tests;
 
 public sealed class LiveGameSourceTests : IDisposable
 {
-    private static nint At(long rva) => unchecked((nint)(FakeWorld.ModuleBase + rva));
+    private static nint At(int rva) => FakeWorld.Module + rva;
 
     public void Dispose()
     {
@@ -22,14 +22,31 @@ public sealed class LiveGameSourceTests : IDisposable
         LiveGameSource.UseLookups(world.Memory, FakeWorld.Module);
 
         Assert.Equal("Rainforest of Divine Legacy", Loc.Get("level|name|4403"));
-        Assert.Equal([("level|name|4403", "Rainforest of Divine Legacy")], Loc.Find("rainforest"));
+        Assert.Equal([("level|name|4403", "Rainforest of Divine Legacy")], Loc.Find("rainforest", 50, out _));
         Assert.Equal(11, Assert.Single(Scene.Entities()).Id);
 
         new LiveGameSource().Dispose();
 
         Assert.Null(Loc.Get("level|name|4403"));
-        Assert.Empty(Loc.Find("rainforest"));
+        Assert.Empty(Loc.Find("rainforest", 50, out _));
         Assert.Empty(Scene.Entities());
+    }
+
+    [Fact]
+    public void TheSceneListerReadsAClassNameOnlyOnce()
+    {
+        var world = new FakeWorld();
+        var statue = world.AddEntity(3, 77, false, 3, 3, 0, mapOffset: Offsets.FightMapGamePlay);
+        world.Memory.Write(statue.Value + Offsets.UObjectClass, world.AddClass("EMapGodOfWar"));
+        world.PublishEntities(statue);
+        LiveGameSource.UseLookups(world.Memory, FakeWorld.Module);
+        Assert.Equal("EMapGodOfWar", Assert.Single(Scene.Entities()).Class);
+        var blockPointer = FakeWorld.Module + Offsets.FNamePoolRva + Offsets.FNameBlocks;
+        world.Memory.Reads.Clear();
+
+        Assert.Equal("EMapGodOfWar", Assert.Single(Scene.Entities()).Class);
+
+        Assert.DoesNotContain(world.Memory.Reads, r => r.Address == blockPointer);
     }
 
     [Fact]
@@ -38,7 +55,7 @@ public sealed class LiveGameSourceTests : IDisposable
         LiveGameSource.UseLookups(new ClosedBackend(), FakeWorld.Module);
 
         Assert.Null(Loc.Get("level|name|4403"));
-        Assert.Empty(Loc.Find("rainforest"));
+        Assert.Empty(Loc.Find("rainforest", 50, out _));
         Assert.Empty(Scene.Entities());
     }
 
@@ -54,7 +71,7 @@ public sealed class LiveGameSourceTests : IDisposable
         var find = Task.Run(() =>
         {
             gated.BlockedThread = Environment.CurrentManagedThreadId;
-            return Loc.Find("rainforest");
+            return Loc.Find("rainforest", 50, out _);
         }, cancel);
         Assert.True(gated.Entered.Wait(5000, cancel));
         var get = Task.Run(() => Loc.Get("level|name|4403"), cancel);
@@ -80,7 +97,7 @@ public sealed class LiveGameSourceTests : IDisposable
         Assert.Equal(Offsets.UObjectClass, source.Layout!.ObjectClass);
         Assert.Equal(Offsets.FPropertyOffset, source.Layout.PropertyOffset);
         Assert.Equal(Offsets.UeClassClassName, source.Layout.ClassClassName);
-        Assert.True(EmberHUD.Memory.TryRead(At(Offsets.FightMgrGlobalRva), out long fightMgr));
+        Assert.True(EmberHUD.Memory.TryRead(At(Offsets.FightMgrGlobalRva), out nint fightMgr));
         Assert.Equal(world.FightMgr, fightMgr);
     }
 

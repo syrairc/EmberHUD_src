@@ -1,6 +1,6 @@
 using EmberHUD.Host;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class LiveReaderTests
 {
@@ -23,7 +23,7 @@ public class LiveReaderTests
     }
 
     [Fact]
-    public void WithoutAUiChainTheUiIsEmpty()
+    public void WithoutAUiChainTheUiIsEmptyAndTheTradeIsNull()
     {
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
@@ -31,29 +31,7 @@ public class LiveReaderTests
         var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Same(GameUi.Empty, state.Ui);
-    }
-
-    [Fact]
-    public void WithoutAMarketOpenTheTradeIsNull()
-    {
-        var world = new FakeWorld();
-        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
-        world.PublishEntities();
-        var reader = ReaderFor(world);
-        Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Trade);
-    }
-
-    [Fact]
-    public void FindRectSurvivesADisposedBackend()
-    {
-        var reader = new LiveReader(new DisposedBackend(), 0);
-        Assert.Null(reader.FindRect(1, "Any"));
-    }
-
-    private sealed class DisposedBackend : EmberHUD.Host.Memory.IReadBackend
-    {
-        public bool TryRead(nint address, Span<byte> target) => throw new ObjectDisposedException("process");
     }
 
     [Fact]
@@ -143,7 +121,7 @@ public class LiveReaderTests
         var (world, _) = WorldWithPlayerAt(100, 200);
         var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
-        Assert.Equal("live - entities 1, map icons 0, explored off", state.Status);
+        Assert.Equal("live - entities 1, map icons 0, explored off, scans 1", state.Status);
         Assert.Equal(new Vector3(100, 200, 0), state.Player!.Position);
         Assert.Equal(new Vector2(0, 1), state.Player.Forward);
         Assert.Equal([11], state.Entities.Select(e => e.Id));
@@ -191,7 +169,7 @@ public class LiveReaderTests
         world.BreakPlayerMgr();
         reader.TryRead(out var state, out _);
         Assert.Null(state.Player);
-        Assert.Equal("live - no local player - entities 2, map icons 0, explored off", state.Status);
+        Assert.Equal("live - no local player - entities 2, map icons 0, explored off, scans 1", state.Status);
         Assert.Equal(2, state.Entities.Length);
     }
 
@@ -270,8 +248,8 @@ public class LiveReaderTests
         world.SetExplored(minimap, 0.4f, 1000, ("110_0", [new Vector3(1, 2, 3)]));
         var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
-        Assert.Equal([new Vector2(1, 2)], state.Explored!.Points);
-        Assert.EndsWith("explored 1", state.Status);
+        Assert.Equal([new Vector2(1, 2)], state.Explored!.PointArray());
+        Assert.Contains("explored 1", state.Status);
     }
 
     [Fact]
@@ -360,25 +338,77 @@ public class LiveReaderTests
     [Fact]
     public void PublishesTheMapInfo()
     {
-        var world = MapInfoReaderTests.Demiman();
+        var world = FakeMapInfo.Demiman();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.SetMapInfo(4602, 3, 82, 112);
         world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
         var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
-        Assert.Equal(82, state.Map!.MonsterLevel);
+        Assert.Equal(82, state.Area!.MonsterLevel);
         Assert.NotNull(state.Terrain);
     }
 
     [Fact]
     public void ABrokenInfoBlockLeavesNoMapButEntitiesStillPublish()
     {
-        var world = MapInfoReaderTests.Demiman();
+        var world = FakeMapInfo.Demiman();
         world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
         world.Memory.Write(world.Scene + Offsets.SceneGeometry, 0L);
         var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
-        Assert.Null(state.Map);
+        Assert.Null(state.Area);
         Assert.Single(state.Entities);
+    }
+
+    [Fact]
+    public void ThePawnIsResolvedOncePerTick()
+    {
+        var world = new FakeWorld();
+        var (pawn, _) = world.SetLocalPlayer(5);
+        var controller = world.Alloc(0x400);
+        var manager = world.Alloc(0x2000);
+        world.Memory.Write(pawn + Offsets.PawnController, controller);
+        world.Memory.Write(controller + Offsets.ControllerCameraManager, manager);
+        world.Memory.Write(manager + Offsets.CameraCache + Offsets.PovFov, 75f);
+        var reader = ReaderFor(world);
+        world.Memory.Reads.Clear();
+
+        reader.TryRead(out var state, out _);
+
+        Assert.Equal(75, state.Camera?.Fov);
+        Assert.Single(world.Memory.Reads, r => r.Address == FakeWorld.Module + Offsets.PlayerMgrGlobalRva);
+    }
+
+    [Fact]
+    public void TheSceneGeometryIsResolvedOncePerTick()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities();
+        var minimap = world.AddMinimap(0.25f);
+        world.SetLevel(110, 0);
+        world.SetExplored(minimap, 0.4f, 1000, ("110_0", [new Vector3(1, 2, 3)]));
+        var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.Memory.Reads.Clear();
+
+        reader.TryRead(out _, out _);
+
+        Assert.Single(world.Memory.Reads, r => r.Address == world.Scene + Offsets.SceneGeometry);
+    }
+
+    [Fact]
+    public void TheStatusCountsTheFallbackScansOnlyWhenThereWereAny()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = ReaderFor(world);
+        reader.TryRead(out var without, out _);
+        Assert.DoesNotContain("scans", without.Status);
+
+        world.AddMinimap(0.25f);
+        var again = ReaderFor(world);
+        again.TryRead(out var with, out _);
+        Assert.EndsWith("scans 1", with.Status);
     }
 }

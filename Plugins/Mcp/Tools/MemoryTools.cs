@@ -92,9 +92,8 @@ internal static class MemoryTools
         var length = args.RequiredInt("length", 1, HardMax);
         if (length > limit) throw new ToolError($"length {length} is over the MaxReadBytes setting {limit}");
         var buffer = new byte[length];
-        var read = Memory.Read(at, buffer);
-        if (read == 0) throw new ToolError($"nothing readable at {Hex.Of(at)}");
-        return new JsonObject { ["address"] = Hex.Of(at), ["requested"] = length, ["read"] = read, ["dump"] = Dump(at, buffer.AsSpan(0, read)) };
+        if (!Memory.Read(at, buffer)) throw new ToolError($"nothing readable at {Hex.Of(at)}");
+        return new JsonObject { ["address"] = Hex.Of(at), ["requested"] = length, ["dump"] = Dump(at, buffer) };
     }
 
     static string Dump(nint at, ReadOnlySpan<byte> bytes)
@@ -121,7 +120,7 @@ internal static class MemoryTools
         var values = new JsonArray();
         var scratch = new byte[8];
         for (var i = 0; i < count; i++)
-            values.Add(Memory.Read(at + i * stride, scratch.AsSpan(0, size)) == size ? Decode(type, scratch) : null);
+            values.Add(Memory.Read(at + i * stride, scratch.AsSpan(0, size)) ? Decode(type, scratch) : null);
         return new JsonObject { ["address"] = Hex.Of(at), ["type"] = type, ["stride"] = stride, ["values"] = values };
     }
 
@@ -151,14 +150,13 @@ internal static class MemoryTools
         var range = args.Int("range", 4096, 8, 65536);
         var within = args.Int("within", 0, 0, 65536);
         var buffer = new byte[range];
-        var read = Memory.Read(start, buffer);
-        if (read == 0) throw new ToolError($"nothing readable at {Hex.Of(start)}");
+        if (!Memory.Read(start, buffer)) throw new ToolError($"nothing readable at {Hex.Of(start)}");
         var offsets = new JsonArray();
-        for (var offset = 0; offset + 8 <= read; offset += 8)
+        for (var offset = 0; offset + 8 <= buffer.Length; offset += 8)
         {
             var value = BitConverter.ToInt64(buffer, offset);
             if (value >= target && value <= target + within) offsets.Add(Hex.Of(offset));
         }
-        return new JsonObject { ["base"] = Hex.Of(start), ["scanned"] = read, ["offsets"] = offsets };
+        return new JsonObject { ["base"] = Hex.Of(start), ["offsets"] = offsets };
     }
 }

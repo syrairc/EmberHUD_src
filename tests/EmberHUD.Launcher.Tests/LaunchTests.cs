@@ -6,14 +6,6 @@ public class LaunchTests
     const string Inner = @"set __COMPAT_LAYER=RunAsInvoker&& cd /d ""C:\Program Files (x86)\Torchlight Infinite\Game\UE_game\Binaries\Win64"" && start /high torchlight_infinite.exe -SkipGameLauncher -UserDir=Torchlight -Version=5975312";
 
     [Fact]
-    public void NeedsSetupWithoutAConfigOrAGame()
-    {
-        Assert.True(Launch.NeedsSetup(null, Game));
-        Assert.True(Launch.NeedsSetup(new LauncherConfig(), null));
-        Assert.False(Launch.NeedsSetup(new LauncherConfig(), Game));
-    }
-
-    [Fact]
     public void GameInnerHasNoSpaceBeforeTheFirstAmpersands()
     {
         Assert.Equal(Inner, Launch.GameInner(Game));
@@ -92,5 +84,21 @@ public class LaunchTests
         var steps = Launch.Steps(new LauncherConfig { LaunchEmberHUD = false }, Game with { Build = null }, @"D:\dist", _ => false, log.Add);
         Assert.Equal("game", Assert.Single(steps).Name);
         Assert.Contains(log, line => line.Contains("-Version"));
+    }
+
+    [Fact]
+    public void OpenLogWritesTheNamedLogFile()
+    {
+        using var temp = new TempDir();
+        using (var log = Launch.OpenLog(temp.Path, "launcher")) log.WriteLine("hello");
+        Assert.Contains("hello", File.ReadAllText(Path.Combine(temp.Path, "Logs", "launcher.log")));
+    }
+
+    [Fact]
+    public void OpenLogFallsBackToNullWhenTheFolderCannotBeWritten()
+    {
+        using var temp = new TempDir();
+        temp.File("Logs", "not a folder");
+        Assert.Same(TextWriter.Null, Launch.OpenLog(temp.Path, "launcher"));
     }
 }

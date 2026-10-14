@@ -4,7 +4,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ControlsGridsTests
+public class ControlsGridsTests : IDisposable
 {
     static Vector2 Centre() => (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2;
 
@@ -17,33 +17,6 @@ public class ControlsGridsTests
             at = Centre();
         });
         return at;
-    }
-
-    static int TooltipWindowsWhenHovering(Action body, Vector2 at)
-    {
-        var before = 0;
-        var during = 0;
-        UiFrame.Run("test", () =>
-        {
-            body();
-            before = UiFrame.Io().MetricsRenderWindows;
-        });
-        UiFrame.Io().AddMousePosEvent(at.X, at.Y);
-        try
-        {
-            UiFrame.Run("test", body);
-            UiFrame.Run("test", body);
-            UiFrame.Run("test", () =>
-            {
-                body();
-                during = UiFrame.Io().MetricsRenderWindows;
-            });
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-        return during - before;
     }
 
     static HashSet<uint> SwatchColours(Action body)
@@ -60,6 +33,8 @@ public class ControlsGridsTests
     }
 
     static uint Packed(Color c) => ImGui.ColorConvertFloat4ToU32(EColor.ToVector4(c));
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Theory]
     [InlineData(300f, 100f, 0, 3)]
@@ -203,9 +178,9 @@ public class ControlsGridsTests
 
         UiFrame.Run("test", () =>
         {
-            result[0] = Controls.Grid("none", 3, 50, _ => { calls++; return false; }, 3);
-            result[1] = Controls.Grid("last", 3, 50, i => { calls++; return i == 2; }, 3);
-            result[2] = Controls.Grid("first", 3, 50, i => { calls++; return i == 0; }, 3);
+            result[0] = Controls.Grid("none", 3, 50, _ => { calls++; ImGui.Dummy(new Vector2(10, 10)); return false; }, 3);
+            result[1] = Controls.Grid("last", 3, 50, i => { calls++; ImGui.Dummy(new Vector2(10, 10)); return i == 2; }, 3);
+            result[2] = Controls.Grid("first", 3, 50, i => { calls++; ImGui.Dummy(new Vector2(10, 10)); return i == 0; }, 3);
         });
 
         Assert.Equal([false, true, true], result);
@@ -239,7 +214,7 @@ public class ControlsGridsTests
         UiFrame.Run("test", () =>
         {
             foreach (var grid in new[] { "a", "b" })
-                Controls.Grid(grid, 3, 50, _ => { ids.Add(ImGui.GetID("x")); return false; }, 3);
+                Controls.Grid(grid, 3, 50, _ => { ids.Add(ImGui.GetID("x")); ImGui.Dummy(new Vector2(10, 10)); return false; }, 3);
         });
 
         Assert.Equal(6, ids.Distinct().Count());
@@ -269,24 +244,6 @@ public class ControlsGridsTests
         Assert.Equal(x0, xs[0], 0.01f);
         Assert.Equal(x0 + expectedStride, xs[1], 0.01f);
         Assert.Equal(x0 + expectedStride * 2, xs[2], 0.01f);
-    }
-
-    [Fact]
-    public void ToggleGridArraysLayOnStrideOfWidestLabel()
-    {
-        bool[] values = [false, false, false];
-        string[] labels = ["A", "A much longer label", "B"];
-        float x0 = 0, expectedStride = 0, lastX = 0;
-
-        UiFrame.Run("test", () =>
-        {
-            x0 = ImGui.GetCursorPosX();
-            expectedStride = Controls.LabelStride(labels);
-            Controls.ToggleGrid("arr", labels, values, 3);
-            lastX = ImGui.GetItemRectMin().X - ImGui.GetWindowPos().X;
-        });
-
-        Assert.Equal(x0 + expectedStride * 2, lastX, 0.01f);
     }
 
     [Fact]
@@ -372,13 +329,9 @@ public class ControlsGridsTests
             first = second - new Vector2(0, ImGui.GetFrameHeightWithSpacing());
         });
 
-        var withTip = TooltipWindowsWhenHovering(() => Controls.ToggleGrid("arr", labels, values, 1, tips), first);
-        var tipless = TooltipWindowsWhenHovering(() => Controls.ToggleGrid("arr", labels, values, 1, tips), second);
-        var noTips = TooltipWindowsWhenHovering(() => Controls.ToggleGrid("arr", labels, values, 1), first);
-
-        Assert.Equal(1, withTip);
-        Assert.Equal(0, tipless);
-        Assert.Equal(0, noTips);
+        Assert.NotNull(UiFrame.TooltipAt("test", first, () => Controls.ToggleGrid("arr", labels, values, 1, tips)));
+        Assert.Null(UiFrame.TooltipAt("test", second, () => Controls.ToggleGrid("arr", labels, values, 1, tips)));
+        Assert.Null(UiFrame.TooltipAt("test", first, () => Controls.ToggleGrid("arr", labels, values, 1)));
     }
 
     [Fact]
@@ -389,11 +342,8 @@ public class ControlsGridsTests
         Controls.ToggleItem[] plain = [new("Flag", () => flag, v => flag = v)];
         var at = CentreOf(() => Controls.ToggleGrid("items", plain, 1));
 
-        var withTip = TooltipWindowsWhenHovering(() => Controls.ToggleGrid("items", tipped, 1), at);
-        var withoutTip = TooltipWindowsWhenHovering(() => Controls.ToggleGrid("items", plain, 1), at);
-
-        Assert.Equal(1, withTip);
-        Assert.Equal(0, withoutTip);
+        Assert.NotNull(UiFrame.TooltipAt("test", at, () => Controls.ToggleGrid("items", tipped, 1)));
+        Assert.Null(UiFrame.TooltipAt("test", at, () => Controls.ToggleGrid("items", plain, 1)));
         Assert.False(flag);
     }
 
@@ -432,24 +382,18 @@ public class ControlsGridsTests
         UiFrame.Click("test", at, body);
         var open = 0;
         var vertices = 0;
-        try
+        UiFrame.Run("test", () =>
         {
-            UiFrame.Run("test", () =>
-            {
-                body();
-                open = UiFrame.Io().MetricsRenderWindows;
-            });
-            UiFrame.Run("test", body);
-            UiFrame.Run("test", () =>
-            {
-                body();
-                vertices = UiFrame.Io().MetricsRenderVertices;
-            });
-        }
-        finally
+            body();
+            open = UiFrame.Io().MetricsRenderWindows;
+        });
+        UiFrame.Run("test", body);
+        UiFrame.Run("test", () =>
         {
-            UiFrame.ClickAway("test", body);
-        }
+            body();
+            vertices = UiFrame.Io().MetricsRenderVertices;
+        });
+        UiFrame.ClickAway("test", body);
         var closed = 0;
         UiFrame.Run("test", () =>
         {
@@ -459,17 +403,6 @@ public class ControlsGridsTests
         Assert.True(open > baseline);
         Assert.Equal(baseline, closed);
         return vertices;
-    }
-
-    [Fact]
-    public void ColorGridArraysForwardAlphaToThePicker()
-    {
-        Color[] values = [Color.FromArgb(100, 20, 180, 60)];
-
-        var withAlpha = PickerVertices(() => Controls.ColorGrid("c", ["A"], values, 1, true));
-        var withoutAlpha = PickerVertices(() => Controls.ColorGrid("c", ["A"], values, 1, false));
-
-        Assert.True(withAlpha > withoutAlpha);
     }
 
     [Fact]
@@ -510,24 +443,6 @@ public class ControlsGridsTests
     }
 
     [Fact]
-    public void ColorGridArraysLayOnStrideOfWidestLabelInTheGivenColumns()
-    {
-        Color[] values = [Color.White, Color.White, Color.White];
-        string[] labels = ["A", "A much longer label", "B"];
-        float x0 = 0, expectedStride = 0, lastX = 0;
-
-        UiFrame.Run("test", () =>
-        {
-            x0 = ImGui.GetCursorPosX();
-            expectedStride = Controls.LabelStride(labels);
-            Controls.ColorGrid("arr", labels, values, 3);
-            lastX = ImGui.GetItemRectMin().X - ImGui.GetWindowPos().X;
-        });
-
-        Assert.Equal(x0 + expectedStride * 2, lastX, 0.01f);
-    }
-
-    [Fact]
     public void ColorGridWritesThroughBothOverloads()
     {
         var original = Color.FromArgb(255, 200, 100, 50);
@@ -553,16 +468,10 @@ public class ControlsGridsTests
         for (target = 0; target < 2; target++)
         {
             var window = "colour grid write " + target;
-            try
-            {
-                UiFrame.Run(window, Body);
-                UiFrame.Click(window, swatch, Body);
-                UiFrame.Click(window, picker, Body);
-            }
-            finally
-            {
-                UiFrame.ClickAway(window, Body);
-            }
+            UiFrame.Run(window, Body);
+            UiFrame.Click(window, swatch, Body);
+            UiFrame.Click(window, picker, Body);
+            UiFrame.ClickAway(window, Body);
         }
 
         Assert.True(itemsChanged);

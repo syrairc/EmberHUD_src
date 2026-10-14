@@ -1,16 +1,39 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
 internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 {
-    private readonly record struct Known(nint Entity, nint Value, nint Role, int CfgId, uint Tier);
+    private readonly record struct Known(nint Entity, nint Value, int CfgId);
 
-    private readonly MonsterRarityReader _rarity = new(memory, moduleBase);
+    private readonly Dictionary<uint, uint> _tiers = [];
     private Dictionary<int, Known> _known = [];
     private Dictionary<int, Known> _seen = [];
     private int? _generation;
+    private Entity[] _lastEntities = [];
+    private Vector3? _lastPlayerPosition;
+    private nint _lastScene;
+    private int _tornTicks;
+
+    private static readonly (int Map, EntityKind Kind)[] KindMaps =
+    [
+        (Offsets.FightMapPlayer, EntityKind.Player),
+        (Offsets.FightMapMonster, EntityKind.Monster),
+        (Offsets.FightMapNpc, EntityKind.Npc),
+        (Offsets.FightMapPortal, EntityKind.Portal),
+        (Offsets.FightMapInteractive, EntityKind.Interactive),
+        (Offsets.FightMapFollower, EntityKind.Ally),
+        (Offsets.FightMapServant, EntityKind.Ally),
+        (Offsets.FightMapGamePlay, EntityKind.Altar),
+        (Offsets.FightMapElevator, EntityKind.Elevator),
+        (Offsets.FightMapObject, EntityKind.MapObject),
+        (Offsets.FightMapDestructible, EntityKind.Destructible),
+    ];
+
+    private readonly Dictionary<int, (EntityKind Kind, nint Value)> _kinds = [];
+    private readonly List<(int Key, nint Value)> _pairs = [];
 
     public bool TryReadScene(out nint scene, out string? failure)
     {
@@ -31,17 +54,27 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
-    public (Vector3? PlayerPosition, Entity[] Entities) ReadWorld(nint scene, int generation)
+    public (Vector3? PlayerPosition, Entity[] Entities, nint Pawn) ReadWorld(nint scene, int generation)
     {
+        var sameTickSource = _generation == generation && _lastScene == scene;
         if (_generation != generation)
         {
             _known.Clear();
             _generation = generation;
         }
 
+        if (!sameTickSource)
+        {
+            _lastEntities = [];
+            _lastPlayerPosition = null;
+            _tornTicks = 0;
+            _lastScene = scene;
+        }
+
         _seen.Clear();
         var kinds = ReadKinds();
-        var localPlayerId = TryReadLocalPlayerId(out var id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
+        var hasPawn = TryReadLocalPawn(out var pawn);
+        var localPlayerId = hasPawn && memory.TryRead(pawn + Offsets.UObjectEntityId, out int id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
         Vector3? playerPosition = null;
         var entities = new List<Entity>();
         var whole = TryWalkScene(scene, (entityId, entity) =>
@@ -66,18 +99,25 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             else
             {
                 var cfgId = (int)CfgId(header);
-                if (cfgId != 0) _seen[entityId] = new Known(entity, 0, 0, cfgId, 0);
+                if (cfgId != 0) _seen[entityId] = new Known(entity, 0, cfgId);
                 if (cfgId == Offsets.VigilCoffinCfg && TryReadEntity(header, entity, entityId, EntityKind.Coffin, 0, out var coffin))
                     entities.Add(coffin);
             }
         });
 
         if (whole)
+        {
             (_known, _seen) = (_seen, _known);
-        return (playerPosition, whole ? [.. entities] : []);
+            _lastEntities = [.. entities];
+            _lastPlayerPosition = playerPosition;
+            _tornTicks = 0;
+            return (playerPosition, _lastEntities, pawn);
+        }
+
+        return ++_tornTicks <= Offsets.MaxTornReuseTicks ? (playerPosition ?? _lastPlayerPosition, _lastEntities, pawn) : (playerPosition, [], pawn);
     }
 
-    public SceneEntity[] ListScene(nint scene, TryName tryName)
+    public SceneEntity[] ListScene(nint scene, Names names)
     {
         var kinds = ReadKinds();
         var listed = new List<SceneEntity>();
@@ -96,36 +136,18 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             };
             if (listedKind == EntityKind.Monster && TryReadMonsterCfgId(kind.Value, out var monsterCfgId)) cfgId = monsterCfgId;
             listed.Add(new SceneEntity(id, (int)cfgId, TryReadPosition(header, out var position) ? position : null,
-                header[Offsets.EntityAlive] != 0, listedKind, mapped ? ClassName(kind.Value, tryName) : "") { Address = entity });
+                header[Offsets.EntityAlive] != 0, listedKind, mapped && names.TryReadClassName(kind.Value, out var className) ? className : "") { Address = entity });
         });
         return whole ? [.. listed] : [];
     }
 
-    private bool TryWalkScene(nint scene, Action<int, nint> visit)
-    {
-        if (!memory.TryReadBuckets(scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, scene + Offsets.SceneEntityBuckets, Offsets.MaxBuckets, out var buckets))
-            return false;
-
-        Span<byte> node = stackalloc byte[Offsets.NodeSize];
-        var nodeCount = 0;
-        foreach (var head in buckets)
-        {
-            var chainLength = 0;
-            for (var at = head; at != 0; )
+    private bool TryWalkScene(nint scene, Action<int, nint> visit) =>
+        memory.TryWalkBuckets(scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, scene + Offsets.SceneEntityBuckets, Offsets.MaxBuckets, Offsets.NodeSize, Offsets.NodeNext, Offsets.MaxEntities,
+            (_, node) =>
             {
-                if (++chainLength > Offsets.MaxChain || ++nodeCount > Offsets.MaxEntities || !memory.TryRead(at, node))
-                    return false;
-
                 visit(unchecked((int)BitConverter.ToUInt32(node[Offsets.NodeKey..])), (nint)BitConverter.ToInt64(node[Offsets.NodeEntity..]));
-                at = (nint)BitConverter.ToInt64(node[Offsets.NodeNext..]);
-            }
-        }
-
-        return true;
-    }
-
-    private string ClassName(nint obj, TryName tryName) =>
-        memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && memory.TryRead(cls + Offsets.UObjectName, out uint index) && tryName(index, out var name) ? name : "";
+                return true;
+            });
 
     private bool TryReadMonsterCfgId(nint value, out uint cfgId)
     {
@@ -143,31 +165,22 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 
     private Dictionary<int, (EntityKind Kind, nint Value)> ReadKinds()
     {
-        var kinds = new Dictionary<int, (EntityKind, nint)>();
+        _kinds.Clear();
         if (!memory.TryReadPtr(moduleBase + Offsets.FightMgrGlobalRva, out var fightMgr))
-            return kinds;
+            return _kinds;
 
-        (int Map, EntityKind Kind)[] maps =
-        [
-            (Offsets.FightMapPlayer, EntityKind.Player),
-            (Offsets.FightMapMonster, EntityKind.Monster),
-            (Offsets.FightMapNpc, EntityKind.Npc),
-            (Offsets.FightMapPortal, EntityKind.Portal),
-            (Offsets.FightMapInteractive, EntityKind.Interactive),
-            (Offsets.FightMapFollower, EntityKind.Ally),
-            (Offsets.FightMapServant, EntityKind.Ally),
-            (Offsets.FightMapGamePlay, EntityKind.Altar),
-            (Offsets.FightMapElevator, EntityKind.Elevator),
-            (Offsets.FightMapObject, EntityKind.MapObject),
-            (Offsets.FightMapDestructible, EntityKind.Destructible),
-        ];
-        foreach (var (map, kind) in maps)
-            foreach (var (key, value) in memory.ReadTMapPointers(fightMgr + map))
-                kinds[key] = (kind, value);
-        return kinds;
+        foreach (var (map, kind) in KindMaps)
+        {
+            _pairs.Clear();
+            memory.ReadTMapPointers(fightMgr + map, _pairs);
+            foreach (var (key, value) in _pairs)
+                _kinds[key] = (kind, value);
+        }
+
+        return _kinds;
     }
 
-    public bool TryReadLocalPawn(out nint pawn)
+    private bool TryReadLocalPawn(out nint pawn)
     {
         pawn = 0;
         if (!memory.TryReadPtr(moduleBase + Offsets.PlayerMgrGlobalRva, out var playerMgr) ||
@@ -180,11 +193,21 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
-    private bool TryReadLocalPlayerId(out int id)
+    public Camera? ReadCamera(nint pawn)
     {
-        id = 0;
-        return TryReadLocalPawn(out var pawn) && memory.TryRead(pawn + Offsets.UObjectEntityId, out id);
+        Span<byte> pov = stackalloc byte[Offsets.CameraPovSize];
+        if (!memory.TryReadPtr(pawn + Offsets.PawnController, out var controller) ||
+            !memory.TryReadPtr(controller + Offsets.ControllerCameraManager, out var manager) ||
+            !memory.TryRead(manager + Offsets.CameraCache, pov))
+            return null;
+
+        var location = MemoryMarshal.Read<Vector3>(pov[Offsets.PovLocation..]);
+        var rotation = MemoryMarshal.Read<Vector3>(pov[Offsets.PovRotation..]);
+        var fov = BitConverter.ToSingle(pov[Offsets.PovFov..]);
+        return float.IsFinite(fov) && fov is > 0 and < 180 && IsFinite(location) && IsFinite(rotation) ? new Camera(location, rotation, fov) : null;
     }
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     private bool TryReadHeader(nint entity, Span<byte> header) => entity != 0 && memory.TryRead(entity, header);
 
@@ -194,7 +217,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     {
         position = default;
         var block = (nint)BitConverter.ToInt64(header[Offsets.EntityPosition..]);
-        if (header[Offsets.EntityHasPosition] == 0 || block == 0 || !memory.TryReadArray(block + Offsets.PositionX, 3, out double[] xyz))
+        Span<double> xyz = stackalloc double[3];
+        if (header[Offsets.EntityHasPosition] == 0 || block == 0 || !memory.TryRead(block + Offsets.PositionX, xyz))
             return false;
 
         position = new Vector3((float)xyz[0], (float)xyz[1], (float)xyz[2]);
@@ -214,18 +238,18 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         if (kind == EntityKind.Monster)
         {
             var role = (nint)BitConverter.ToInt64(header[Offsets.EntityRole..]);
-            if (_known.TryGetValue(id, out var known) && known.Entity == entity && known.Value == value && known.Role == role)
+            if (_known.TryGetValue(id, out var known) && known.Entity == entity && known.Value == value && TryGetTier((uint)known.CfgId, out var knownTier))
             {
                 _seen[id] = known;
                 cfgId = (uint)known.CfgId;
-                rarity = _rarity.Resolve(known.Tier, role);
+                rarity = Resolve(knownTier, role);
             }
             else if (TryReadMonsterCfgId(value, out var monsterCfgId))
             {
                 cfgId = monsterCfgId;
-                if (_rarity.TryGetTier(monsterCfgId, out var tier))
-                    _seen[id] = new Known(entity, value, role, (int)monsterCfgId, tier);
-                rarity = _rarity.Resolve(tier, role);
+                if (TryGetTier(monsterCfgId, out var tier))
+                    _seen[id] = new Known(entity, value, (int)monsterCfgId);
+                rarity = Resolve(tier, role);
             }
         }
 
@@ -236,4 +260,38 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private static bool IsAliveIfRequired(ReadOnlySpan<byte> header, EntityKind kind) =>
         kind is EntityKind.Npc or EntityKind.Portal or EntityKind.Interactive or EntityKind.Altar or EntityKind.Elevator or EntityKind.MapObject ||
         header[Offsets.EntityAlive] != 0;
+
+    internal Rarity Resolve(uint tier, nint roleBlock)
+    {
+        var role = 0;
+        if (roleBlock != 0)
+            memory.TryRead(roleBlock + Offsets.RoleRarity, out role);
+        return (tier, role) switch
+        {
+            (4 or 5, _) => Rarity.Boss,
+            (_, 1) => Rarity.Normal,
+            (_, 2) => Rarity.Magic,
+            (_, 3) => Rarity.Rare,
+            (_, >= 4) => Rarity.Boss,
+            (2 or 3, _) => Rarity.Rare,
+            _ => Rarity.Normal,
+        };
+    }
+
+    internal bool TryGetTier(uint configId, out uint tier)
+    {
+        if (_tiers.TryGetValue(configId, out tier))
+            return true;
+        if (!TryReadTier(configId, out tier))
+            return false;
+
+        _tiers[configId] = tier;
+        return true;
+    }
+
+    private bool TryReadTier(uint configId, out uint tier)
+    {
+        tier = 0;
+        return memory.TryFindHashValue(moduleBase + Offsets.MonsterCfgBucketCountRva, moduleBase + Offsets.MonsterCfgBucketsRva, configId, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
+    }
 }

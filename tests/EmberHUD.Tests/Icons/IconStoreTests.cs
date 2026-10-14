@@ -5,32 +5,24 @@ namespace EmberHUD.Tests;
 
 public sealed class IconStoreTests : IDisposable
 {
-    readonly string _directory = Directory.CreateTempSubdirectory("emberhud-icons-").FullName;
+    readonly TempDir _temp = new();
     readonly LogCapture _log = new();
-    readonly Dictionary<string, (int Width, int Height)> _uploaded = [];
-    ulong _handle = 1;
+    readonly FakeTextures _textures = new();
+
+    string _directory => _temp.Path;
 
     public void Dispose()
     {
         _log.Dispose();
-        Directory.Delete(_directory, true);
-    }
-
-    bool Upload(string key, byte[] pixels, int width, int height, out string failure)
-    {
-        _uploaded[key] = (width, height);
-        failure = "";
-        return true;
+        _temp.Dispose();
     }
 
     bool UploadFailingFor(string bad, string reason, string key, byte[] pixels, int width, int height, out string failure)
     {
-        if (key != bad) return Upload(key, pixels, width, height, out failure);
+        if (key != bad) return _textures.Upload(key, pixels, width, height, out failure);
         failure = reason;
         return false;
     }
-
-    Sprite? Resolve(string key) => _uploaded.ContainsKey(key) ? new Sprite(new ImTextureRef { TexID = new ImTextureID(_handle) }, Vector2.Zero, Vector2.One) : null;
 
     void Write(string name, byte[] bytes) => File.WriteAllBytes(Path.Combine(_directory, name), bytes);
 
@@ -41,7 +33,7 @@ public sealed class IconStoreTests : IDisposable
         WriteIndex("""{"icons":{"UI_MiniMap_Portal":{"file":"UI_MiniMap_Portal.png"},"Broken":{"file":"Broken.png"},"Gone":{"file":"Gone.png"}}}""");
         Write("UI_MiniMap_Portal.png", PngFixture.Rgba(3, 2, PngFixture.Gradient(3, 2), [0]));
         Write("Broken.png", [1, 2, 3, 4]);
-        return IconStore.Open(_directory, Upload, Resolve, inline: true)!;
+        return IconStore.Open(_directory, _textures.Upload, _textures.Resolve, inline: true)!;
     }
 
     [Fact]
@@ -52,7 +44,7 @@ public sealed class IconStoreTests : IDisposable
         WriteIndex("""{"icons":{"A":{"file":"A.png"},"B":{"file":"B.png"}}}""");
         Write("A.png", PngFixture.Rgba(2, 2, PngFixture.Gradient(2, 2), [0]));
         Write("B.png", PngFixture.Rgba(2, 2, PngFixture.Gradient(2, 2), [0]));
-        return IconStore.Open(_directory, upload, Resolve, inline: true)!;
+        return IconStore.Open(_directory, upload, _textures.Resolve, inline: true)!;
     }
 
     [Fact]
@@ -68,7 +60,7 @@ public sealed class IconStoreTests : IDisposable
         Assert.NotNull(sprite);
         Assert.Equal(Vector2.Zero, sprite.Value.Uv0);
         Assert.Equal(Vector2.One, sprite.Value.Uv1);
-        Assert.Equal((3, 2), _uploaded["game:ui_minimap_portal"]);
+        Assert.Equal((3, 2), _textures.Uploaded["game:ui_minimap_portal"]);
         Assert.Empty(_log.Text);
     }
 
@@ -82,7 +74,7 @@ public sealed class IconStoreTests : IDisposable
             store.Pump();
         }
 
-        Assert.Single(_uploaded);
+        Assert.Single(_textures.Uploaded);
     }
 
     [Fact]
@@ -96,7 +88,7 @@ public sealed class IconStoreTests : IDisposable
         store.Pump();
         store.Pump();
 
-        Assert.Empty(_uploaded);
+        Assert.Empty(_textures.Uploaded);
         Assert.Empty(_log.Text);
     }
 
@@ -112,7 +104,7 @@ public sealed class IconStoreTests : IDisposable
 
         Assert.Single(_log.Messages());
         Assert.Contains("Broken", _log.Messages()[0]);
-        Assert.Empty(_uploaded);
+        Assert.Empty(_textures.Uploaded);
     }
 
     [Fact]
@@ -134,7 +126,7 @@ public sealed class IconStoreTests : IDisposable
     {
         WriteIndex("""{"icons":{"Dir":{"file":"Dir.png"}}}""");
         Directory.CreateDirectory(Path.Combine(_directory, "Dir.png"));
-        var store = IconStore.Open(_directory, Upload, Resolve, inline: true)!;
+        var store = IconStore.Open(_directory, _textures.Upload, _textures.Resolve, inline: true)!;
 
         for (var i = 0; i < 4; i++)
         {
@@ -143,11 +135,11 @@ public sealed class IconStoreTests : IDisposable
         }
 
         Assert.Single(_log.Messages());
-        Assert.Empty(_uploaded);
+        Assert.Empty(_textures.Uploaded);
     }
 
     [Fact]
-    public void AFailedUploadWarnsAndFallsBackAndTheNextTextureStillLoads()
+    public void AFailedUploadWarnsOnceWithItsReasonAndTheNextTextureStillLoads()
     {
         var store = OpenTwoPngs((string key, byte[] pixels, int width, int height, out string failure) => UploadFailingFor("game:a", "upload failed - device lost", key, pixels, width, height, out failure));
 
@@ -157,22 +149,7 @@ public sealed class IconStoreTests : IDisposable
 
         Assert.Null(store.Resolve("A"));
         Assert.NotNull(store.Resolve("B"));
-        Assert.Single(_log.Messages());
-    }
-
-    [Fact]
-    public void AFailedUploadLogsItsReasonOnce()
-    {
-        var store = OpenTwoPngs((string key, byte[] pixels, int width, int height, out string failure) => UploadFailingFor("game:a", "device lost", key, pixels, width, height, out failure));
-
-        store.Resolve("A");
-        store.Resolve("B");
-        for (var i = 0; i < 6; i++) store.Pump();
-
-        Assert.Null(store.Resolve("A"));
-        Assert.NotNull(store.Resolve("B"));
-        Assert.Single(_log.Messages());
-        Assert.Contains("device lost", _log.Messages()[0]);
+        Assert.Contains("device lost", Assert.Single(_log.Messages()));
     }
 
     [Fact]
@@ -184,7 +161,7 @@ public sealed class IconStoreTests : IDisposable
         store.Pump();
         var before = store.Resolve("UI_MiniMap_Portal")!.Value.Texture.TexID;
 
-        _handle = 2;
+        _textures.Handle = 2;
 
         Assert.NotEqual(before, store.Resolve("UI_MiniMap_Portal")!.Value.Texture.TexID);
     }
@@ -192,10 +169,10 @@ public sealed class IconStoreTests : IDisposable
     [Fact]
     public void AMissingFolderOrIndexTurnsGameIconsOffWithOneWarning()
     {
-        Assert.Null(IconStore.Open(Path.Combine(_directory, "nope"), Upload, Resolve, inline: true));
+        Assert.Null(IconStore.Open(Path.Combine(_directory, "nope"), _textures.Upload, _textures.Resolve, inline: true));
         Assert.Single(_log.Messages());
 
-        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
+        Assert.Null(IconStore.Open(_directory, _textures.Upload, _textures.Resolve, inline: true));
         Assert.Equal(2, _log.Messages().Count);
     }
 
@@ -203,11 +180,11 @@ public sealed class IconStoreTests : IDisposable
     public void ACorruptOrEmptyIndexTurnsGameIconsOffWithOneWarning()
     {
         WriteIndex("{not json");
-        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
+        Assert.Null(IconStore.Open(_directory, _textures.Upload, _textures.Resolve, inline: true));
         Assert.Single(_log.Messages());
 
         WriteIndex("""{"icons":{}}""");
-        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
+        Assert.Null(IconStore.Open(_directory, _textures.Upload, _textures.Resolve, inline: true));
         Assert.Equal(2, _log.Messages().Count);
     }
 }

@@ -197,6 +197,8 @@ public sealed class UeTests : IDisposable
         Assert.Equal("NameProperty", info.Property("Tags")!.Element?.Type);
     }
 
+    static UProp P(string type, int offset, int size, byte mask = 0, nint structAt = 0) => new("p", type, offset, size, 1, mask, structAt, null);
+
     [Fact]
     public void FormatShowsEveryKind()
     {
@@ -218,7 +220,6 @@ public sealed class UeTests : IDisposable
         Put(0x38, 6);
         Put(0x40, (nint)0x1234);
         Put(0x48, 3);
-        UProp P(string type, int offset, int size, byte mask = 0, nint structAt = 0) => new("p", type, offset, size, 1, mask, structAt, null);
 
         Assert.Equal("1.5", Ue.Format(bytes, P("FloatProperty", 0x00, 4)));
         Assert.Equal("-7", Ue.Format(bytes, P("IntProperty", 0x04, 4)));
@@ -242,12 +243,12 @@ public sealed class UeTests : IDisposable
         new TestUe();
         var bytes = new byte[0x10];
 
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", 0x0C, 8, 1, 0, 0, null)));
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", -4, 4, 1, 0, 0, null)));
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", int.MaxValue - 2, 8, 1, 0, 0, null)));
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "Int64Property", 0x04, int.MaxValue, 1, 0, 0, null)));
+        Assert.Equal("??", Ue.Format(bytes, P("Int64Property", 0x0C, 8)));
+        Assert.Equal("??", Ue.Format(bytes, P("IntProperty", -4, 4)));
+        Assert.Equal("??", Ue.Format(bytes, P("Int64Property", int.MaxValue - 2, 8)));
+        Assert.Equal("??", Ue.Format(bytes, P("Int64Property", 0x04, int.MaxValue)));
         TestMemory.Clear();
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", 0, 4, 1, 0, 0, null)));
+        Assert.Equal("??", Ue.Format(bytes, P("IntProperty", 0, 4)));
     }
 
     [Fact]
@@ -256,9 +257,9 @@ public sealed class UeTests : IDisposable
         new TestUe();
         var bytes = new byte[0x400];
 
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", 0x7FFFFFF0, 0x100, 1, 0, 0, null)));
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", 0x500, 0x7FFFFF00, 1, 0, 0, null)));
-        Assert.Equal("??", Ue.Format(bytes, new UProp("p", "IntProperty", int.MaxValue, int.MaxValue, 1, 0, 0, null)));
+        Assert.Equal("??", Ue.Format(bytes, P("IntProperty", 0x7FFFFFF0, 0x100)));
+        Assert.Equal("??", Ue.Format(bytes, P("IntProperty", 0x500, 0x7FFFFF00)));
+        Assert.Equal("??", Ue.Format(bytes, P("IntProperty", int.MaxValue, int.MaxValue)));
     }
 
     [Fact]
@@ -323,6 +324,20 @@ public sealed class UeTests : IDisposable
         TestMemory.Write(broken + TestUe.Layout.EnumNames + TestUe.Layout.ArrayNum, 1 << 30);
 
         Assert.Null(Ue.EnumName(broken, 0));
+    }
+
+    [Fact]
+    public void ArrayCountReadsTheArrayNumAndRefusesATruncatedBlock()
+    {
+        var ue = new TestUe();
+        var cls = ue.Class("Holder", 0, 0x40, new TestProp("Items", "ArrayProperty", 0x10, 0x10, Element: new TestProp("Items", "IntProperty", 0, 4)));
+        var items = Ue.Struct(cls)!.Property("Items")!;
+        var bytes = new byte[0x40];
+        BitConverter.GetBytes(7).CopyTo(bytes, 0x18);
+
+        Assert.Equal(7, Ue.ArrayCount(bytes, items));
+        Assert.Equal(-1, Ue.ArrayCount(bytes.AsSpan(0, 0x1B), items));
+        Assert.Equal(-1, Ue.ArrayCount(bytes, items with { Offset = -4 }));
     }
 
     static UProp IntMap(int stride = 0x18) => new("Map", "MapProperty", 0, 0x50, 1, 0, 0, null, Key: new UProp("Map", "IntProperty", 0, 4, 1, 0, 0, null), Value: new UProp("Map", "IntProperty", 8, 4, 1, 0, 0, null), Stride: stride);

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Numerics;
 using System.Text.RegularExpressions;
@@ -38,11 +39,14 @@ public static class Picker
 
     const string DefaultTip = "Each space-separated word has to match somewhere in the row, in any order. A word is treated as a regex when it is one.";
 
-    sealed record TermCache(string Filter, Func<string, bool>[] Terms);
+    static readonly ConcurrentDictionary<string, Func<string, bool>[]> TermsByFilter = new();
 
-    static TermCache _terms = new("", []);
-
-    public static bool Matches(string? filter, string? text) => Terms(filter).All(m => m(text ?? ""));
+    public static bool Matches(string? filter, string? text)
+    {
+        foreach (var term in Terms(filter))
+            if (!term(text ?? "")) return false;
+        return true;
+    }
 
     public static bool Popup<T>(string id, IEnumerable<T>? items, ref PickerState<T>? state, out T? picked, PickerOpts<T>? opts = null) =>
         Draw(id, items, ref state, false, opts, out picked, out _);
@@ -135,9 +139,8 @@ public static class Picker
     {
         if (o.ShowSearch)
         {
-            ImGui.SetNextItemWidth(-90f);
             if (appearing) ImGui.SetKeyboardFocusHere();
-            ImGui.InputTextWithHint("##pickfilter", o.Hint, ref state.Filter, 128);
+            Controls.Filter(ref state.Filter, o.Hint, -90f);
             ImGui.SameLine();
             ImGui.TextDisabled("(?)");
             Text.Tip(o.Tip ?? DefaultTip);
@@ -280,11 +283,9 @@ public static class Picker
     internal static Func<string, bool>[] Terms(string? filter)
     {
         var f = filter ?? "";
-        var cached = _terms;
-        if (cached.Filter == f) return cached.Terms;
-        var terms = f.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(TermMatcher).ToArray();
-        _terms = new TermCache(f, terms);
-        return terms;
+        if (TermsByFilter.TryGetValue(f, out var cached)) return cached;
+        if (TermsByFilter.Count >= 64) TermsByFilter.Clear();
+        return TermsByFilter[f] = [.. f.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(TermMatcher)];
     }
 
     internal static Func<string, bool> TermMatcher(string term)

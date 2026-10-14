@@ -17,23 +17,23 @@ public sealed class SvgRecolorTests
     public void TheStyleGoesRightAfterTheRootStartTag() =>
         Assert.Equal(
             """<?xml version="1.0"?><!-- art --><svg xmlns="http://www.w3.org/2000/svg" color="#00FF00"><style>svg{color:#FFD700}.accent{color:#000080}</style><rect/></svg>""",
-            SvgRecolor.Apply("""<?xml version="1.0"?><!-- art --><svg xmlns="http://www.w3.org/2000/svg" color="#00FF00"><rect/></svg>""", Color.Gold, Color.Navy));
+            SvgIcons.Recolor("""<?xml version="1.0"?><!-- art --><svg xmlns="http://www.w3.org/2000/svg" color="#00FF00"><rect/></svg>""", Color.Gold, Color.Navy));
 
     [Fact]
     public void AlphaIsIgnored() =>
-        Assert.Contains("svg{color:#FF0000}.accent{color:#0000FF}", SvgRecolor.Apply("<svg><rect/></svg>", Color.FromArgb(10, 255, 0, 0), Color.FromArgb(0, 0, 0, 255)));
+        Assert.Contains("svg{color:#FF0000}.accent{color:#0000FF}", SvgIcons.Recolor("<svg><rect/></svg>", Color.FromArgb(10, 255, 0, 0), Color.FromArgb(0, 0, 0, 255)));
 
     [Theory]
     [InlineData("")]
     [InlineData("hello")]
     [InlineData("""<svg xmlns="http://www.w3.org/2000/svg"/>""")]
     [InlineData("<svgfoo></svgfoo>")]
-    public void TextWithoutARootStartTagIsReturnedAsIs(string text) => Assert.Equal(text, SvgRecolor.Apply(text, Color.Red, Color.Blue));
+    public void TextWithoutARootStartTagIsReturnedAsIs(string text) => Assert.Equal(text, SvgIcons.Recolor(text, Color.Red, Color.Blue));
 
     [Fact]
     public void TheColourAndAccentReachThePixels()
     {
-        var image = SvgRasterizer.Rasterize(SvgRecolor.Apply(TwoTone, Color.Red, Color.Blue), 64);
+        var image = SvgIcons.Rasterize(SvgIcons.Recolor(TwoTone, Color.Red, Color.Blue), 64);
 
         Assert.Equal((255, 0, 0, 255), At(image, 12, 12));
         Assert.Equal((0, 0, 255, 255), At(image, 52, 12));
@@ -43,7 +43,7 @@ public sealed class SvgRecolorTests
     [Fact]
     public void TheInjectedColourBeatsAColourAttributeOnTheRoot()
     {
-        var image = SvgRasterizer.Rasterize(SvgRecolor.Apply(TwoTone.Replace("<svg ", """<svg color="#00FF00" """), Color.Red, Color.Blue), 64);
+        var image = SvgIcons.Rasterize(SvgIcons.Recolor(TwoTone.Replace("<svg ", """<svg color="#00FF00" """), Color.Red, Color.Blue), 64);
 
         Assert.Equal((255, 0, 0, 255), At(image, 12, 12));
     }

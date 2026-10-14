@@ -10,19 +10,38 @@ public sealed class ThemeStoreTests : IDisposable
 {
     static readonly string Shipped = Path.Combine(AppContext.BaseDirectory, "Themes");
     static readonly string FontsDirectory = Path.Combine(AppContext.BaseDirectory, "Fonts");
-    readonly string _themes = Directory.CreateTempSubdirectory("emberhud-themes-").FullName;
+    readonly TempDir _temp = new();
     readonly LogCapture _log = new();
+
+    string _themes => _temp.Path;
 
     public ThemeStoreTests()
     {
         TestFrame.Run(() => { });
-        PristineStyle.Reset();
+        ImGuiScene.ResetStyle();
     }
 
     public void Dispose()
     {
         _log.Dispose();
-        Directory.Delete(_themes, true);
+        _temp.Dispose();
+    }
+
+    [Fact]
+    public void UseAndSaveAsReportTheNewNameAndAnUnknownThemeDoesNot()
+    {
+        File.WriteAllText(Path.Combine(_themes, "A.json"), """{ "Style": { "FrameRounding": 7 } }""");
+        File.WriteAllText(Path.Combine(_themes, "B.json"), """{ "Style": { "FrameRounding": 9 } }""");
+        var themes = Store(_themes, "A");
+        themes.Apply();
+        List<string> names = [];
+        themes.Changed += names.Add;
+
+        themes.Use("Nope");
+        themes.Use("B");
+        themes.SaveAs("Mine");
+
+        Assert.Equal(["B", "Mine"], names);
     }
 
     static ThemeStore Store(string directory, string name) => new(directory, FontsDirectory, name, action => action());
@@ -51,18 +70,6 @@ public sealed class ThemeStoreTests : IDisposable
         return boxes;
     }
 
-    static List<(Vector2 Pos, uint Rgb)> Vertices()
-    {
-        var data = ImGui.GetDrawData();
-        var vertices = new List<(Vector2, uint)>();
-        for (var n = 0; n < data.CmdListsCount; n++)
-        {
-            var list = data.CmdLists[n];
-            for (var i = 0; i < list.VtxBuffer.Size; i++) vertices.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col & 0xFFFFFF));
-        }
-        return vertices;
-    }
-
     static bool Inside(Vector2 pos, Vector2 min, Vector2 max) => pos.X >= min.X && pos.X <= max.X && pos.Y >= min.Y && pos.Y <= max.Y;
 
     static void AssertInputTextLightAndPlainTextDark(ThemeStore themes)
@@ -71,7 +78,7 @@ public sealed class ThemeStoreTests : IDisposable
         themes.Shade();
 
         var text = ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)ImGuiCol.Text]) & 0xFFFFFF;
-        var vertices = Vertices();
+        var vertices = ImGuiScene.Vertices().Select(v => (v.Pos, Rgb: v.Col & 0xFFFFFF)).ToList();
         Assert.Contains(vertices, v => v.Rgb == text && Inside(v.Pos, inputMin, inputMax));
         Assert.DoesNotContain(vertices, v => v.Rgb == 0x302C2A && Inside(v.Pos, inputMin, inputMax));
         Assert.Contains(vertices, v => v.Rgb == 0x302C2A && Inside(v.Pos, plainMin, plainMax));
@@ -107,19 +114,19 @@ public sealed class ThemeStoreTests : IDisposable
         foreach (var col in new[] { ImGuiCol.WindowBg, ImGuiCol.Button, ImGuiCol.ButtonActive, ImGuiCol.Header, ImGuiCol.HeaderHovered, ImGuiCol.TabSelected })
             Assert.True(ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)col])) >= 0, $"{col} is a gradient");
         Assert.Equal(new ThemeFont("NotoSans-Regular.ttf", 15), themes.Current.Fonts.Regular);
-        Assert.False(Fonts.Regular.IsNull);
-        Assert.False(Fonts.Mono.IsNull);
-        Assert.Equal(15f, Fonts.MonoSize);
-        Assert.False(Fonts.Bold.IsNull);
-        Assert.False(Fonts.Label.IsNull);
-        Assert.Equal(16f, Fonts.BoldSize);
-        Assert.Equal(16f, Fonts.LabelSize);
-        Assert.NotEqual(Fonts.Regular, Fonts.Mono);
-        Assert.NotEqual(Fonts.Regular, Fonts.Label);
-        Assert.NotEqual(Fonts.Bold, Fonts.Label);
-        Assert.NotEqual(Fonts.Bold, Fonts.Regular);
-        Assert.NotEqual(Fonts.Bold, Fonts.Mono);
-        Assert.NotEqual(Fonts.Label, Fonts.Mono);
+        Assert.False(Fonts.Of(FontFace.Regular).Font.IsNull);
+        Assert.False(Fonts.Of(FontFace.Mono).Font.IsNull);
+        Assert.Equal(15f, Fonts.Of(FontFace.Mono).Size);
+        Assert.False(Fonts.Of(FontFace.Bold).Font.IsNull);
+        Assert.False(Fonts.Of(FontFace.Label).Font.IsNull);
+        Assert.Equal(16f, Fonts.Of(FontFace.Bold).Size);
+        Assert.Equal(16f, Fonts.Of(FontFace.Label).Size);
+        Assert.NotEqual(Fonts.Of(FontFace.Regular).Font, Fonts.Of(FontFace.Mono).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Regular).Font, Fonts.Of(FontFace.Label).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Bold).Font, Fonts.Of(FontFace.Label).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Bold).Font, Fonts.Of(FontFace.Regular).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Bold).Font, Fonts.Of(FontFace.Mono).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Label).Font, Fonts.Of(FontFace.Mono).Font);
         Assert.Equal(15f, ImGui.GetStyle().FontSizeBase);
         Assert.Empty(_log.Text);
         TestFrame.Run(() => ImGui.TextUnformatted("themed"));
@@ -133,10 +140,10 @@ public sealed class ThemeStoreTests : IDisposable
         themes.Apply();
         Assert.Equal(new ThemeFont("NotoSans-SemiBold.ttf", 16), themes.Current.Fonts.Bold);
         Assert.Equal(new ThemeFont("Rajdhani-SemiBold.ttf", 16), themes.Current.Fonts.Label);
-        Assert.False(Fonts.Bold.IsNull);
-        Assert.NotEqual(Fonts.Regular, Fonts.Label);
-        Assert.NotEqual(Fonts.Bold, Fonts.Label);
-        Assert.Equal(14f, Fonts.RegularSize);
+        Assert.False(Fonts.Of(FontFace.Bold).Font.IsNull);
+        Assert.NotEqual(Fonts.Of(FontFace.Regular).Font, Fonts.Of(FontFace.Label).Font);
+        Assert.NotEqual(Fonts.Of(FontFace.Bold).Font, Fonts.Of(FontFace.Label).Font);
+        Assert.Equal(14f, Fonts.Of(FontFace.Regular).Size);
         Assert.Empty(_log.Text);
     }
 
@@ -145,22 +152,22 @@ public sealed class ThemeStoreTests : IDisposable
     {
         var themes = Store(Shipped, "Torchlight");
         themes.Apply();
-        var regular = Fonts.Regular;
-        var label = Fonts.Label;
-        var mono = Fonts.Mono;
-        var bold = Fonts.Bold;
+        var regular = Fonts.Of(FontFace.Regular).Font;
+        var label = Fonts.Of(FontFace.Label).Font;
+        var mono = Fonts.Of(FontFace.Mono).Font;
+        var bold = Fonts.Of(FontFace.Bold).Font;
         themes.UseFonts(themes.Current.Fonts with { Label = themes.Current.Fonts.Label with { Size = 30 }, Bold = new ThemeFont("NotoSans-Bold.ttf", 18) });
-        Assert.Equal(regular, Fonts.Regular);
-        Assert.Equal(label, Fonts.Label);
-        Assert.Equal(mono, Fonts.Mono);
-        Assert.NotEqual(bold, Fonts.Bold);
-        Assert.Equal(30f, Fonts.LabelSize);
-        Assert.Equal(18f, Fonts.BoldSize);
+        Assert.Equal(regular, Fonts.Of(FontFace.Regular).Font);
+        Assert.Equal(label, Fonts.Of(FontFace.Label).Font);
+        Assert.Equal(mono, Fonts.Of(FontFace.Mono).Font);
+        Assert.NotEqual(bold, Fonts.Of(FontFace.Bold).Font);
+        Assert.Equal(30f, Fonts.Of(FontFace.Label).Size);
+        Assert.Equal(18f, Fonts.Of(FontFace.Bold).Size);
         Assert.Empty(_log.Text);
         TestFrame.Run(() =>
         {
-            using (Fonts.UseBold()) ImGui.TextUnformatted("bold");
-            using (Fonts.UseLabel()) ImGui.TextUnformatted("label");
+            using (Fonts.Use(FontFace.Bold)) ImGui.TextUnformatted("bold");
+            using (Fonts.Use(FontFace.Label)) ImGui.TextUnformatted("label");
         });
     }
 
@@ -176,20 +183,14 @@ public sealed class ThemeStoreTests : IDisposable
         TestFrame.Run(() => ImGui.TextUnformatted("torchlight"));
     }
 
-    [Fact]
-    public void ASavedThemeNameThatNoLongerShipsFallsBackToTorchlight()
+    [Theory]
+    [InlineData("Azure")]
+    [InlineData("Nope")]
+    public void ANameThatIsNotShippedFallsBackToTorchlight(string saved)
     {
-        var themes = Store(Shipped, "Azure");
+        var themes = Store(Shipped, saved);
         Assert.Equal("Torchlight", themes.Name);
-        Assert.Contains("theme Azure not found", _log.Text);
-    }
-
-    [Fact]
-    public void AMissingThemeFallsBackToTorchlight()
-    {
-        var themes = Store(Shipped, "Nope");
-        Assert.Equal("Torchlight", themes.Name);
-        Assert.Contains("theme Nope not found", _log.Text);
+        Assert.Contains($"theme {saved} not found", _log.Text);
     }
 
     [Fact]
@@ -231,10 +232,10 @@ public sealed class ThemeStoreTests : IDisposable
     {
         var themes = Store(Shipped, "Torchlight");
         themes.Apply();
-        var mono = Fonts.Mono;
+        var mono = Fonts.Of(FontFace.Mono).Font;
         themes.UseFonts(themes.Current.Fonts with { Mono = themes.Current.Fonts.Mono with { Size = 20 } });
-        Assert.Equal(mono, Fonts.Mono);
-        Assert.Equal(20f, Fonts.MonoSize);
+        Assert.Equal(mono, Fonts.Of(FontFace.Mono).Font);
+        Assert.Equal(20f, Fonts.Of(FontFace.Mono).Size);
         Assert.Equal(20f, themes.Current.Fonts.Mono.Size);
     }
 
@@ -245,7 +246,7 @@ public sealed class ThemeStoreTests : IDisposable
         themes.Apply();
         themes.UseFonts(themes.Current.Fonts with { Regular = new ThemeFont("nope.ttf", 15) });
         Assert.Contains("font nope.ttf not found", _log.Text);
-        Assert.False(Fonts.Regular.IsNull);
+        Assert.False(Fonts.Of(FontFace.Regular).Font.IsNull);
         TestFrame.Run(() => ImGui.TextUnformatted("fallback"));
     }
 
@@ -254,11 +255,11 @@ public sealed class ThemeStoreTests : IDisposable
     {
         var themes = Store(Shipped, "Torchlight");
         themes.Apply();
-        var removed = Fonts.Mono;
+        var removed = Fonts.Of(FontFace.Mono).Font;
         var before = ImGui.GetIO().Fonts.Fonts.Size;
         themes.UseFonts(themes.Current.Fonts with { Mono = themes.Current.Fonts.Regular });
-        Assert.Equal(Fonts.Regular, Fonts.Mono);
-        Assert.NotEqual(removed, Fonts.Mono);
+        Assert.Equal(Fonts.Of(FontFace.Regular).Font, Fonts.Of(FontFace.Mono).Font);
+        Assert.NotEqual(removed, Fonts.Of(FontFace.Mono).Font);
         Assert.Equal(before - 1, ImGui.GetIO().Fonts.Fonts.Size);
         TestFrame.Run(() => ImGui.TextUnformatted("swapped"));
         Assert.Empty(_log.Text);
@@ -321,11 +322,11 @@ public sealed class ThemeStoreTests : IDisposable
         Assert.Equal(2, queued.Count);
         Assert.Equal("A", themes.Name);
         Assert.Equal(7f, ImGui.GetStyle().FrameRounding);
-        Assert.Equal(15f, Fonts.MonoSize);
+        Assert.Equal(15f, Fonts.Of(FontFace.Mono).Size);
         queued.ForEach(action => action());
         Assert.Equal("B", themes.Name);
         Assert.Equal(9f, ImGui.GetStyle().FrameRounding);
-        Assert.Equal(22f, Fonts.MonoSize);
+        Assert.Equal(22f, Fonts.Of(FontFace.Mono).Size);
     }
 
     [Fact]
@@ -379,18 +380,6 @@ public sealed class ThemeStoreTests : IDisposable
 
     const string Graded = """{ "Gradients": { "Button": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" } } }""";
 
-    static List<uint> VertexColours()
-    {
-        var data = ImGui.GetDrawData();
-        var colours = new List<uint>();
-        for (var n = 0; n < data.CmdListsCount; n++)
-        {
-            var list = data.CmdLists[n];
-            for (var i = 0; i < list.VtxBuffer.Size; i++) colours.Add(list.VtxBuffer[i].Col);
-        }
-        return colours;
-    }
-
     [Fact]
     public void AGradientTagsItsColourAndShadeTurnsTheTagIntoTheGradient()
     {
@@ -408,7 +397,7 @@ public sealed class ThemeStoreTests : IDisposable
             });
         themes.Shade();
 
-        var colours = VertexColours();
+        var colours = ImGuiScene.Vertices().Select(v => v.Col).ToList();
         Assert.DoesNotContain(colours, colour => ThemeGradients.IndexOf(colour) >= 0);
         Assert.Contains(colours, colour => (colour & 0xFFFFFF) == 0x0F82B9);
         Assert.Empty(_log.Text);

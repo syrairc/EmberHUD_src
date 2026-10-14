@@ -49,9 +49,9 @@ if (check)
 {
     var text = new StringWriter();
     var report = TextWriter.Synchronized(text);
-    Log.Sink = (level, plugin, message) => report.WriteLine($"{level} {(plugin is null ? "" : $"[{plugin}] ")}{message}");
+    Log.Sink = (level, plugin, message) => report.WriteLine(LogLine(level, plugin, message));
     var code = CheckRunner.Run(pluginsDirectory, report);
-    if (iconSheet is not null) report.WriteLine($"icon sheet {IconSheet.Write(iconSheet, LoadSvgSources())}");
+    if (iconSheet is not null) report.WriteLine($"icon sheet {SvgIcons.WritePreviewSheet(iconSheet, LoadSvgSources())}");
     File.WriteAllText(Path.Combine(root, "Logs", "check.txt"), text.ToString());
     Console.Write(text.ToString());
     return code;
@@ -62,7 +62,7 @@ using var logFile = new StreamWriter(new FileStream(Path.Combine(root, "Logs", "
 var logGate = new Lock();
 Log.Sink = (level, plugin, message) =>
 {
-    var line = $"{DateTime.Now:HH:mm:ss.fff} {level} {(plugin is null ? "" : $"[{plugin}] ")}{message}";
+    var line = $"{DateTime.Now:HH:mm:ss.fff} {LogLine(level, plugin, message)}";
     lock (logGate)
     {
         try
@@ -77,7 +77,7 @@ Log.Sink = (level, plugin, message) =>
     logs.Add(line);
 };
 
-var sdkPath = Path.Combine(root, "Config", "sdk.json");
+var sdkPath = PluginHost.SdkPath(root);
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
 
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.Info, fake ? 8 : 33);
@@ -99,6 +99,8 @@ Controls.HotkeyConflict = plugins.ConflictFor;
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");
 var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), sdk.Theme, overlay.BeforeFrame);
+themes.Changed += name => sdk.Theme = name;
+sdk.Theme = themes.Name;
 overlay.OnStyle(() =>
 {
     ImGui.GetIO().ConfigErrorRecoveryEnableAssert = false;
@@ -112,7 +114,9 @@ using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle
 });
 var smoother = new PlayerSmoother();
 
-Dictionary<string, string> LoadSvgSources() => SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory);
+Dictionary<string, string> LoadSvgSources() => SvgIcons.Load(SvgIcons.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory);
+
+string LogLine(LogLevel level, string? plugin, string message) => $"{level} {(plugin is null ? "" : $"[{plugin}] ")}{message}";
 
 void Frame()
 {
@@ -126,7 +130,11 @@ void Frame()
 
     var snapshot = reader.Current;
     var state = snapshot.State;
-    if (state.Player is { } player) state = state with { Player = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency) is { } position ? player with { Position = position } : null };
+    if (state.Player is { } player)
+    {
+        var smoothed = smoother.Update(player.Position, snapshot.PlayerAt, Stopwatch.GetTimestamp(), Stopwatch.Frequency);
+        state = state with { Player = smoothed is { } position ? player with { Position = position } : null };
+    }
     Game.State = state;
     Map.View = null;
     gameIcons?.Pump();

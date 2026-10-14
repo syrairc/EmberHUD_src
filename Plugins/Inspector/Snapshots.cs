@@ -31,7 +31,7 @@ internal sealed class Snapshots(Func<long> clock)
         if (entry.ReadAt is null || !Frozen && now - entry.ReadAt >= 1000 / Math.Max(1, RefreshRate))
         {
             var bytes = new byte[length];
-            entry.Bytes = Memory.Read(address, bytes) == length ? bytes : null;
+            entry.Bytes = Memory.Read(address, bytes) ? bytes : null;
             entry.ReadAt = now;
         }
         return entry.Bytes;

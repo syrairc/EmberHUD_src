@@ -45,7 +45,7 @@ public static class EColor
     {
         readonly int _count;
 
-        public StyleColorScope(params (ImGuiCol col, uint rgba)[] colors)
+        public StyleColorScope(params ReadOnlySpan<(ImGuiCol col, uint rgba)> colors)
         {
             _count = colors.Length;
             foreach (var (col, rgba) in colors) ImGui.PushStyleColor(col, rgba);

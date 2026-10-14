@@ -16,8 +16,6 @@ public static class Tables
 
     public static RowScope Row(int id, bool selected = false) => new(id, selected);
 
-    public static DimScope Dim(bool on) => new(on);
-
     public readonly struct RowScope : IDisposable
     {
         public RowScope(int id, bool selected)
@@ -28,21 +26,5 @@ public static class Tables
         }
 
         public void Dispose() => ImGui.PopID();
-    }
-
-    public readonly struct DimScope : IDisposable
-    {
-        readonly bool _on;
-
-        public DimScope(bool on)
-        {
-            _on = on;
-            if (on) ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0.55f);
-        }
-
-        public void Dispose()
-        {
-            if (_on) ImGui.PopStyleVar();
-        }
     }
 }

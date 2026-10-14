@@ -21,8 +21,7 @@ public static partial class Controls
     public static bool SliderFloat(string label, ref float v, float min, float max, string? id = null, string fmt = "%.1f") =>
         ImGui.SliderFloat(label + Sfx(label, id), ref v, min, max, fmt);
 
-    public static bool SliderFloat(string label, Func<float> get, Action<float> set, float min, float max,
-        string? id = null, string fmt = "%.1f")
+    public static bool SliderFloat(string label, Func<float> get, Action<float> set, float min, float max, string? id = null, string fmt = "%.1f")
     {
         float v = get();
         if (SliderFloat(label, ref v, min, max, id, fmt)) { set(v); return true; }

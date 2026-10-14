@@ -5,7 +5,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class OverlayTests
+public class OverlayTests : IDisposable
 {
     static readonly Vector2 Origin = Vector2.Zero;
     static readonly Vector2 Size = new(100, 100);
@@ -51,6 +51,8 @@ public class OverlayTests
     static Vector2 BottomGrip(Panel p) => p.Origin + new Vector2(p.Size.X / 2, p.Size.Y - 2);
 
     static Vector2 CornerGrip(Panel p) => p.Origin + p.Size - new Vector2(2, 2);
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void HitTestInsideOffTheEdge() => Assert.Equal((true, false), Overlay.HitTest(new Vector2(50, 50), Origin, Size));
@@ -145,14 +147,7 @@ public class OverlayTests
         var p = new Panel(new Vector2(100.6f, 100.6f), new Vector2(200, 80));
         var grab = Inside(p);
         var delta = new Vector2(30, 20);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("drag"), grab, grab + delta, Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("drag"), grab, grab + delta, Frame(overlay, p));
         Assert.Equal(130.6f, p.Origin.X, 0.01f);
         Assert.Equal(120.6f, p.Origin.Y, 0.01f);
         Assert.Equal((131, 121), (p.X, p.Y));
@@ -173,22 +168,15 @@ public class OverlayTests
             frame();
             otherFrame();
         }
-        try
-        {
-            UiFrame.Hover(win, Inside(p), Both);
-            Assert.Equal((true, false), (p.Last.hovered, p.Last.active));
-            UiFrame.Press(win, Inside(p), Both);
-            Assert.Equal((true, true), (p.Last.hovered, p.Last.active));
-            Assert.False(other.Last.active);
-            UiFrame.MoveTo(win, Inside(p) + new Vector2(10, 10), Both);
-            Assert.True(p.Last.active);
-            UiFrame.Release(win, Both);
-            Assert.False(p.Last.active);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Hover(win, Inside(p), Both);
+        Assert.Equal((true, false), (p.Last.hovered, p.Last.active));
+        UiFrame.Press(win, Inside(p), Both);
+        Assert.Equal((true, true), (p.Last.hovered, p.Last.active));
+        Assert.False(other.Last.active);
+        UiFrame.MoveTo(win, Inside(p) + new Vector2(10, 10), Both);
+        Assert.True(p.Last.active);
+        UiFrame.Release(win, Both);
+        Assert.False(p.Last.active);
     }
 
     [Fact]
@@ -200,18 +188,11 @@ public class OverlayTests
         var grab = Inside(a);
         var frameA = Frame(overlay, a, "a");
         var frameB = Frame(overlay, b, "b");
-        try
+        UiFrame.Drag(UiFrame.NextId("overlap"), grab, grab + new Vector2(40, 25), () =>
         {
-            UiFrame.Drag(UiFrame.NextId("overlap"), grab, grab + new Vector2(40, 25), () =>
-            {
-                frameA();
-                frameB();
-            });
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+            frameA();
+            frameB();
+        });
         Assert.Equal((140, 125), (a.X, a.Y));
         Assert.Equal((100, 100), (b.X, b.Y));
         Assert.Equal(new Vector2(100, 100), b.Origin);
@@ -225,17 +206,10 @@ public class OverlayTests
         var win = UiFrame.NextId("outside");
         var frame = Frame(overlay, p);
         var outside = p.Origin - new Vector2(30, 30);
-        try
-        {
-            UiFrame.Press(win, outside, frame);
-            UiFrame.MoveTo(win, outside + new Vector2(40, 40), frame);
-            Assert.False(p.Last.active);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Press(win, outside, frame);
+        UiFrame.MoveTo(win, outside + new Vector2(40, 40), frame);
+        Assert.False(p.Last.active);
+        UiFrame.Release(win, frame);
         Assert.Equal((100, 100), (p.X, p.Y));
         Assert.Equal((200, 80), (p.W, p.H));
     }
@@ -247,19 +221,12 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("fresh");
         var frame = Frame(overlay, p);
-        try
-        {
-            var grip = CornerGrip(p);
-            UiFrame.Drag(win, grip, grip + new Vector2(20, 10), frame);
-            Assert.Equal((218, 88), (p.W, p.H));
-            Assert.False(p.Last.active);
-            var grab = Inside(p);
-            UiFrame.Drag(win, grab, grab + new Vector2(30, 15), frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grip = CornerGrip(p);
+        UiFrame.Drag(win, grip, grip + new Vector2(20, 10), frame);
+        Assert.Equal((218, 88), (p.W, p.H));
+        Assert.False(p.Last.active);
+        var grab = Inside(p);
+        UiFrame.Drag(win, grab, grab + new Vector2(30, 15), frame);
         Assert.Equal((130, 115), (p.X, p.Y));
         Assert.Equal((218, 88), (p.W, p.H));
     }
@@ -270,14 +237,7 @@ public class OverlayTests
         var overlay = new Overlay();
         var p = NewPanel();
         var grip = CornerGrip(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("corner"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("corner"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
         Assert.Equal((248, 108), (p.W, p.H));
         Assert.Equal((100, 100), (p.X, p.Y));
         Assert.Equal(new Vector2(100, 100), p.Origin);
@@ -289,14 +249,7 @@ public class OverlayTests
         var overlay = new Overlay();
         var p = NewPanel();
         var grip = RightGrip(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("right"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("right"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
         Assert.Equal((248, 80), (p.W, p.H));
         Assert.Equal((100, 100), (p.X, p.Y));
     }
@@ -307,14 +260,7 @@ public class OverlayTests
         var overlay = new Overlay();
         var p = NewPanel();
         var grip = BottomGrip(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("bottom"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("bottom"), grip, grip + new Vector2(50, 30), Frame(overlay, p));
         Assert.Equal((200, 108), (p.W, p.H));
         Assert.Equal((100, 100), (p.X, p.Y));
     }
@@ -325,14 +271,7 @@ public class OverlayTests
         var overlay = new Overlay();
         var p = NewPanel();
         var grip = BottomGrip(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("masked"), grip, grip + new Vector2(0, 30), Frame(overlay, p, edges: Overlay.ResizeEdge.Right));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("masked"), grip, grip + new Vector2(0, 30), Frame(overlay, p, edges: Overlay.ResizeEdge.Right));
         Assert.Equal((200, 80), (p.W, p.H));
         Assert.Equal((100, 130), (p.X, p.Y));
     }
@@ -345,16 +284,9 @@ public class OverlayTests
         var grip = CornerGrip(p);
         var win = UiFrame.NextId("short");
         var frame = ShortFrame(overlay, p);
-        try
-        {
-            UiFrame.Hover(win, grip, frame);
-            Assert.Equal(Overlay.ResizeEdge.Right, p.Last.edge);
-            UiFrame.Drag(win, grip, grip + new Vector2(50, 30), frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Hover(win, grip, frame);
+        Assert.Equal(Overlay.ResizeEdge.Right, p.Last.edge);
+        UiFrame.Drag(win, grip, grip + new Vector2(50, 30), frame);
         Assert.Equal((248, 80), (p.W, p.H));
         Assert.Equal((100, 100), (p.X, p.Y));
     }
@@ -366,20 +298,13 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("clamp");
         var frame = Frame(overlay, p, minWidth: 150, maxWidth: 250, minHeight: 50, maxHeight: 90);
-        try
-        {
-            var grip = CornerGrip(p);
-            UiFrame.Drag(win, grip, grip + new Vector2(500, 500), frame);
-            Assert.Equal((250, 90), (p.W, p.H));
-            p.Size = new Vector2(p.W, p.H);
-            grip = CornerGrip(p);
-            UiFrame.Drag(win, grip, grip - new Vector2(400, 400), frame);
-            Assert.Equal((150, 50), (p.W, p.H));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grip = CornerGrip(p);
+        UiFrame.Drag(win, grip, grip + new Vector2(500, 500), frame);
+        Assert.Equal((250, 90), (p.W, p.H));
+        p.Size = new Vector2(p.W, p.H);
+        grip = CornerGrip(p);
+        UiFrame.Drag(win, grip, grip - new Vector2(400, 400), frame);
+        Assert.Equal((150, 50), (p.W, p.H));
     }
 
     [Theory]
@@ -392,15 +317,8 @@ public class OverlayTests
         var overlay = new Overlay();
         var p = NewPanel();
         var at = where switch { 0 => RightGrip(p), 1 => BottomGrip(p), 2 => CornerGrip(p), _ => Inside(p) };
-        try
-        {
-            UiFrame.Hover(UiFrame.NextId("cursor"), at, Frame(overlay, p));
-            Assert.Equal(expected, p.Cursor);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Hover(UiFrame.NextId("cursor"), at, Frame(overlay, p));
+        Assert.Equal(expected, p.Cursor);
     }
 
     [Fact]
@@ -410,19 +328,12 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("sticky");
         var frame = Frame(overlay, p);
-        try
-        {
-            UiFrame.Press(win, RightGrip(p), frame);
-            UiFrame.MoveTo(win, p.Origin + new Vector2(60, 40), frame);
-            Assert.Equal(Overlay.ResizeEdge.Right, p.Last.edge);
-            Assert.Equal(ImGuiMouseCursor.ResizeEw, p.Cursor);
-            Assert.True(p.Last.active);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Press(win, RightGrip(p), frame);
+        UiFrame.MoveTo(win, p.Origin + new Vector2(60, 40), frame);
+        Assert.Equal(Overlay.ResizeEdge.Right, p.Last.edge);
+        Assert.Equal(ImGuiMouseCursor.ResizeEw, p.Cursor);
+        Assert.True(p.Last.active);
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -431,14 +342,7 @@ public class OverlayTests
         var overlay = new Overlay { Locked = true };
         var p = NewPanel();
         var grab = Inside(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("locked"), grab, grab + new Vector2(40, 40), Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("locked"), grab, grab + new Vector2(40, 40), Frame(overlay, p));
         Assert.Equal((100, 100), (p.X, p.Y));
         Assert.Equal(new Vector2(100, 100), p.Origin);
         Assert.Equal((false, Overlay.ResizeEdge.None, false), p.Last);
@@ -450,14 +354,7 @@ public class OverlayTests
         var overlay = new Overlay { Locked = true, MoveHeld = true };
         var p = NewPanel();
         var grab = Inside(p);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("moveheld"), grab, grab + new Vector2(40, 25), Frame(overlay, p));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("moveheld"), grab, grab + new Vector2(40, 25), Frame(overlay, p));
         Assert.Equal((140, 125), (p.X, p.Y));
     }
 
@@ -468,18 +365,11 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("midlock");
         var frame = Frame(overlay, p);
-        try
-        {
-            UiFrame.Press(win, Inside(p), frame);
-            overlay.Locked = true;
-            UiFrame.MoveTo(win, Inside(p) + new Vector2(30, 10), frame);
-            Assert.Equal((130, 110), (p.X, p.Y));
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Press(win, Inside(p), frame);
+        overlay.Locked = true;
+        UiFrame.MoveTo(win, Inside(p) + new Vector2(30, 10), frame);
+        Assert.Equal((130, 110), (p.X, p.Y));
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -489,23 +379,16 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("release");
         var frame = Frame(overlay, p);
-        try
-        {
-            var grab = Inside(p);
-            UiFrame.Press(win, grab, frame);
-            UiFrame.MoveTo(win, grab + new Vector2(10, 0), frame);
-            overlay.Release("elsewhere");
-            UiFrame.MoveTo(win, grab + new Vector2(20, 0), frame);
-            Assert.Equal(120, p.X);
-            overlay.Release("panel");
-            UiFrame.MoveTo(win, grab + new Vector2(60, 0), frame);
-            Assert.Equal(120, p.X);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grab = Inside(p);
+        UiFrame.Press(win, grab, frame);
+        UiFrame.MoveTo(win, grab + new Vector2(10, 0), frame);
+        overlay.Release("elsewhere");
+        UiFrame.MoveTo(win, grab + new Vector2(20, 0), frame);
+        Assert.Equal(120, p.X);
+        overlay.Release("panel");
+        UiFrame.MoveTo(win, grab + new Vector2(60, 0), frame);
+        Assert.Equal(120, p.X);
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -515,21 +398,14 @@ public class OverlayTests
         var p = NewPanel();
         var win = UiFrame.NextId("releaseresize");
         var frame = Frame(overlay, p);
-        try
-        {
-            var grip = RightGrip(p);
-            UiFrame.Press(win, grip, frame);
-            UiFrame.MoveTo(win, grip + new Vector2(20, 0), frame);
-            Assert.Equal(218, p.W);
-            overlay.Release("panel");
-            UiFrame.MoveTo(win, grip + new Vector2(90, 0), frame);
-            Assert.Equal(218, p.W);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grip = RightGrip(p);
+        UiFrame.Press(win, grip, frame);
+        UiFrame.MoveTo(win, grip + new Vector2(20, 0), frame);
+        Assert.Equal(218, p.W);
+        overlay.Release("panel");
+        UiFrame.MoveTo(win, grip + new Vector2(90, 0), frame);
+        Assert.Equal(218, p.W);
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -538,14 +414,7 @@ public class OverlayTests
         var overlay = new Overlay();
         var b = NewBanner();
         var grab = new Vector2(b.X, b.Y + 10);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("center"), grab, grab + new Vector2(40, 20), CenterFrame(overlay, b));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("center"), grab, grab + new Vector2(40, 20), CenterFrame(overlay, b));
         Assert.Equal((540, 60), (b.X, b.Y));
         Assert.Equal(new Vector2(540 - b.Size.X / 2f, 60), b.Origin);
         Assert.Equal(300, b.W);
@@ -560,18 +429,11 @@ public class OverlayTests
         var frameA = CenterFrame(overlay, a, "a");
         var frameB = CenterFrame(overlay, b, "b");
         var grab = new Vector2(a.X, a.Y + 10);
-        try
+        UiFrame.Drag(UiFrame.NextId("centeroverlap"), grab, grab + new Vector2(40, 20), () =>
         {
-            UiFrame.Drag(UiFrame.NextId("centeroverlap"), grab, grab + new Vector2(40, 20), () =>
-            {
-                frameA();
-                frameB();
-            });
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+            frameA();
+            frameB();
+        });
         Assert.Equal((540, 60), (a.X, a.Y));
         Assert.Equal((500, 40), (b.X, b.Y));
         Assert.Equal(new Vector2(350, 40), b.Origin);
@@ -584,23 +446,16 @@ public class OverlayTests
         var b = NewBanner();
         var win = UiFrame.NextId("centerfresh");
         var frame = CenterFrame(overlay, b);
-        try
-        {
-            var grip = new Vector2(b.Origin.X + b.Size.X - 2, b.Origin.Y + 10);
-            UiFrame.Drag(win, grip, grip + new Vector2(10, 0), frame);
-            Assert.Equal(316, b.W);
-            Assert.False(b.LastCenter.active);
-            var grab = new Vector2(b.X, b.Y + 10);
-            UiFrame.Drag(win, grab, grab + new Vector2(30, 0), frame);
-            Assert.Equal(530, b.X);
-            Assert.False(b.LastCenter.active);
-            grab = new Vector2(b.X, b.Y + 10);
-            UiFrame.Drag(win, grab, grab + new Vector2(-50, 0), frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grip = new Vector2(b.Origin.X + b.Size.X - 2, b.Origin.Y + 10);
+        UiFrame.Drag(win, grip, grip + new Vector2(10, 0), frame);
+        Assert.Equal(316, b.W);
+        Assert.False(b.LastCenter.active);
+        var grab = new Vector2(b.X, b.Y + 10);
+        UiFrame.Drag(win, grab, grab + new Vector2(30, 0), frame);
+        Assert.Equal(530, b.X);
+        Assert.False(b.LastCenter.active);
+        grab = new Vector2(b.X, b.Y + 10);
+        UiFrame.Drag(win, grab, grab + new Vector2(-50, 0), frame);
         Assert.Equal(480, b.X);
     }
 
@@ -611,25 +466,18 @@ public class OverlayTests
         var b = NewBanner();
         var win = UiFrame.NextId("centerresize");
         var frame = CenterFrame(overlay, b, minWidth: 100, maxWidth: 500);
-        try
-        {
-            var grip = new Vector2(b.Origin.X + b.Size.X - 2, b.Origin.Y + 10);
-            UiFrame.Press(win, grip, frame);
-            UiFrame.MoveTo(win, new Vector2(b.X + 120, grip.Y), frame);
-            Assert.Equal(240, b.W);
-            Assert.Equal(ImGuiMouseCursor.ResizeEw, b.Cursor);
-            Assert.True(b.LastCenter.active);
-            Assert.Equal((500, 40), (b.X, b.Y));
-            UiFrame.MoveTo(win, new Vector2(b.X + 400, grip.Y), frame);
-            Assert.Equal(500, b.W);
-            UiFrame.MoveTo(win, new Vector2(b.X + 5, grip.Y), frame);
-            Assert.Equal(100, b.W);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var grip = new Vector2(b.Origin.X + b.Size.X - 2, b.Origin.Y + 10);
+        UiFrame.Press(win, grip, frame);
+        UiFrame.MoveTo(win, new Vector2(b.X + 120, grip.Y), frame);
+        Assert.Equal(240, b.W);
+        Assert.Equal(ImGuiMouseCursor.ResizeEw, b.Cursor);
+        Assert.True(b.LastCenter.active);
+        Assert.Equal((500, 40), (b.X, b.Y));
+        UiFrame.MoveTo(win, new Vector2(b.X + 400, grip.Y), frame);
+        Assert.Equal(500, b.W);
+        UiFrame.MoveTo(win, new Vector2(b.X + 5, grip.Y), frame);
+        Assert.Equal(100, b.W);
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -639,22 +487,15 @@ public class OverlayTests
         var b = NewBanner();
         var win = UiFrame.NextId("centerreport");
         var frame = CenterFrame(overlay, b);
-        try
-        {
-            UiFrame.Hover(win, new Vector2(b.X, b.Y + 10), frame);
-            Assert.Equal((true, false, false), b.LastCenter);
-            Assert.Equal(ImGuiMouseCursor.Arrow, b.Cursor);
-            UiFrame.Hover(win, new Vector2(b.Origin.X + b.Size.X - 2, b.Y + 10), frame);
-            Assert.Equal((true, true, false), b.LastCenter);
-            Assert.Equal(ImGuiMouseCursor.ResizeEw, b.Cursor);
-            UiFrame.Press(win, new Vector2(b.X, b.Y + 10), frame);
-            Assert.Equal((true, false, true), b.LastCenter);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Hover(win, new Vector2(b.X, b.Y + 10), frame);
+        Assert.Equal((true, false, false), b.LastCenter);
+        Assert.Equal(ImGuiMouseCursor.Arrow, b.Cursor);
+        UiFrame.Hover(win, new Vector2(b.Origin.X + b.Size.X - 2, b.Y + 10), frame);
+        Assert.Equal((true, true, false), b.LastCenter);
+        Assert.Equal(ImGuiMouseCursor.ResizeEw, b.Cursor);
+        UiFrame.Press(win, new Vector2(b.X, b.Y + 10), frame);
+        Assert.Equal((true, false, true), b.LastCenter);
+        UiFrame.Release(win, frame);
     }
 
     [Fact]
@@ -663,14 +504,7 @@ public class OverlayTests
         var overlay = new Overlay { Locked = true, MoveHeld = true };
         var b = NewBanner();
         var grab = new Vector2(b.X, b.Y + 10);
-        try
-        {
-            UiFrame.Drag(UiFrame.NextId("centerlocked"), grab, grab + new Vector2(40, 20), CenterFrame(overlay, b));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Drag(UiFrame.NextId("centerlocked"), grab, grab + new Vector2(40, 20), CenterFrame(overlay, b));
         Assert.Equal((500, 40), (b.X, b.Y));
         Assert.Equal((false, false, false), b.LastCenter);
     }
@@ -683,26 +517,18 @@ public class OverlayTests
         var win = UiFrame.NextId("centermidlock");
         var frame = CenterFrame(overlay, b);
         var grab = new Vector2(b.X, b.Y + 10);
-        try
-        {
-            UiFrame.Press(win, grab, frame);
-            UiFrame.MoveTo(win, grab + new Vector2(20, 0), frame);
-            Assert.Equal(520, b.X);
-            overlay.Locked = true;
-            UiFrame.MoveTo(win, grab + new Vector2(50, 0), frame);
-            overlay.Locked = false;
-            UiFrame.MoveTo(win, grab + new Vector2(90, 0), frame);
-            Assert.Equal(520, b.X);
-            Assert.False(b.LastCenter.active);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Press(win, grab, frame);
+        UiFrame.MoveTo(win, grab + new Vector2(20, 0), frame);
+        Assert.Equal(520, b.X);
+        overlay.Locked = true;
+        UiFrame.MoveTo(win, grab + new Vector2(50, 0), frame);
+        overlay.Locked = false;
+        UiFrame.MoveTo(win, grab + new Vector2(90, 0), frame);
+        Assert.Equal(520, b.X);
+        Assert.False(b.LastCenter.active);
+        UiFrame.Release(win, frame);
     }
 
-    static List<ImDrawVert> NewVerts(ImDrawListPtr list, int from) => UiFrame.Verts(list).Skip(from).ToList();
 
     static readonly Vector2 HintMin = new(100, 100);
     static readonly Vector2 HintMax = new(300, 220);
@@ -715,10 +541,7 @@ public class OverlayTests
         List<ImDrawVert> verts = [];
         UiFrame.Run(UiFrame.NextId("hint"), () =>
         {
-            var list = ImGui.GetForegroundDrawList();
-            var from = list.VtxBuffer.Size;
-            Overlay.DragHint(HintMin, HintMax, active, hovered, edge);
-            verts = NewVerts(list, from);
+            verts = UiFrame.Drawn(ImGui.GetForegroundDrawList(), () => Overlay.DragHint(HintMin, HintMax, active, hovered, edge));
         });
         return verts;
     }
@@ -815,21 +638,14 @@ public class OverlayTests
             Overlay.ClickBlocker(id, pos, size);
             capture = io.WantCaptureMouse;
         });
-        try
-        {
-            io.AddMousePosEvent(pos.X + size.X / 2, pos.Y + size.Y / 2);
-            Frame();
-            Frame();
-            Assert.True(capture);
-            io.AddMousePosEvent(pos.X + size.X + 40, pos.Y + size.Y + 40);
-            Frame();
-            Frame();
-            Assert.False(capture);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        io.AddMousePosEvent(pos.X + size.X / 2, pos.Y + size.Y / 2);
+        Frame();
+        Frame();
+        Assert.True(capture);
+        io.AddMousePosEvent(pos.X + size.X + 40, pos.Y + size.Y + 40);
+        Frame();
+        Frame();
+        Assert.False(capture);
     }
 
     [Fact]
@@ -905,438 +721,55 @@ public class OverlayTests
     public void ClickBlockerDrawsInsideAWindowWithoutLeakingAnId() =>
         UiFrame.Run(UiFrame.NextId("balancehost"), () => Overlay.ClickBlocker(UiFrame.NextId("balance"), new Vector2(10, 10), new Vector2(50, 50)));
 
-    sealed class Button
-    {
-        public Vector2 Pos;
-        public int Clicks;
-        public ImGuiMouseCursor Cursor;
-        public List<ImDrawVert> Verts = [];
-    }
-
-    static string FloatName(string id) => $"##float_{ImGui.GetID(id):X8}";
-
-    static Action ButtonFrame(string id, Button b, string label = "Toast me", Vector2 size = default) => () =>
-    {
-        if (Floating.Button(id, label, ref b.Pos, size)) b.Clicks++;
-        b.Cursor = ImGui.GetMouseCursor();
-        var window = ImGuiP.FindWindowByName(FloatName(id));
-        b.Verts = window.IsNull ? [] : UiFrame.Verts(window.DrawList);
-    };
-
-    static Vector2 WindowMinSize()
-    {
-        Vector2 min = default;
-        UiFrame.Run(UiFrame.NextId("minsize"), () => min = ImGui.GetStyle().WindowMinSize);
-        return min;
-    }
-
-    static Vector2 Measure(string label)
-    {
-        Vector2 size = default;
-        UiFrame.Run(UiFrame.NextId("measure"), () => size = ImGui.CalcTextSize(label) + ImGui.GetStyle().FramePadding * 2f);
-        return size;
-    }
-
     [Fact]
-    public void AFloatingButtonDraggedOffScreenIsClampedBack()
+    public void ClickBlockerReturnsTrueOnAClickInsideItsRectOnly()
     {
-        var pos = new Vector2(5000, 5000);
-        var clicked = true;
-        Vector2 expected = default;
-        TestFrame.Run(() =>
-        {
-            var vp = ImGui.GetMainViewport();
-            var size = ImGui.CalcTextSize("Toast me") + ImGui.GetStyle().FramePadding * 2f;
-            expected = vp.Pos + vp.Size - size;
-            clicked = Floating.Button(UiFrame.NextId("offscreen"), "Toast me", ref pos);
-        });
-        Assert.False(clicked);
-        Assert.Equal(expected, pos);
-        Assert.Equal(UiFrame.Io().DisplaySize, pos + Measure("Toast me"));
-    }
-
-    [Fact]
-    public void AFloatingButtonDraggedAboveAndLeftIsClampedToTheViewportOrigin()
-    {
-        var pos = new Vector2(-300, -300);
-        Vector2 viewport = default;
-        TestFrame.Run(() =>
-        {
-            Floating.Button(UiFrame.NextId("topleft"), "Toast me", ref pos);
-            viewport = ImGui.GetMainViewport().Pos;
-        });
-        Assert.Equal(viewport, pos);
-    }
-
-    [Fact]
-    public void AFloatingButtonWiderThanTheViewportPinsToTheLeftInsteadOfThrowing()
-    {
-        var display = UiFrame.Io().DisplaySize;
-        var pos = new Vector2(400, 400);
-        TestFrame.Run(() => Floating.Button(UiFrame.NextId("wide"), "Toast me", ref pos, new Vector2(display.X + 100, 30)));
-        Assert.Equal(0f, pos.X);
-        Assert.Equal(400f, pos.Y);
-    }
-
-    [Fact]
-    public void AFloatingButtonTallerThanTheViewportPinsToTheTop()
-    {
-        var display = UiFrame.Io().DisplaySize;
-        var pos = new Vector2(400, 400);
-        TestFrame.Run(() => Floating.Button(UiFrame.NextId("tall"), "Toast me", ref pos, new Vector2(30, display.Y + 100)));
-        Assert.Equal(400f, pos.X);
-        Assert.Equal(0f, pos.Y);
-    }
-
-    [Fact]
-    public void AFloatingButtonKeepsAnInsideSpotUntouched()
-    {
-        var pos = new Vector2(200, 150);
-        TestFrame.Run(() => Floating.Button(UiFrame.NextId("inside"), "Toast me", ref pos));
-        Assert.Equal(new Vector2(200, 150), pos);
-    }
-
-    [Fact]
-    public void AFloatingButtonSizesToTheLabelPlusFramePaddingUnlessAGivenSizeIsPositiveOnBothAxes()
-    {
-        var measured = Vector2.Max(Measure("Toast me"), WindowMinSize());
-        var wanted = new Vector2(150, 40);
-        Vector2 measuredWindow = default, givenWindow = default;
-        TestFrame.Run(() =>
-        {
-            var pos = new Vector2(200, 150);
-            var id = UiFrame.NextId("sized");
-            Floating.Button(id, "Toast me", ref pos);
-            measuredWindow = ImGuiP.FindWindowByName(FloatName(id)).Size;
-            id = UiFrame.NextId("given");
-            Floating.Button(id, "Toast me", ref pos, wanted);
-            givenWindow = ImGuiP.FindWindowByName(FloatName(id)).Size;
-        });
-        Assert.Equal(measured, measuredWindow);
-        Assert.Equal(wanted, givenWindow);
-    }
-
-    [Theory]
-    [InlineData(0f, 40f)]
-    [InlineData(150f, 0f)]
-    [InlineData(-1f, -1f)]
-    [InlineData(0f, 0f)]
-    public void ButtonSizeFallsBackToTheLabelPlusPaddingWhenAnAxisIsNotPositive(float x, float y)
-    {
-        var label = new Vector2(50, 13);
-        var padding = new Vector2(4, 3);
-        Assert.Equal(new Vector2(58, 19), Floating.ButtonSize(new Vector2(x, y), label, padding));
-    }
-
-    [Fact]
-    public void ButtonSizeKeepsAPositiveSize() => Assert.Equal(new Vector2(150, 40), Floating.ButtonSize(new Vector2(150, 40), new Vector2(50, 13), new Vector2(4, 3)));
-
-    [Fact]
-    public void ButtonSizeOfDefaultIsTheLabelPlusPadding() => Assert.Equal(new Vector2(58, 19), Floating.ButtonSize(default, new Vector2(50, 13), new Vector2(4, 3)));
-
-    [Fact]
-    public void AFloatingButtonWindowFollowsASizeChange()
-    {
-        var id = UiFrame.NextId("resize");
-        var host = UiFrame.NextId("resizehost");
-        var pos = new Vector2(200, 150);
-        Vector2 first = default, second = default;
-        UiFrame.Run(host, () =>
-        {
-            Floating.Button(id, "Toast me", ref pos, new Vector2(150, 40));
-            first = ImGuiP.FindWindowByName(FloatName(id)).Size;
-        });
-        UiFrame.Run(host, () =>
-        {
-            Floating.Button(id, "Toast me", ref pos, new Vector2(220, 60));
-            second = ImGuiP.FindWindowByName(FloatName(id)).Size;
-        });
-        Assert.Equal(new Vector2(150, 40), first);
-        Assert.Equal(new Vector2(220, 60), second);
-    }
-
-    [Fact]
-    public void AFloatingButtonWindowSitsAtPosWithNoPadding()
-    {
-        var id = UiFrame.NextId("atpos");
-        var b = new Button { Pos = new Vector2(220, 160) };
-        Vector2 windowPos = default;
-        TestFrame.Run(() =>
-        {
-            Floating.Button(id, "Toast me", ref b.Pos);
-            windowPos = ImGuiP.FindWindowByName(FloatName(id)).Pos;
-        });
-        Assert.Equal(new Vector2(220, 160), windowPos);
-    }
-
-    [Fact]
-    public void AFloatingButtonClickReturnsTrueOnceAndDoesNotMoveIt()
-    {
-        var win = UiFrame.NextId("clickwin");
+        var pos = new Vector2(120, 80);
+        var size = new Vector2(220, 90);
         var id = UiFrame.NextId("click");
-        var b = new Button { Pos = new Vector2(200, 150) };
-        var center = b.Pos + Measure("Toast me") / 2f;
-        try
-        {
-            UiFrame.Click(win, center, ButtonFrame(id, b));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-        Assert.Equal(1, b.Clicks);
-        Assert.Equal(new Vector2(200, 150), b.Pos);
+        var io = UiFrame.Io();
+        var clicks = 0;
+        void Frame() => TestFrame.Run(() => { if (Overlay.ClickBlocker(id, pos, size)) clicks++; });
+        io.AddMousePosEvent(pos.X + 10, pos.Y + 10);
+        Frame();
+        Frame();
+        Assert.Equal(0, clicks);
+        io.AddMouseButtonEvent(0, true);
+        Frame();
+        Assert.Equal(1, clicks);
+        io.AddMouseButtonEvent(0, false);
+        Frame();
+        Frame();
+        Assert.Equal(1, clicks);
+        io.AddMousePosEvent(pos.X + size.X + 40, pos.Y + 10);
+        Frame();
+        Frame();
+        io.AddMouseButtonEvent(0, true);
+        Frame();
+        Assert.Equal(1, clicks);
     }
 
     [Fact]
-    public void AFloatingButtonDragMovesItByTheMouseDeltaAndIsNotAClick()
+    public void ClickBlockerSitsBehindAWindowAtTheSameSpot()
     {
-        var win = UiFrame.NextId("dragwin");
-        var id = UiFrame.NextId("drag");
-        var b = new Button { Pos = new Vector2(200, 150) };
-        var frame = ButtonFrame(id, b);
-        var size = Measure("Toast me");
-        var center = b.Pos + size / 2f;
-        var delta = new Vector2(60, 40);
-        try
+        var pos = new Vector2(120, 80);
+        var size = new Vector2(220, 90);
+        var id = UiFrame.NextId("behind");
+        var io = UiFrame.Io();
+        var clicks = 0;
+        void Frame() => TestFrame.Run(() =>
         {
-            UiFrame.Drag(win, center, center + delta, frame);
-            Assert.Equal(0, b.Clicks);
-            Assert.Equal(new Vector2(200, 150) + delta, b.Pos);
-            UiFrame.Click(win, b.Pos + size / 2f, frame);
-            Assert.Equal(1, b.Clicks);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-    }
-
-    [Fact]
-    public void AFloatingButtonPressThatNeverPassesTheDragThresholdStaysPutAndClicks()
-    {
-        var win = UiFrame.NextId("tinywin");
-        var id = UiFrame.NextId("tiny");
-        var b = new Button { Pos = new Vector2(200, 150) };
-        var center = b.Pos + Measure("Toast me") / 2f;
-        var threshold = UiFrame.Io().MouseDragThreshold;
-        try
-        {
-            UiFrame.Drag(win, center, center + new Vector2(threshold / 3f, 0), ButtonFrame(id, b));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-        Assert.Equal(1, b.Clicks);
-        Assert.Equal(new Vector2(200, 150), b.Pos);
-    }
-
-    [Fact]
-    public void AFloatingButtonCursorIsAHandWhenHoveredAndMoveWhenHeld()
-    {
-        var win = UiFrame.NextId("cursorwin");
-        var id = UiFrame.NextId("cursor");
-        var b = new Button { Pos = new Vector2(200, 150) };
-        var frame = ButtonFrame(id, b);
-        var center = b.Pos + Measure("Toast me") / 2f;
-        try
-        {
-            UiFrame.Unhover();
-            UiFrame.Run(win, frame);
-            Assert.Equal(ImGuiMouseCursor.Arrow, b.Cursor);
-            UiFrame.Hover(win, center, frame);
-            Assert.Equal(ImGuiMouseCursor.Hand, b.Cursor);
-            UiFrame.Press(win, center, frame);
-            Assert.Equal(ImGuiMouseCursor.ResizeAll, b.Cursor);
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-    }
-
-    [Fact]
-    public void AFloatingButtonFillsWithTheButtonColourForIdleHoveredAndHeld()
-    {
-        var win = UiFrame.NextId("colourwin");
-        var id = UiFrame.NextId("colour");
-        var b = new Button { Pos = new Vector2(200, 150) };
-        var frame = ButtonFrame(id, b);
-        var center = b.Pos + Measure("Toast me") / 2f;
-        uint idle = 0, hovered = 0, held = 0;
-        UiFrame.Run(win, () =>
-        {
-            idle = ImGui.GetColorU32(ImGuiCol.Button);
-            hovered = ImGui.GetColorU32(ImGuiCol.ButtonHovered);
-            held = ImGui.GetColorU32(ImGuiCol.ButtonActive);
+            ImGui.SetNextWindowPos(pos);
+            ImGui.SetNextWindowSize(size);
+            ImGui.Begin("##front-" + id, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing);
+            ImGui.End();
+            if (Overlay.ClickBlocker(id, pos, size)) clicks++;
         });
-        Assert.Equal(3, new[] { idle, hovered, held }.Distinct().Count());
-        try
-        {
-            UiFrame.Unhover();
-            UiFrame.Run(win, frame);
-            Assert.Equal((true, false, false), (b.Verts.Any(v => v.Col == idle), b.Verts.Any(v => v.Col == hovered), b.Verts.Any(v => v.Col == held)));
-            UiFrame.Hover(win, center, frame);
-            Assert.Equal((false, true, false), (b.Verts.Any(v => v.Col == idle), b.Verts.Any(v => v.Col == hovered), b.Verts.Any(v => v.Col == held)));
-            UiFrame.Press(win, center, frame);
-            Assert.Equal((false, false, true), (b.Verts.Any(v => v.Col == idle), b.Verts.Any(v => v.Col == hovered), b.Verts.Any(v => v.Col == held)));
-            UiFrame.Release(win, frame);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-    }
-
-    [Fact]
-    public void AFloatingButtonDrawsItsLabelAndABorder()
-    {
-        var win = UiFrame.NextId("labelwin");
-        var size = new Vector2(150, 40);
-        var plain = new Button { Pos = new Vector2(200, 150) };
-        var labelled = new Button { Pos = new Vector2(200, 250) };
-        uint border = 0;
-        try
-        {
-            UiFrame.Unhover();
-            UiFrame.Run(win, () => border = ImGui.GetColorU32(ImGuiCol.Border));
-            UiFrame.Run(win, ButtonFrame(UiFrame.NextId("empty"), plain, "", size));
-            UiFrame.Run(win, ButtonFrame(UiFrame.NextId("text"), labelled, "Toast me", size));
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-        Assert.True(labelled.Verts.Count > plain.Verts.Count);
-        uint windowBg = 0;
-        UiFrame.Run(win, () => windowBg = ImGui.GetColorU32(ImGuiCol.WindowBg));
-        Assert.DoesNotContain(plain.Verts, v => v.Col == windowBg);
-        Assert.Contains(plain.Verts, v => v.Col == border);
-        var tolerance = 0f;
-        UiFrame.Run(win, () => tolerance = ImGui.GetFontSize() / 2f);
-        var shapeUvs = plain.Verts.Select(v => v.Uv).ToHashSet();
-        var glyphs = labelled.Verts.Where(v => !shapeUvs.Contains(v.Uv)).ToList();
-        Assert.NotEmpty(glyphs);
-        Assert.InRange(glyphs.Min(v => v.Pos.X), labelled.Pos.X, labelled.Pos.X + size.X);
-        Assert.InRange(glyphs.Max(v => v.Pos.X), labelled.Pos.X, labelled.Pos.X + size.X);
-        Assert.InRange(glyphs.Min(v => v.Pos.Y), labelled.Pos.Y, labelled.Pos.Y + size.Y);
-        Assert.InRange(glyphs.Max(v => v.Pos.Y), labelled.Pos.Y, labelled.Pos.Y + size.Y);
-        Assert.InRange((glyphs.Min(v => v.Pos.Y) + glyphs.Max(v => v.Pos.Y)) / 2f, labelled.Pos.Y + size.Y / 2f - tolerance, labelled.Pos.Y + size.Y / 2f + tolerance);
-        Assert.InRange((glyphs.Min(v => v.Pos.X) + glyphs.Max(v => v.Pos.X)) / 2f, labelled.Pos.X + size.X / 2f - tolerance, labelled.Pos.X + size.X / 2f + tolerance);
-    }
-
-    [Fact]
-    public void AFloatingButtonWindowIsBorderlessUnmovableAndNeverTakesFocus()
-    {
-        var id = UiFrame.NextId("flags");
-        var pos = new Vector2(200, 150);
-        ImGuiWindowFlags flags = default;
-        float padding = -1f;
-        TestFrame.Run(() =>
-        {
-            Floating.Button(id, "Toast me", ref pos);
-            var window = ImGuiP.FindWindowByName(FloatName(id));
-            flags = window.Flags;
-            padding = window.WindowPadding.X;
-        });
-        const ImGuiWindowFlags expected = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav;
-        Assert.Equal(expected, flags & expected);
-        Assert.Equal(0f, padding);
-    }
-
-    [Fact]
-    public void AFloatingButtonClampsAgainstAMovedViewport()
-    {
-        var viewportPos = new Vector2(50, 60);
-        var viewportSize = new Vector2(800, 600);
-        var far = new Vector2(5000, 5000);
-        var near = new Vector2(-100, -100);
-        var size = Measure("Toast me");
-        TestFrame.Run(() =>
-        {
-            var vp = ImGui.GetMainViewport();
-            var (oldPos, oldSize) = (vp.Pos, vp.Size);
-            try
-            {
-                vp.Pos = viewportPos;
-                vp.Size = viewportSize;
-                Floating.Button(UiFrame.NextId("moved"), "Toast me", ref far);
-                Floating.Button(UiFrame.NextId("movednear"), "Toast me", ref near);
-            }
-            finally
-            {
-                vp.Pos = oldPos;
-                vp.Size = oldSize;
-            }
-        });
-        Assert.Equal(viewportPos + viewportSize - size, far);
-        Assert.Equal(viewportPos, near);
-    }
-
-    [Fact]
-    public void TheSameFloatingIdUnderTwoIdScopesIsTwoWindowsAtTwoPositions()
-    {
-        var win = UiFrame.NextId("scopewin");
-        Vector2 a = default, b = default, bareWindowPos = default;
-        uint idA = 0, idB = 0;
-        var posA = new Vector2(100, 100);
-        var posB = new Vector2(400, 300);
-        UiFrame.Run(win, () =>
-        {
-            ImGui.PushID("scopeA");
-            Floating.Button("btn", "A", ref posA);
-            ImGui.PopID();
-            ImGui.PushID("scopeB");
-            Floating.Button("btn", "B", ref posB);
-            ImGui.PopID();
-            ImGui.PushID("scopeA");
-            var windowA = ImGuiP.FindWindowByName(FloatName("btn"));
-            (a, idA) = (windowA.Pos, windowA.ID);
-            ImGui.PopID();
-            ImGui.PushID("scopeB");
-            var windowB = ImGuiP.FindWindowByName(FloatName("btn"));
-            (b, idB) = (windowB.Pos, windowB.ID);
-            ImGui.PopID();
-            var bare = ImGuiP.FindWindowByName(FloatName("btn"));
-            bareWindowPos = bare.IsNull ? new Vector2(-1, -1) : bare.Pos;
-        });
-        Assert.NotEqual(idA, idB);
-        Assert.Equal(new Vector2(100, 100), a);
-        Assert.Equal(new Vector2(400, 300), b);
-        Assert.Equal(new Vector2(-1, -1), bareWindowPos);
-    }
-
-    [Fact]
-    public void ADragThatEndsUnseenInOneScopeDoesNotMakeTheNextScopesClickADrag()
-    {
-        var win = UiFrame.NextId("leakwin");
-        var a = new Button { Pos = new Vector2(100, 100) };
-        var b = new Button { Pos = new Vector2(400, 300) };
-        Action Scoped(string scope, Button button) => () =>
-        {
-            ImGui.PushID(scope);
-            ButtonFrame("btn", button)();
-            ImGui.PopID();
-        };
-        var frameA = Scoped("scopeA", a);
-        var frameB = Scoped("scopeB", b);
-        var size = Measure("Toast me");
-        var from = a.Pos + size / 2f;
-        try
-        {
-            UiFrame.Press(win, from, frameA);
-            UiFrame.MoveTo(win, from + new Vector2(20, 0), frameA);
-            UiFrame.MoveTo(win, from + new Vector2(40, 0), frameA);
-            UiFrame.Release(win, () => { });
-            UiFrame.Click(win, b.Pos + size / 2f, frameB);
-            Assert.Equal(1, b.Clicks);
-        }
-        finally
-        {
-            UiFrame.Click(win, a.Pos + size / 2f, frameA);
-            UiFrame.Unhover();
-        }
+        io.AddMousePosEvent(pos.X + 10, pos.Y + 10);
+        Frame();
+        Frame();
+        io.AddMouseButtonEvent(0, true);
+        Frame();
+        Assert.Equal(0, clicks);
     }
 }

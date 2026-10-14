@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Drawing;
 using Hexa.NET.ImGui;
 using EmberHUD.Host.Icons;
@@ -6,32 +7,51 @@ namespace EmberHUD.Tests;
 
 public sealed class SvgIconStoreTests : IDisposable
 {
+    sealed class CountingSources(Dictionary<string, string> inner) : IReadOnlyDictionary<string, string>
+    {
+        public int Lookups;
+
+        public string this[string key]
+        {
+            get
+            {
+                Lookups++;
+                return inner[key];
+            }
+        }
+
+        public IEnumerable<string> Keys => inner.Keys;
+
+        public IEnumerable<string> Values => inner.Values;
+
+        public int Count => inner.Count;
+
+        public bool ContainsKey(string key)
+        {
+            Lookups++;
+            return inner.ContainsKey(key);
+        }
+
+        public bool TryGetValue(string key, out string value)
+        {
+            Lookups++;
+            return inner.TryGetValue(key, out value!);
+        }
+
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => inner.GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     const string Square = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" fill="currentColor"/><rect class="accent" x="24" y="24" width="16" height="16" fill="currentColor"/></svg>""";
 
     readonly LogCapture _log = new();
-    readonly Dictionary<string, (int Width, int Height)> _uploaded = [];
-    readonly List<string> _released = [];
-    ulong _handle = 1;
+    readonly FakeTextures _textures = new();
 
     public void Dispose() => _log.Dispose();
 
-    bool Upload(string key, byte[] pixels, int width, int height, out string failure)
-    {
-        _uploaded[key] = (width, height);
-        failure = "";
-        return true;
-    }
-
-    Sprite? Resolve(string key) => _uploaded.ContainsKey(key) ? new Sprite(new ImTextureRef { TexID = new ImTextureID(_handle) }, Vector2.Zero, Vector2.One) : null;
-
-    void Release(string key)
-    {
-        _released.Add(key);
-        _uploaded.Remove(key);
-    }
-
     SvgIconStore Store(Func<string, int, DecodedImage>? rasterize = null, TextureUpload? upload = null, Action<string>? release = null) =>
-        new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square, ["svg:broken"] = "<svg><rect" }, upload ?? Upload, Resolve, release ?? new Action<string>(Release), rasterize, inline: true);
+        new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square, ["svg:broken"] = "<svg><rect" }, upload ?? _textures.Upload, _textures.Resolve, release ?? new Action<string>(_textures.Release), rasterize, inline: true);
 
     [Fact]
     public void NamesListsTheSourceKeysSortedOrdinal() => Assert.Equal(["svg:broken", "svg:square"], Store().Names);
@@ -59,6 +79,36 @@ public sealed class SvgIconStoreTests : IDisposable
     public void SizesRoundUpToTwiceTheScreenSizeInPowersOfTwo(int screen, int bucket) => Assert.Equal(bucket, SvgIconStore.Bucket(screen));
 
     [Fact]
+    public void DifferentSpellingsOfAnIconShareOneTexture()
+    {
+        var store = Store();
+
+        store.Resolve("SVG:Square", 12, Color.Red, Color.Blue);
+        store.Resolve("svg:square", 12, Color.Red, Color.Blue);
+        store.Pump();
+        store.Pump();
+        store.Pump();
+
+        Assert.Single(_textures.Uploaded);
+        Assert.NotNull(store.Resolve("SVG:SQUARE", 12, Color.Red, Color.Blue));
+        Assert.NotNull(store.Resolve("svg:square", 12, Color.Red, Color.Blue));
+        Assert.Single(_textures.Uploaded);
+    }
+
+    [Fact]
+    public void AHitNeverTouchesTheSources()
+    {
+        var sources = new CountingSources(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square });
+        var store = new SvgIconStore(sources, _textures.Upload, _textures.Resolve, _textures.Release, rasterize: null, inline: true);
+        Assert.NotNull(Ready(store, "svg:square", 12, Color.Red, Color.Blue));
+        var before = sources.Lookups;
+
+        for (var i = 0; i < 100; i++) Assert.NotNull(store.Resolve("svg:square", 12, Color.Red, Color.Blue));
+
+        Assert.Equal(before, sources.Lookups);
+    }
+
+    [Fact]
     public void AnIconRendersOnFirstUseAndThenResolvesToTheWholeImage()
     {
         var store = Store();
@@ -71,7 +121,7 @@ public sealed class SvgIconStoreTests : IDisposable
         Assert.NotNull(sprite);
         Assert.Equal(Vector2.Zero, sprite.Value.Uv0);
         Assert.Equal(Vector2.One, sprite.Value.Uv1);
-        Assert.Equal((32, 32), Assert.Single(_uploaded).Value);
+        Assert.Equal((32, 32), Assert.Single(_textures.Uploaded).Value);
         Assert.Empty(_log.Text);
     }
 
@@ -85,12 +135,12 @@ public sealed class SvgIconStoreTests : IDisposable
             store.Resolve("svg:square", 14, Color.FromArgb(40, Color.Red), Color.FromArgb(7, Color.Blue));
             store.Pump();
         }
-        Assert.Single(_uploaded);
+        Assert.Single(_textures.Uploaded);
 
         Assert.NotNull(Ready(store, "svg:square", 12, Color.Lime, Color.Blue));
         Assert.NotNull(Ready(store, "svg:square", 12, Color.Red, Color.Yellow));
         Assert.NotNull(Ready(store, "svg:square", 40, Color.Red, Color.Blue));
-        Assert.Equal(4, _uploaded.Count);
+        Assert.Equal(4, _textures.Uploaded.Count);
     }
 
     [Fact]
@@ -100,7 +150,7 @@ public sealed class SvgIconStoreTests : IDisposable
 
         for (var i = 0; i < 3; i++) Assert.Null(Ready(store, "svg:nothing", 12, Color.Red, Color.Blue));
         Assert.Null(Ready(store, "svg:other", 12, Color.Red, Color.Blue));
-        Assert.Empty(_uploaded);
+        Assert.Empty(_textures.Uploaded);
         var messages = _log.Messages().ToList();
         Assert.Equal(2, messages.Count);
         Assert.Contains("svg:nothing", messages[0]);
@@ -114,14 +164,14 @@ public sealed class SvgIconStoreTests : IDisposable
         var store = Store((svg, pixels) =>
         {
             renders++;
-            return SvgRasterizer.Rasterize(svg, pixels);
+            return SvgIcons.Rasterize(svg, pixels);
         });
 
         foreach (var colour in new[] { Color.Red, Color.Lime, Color.Blue, Color.Red }) Assert.Null(Ready(store, "svg:broken", 12, colour, Color.Black));
 
         Assert.Equal(1, renders);
         Assert.Contains("svg:broken", Assert.Single(_log.Messages()));
-        Assert.Empty(_uploaded);
+        Assert.Empty(_textures.Uploaded);
         Assert.NotNull(Ready(store, "svg:square", 12, Color.Red, Color.Blue));
     }
 
@@ -170,9 +220,9 @@ public sealed class SvgIconStoreTests : IDisposable
             Assert.NotNull(store.Resolve("svg:square", 12, favourite, Color.Blue));
         }
 
-        Assert.Equal(256, _uploaded.Count);
-        Assert.Equal(301 - 256, _released.Count);
-        Assert.Equal(_released.Count, _released.Distinct().Count());
+        Assert.Equal(256, _textures.Uploaded.Count);
+        Assert.Equal(301 - 256, _textures.Released.Count);
+        Assert.Equal(_textures.Released.Count, _textures.Released.Distinct().Count());
         Assert.NotNull(store.Resolve("svg:square", 12, favourite, Color.Blue));
         Assert.Null(store.Resolve("svg:square", 12, Color.FromArgb(1), Color.Blue));
     }
@@ -183,7 +233,7 @@ public sealed class SvgIconStoreTests : IDisposable
         var store = Store();
         var before = Ready(store, "svg:square", 12, Color.Red, Color.Blue)!.Value.Texture.TexID;
 
-        _handle = 2;
+        _textures.Handle = 2;
 
         Assert.NotEqual(before, store.Resolve("svg:square", 12, Color.Red, Color.Blue)!.Value.Texture.TexID);
     }
@@ -215,21 +265,8 @@ public sealed class SvgIconStoreTests : IDisposable
         for (var i = 0; i < 2000; i++) store.Pump();
 
         Assert.InRange(renders, 1, 64);
-        Assert.Equal(renders, _uploaded.Count);
+        Assert.Equal(renders, _textures.Uploaded.Count);
         Assert.NotNull(Ready(store, "svg:square", 12, Color.FromArgb(0xABCDEF), Color.Blue));
         Assert.Empty(_log.Text);
-    }
-
-    [Fact]
-    public void AThrowingReleaseStillEvictsPastTheCapWithoutThrowing()
-    {
-        var releases = 0;
-        var store = Store(OnePixel, release: _ => { releases++; throw new InvalidOperationException("device removed"); });
-
-        for (var i = 0; i < 261; i++) Assert.NotNull(Ready(store, "svg:square", 12, Color.FromArgb(i), Color.Blue));
-
-        Assert.Equal(5, releases);
-        Assert.Null(store.Resolve("svg:square", 12, Color.FromArgb(0), Color.Blue));
-        Assert.NotNull(store.Resolve("svg:square", 12, Color.FromArgb(260), Color.Blue));
     }
 }

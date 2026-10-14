@@ -4,7 +4,7 @@ namespace EmberHUD.Ui;
 
 public static class Text
 {
-    public static bool Matches(string? filter, string? text) => string.IsNullOrWhiteSpace(filter) || (text ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase);
+    public static bool Matches(string? filter, string? text) => Picker.Matches(filter, text);
 
     public static string EscPct(string? text) => text?.Replace("%", "%%") ?? "";
 

@@ -4,9 +4,7 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class PlayerSmoother
 {
-    public const float SnapDistance = 30f;
-    public const double MinIntervalSeconds = 0.005;
-    public const double MaxIntervalSeconds = 0.25;
+    private const double MaxIntervalSeconds = 0.25;
 
     private Vector3 _from;
     private Vector3 _to;
@@ -20,7 +18,7 @@ internal sealed class PlayerSmoother
     {
         if (!float.IsFinite(target.X) || !float.IsFinite(target.Y) || !float.IsFinite(target.Z)) return _started ? _last : null;
 
-        if (!_started || Vector3.Distance(target, _shown) > SnapDistance)
+        if (!_started || Vector3.Distance(target, _shown) > 30f)
         {
             _from = _to = _shown = target;
             _sampleAt = sampleAt;
@@ -30,7 +28,7 @@ internal sealed class PlayerSmoother
 
         if (sampleAt != _sampleAt)
         {
-            _intervalSeconds = Math.Clamp((sampleAt - _sampleAt) / (double)frequency, MinIntervalSeconds, MaxIntervalSeconds);
+            _intervalSeconds = Math.Clamp((sampleAt - _sampleAt) / (double)frequency, 0.005, MaxIntervalSeconds);
             _from = _shown;
             _to = target;
             _sampleAt = sampleAt;

@@ -3,20 +3,20 @@ using System.Runtime.InteropServices;
 using EmberHUD.Launcher;
 
 var root = AppContext.BaseDirectory;
-using var logFile = OpenLog(root);
+using var logFile = Launch.OpenLog(root, "launcher");
 List<string> problems = [];
 Process? runas = null;
 
 var config = LauncherConfig.Load(Path.Combine(root, "Config", "launcher.json"), Log);
 var game = config is null ? null : GameInstall.Find(config.GameDirectory, GameInstall.Registered());
-if (Launch.NeedsSetup(config, game))
+if (config is null || game is null)
 {
     Log(config is null ? "no usable launcher.json - opening Setup" : $"{GameInstall.ExeName} not found ({(config.GameDirectory.Length > 0 ? config.GameDirectory : "auto-detect")}) - opening Setup");
     Start("Setup", new ProcessStartInfo(Path.Combine(root, "EmberSetup.exe")) { UseShellExecute = false, WorkingDirectory = root });
 }
 else
 {
-    Log($"game {game!.Folder}, build {game.Build?.ToString() ?? "unknown"}, run as {(config!.RunAsUser.Length > 0 ? config.RunAsUser : "yourself")}");
+    Log($"game {game.Folder}, build {game.Build?.ToString() ?? "unknown"}, run as {(config.RunAsUser.Length > 0 ? config.RunAsUser : "yourself")}");
     foreach (var (name, start) in Launch.Steps(config, game, root, IsRunning, Log)) Start(name, start);
 }
 if (runas is not null)
@@ -48,19 +48,6 @@ void Start(string name, ProcessStartInfo start)
     {
         problems.Add($"{name} - {ex.Message} ({start.FileName})");
         Log($"{name} - failed - {ex.Message}");
-    }
-}
-
-static TextWriter OpenLog(string root)
-{
-    try
-    {
-        Directory.CreateDirectory(Path.Combine(root, "Logs"));
-        return new StreamWriter(new FileStream(Path.Combine(root, "Logs", "launcher.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
-    }
-    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-    {
-        return TextWriter.Null;
     }
 }
 

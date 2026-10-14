@@ -3,36 +3,34 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0)
+internal sealed class LiveReader
 {
-    private readonly LogicWorldReader _world = new(memory, moduleBase);
-    private readonly TerrainReader _terrain = new(memory, firstAreaId);
-    private readonly MinimapReader _minimap = new(memory, moduleBase);
-    private readonly MapIconReader _icons = new(memory, moduleBase);
-    private readonly ExploredReader _explored = new(memory);
-    private readonly CameraReader _camera = new(memory);
-    private readonly WoodStakeReader _woodStake = new(memory, moduleBase);
-    private GameUiReader? _uiReader;
-    private int _generation = firstAreaId;
+    private readonly IReadBackend _memory;
+    private readonly LogicWorldReader _world;
+    private readonly TerrainReader _terrain;
+    private readonly MinimapReader _minimap;
+    private readonly MapIconReader _icons;
+    private readonly ExploredReader _explored;
+    private readonly GameUiReader _ui;
+    private readonly MapInfoReader _mapInfo;
+    private readonly WoodStakeReader _woodStake;
+    private int _generation;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    private MapInfoReader? _mapInfo;
-
-    private GameUiReader UiReader => _uiReader ??= new(memory, moduleBase, _minimap.TryReadName);
-
-    private MapInfoReader MapInfoReader => _mapInfo ??= new(memory, moduleBase, new LocText(memory, moduleBase), UiReader, _minimap.TryReadName);
-
-    internal (Vector2 Min, Vector2 Max)? FindRect(nint page, string childName)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0)
     {
-        try
-        {
-            return UiReader.FindRect(page, childName);
-        }
-        catch (ObjectDisposedException)
-        {
-            return null;
-        }
+        _memory = memory;
+        var names = new Names(memory, moduleBase);
+        _world = new LogicWorldReader(memory, moduleBase);
+        _terrain = new TerrainReader(memory, firstAreaId);
+        _minimap = new MinimapReader(memory, moduleBase, names);
+        _icons = new MapIconReader(memory, moduleBase, names);
+        _explored = new ExploredReader(memory);
+        _ui = new GameUiReader(memory, moduleBase, names);
+        _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
+        _woodStake = new WoodStakeReader(memory, moduleBase);
+        _generation = firstAreaId;
     }
 
     public bool TryRead(out GameState state, out string? failure)
@@ -41,8 +39,10 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         if (!_world.TryReadScene(out var scene, out failure))
             return false;
 
-        var terrain = _terrain.Read(scene);
-        var (playerPosition, entities) = _world.ReadWorld(scene, _terrain.Generation);
+        _memory.TryReadPtr(scene + Offsets.SceneGeometry, out var geometry);
+        _memory.TryReadPtr(scene + Offsets.SceneGridModule, out var gridModule);
+        var terrain = _terrain.Read(geometry, gridModule);
+        var (playerPosition, entities, pawn) = _world.ReadWorld(scene, _terrain.Generation);
         if (_terrain.Generation != _generation)
         {
             _generation = _terrain.Generation;
@@ -56,21 +56,31 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
         if (player is null)
             _anchor = null;
 
+        var monsters = 0;
         var positions = new Dictionary<int, Vector2>(entities.Length);
         foreach (var entity in entities)
-            positions[entity.Id] = new Vector2(entity.Position.X, entity.Position.Y);
-
-        var icons = _icons.Read(_minimap, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
-        var explored = _explored.Read(_minimap.Widget, scene);
-        var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Points.Length)}";
-        state = new GameState(status, _terrain.Generation, player, entities, terrain, rotation)
         {
+            positions[entity.Id] = new Vector2(entity.Position.X, entity.Position.Y);
+            if (entity.Kind == EntityKind.Monster) monsters++;
+        }
+
+        var icons = _icons.Read(_minimap, _terrain.Generation, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
+        var explored = _explored.Read(_minimap.Widget, geometry, _terrain.Generation);
+        var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Count)}{(_minimap.Scans > 0 ? $", scans {_minimap.Scans}" : "")}";
+        state = new GameState
+        {
+            Status = status,
+            AreaId = _terrain.Generation,
+            Player = player,
+            Entities = entities,
+            Terrain = terrain,
+            MinimapRotation = rotation,
             MapIcons = icons,
             Explored = explored,
-            Camera = _world.TryReadLocalPawn(out var pawn) ? _camera.Read(pawn) : null,
-            Ui = UiReader.Read(),
-            Trade = UiReader.ReadTrade(),
-            Map = MapInfoReader.Read(scene, _terrain.Generation, entities.Count(e => e.Kind == EntityKind.Monster), icons),
+            Camera = pawn != 0 ? _world.ReadCamera(pawn) : null,
+            Ui = _ui.Read(),
+            Trade = _ui.ReadTrade(),
+            Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
         };
         return true;

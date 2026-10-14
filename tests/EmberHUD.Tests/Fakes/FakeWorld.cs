@@ -3,58 +3,66 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests;
 
-internal readonly record struct FakeEntity(uint Id, long Address, int MapOffset = 0, long Value = 0);
+internal readonly record struct FakeEntity(uint Id, nint Address, int MapOffset = 0, nint Value = 0);
 
-internal readonly record struct FakeMinimap(long Widget, long Material);
+internal readonly record struct FakeMinimap(nint Widget, nint Material);
 
 internal readonly record struct FakeIcon(int Type, float X, float Y, int Zorder = 0, int EntityId = 0, float Size = 1, uint? Area = null, float Rotation = 0);
 
 internal sealed class FakeWorld
 {
-    public const long ModuleBase = 0x1_4000_0000;
-    public static nint Module => unchecked((nint)ModuleBase);
+    public static readonly nint Module = unchecked((nint)0x1_4000_0000L);
+    public static readonly nint Unmapped = unchecked((nint)0x7777_0000_0000L);
     public const int Unregistered = 0;
 
-    private readonly long _worldAddress;
-    private long _next = 0x2_0000_0000;
-    private readonly long _nameBlock;
+    private readonly nint _worldAddress;
+    private nint _next = unchecked((nint)0x2_0000_0000L);
+    private readonly nint _nameBlock;
     private int _nameCursor = 2;
-    private readonly Dictionary<long, long> _objects = [];
+    private readonly Dictionary<long, nint> _objects = [];
     private long _nextObjectIndex = 1000;
+    private nint _chunkTable;
+    private readonly nint[] _chunks = new nint[Offsets.MaxGObjectChunks];
+
+    public GameUiReader UiReader(Func<long>? clock = null) => new(Memory, Module, new Names(Memory, Module), clock);
 
     public FakeWorld()
     {
-        Memory.Map(ModuleBase + Offsets.LogicWorldGlobalRva, 8);
+        Memory.Map(Module + Offsets.LogicWorldGlobalRva, 8);
         _worldAddress = Alloc(0x100);
         Scene = Alloc(0x800);
-        Memory.Write(ModuleBase + Offsets.LogicWorldGlobalRva, _worldAddress);
+        Memory.Write(Module + Offsets.LogicWorldGlobalRva, _worldAddress);
         Memory.Write(_worldAddress + Offsets.WorldScene, Scene);
-        Memory.Map(ModuleBase + Offsets.FightMgrGlobalRva, 8);
+        Memory.Map(Module + Offsets.FightMgrGlobalRva, 8);
         FightMgr = Alloc(0x1000);
-        Memory.Write(ModuleBase + Offsets.FightMgrGlobalRva, FightMgr);
-        Memory.Map(ModuleBase + Offsets.PlayerMgrGlobalRva, 8);
-        Memory.Map(ModuleBase + Offsets.MiniMapMgrGlobalRva, 8);
-        Memory.Map(ModuleBase + Offsets.GObjectsGlobalRva, 0x20);
-        Memory.Map(ModuleBase + Offsets.FNamePoolRva, Offsets.FNameBlocks + 8 * 4);
+        Memory.Write(Module + Offsets.FightMgrGlobalRva, FightMgr);
+        Memory.Map(Module + Offsets.PlayerMgrGlobalRva, 8);
+        Memory.Map(Module + Offsets.MiniMapMgrGlobalRva, 8);
+        Memory.Map(Module + Offsets.GObjectsGlobalRva, 0x20);
+        Memory.Map(Module + Offsets.MonsterCfgBucketsRva, 8);
+        Memory.Map(Module + Offsets.MonsterCfgBucketCountRva, 4);
+        Memory.Map(Module + Offsets.MapIconInfoBucketsRva, 8);
+        Memory.Map(Module + Offsets.MapIconInfoBucketCountRva, 4);
+        Memory.Map(Module + Offsets.FNamePoolRva, Offsets.FNameBlocks + 8 * 4);
         _nameBlock = Alloc(Offsets.FNameBlockSize * Offsets.FNameEntryStride);
-        Memory.Write(ModuleBase + Offsets.FNamePoolRva + Offsets.FNameBlocks, _nameBlock);
+        Memory.Write(Module + Offsets.FNamePoolRva + Offsets.FNameBlocks, _nameBlock);
     }
 
-    public long FightMgr { get; }
+    public nint FightMgr { get; }
 
     public FakeMemory Memory { get; } = new();
 
-    public long Scene { get; }
+    public nint Scene { get; }
 
-    public long Alloc(int size)
+    public nint Alloc(int size)
     {
         var address = _next;
-        _next += (size + 0xFFF) & ~0xFFFL;
+        _next += (size + 0xFFF) & ~0xFFF;
         Memory.Map(address, size);
         return address;
     }
 
-    public List<long> Nodes { get; } = [];
+    public List<nint> Nodes { get; } = [];
 
     public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null)
     {
@@ -84,25 +92,51 @@ internal sealed class FakeWorld
         return new FakeEntity(id, entity, map, value);
     }
 
-    public void WriteMap(int mapOffset, params (int Key, long Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);
+    public void WriteMap(int mapOffset, params (int Key, nint Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);
 
-    public void WriteMapAt(long map, params (int Key, long Value)?[] slots)
-    {
-        var data = Alloc(Math.Max(Offsets.TMapElementStride, slots.Length * Offsets.TMapElementStride));
-        var bits = new uint[Math.Max(4, (slots.Length + 31) / 32)];
-        for (var i = 0; i < slots.Length; i++)
+    public void WriteMapAt(nint map, params (int Key, nint Value)?[] slots) =>
+        WriteTMap(map, Offsets.TMapElementStride, slots.Length, i => slots[i] is not null, (at, i) =>
         {
             var (key, value) = slots[i] ?? (-1, 0x1111);
-            Memory.Write(data + i * Offsets.TMapElementStride, key);
-            Memory.Write(data + i * Offsets.TMapElementStride + Offsets.TMapElementValue, value);
-            if (slots[i] is not null) bits[i / 32] |= 1u << (i % 32);
+            Memory.Write(at, key);
+            Memory.Write(at + Offsets.TMapElementValue, value);
+        });
+
+    public (nint Buckets, List<nint> Nodes) WriteChains(int bucketCount, IEnumerable<(uint Key, nint Entity)> rows)
+    {
+        var heads = new nint[bucketCount];
+        var nodes = new List<nint>();
+        foreach (var (key, entity) in rows)
+        {
+            var node = Alloc(0x20);
+            var bucket = (int)(key % bucketCount);
+            Memory.Write(node + Offsets.NodeKey, key);
+            Memory.Write(node + Offsets.NodeEntity, entity);
+            Memory.Write(node + Offsets.NodeNext, heads[bucket]);
+            heads[bucket] = node;
+            nodes.Add(node);
+        }
+
+        var buckets = Alloc(Math.Max(8, bucketCount * 8));
+        Memory.WriteArray(buckets, heads);
+        return (buckets, nodes);
+    }
+
+    private void WriteTMap(nint map, int stride, int count, Func<int, bool> present, Action<nint, int> writeElement)
+    {
+        var data = Alloc(Math.Max(stride, count * stride));
+        var bits = new uint[Math.Max(Offsets.TMapInlineBitCount / 32, (count + 31) / 32)];
+        for (var i = 0; i < count; i++)
+        {
+            writeElement(data + i * stride, i);
+            if (present(i)) bits[i / 32] |= 1u << (i % 32);
         }
 
         Memory.Write(map, data);
-        Memory.Write(map + Offsets.TArrayNum, slots.Length);
-        if (slots.Length <= Offsets.TMapInlineBitCount)
+        Memory.Write(map + Offsets.TArrayNum, count);
+        if (count <= Offsets.TMapInlineBitCount)
         {
-            Memory.WriteArray(map + Offsets.TMapInlineBits, bits[..4]);
+            Memory.WriteArray(map + Offsets.TMapInlineBits, bits[..(Offsets.TMapInlineBitCount / 32)]);
             return;
         }
 
@@ -121,38 +155,36 @@ internal sealed class FakeWorld
         var manager = Alloc(0x100);
         Memory.Write(manager + Offsets.MiniMapMgrWidget, (uint)index);
         Memory.Write(manager + Offsets.MiniMapMgrWidget + Offsets.WeakPtrSerial, weakSerial ?? serial);
-        Memory.Write(ModuleBase + Offsets.MiniMapMgrGlobalRva, manager);
+        Memory.Write(Module + Offsets.MiniMapMgrGlobalRva, manager);
     }
 
-    public long PlaceObject(long index, long obj)
+    public nint PlaceObject(long index, nint obj)
     {
         _objects[index] = obj;
-        var count = _objects.Keys.Max() + 1;
-        var chunkCount = (int)((count - 1) / Offsets.GObjectsPerChunk) + 1;
-        var chunks = Alloc(chunkCount * 8);
-        for (var c = 0; c < chunkCount; c++)
+        if (_chunkTable == 0)
         {
-            var inChunk = _objects.Where(o => o.Key / Offsets.GObjectsPerChunk == c).ToArray();
-            if (inChunk.Length == 0) continue;
-            var size = c < chunkCount - 1 ? Offsets.GObjectsPerChunk : (int)(count - (long)c * Offsets.GObjectsPerChunk);
-            var chunk = Alloc(size * Offsets.GObjectsItemSize);
-            foreach (var (i, o) in inChunk)
-            {
-                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize + Offsets.GObjectsItemObject, o);
-                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize + Offsets.GObjectsItemSerial, _serials.GetValueOrDefault(i));
-            }
-            Memory.Write(chunks + c * 8, chunk);
+            _chunkTable = Alloc(Offsets.MaxGObjectChunks * 8);
+            Memory.Write(Module + Offsets.GObjectsGlobalRva, _chunkTable);
         }
 
-        Memory.Write(ModuleBase + Offsets.GObjectsGlobalRva, chunks);
-        Memory.Write(ModuleBase + Offsets.GObjectsGlobalRva + Offsets.GObjectsNumElements, (int)count);
-        return chunks;
+        var chunkIndex = (int)(index / Offsets.GObjectsPerChunk);
+        if (_chunks[chunkIndex] == 0)
+        {
+            _chunks[chunkIndex] = Alloc(Offsets.GObjectsPerChunk * Offsets.GObjectsItemSize);
+            Memory.Write(_chunkTable + chunkIndex * 8, _chunks[chunkIndex]);
+        }
+
+        var item = _chunks[chunkIndex] + (int)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize;
+        Memory.Write(item + Offsets.GObjectsItemObject, obj);
+        Memory.Write(item + Offsets.GObjectsItemSerial, _serials.GetValueOrDefault(index));
+        Memory.Write(Module + Offsets.GObjectsGlobalRva + Offsets.GObjectsNumElements, (int)(_objects.Keys.Max() + 1));
+        return _chunkTable;
     }
 
-    public (long Object, long Chunks) SetLocalPlayer(uint entityId, uint index = 77)
+    public (nint Object, nint Chunks) SetLocalPlayer(uint entityId, uint index = 77)
     {
         var manager = Alloc(0x100);
-        Memory.Write(ModuleBase + Offsets.PlayerMgrGlobalRva, manager);
+        Memory.Write(Module + Offsets.PlayerMgrGlobalRva, manager);
         Memory.WriteArray(manager + Offsets.PlayerMgrEntity, new[] { index, 1u });
         var obj = Alloc(0x800);
         Memory.Write(obj + Offsets.UObjectInternalIndex, index);
@@ -170,14 +202,14 @@ internal sealed class FakeWorld
         return index;
     }
 
-    public long AddClass(string name, bool wideName = false)
+    public nint AddClass(string name, bool wideName = false)
     {
         var cls = Alloc(0x80);
         Memory.Write(cls + Offsets.UObjectName, AddName(name, wideName));
         return cls;
     }
 
-    public long AddObject(long cls, string name, uint nameNumber = 0)
+    public nint AddObject(nint cls, string name, uint nameNumber = 0)
     {
         var obj = Alloc(0x400);
         Memory.Write(obj + Offsets.UObjectClass, cls);
@@ -255,10 +287,10 @@ internal sealed class FakeWorld
         WriteIdMap(minimap.Widget + Offsets.MinimapFollowAreas, [.. follows.Select(f => (f.Id, f.Area))]);
     }
 
-    private void WriteIdMap(long map, (int Id, uint Value)[] nodes)
+    private void WriteIdMap(nint map, (int Id, uint Value)[] nodes)
     {
         const int bucketCount = 3;
-        var heads = new long[bucketCount];
+        var heads = new nint[bucketCount];
         foreach (var (id, value) in nodes)
         {
             var node = Alloc(Offsets.FollowNodeSize);
@@ -275,38 +307,31 @@ internal sealed class FakeWorld
         Memory.Write(map + Offsets.HashBucketCount, (uint)bucketCount);
     }
 
-    public long AddTexture(string name)
+    public nint AddTexture(string name)
     {
         var texture = Alloc(0x40);
         Memory.Write(texture + Offsets.UObjectName, AddName(name));
         return texture;
     }
 
-    public long SetIconMap(FakeMinimap minimap, params (int Type, long Texture)[] elements)
+    public nint SetIconMap(FakeMinimap minimap, params (int Type, nint Texture)[] elements)
     {
         var map = Alloc(0x40);
-        var data = Alloc(Math.Max(1, elements.Length) * Offsets.IconMapElementStride);
-        var bits = new uint[Offsets.TMapInlineBitCount / 32];
-        for (var i = 0; i < elements.Length; i++)
+        WriteTMap(map, Offsets.IconMapElementStride, elements.Length, _ => true, (at, i) =>
         {
-            Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementKey, elements[i].Type);
-            Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementTexture, elements[i].Texture);
-            bits[i / 32] |= 1u << (i % 32);
-        }
-
-        Memory.Write(map, data);
-        Memory.Write(map + Offsets.TArrayNum, elements.Length);
-        Memory.WriteArray(map + Offsets.TMapInlineBits, bits);
+            Memory.Write(at + Offsets.IconMapElementKey, elements[i].Type);
+            Memory.Write(at + Offsets.IconMapElementTexture, elements[i].Texture);
+        });
         Memory.Write(minimap.Widget + Offsets.MinimapActiveIconMap, map);
         return map;
     }
 
     public void SetLevel(int levelId, int instance)
     {
-        if (!Memory.TryReadPtr((nint)(Scene + Offsets.SceneGeometry), out var geometry) || geometry == 0)
+        if (!Memory.TryReadPtr(Scene + Offsets.SceneGeometry, out var geometry) || geometry == 0)
         {
-            geometry = (nint)Alloc(0x100);
-            Memory.Write(Scene + Offsets.SceneGeometry, (long)geometry);
+            geometry = Alloc(0x100);
+            Memory.Write(Scene + Offsets.SceneGeometry, geometry);
         }
         Memory.Write(geometry + Offsets.GeometryLevelId, levelId);
         Memory.Write(geometry + Offsets.GeometryLevelInstance, instance);
@@ -317,14 +342,9 @@ internal sealed class FakeWorld
         Memory.Write(minimap.Widget + Offsets.MinimapBrushSize, brushSize);
         Memory.Write(minimap.Widget + Offsets.MinimapMapSide, mapSide);
         var save = Alloc(0x100);
-        var map = save + Offsets.SaveRecords;
-        var data = Alloc(Math.Max(1, records.Length) * Offsets.SaveRecordStride);
-        var bits = new uint[Offsets.TMapInlineBitCount / 32];
-        for (var i = 0; i < records.Length; i++)
+        WriteTMap(save + Offsets.SaveRecords, Offsets.SaveRecordStride, records.Length, i => records[i] is not null, (element, i) =>
         {
-            if (records[i] is not { } record) continue;
-            bits[i / 32] |= 1u << (i % 32);
-            var element = data + i * Offsets.SaveRecordStride;
+            if (records[i] is not { } record) return;
             var text = Alloc((record.Key.Length + 1) * sizeof(char));
             Memory.WriteArray(text, (record.Key + "\0").ToCharArray());
             Memory.Write(element, text);
@@ -334,17 +354,13 @@ internal sealed class FakeWorld
                 Memory.Write(points + p * Offsets.SavePointStride, record.Points[p]);
             Memory.Write(element + Offsets.SaveRecordPos, points);
             Memory.Write(element + Offsets.SaveRecordPos + Offsets.TArrayNum, record.Points.Length);
-        }
-
-        Memory.Write(map, data);
-        Memory.Write(map + Offsets.TArrayNum, records.Length);
-        Memory.WriteArray(map + Offsets.TMapInlineBits, bits);
+        });
         Memory.Write(minimap.Widget + Offsets.MinimapSaveObject, save);
     }
 
     public void MoveEntity(FakeEntity entity, double x, double y, double z)
     {
-        Memory.TryReadPtr(unchecked((nint)(entity.Address + Offsets.EntityPosition)), out var block);
+        Memory.TryReadPtr(entity.Address + Offsets.EntityPosition, out var block);
         Memory.WriteArray(block + Offsets.PositionX, new[] { x, y, z });
     }
 
@@ -358,119 +374,70 @@ internal sealed class FakeWorld
         Memory.Write(FightMgr + mapOffset + Offsets.TMapSecondaryBits, secondary);
     }
 
-    private bool _configTableMapped;
-
-    public List<long> ConfigNodes { get; } = [];
+    public List<nint> ConfigNodes { get; } = [];
 
     public void SetMonsterConfigTable(int bucketCount, params (uint Id, uint Rarity)[] rows)
     {
-        if (!_configTableMapped)
-        {
-            Memory.Map(ModuleBase + Offsets.MonsterCfgBucketsRva, 8);
-            Memory.Map(ModuleBase + Offsets.MonsterCfgBucketCountRva, 4);
-            _configTableMapped = true;
-        }
-
-        var buckets = new long[bucketCount];
-        ConfigNodes.Clear();
-        foreach (var (id, rarity) in rows)
+        var entries = rows.Select(r =>
         {
             var row = Alloc(0x40);
-            Memory.Write(row + Offsets.MonsterCfgRarity, rarity);
-            var node = Alloc(0x20);
-            var bucket = (int)(id % bucketCount);
-            Memory.Write(node + Offsets.NodeKey, id);
-            Memory.Write(node + Offsets.NodeEntity, row);
-            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
-            buckets[bucket] = node;
-            ConfigNodes.Add(node);
-        }
-
-        var array = Alloc(Math.Max(8, bucketCount * 8));
-        Memory.WriteArray(array, buckets);
-        Memory.Write(ModuleBase + Offsets.MonsterCfgBucketsRva, array);
-        Memory.Write(ModuleBase + Offsets.MonsterCfgBucketCountRva, (uint)bucketCount);
+            Memory.Write(row + Offsets.MonsterCfgRarity, r.Rarity);
+            return (r.Id, row);
+        }).ToArray();
+        var (array, nodes) = WriteChains(bucketCount, entries);
+        ConfigNodes.Clear();
+        ConfigNodes.AddRange(nodes);
+        Memory.Write(Module + Offsets.MonsterCfgBucketsRva, array);
+        Memory.Write(Module + Offsets.MonsterCfgBucketCountRva, (uint)bucketCount);
     }
 
-    private bool _mapIconInfoMapped;
-    private readonly Dictionary<uint, long> _mapIconInfoRows = [];
+    private readonly Dictionary<uint, nint> _mapIconInfoRows = [];
 
     public void SetMapIconInfoTable(int bucketCount, params (uint Type, string? Enum)[] rows)
     {
-        if (!_mapIconInfoMapped)
-        {
-            Memory.Map(ModuleBase + Offsets.MapIconInfoBucketsRva, 8);
-            Memory.Map(ModuleBase + Offsets.MapIconInfoBucketCountRva, 4);
-            _mapIconInfoMapped = true;
-        }
-
-        var buckets = new long[bucketCount];
         _mapIconInfoRows.Clear();
-        foreach (var (type, name) in rows)
+        var entries = rows.Select(r =>
         {
-            var row = 0L;
-            if (name is not null)
-            {
-                row = Alloc(0x40);
-                var bytes = System.Text.Encoding.UTF8.GetBytes(name);
-                var data = Alloc(Math.Max(8, bytes.Length));
-                Memory.WriteArray(data, bytes);
-                Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, data);
-                Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, (long)bytes.Length);
-                _mapIconInfoRows[type] = row;
-            }
-
-            var node = Alloc(0x20);
-            var bucket = (int)(type % bucketCount);
-            Memory.Write(node + Offsets.NodeKey, type);
-            Memory.Write(node + Offsets.NodeEntity, row);
-            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
-            buckets[bucket] = node;
-        }
-
-        var array = Alloc(Math.Max(8, bucketCount * 8));
-        Memory.WriteArray(array, buckets);
-        Memory.Write(ModuleBase + Offsets.MapIconInfoBucketsRva, array);
-        Memory.Write(ModuleBase + Offsets.MapIconInfoBucketCountRva, (uint)bucketCount);
+            if (r.Enum is null) return (r.Type, (nint)0);
+            var row = Alloc(0x40);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(r.Enum);
+            var data = Alloc(Math.Max(8, bytes.Length));
+            Memory.WriteArray(data, bytes);
+            Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, data);
+            Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, (long)bytes.Length);
+            _mapIconInfoRows[r.Type] = row;
+            return (r.Type, row);
+        }).ToArray();
+        var (array, _) = WriteChains(bucketCount, entries);
+        Memory.Write(Module + Offsets.MapIconInfoBucketsRva, array);
+        Memory.Write(Module + Offsets.MapIconInfoBucketCountRva, (uint)bucketCount);
     }
 
-    public void SetMapIconInfoRaw(uint type, long data, long length)
+    public void SetMapIconInfoRaw(uint type, nint data, long length)
     {
         var row = _mapIconInfoRows[type];
         Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, data);
         Memory.Write(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, length);
     }
 
-    public void BreakMonsterConfigTable() => Memory.Write(ModuleBase + Offsets.MonsterCfgBucketsRva, 0L);
+    public void BreakMonsterConfigTable() => Memory.Write(Module + Offsets.MonsterCfgBucketsRva, 0L);
 
-    public void BreakPlayerMgr() => Memory.Write(ModuleBase + Offsets.PlayerMgrGlobalRva, 0L);
+    public void BreakPlayerMgr() => Memory.Write(Module + Offsets.PlayerMgrGlobalRva, 0L);
 
     public void PublishEntities(params FakeEntity[] entities) => PublishEntities(3, entities);
 
     public void PublishEntities(int bucketCount, params FakeEntity[] entities)
     {
         foreach (var group in entities.Where(e => e.MapOffset != 0).GroupBy(e => e.MapOffset))
-            WriteMap(group.Key, group.Select(e => ((int, long)?)((int)e.Id, e.Value)).ToArray());
-        var buckets = new long[bucketCount];
+            WriteMap(group.Key, group.Select(e => ((int, nint)?)((int)e.Id, e.Value)).ToArray());
+        var (array, nodes) = WriteChains(bucketCount, entities.Select(e => (e.Id, e.Address)));
         Nodes.Clear();
-        foreach (var (id, address, _, _) in entities)
-        {
-            var node = Alloc(0x20);
-            var bucket = (int)(id % bucketCount);
-            Memory.Write(node + Offsets.NodeKey, id);
-            Memory.Write(node + Offsets.NodeEntity, address);
-            Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
-            buckets[bucket] = node;
-            Nodes.Add(node);
-        }
-
-        var array = Alloc(Math.Max(8, bucketCount * 8));
-        Memory.WriteArray(array, buckets);
+        Nodes.AddRange(nodes);
         Memory.Write(Scene + Offsets.SceneEntityBuckets, array);
         Memory.Write(Scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, (uint)bucketCount);
     }
 
-    public long GridAddress { get; private set; }
+    public nint GridAddress { get; private set; }
 
     public void SetGrid(int cols, int rows, byte[] clearance, int cellSize = 32, double originX = 0, double originY = 0, (int BlockW, int BlockH, int BlocksPerRow, byte[] Mask)? hybrid = null, byte[]? secondClearance = null)
     {
@@ -502,7 +469,7 @@ internal sealed class FakeWorld
         Memory.Write(GridAddress + Offsets.HybridBlockCount, h.Mask.Length);
     }
 
-    public void BreakWorldPointer() => Memory.Write(ModuleBase + Offsets.LogicWorldGlobalRva, 0L);
+    public void BreakWorldPointer() => Memory.Write(Module + Offsets.LogicWorldGlobalRva, 0L);
 
     public void BreakScenePointer() => Memory.Write(_worldAddress + Offsets.WorldScene, 0L);
 }

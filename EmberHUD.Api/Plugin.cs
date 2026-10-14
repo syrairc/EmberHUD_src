@@ -4,8 +4,6 @@ public abstract class Plugin
 {
     public string Name { get; internal set; } = "";
 
-    public string Directory { get; internal set; } = "";
-
     public virtual int Order => 0;
 
     public virtual void Initialize() { }

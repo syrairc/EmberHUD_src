@@ -25,28 +25,22 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
     public ((string Key, string Text)[] Matches, bool Truncated) Find(string needle, int max)
     {
         List<(string, string)> found = [];
-        if (max <= 0 || !memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language) || !TryLanguageMap(language, out var map) ||
-            !memory.TryReadBuckets(map + Offsets.HashBucketCount, map, Offsets.MaxLocBuckets, out var buckets))
+        if (max <= 0 || !memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language) || !TryLanguageMap(language, out var map))
             return ([], false);
 
         HashSet<nint> seen = [];
-        foreach (var head in buckets)
+        var whole = memory.TryWalkBuckets(map + Offsets.HashBucketCount, map, Offsets.MaxLocBuckets, Offsets.LocNodeSize, Offsets.LocNodeNext, Offsets.MaxLocScan, (node, bytes) =>
         {
-            var node = head;
-            for (var hops = 0; hops < Offsets.MaxChain && node != 0 && seen.Add(node); hops++)
-            {
-                if (seen.Count > Offsets.MaxLocScan) return ([.. found], true);
-                if (memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) && value != 0 &&
-                    TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out var text) && text.Contains(needle, StringComparison.OrdinalIgnoreCase) &&
-                    TryUtf8(node + Offsets.LocNodeKey, node + Offsets.LocNodeKeyLength, out var key))
-                {
-                    found.Add((key, text));
-                    if (found.Count >= max) return ([.. found], false);
-                }
-                if (!memory.TryReadPtr(node + Offsets.LocNodeNext, out node)) break;
-            }
-        }
-        return ([.. found], false);
+            if (!seen.Add(node))
+                return true;
+
+            var value = (nint)BitConverter.ToInt64(bytes[Offsets.LocNodeValue..]);
+            if (value != 0 && TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out var text) && text.Contains(needle, StringComparison.OrdinalIgnoreCase) &&
+                TryUtf8(node + Offsets.LocNodeKey, node + Offsets.LocNodeKeyLength, out var key))
+                found.Add((key, text));
+            return found.Count < max;
+        });
+        return ([.. found], !whole && seen.Count >= Offsets.MaxLocScan);
     }
 
     private bool TryFind(byte language, string key, out string text)

@@ -13,7 +13,7 @@ public static partial class Input
 
     internal static Func<int, bool> KeyDown { get; set; } = vk => (GetAsyncKeyState(vk) & 0x8000) != 0;
 
-    public static bool Typing { get; private set; }
+    internal static bool Typing { get; private set; }
 
     internal static bool Capturing { get; private set; }
 

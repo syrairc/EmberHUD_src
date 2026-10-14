@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using EmberHUD.Host;
 using EmberHUD.Setup.Pak;
@@ -13,10 +12,10 @@ namespace EmberHUD.Setup.Icons;
 internal sealed record ExportResult(int Icons, int Missing, int Failed);
 
 [Obfuscation(Exclude = true, ApplyToMembers = true)]
-internal sealed record IconEntry(string Asset, string Pak, string Kind, string? Atlas, int[]? Rect, string File, string Format, int[] Size, string[]? Alternatives);
+internal sealed record IconEntry(string File, string Pak);
 
 [Obfuscation(Exclude = true, ApplyToMembers = true)]
-internal sealed record IconIndex(Dictionary<string, long> Source, SortedDictionary<string, IconEntry> Icons, List<string> Missing, SortedDictionary<string, string> Failed, List<MapIconRow> MapIconConfig);
+internal sealed record IconIndex(Dictionary<string, long> Source, SortedDictionary<string, IconEntry> Icons, List<string> Missing, SortedDictionary<string, string> Failed);
 
 internal static partial class IconExport
 {
@@ -24,7 +23,6 @@ internal static partial class IconExport
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
@@ -43,11 +41,9 @@ internal static partial class IconExport
 
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
             Directory.CreateDirectory(staging);
-            var index = new IconIndex(paks.ToDictionary(path => Path.GetFileName(path), path => new FileInfo(path).Length), new(StringComparer.Ordinal), [], new(StringComparer.Ordinal), config);
+            var index = new IconIndex(paks.ToDictionary(path => Path.GetFileName(path), path => new FileInfo(path).Length), new(StringComparer.Ordinal), [], new(StringComparer.Ordinal));
             ExportAll(files, byShort, wanted, index, staging, progress);
             File.WriteAllText(Path.Combine(staging, "index.json"), JsonSerializer.Serialize(index, Options));
-            foreach (var pak in opened) pak.Dispose();
-            opened.Clear();
             Swap(staging, target);
             progress("done");
             return new ExportResult(index.Icons.Count, index.Missing.Count, index.Failed.Count);
@@ -119,14 +115,11 @@ internal static partial class IconExport
         var assetBase = path[..^".uasset".Length];
         var names = UAsset.Names(Read(files, path)!);
         var uexp = Read(files, assetBase + ".uexp") ?? throw new InvalidDataException("no .uexp");
-        var asset = AssetPath(assetBase);
-        string kind;
-        string? atlas = null;
-        int[]? rect = null;
         Raster image;
         if (names.Contains("PaperSprite") && names.Contains("Default__PaperSprite"))
         {
-            atlas = names.First(n => n.StartsWith("/Game/", StringComparison.Ordinal) && n != asset);
+            var own = "/Game/" + assetBase[(assetBase.IndexOf("/Content/", StringComparison.Ordinal) + "/Content/".Length)..];
+            var atlas = names.First(n => n.StartsWith("/Game/", StringComparison.Ordinal) && n != own);
             if (!atlases.TryGetValue(atlas, out var sheet))
             {
                 var atlasBase = "UE_game/Content/" + atlas[6..];
@@ -134,18 +127,13 @@ internal static partial class IconExport
             }
             var (x, y) = UAsset.Vector2D(uexp, names, "BakedSourceUV");
             var (w, h) = UAsset.Vector2D(uexp, names, "BakedSourceDimension");
-            rect = [(int)Math.Round(x), (int)Math.Round(y), (int)Math.Round(w), (int)Math.Round(h)];
+            int[] rect = [(int)Math.Round(x), (int)Math.Round(y), (int)Math.Round(w), (int)Math.Round(h)];
             image = (UAsset.Crop(sheet.Rgba, sheet.Width, sheet.Height, rect[0], rect[1], rect[2], rect[3]), rect[2], rect[3], sheet.Format);
-            kind = "sprite";
         }
-        else if (names.Contains("Texture2D") && names.Contains("Default__Texture2D"))
-        {
-            image = UAsset.Texture(uexp, Read(files, assetBase + ".ubulk"));
-            kind = "texture";
-        }
+        else if (names.Contains("Texture2D") && names.Contains("Default__Texture2D")) image = UAsset.Texture(uexp, Read(files, assetBase + ".ubulk"));
         else return null;
         UAsset.WritePng(Path.Combine(staging, name + ".png"), image.Rgba, image.Width, image.Height);
-        return new IconEntry(asset, Path.GetFileName(files[path].Pak.Path), kind, atlas, rect, name + ".png", image.Format, [image.Width, image.Height], candidates.Length > 1 ? [.. candidates[1..].Select(c => AssetPath(c[..^".uasset".Length]))] : null);
+        return new IconEntry(name + ".png", Path.GetFileName(files[path].Pak.Path));
     }
 
     static string ShortName(string path)
@@ -153,8 +141,6 @@ internal static partial class IconExport
         var name = path[(path.LastIndexOf('/') + 1)..^".uasset".Length];
         return name.EndsWith("_Sprite", StringComparison.Ordinal) ? name[..^"_Sprite".Length] : name;
     }
-
-    static string AssetPath(string assetBase) => "/Game/" + assetBase[(assetBase.IndexOf("/Content/", StringComparison.Ordinal) + "/Content/".Length)..];
 
     public static void Swap(string staging, string target)
     {

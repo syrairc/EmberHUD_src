@@ -3,9 +3,6 @@
     <None Include="Fixtures\**" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\TempDir.cs" Link="TempDir.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD.Setup\EmberHUD.Setup.csproj" />
   </ItemGroup>
 </Project>

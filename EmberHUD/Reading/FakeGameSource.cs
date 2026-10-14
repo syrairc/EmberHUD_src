@@ -44,13 +44,19 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         var player = new Player(
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
             new Vector2(-MathF.Sin(angle), MathF.Cos(angle)));
-        state = new GameState("fake game", 1, player, SceneEntities, SceneTerrain, -90)
+        state = new GameState
         {
+            Status = "fake game",
+            AreaId = 1,
+            Player = player,
+            Entities = SceneEntities,
+            Terrain = SceneTerrain,
+            MinimapRotation = -90,
             MapIcons = SceneIcons,
             Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now),
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
             Ui = UiAt(now),
-            Map = MapAt(now),
+            Area = MapAt(now),
             Trade = TradeAt(now),
             WoodStake = WoodStakeAt(now),
         };

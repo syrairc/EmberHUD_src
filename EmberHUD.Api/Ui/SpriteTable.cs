@@ -9,8 +9,7 @@ public static partial class Controls
     public static bool SpriteTable(string id, IEnumerable<string> sprites, IReadOnlySet<string> highlight, ref string filter, params ReadOnlySpan<SpriteColumn> columns)
     {
         ImGui.PushID(id);
-        ImGui.SetNextItemWidth(-1);
-        ImGui.InputTextWithHint("##filter", "Filter", ref filter, 128);
+        Filter(ref filter);
         var changed = false;
 
         if (ImGui.BeginTable("##sprites", columns.Length + 1, ImGuiTableFlags.ScrollY | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))

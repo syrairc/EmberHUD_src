@@ -20,20 +20,14 @@ public class BadgesTests
             var list = ImGui.GetWindowDrawList();
             var origin = ImGui.GetCursorScreenPos();
             var cursor = ImGui.GetCursorPos();
-            var start = list.VtxBuffer.Size;
             var indexStart = list.IdxBuffer.Size;
-            draw();
-            var verts = new List<ImDrawVert>();
-            for (var i = start; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
+            var verts = UiFrame.Drawn(draw);
             capture = new Capture(verts, list.IdxBuffer.Size - indexStart, origin, ImGui.GetCursorPos() - cursor, ImGui.GetItemRectSize());
         });
         return capture!;
     }
 
     static List<ImDrawVert> WithColour(Capture capture, uint colour) => capture.Verts.Where(v => v.Col == colour).ToList();
-
-    static (Vector2 Min, Vector2 Max) Bounds(List<ImDrawVert> verts) =>
-        (new Vector2(verts.Min(v => v.Pos.X), verts.Min(v => v.Pos.Y)), new Vector2(verts.Max(v => v.Pos.X), verts.Max(v => v.Pos.Y)));
 
     static Vector2 BadgeSize(string text, bool dot = false)
     {
@@ -129,8 +123,8 @@ public class BadgesTests
         var pad = PadX();
 
         var reference = Reference((list, org) => list.AddRectFilled(org, org + size, EColor.U32(Light), size.Y * 0.5f));
-        var (min, max) = Bounds(WithColour(light, EColor.U32(Light)));
-        var (refMin, refMax) = Bounds(WithColour(reference, EColor.U32(Light)));
+        var (min, max) = UiFrame.Bounds(WithColour(light, EColor.U32(Light)));
+        var (refMin, refMax) = UiFrame.Bounds(WithColour(reference, EColor.U32(Light)));
         Assert.Equal(refMin, min);
         Assert.Equal(refMax, max);
         var referenceBlackText = Reference((list, org) => list.AddText(org, 0xFF000000u, "Hi"));
@@ -138,7 +132,7 @@ public class BadgesTests
         var textHeight = TextHeight("Hi");
         var lightText = WithColour(light, 0xFF000000u);
         var referenceText = Reference((list, org) => list.AddText(org + new Vector2(pad, (size.Y - textHeight) * 0.5f), 0xFF000000u, "Hi"));
-        Assert.Equal(Bounds(WithColour(referenceText, 0xFF000000u)), Bounds(lightText));
+        Assert.Equal(UiFrame.Bounds(WithColour(referenceText, 0xFF000000u)), UiFrame.Bounds(lightText));
         Assert.NotEmpty(WithColour(dark, 0xFFFFFFFFu));
         Assert.Empty(WithColour(dark, 0xFF000000u));
     }
@@ -226,13 +220,13 @@ public class BadgesTests
         Assert.Equal(pill.Indices, capture.Indices);
         Assert.NotEmpty(WithColour(capture, frameBg));
         Assert.NotEmpty(WithColour(capture, border));
-        var (dotMin, dotMax) = Bounds(WithColour(capture, EColor.U32(Green)));
+        var (dotMin, dotMax) = UiFrame.Bounds(WithColour(capture, EColor.U32(Green)));
         Assert.Equal(capture.Origin.X + pad + 3f, (dotMin.X + dotMax.X) / 2, 0.3f);
         Assert.Equal(capture.Origin.Y + size.Y * 0.5f, (dotMin.Y + dotMax.Y) / 2, 0.3f);
         Assert.InRange(dotMax.X - dotMin.X, 4f, 6.1f);
         var textHeight = TextHeight("Hi");
         var referenceText = Reference((list, org) => list.AddText(org + new Vector2(pad + 6f + 5f, (size.Y - textHeight) * 0.5f), text, "Hi"));
-        Assert.Equal(Bounds(WithColour(referenceText, text)), Bounds(WithColour(capture, text)));
+        Assert.Equal(UiFrame.Bounds(WithColour(referenceText, text)), UiFrame.Bounds(WithColour(capture, text)));
         Assert.Equal(size.X, capture.Rect.X, 1e-3f);
     }
 

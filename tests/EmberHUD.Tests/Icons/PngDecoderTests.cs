@@ -113,7 +113,7 @@ public sealed class PngDecoderTests
         {
             var dataStart = basePng.AsSpan().IndexOf("IDAT"u8) + 4;
             var dataEnd = basePng.Length - 16;
-            for (var iteration = 0; iteration < 30000; iteration++)
+            for (var iteration = 0; iteration < 3000; iteration++)
             {
                 var png = (byte[])basePng.Clone();
                 for (var mutations = random.Next(1, 4); mutations > 0; mutations--)

@@ -3,7 +3,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocText loc, GameUiReader ui, TryName tryName, Func<long>? clockMilliseconds = null)
+internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocText loc, GameUiReader ui, Names names, Func<long>? clockMilliseconds = null)
 {
     private readonly record struct ContentSpec(string Name, bool FromModifier, int Id, string Icon, string State, string ClaimKey);
 
@@ -73,7 +73,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         {
             HashSet<int> present = [];
             foreach (var (id, entity) in memory.ReadTMapPointers(fightMgr + Offsets.FightMapGamePlay))
-                if (ClassName(entity) is { } cls && StatueSpecs.TryGetValue(cls, out var spec))
+                if (names.TryReadClassName(entity, out var cls) && StatueSpecs.TryGetValue(cls, out var spec))
                 {
                     present.Add(id);
                     _statuesSeen[id] = new(spec, IsActive(spec, entity) ? ContentState.Active : ContentState.Pending, 0);
@@ -90,10 +90,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
     }
 
     private bool IsActive(StatueSpec spec, nint entity) =>
-        spec.Component != "" && memory.ReadTMapPointers(entity + Offsets.EntityComponents).Any(c => ClassName(c.Value) == spec.Component && memory.TryRead(c.Value + spec.ActiveOffset, out byte on) && on != 0);
-
-    private string? ClassName(nint obj) =>
-        memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && cls != 0 && memory.TryRead(cls + Offsets.UObjectName, out uint index) && tryName(index, out var text) ? text : null;
+        spec.Component != "" && memory.ReadTMapPointers(entity + Offsets.EntityComponents).Any(c => names.TryReadClassName(c.Value, out var cls) && cls == spec.Component && memory.TryRead(c.Value + spec.ActiveOffset, out byte on) && on != 0);
 
     private MapInfo? TryRead(nint scene, int aliveMonsters, MapIcon[] icons)
     {
@@ -164,23 +161,28 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
 
     private bool TryVar(nint record, string name, out int value)
     {
-        value = 0;
-        if (!memory.TryReadBuckets(record + Offsets.GameplayVarBuckets + Offsets.HashBucketCount, record + Offsets.GameplayVarBuckets, Offsets.MaxVarBuckets, out var heads))
-            return false;
-
+        var found = 0;
+        var hit = false;
         var prefix = name + "_";
-        foreach (var head in heads)
-            for (var (node, hops) = (head, 0); node != 0 && hops < Offsets.MaxChain; hops++)
+        memory.TryWalkBuckets(record + Offsets.GameplayVarBuckets + Offsets.HashBucketCount, record + Offsets.GameplayVarBuckets, Offsets.MaxVarBuckets, Offsets.VarNodeSize, Offsets.VarNodeNext, int.MaxValue,
+            (_, node) =>
             {
-                if (VarName(node) is { } found && (found == name || found.StartsWith(prefix, StringComparison.Ordinal)))
-                    return memory.TryRead(node + Offsets.VarNodeValue, out value);
-                if (!memory.TryReadPtr(node + Offsets.VarNodeNext, out node)) break;
-            }
-        return false;
+                if (VarName(node) is not { } varName || varName != name && !varName.StartsWith(prefix, StringComparison.Ordinal))
+                    return true;
+
+                found = BitConverter.ToInt32(node[Offsets.VarNodeValue..]);
+                hit = true;
+                return false;
+            });
+        value = found;
+        return hit;
     }
 
-    private string? VarName(nint node) =>
-        memory.TryRead(node + Offsets.VarNodeNameLength, out int length) && length > 0 && length <= Offsets.MaxVarNameLength &&
-        memory.TryReadPtr(node + Offsets.VarNodeName, out var at) && at != 0 && memory.TryReadArray(at, length, out byte[] bytes)
+    private string? VarName(ReadOnlySpan<byte> node)
+    {
+        var length = BitConverter.ToInt32(node[Offsets.VarNodeNameLength..]);
+        var at = (nint)BitConverter.ToInt64(node[Offsets.VarNodeName..]);
+        return length > 0 && length <= Offsets.MaxVarNameLength && at != 0 && memory.TryReadArray(at, length, out byte[] bytes)
             ? System.Text.Encoding.UTF8.GetString(bytes) : null;
+    }
 }

@@ -1,12 +1,12 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class MinimapReaderTests
 {
     private static MinimapReader ReaderFor(FakeWorld world) =>
-        new(world.Memory, FakeWorld.Module);
+        new(world.Memory, FakeWorld.Module, new Names(world.Memory, FakeWorld.Module));
 
     [Fact]
     public void ReadsTheRotateTurnsAsClockwiseDegrees()
@@ -98,17 +98,16 @@ public class MinimapReaderTests
     {
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0.25f);
-        world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0x7777_0000_0000L);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, FakeWorld.Unmapped);
         Assert.Null(ReaderFor(world).ReadRotationDegrees(1));
         world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0L);
         Assert.Null(ReaderFor(world).ReadRotationDegrees(1));
     }
 
+    public static TheoryData<int> AbsurdCounts => new() { 0, -1, Offsets.MaxScalarParams + 1, int.MaxValue };
+
     [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(65)]
-    [InlineData(int.MaxValue)]
+    [MemberData(nameof(AbsurdCounts))]
     public void AbsurdParameterCountGivesNull(int count)
     {
         var world = new FakeWorld();
@@ -122,19 +121,19 @@ public class MinimapReaderTests
     {
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0.25f);
-        world.Memory.Write(minimap.Material + Offsets.MaterialScalarParams, 0x7777_0000_0000L);
+        world.Memory.Write(minimap.Material + Offsets.MaterialScalarParams, FakeWorld.Unmapped);
         Assert.Null(ReaderFor(world).ReadRotationDegrees(1));
     }
 
+    public static TheoryData<int> AbsurdObjectCounts => new() { 0, -5, Offsets.MaxGObjectChunks * Offsets.GObjectsPerChunk + 1 };
+
     [Theory]
-    [InlineData(0)]
-    [InlineData(-5)]
-    [InlineData(64 * 65536 + 1)]
+    [MemberData(nameof(AbsurdObjectCounts))]
     public void AbsurdObjectCountGivesNull(int count)
     {
         var world = new FakeWorld();
         world.AddMinimap(0.25f);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GObjectsGlobalRva + Offsets.GObjectsNumElements, count);
+        world.Memory.Write(FakeWorld.Module + Offsets.GObjectsGlobalRva + Offsets.GObjectsNumElements, count);
         Assert.Null(ReaderFor(world).ReadRotationDegrees(1));
     }
 
@@ -143,7 +142,7 @@ public class MinimapReaderTests
     {
         var world = new FakeWorld();
         world.AddMinimap(0.25f);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GObjectsGlobalRva, 0x7777_0000_0000L);
+        world.Memory.Write(FakeWorld.Module + Offsets.GObjectsGlobalRva, FakeWorld.Unmapped);
         Assert.Null(ReaderFor(world).ReadRotationDegrees(1));
     }
 
@@ -164,7 +163,7 @@ public class MinimapReaderTests
         world.AddMinimap(0.25f);
         var reader = ReaderFor(world);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GObjectsGlobalRva, 0L);
+        world.Memory.Write(FakeWorld.Module + Offsets.GObjectsGlobalRva, 0L);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
     }
 
@@ -273,7 +272,7 @@ public class MinimapReaderTests
         var reader = ReaderFor(world);
         Assert.Equal((nint)0, reader.Widget);
         reader.ReadRotationDegrees(1);
-        Assert.Equal(unchecked((nint)minimap.Widget), reader.Widget);
+        Assert.Equal(minimap.Widget, reader.Widget);
         world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0L);
         reader.ReadRotationDegrees(1);
         Assert.Equal((nint)0, reader.Widget);
@@ -315,7 +314,7 @@ public class MinimapReaderTests
         var reader = ReaderFor(world);
 
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
-        Assert.Equal((nint)bound.Widget, reader.Widget);
+        Assert.Equal(bound.Widget, reader.Widget);
     }
 
     [Fact]
@@ -347,36 +346,31 @@ public class MinimapReaderTests
     }
 
     [Fact]
-    public void AKnownNameIsNotReadAgain()
+    public void TheFallbackScanIsCountedOncePerGeneration()
     {
         var world = new FakeWorld();
-        var index = world.AddName("Fight_C");
+        world.AddMinimap(0f);
         var reader = ReaderFor(world);
-        Assert.True(reader.TryReadName(index, out var first));
-        var reads = world.Memory.Reads.Count;
+        Assert.Equal(0, reader.Scans);
 
-        reader.Reset();
-        Assert.True(reader.TryReadName(index, out var second));
+        reader.ReadRotationDegrees(1);
+        reader.ReadRotationDegrees(1);
+        Assert.Equal(1, reader.Scans);
 
-        Assert.Equal("Fight_C", first);
-        Assert.Same(first, second);
-        Assert.Equal(reads, world.Memory.Reads.Count);
+        reader.ReadRotationDegrees(2);
+        Assert.Equal(2, reader.Scans);
     }
 
     [Fact]
-    public void AFailedNameIsReadAgainNextTime()
+    public void ABoundWidgetNeverScans()
     {
         var world = new FakeWorld();
-        var index = world.AddName("Fight_C");
-        var blockPointer = FakeWorld.Module + Offsets.FNamePoolRva + Offsets.FNameBlocks;
-        Assert.True(world.Memory.TryReadPtr(blockPointer, out var block));
+        var minimap = world.AddMinimap(0f);
+        world.BindMinimap(minimap);
         var reader = ReaderFor(world);
 
-        world.Memory.Write(blockPointer, 0L);
-        Assert.False(reader.TryReadName(index, out _));
-        world.Memory.Write(blockPointer, (long)block);
+        reader.ReadRotationDegrees(1);
 
-        Assert.True(reader.TryReadName(index, out var name));
-        Assert.Equal("Fight_C", name);
+        Assert.Equal(0, reader.Scans);
     }
 }

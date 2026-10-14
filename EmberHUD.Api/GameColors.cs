@@ -26,6 +26,7 @@ public static class GameColors
     public static readonly Color MinimapOutline = Color.FromArgb(0xC1, 0xBB, 0xB5);
     public static readonly Color MinimapUnexplored = Color.FromArgb(0x5F, 0xB0, 0xB8);
     public static readonly Color MinimapMarker = Color.FromArgb(0xF9, 0xDD, 0x75);
+    public static readonly Color MinimapIconAccent = Color.FromArgb(0x1A, 0x1A, 0x1A);
     public static readonly Color DamageHit = Color.FromArgb(0xE8, 0xE8, 0xE8);
     public static readonly Color DamageHeal = Color.FromArgb(0x3F, 0xE0, 0x3F);
     public static readonly Color DamageTaken = Color.FromArgb(0xE0, 0x30, 0x2A);

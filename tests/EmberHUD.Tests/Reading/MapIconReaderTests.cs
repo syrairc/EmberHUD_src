@@ -1,7 +1,7 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests;
 
 public class MapIconReaderTests
 {
@@ -15,13 +15,14 @@ public class MapIconReaderTests
     private static (MinimapReader Minimap, MapIconReader Icons) ReadersFor(FakeWorld world, Clock? clock = null)
     {
         Func<long>? now = clock is null ? null : () => clock.Now;
-        return (new MinimapReader(world.Memory, FakeWorld.Module), new MapIconReader(world.Memory, FakeWorld.Module, now));
+        var names = new Names(world.Memory, FakeWorld.Module);
+        return (new MinimapReader(world.Memory, FakeWorld.Module, names), new MapIconReader(world.Memory, FakeWorld.Module, names, now));
     }
 
-    private static MapIcon[] Read((MinimapReader Minimap, MapIconReader Icons) readers, IReadOnlyDictionary<int, Vector2>? positions = null)
+    private static MapIcon[] Read((MinimapReader Minimap, MapIconReader Icons) readers, IReadOnlyDictionary<int, Vector2>? positions = null, int generation = 1)
     {
-        readers.Minimap.ReadRotationDegrees(1);
-        return readers.Icons.Read(readers.Minimap, positions ?? NoEntities, _ => null);
+        readers.Minimap.ReadRotationDegrees(generation);
+        return readers.Icons.Read(readers.Minimap, generation, positions ?? NoEntities, _ => null);
     }
 
     [Fact]
@@ -40,6 +41,48 @@ public class MapIconReaderTests
         Assert.Equal([1000, 2001, 10, 7], icons.Select(icon => icon.Type));
         Assert.Equal(new MapIcon(1000, "", new Vector2(300, 400), 2, 30, 44), icons[0]);
         Assert.Equal(0, icons[1].EntityId);
+    }
+
+    [Fact]
+    public void ManyIconsWithTheSameZorderKeepTheirListOrder()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, [.. Enumerable.Range(1, 40).Select(i => new FakeIcon(i, i, i, Zorder: 3))]);
+
+        Assert.Equal(Enumerable.Range(1, 40), Read(ReadersFor(world)).Select(icon => icon.Type));
+    }
+
+    [Fact]
+    public void ManyFollowIconsReplaceTheirListEntriesInOnePass()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 7, [.. Enumerable.Range(1, 30).Select(i => new FakeIcon(100 + i, 0, 0, Zorder: i, EntityId: i))]);
+        world.SetFollowIcons(minimap, [.. Enumerable.Range(1, 30).Where(i => i % 2 == 0).Select(i => (i, 900u + (uint)i, 7u))]);
+        Dictionary<int, Vector2> positions = Enumerable.Range(1, 30).ToDictionary(i => i, i => new Vector2(i, i));
+
+        var icons = Read(ReadersFor(world), positions);
+
+        Assert.Equal(30, icons.Length);
+        Assert.Equal(Enumerable.Range(1, 30).Where(i => i % 2 == 1).Select(i => 100 + i), icons.Take(15).Select(icon => icon.Type));
+        Assert.Equal(Enumerable.Range(1, 30).Where(i => i % 2 == 0).Select(i => 900 + i).Order(), icons.Skip(15).Select(icon => icon.Type).Order());
+    }
+
+    [Fact]
+    public void ATaskTypeListReadDuringLoadIsReadAgainWhenTheAreaChanges()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetTaskTypes(minimap, [], [], []);
+        world.SetMapIcons(minimap, 7, new FakeIcon(1001, 1, 1), new FakeIcon(11, 2, 2));
+        var readers = ReadersFor(world);
+        Assert.Equal([1001, 11], Read(readers, generation: 1).Select(icon => icon.Type));
+
+        world.SetTaskTypes(minimap, [1001], [], []);
+        Assert.Equal([1001, 11], Read(readers, generation: 1).Select(icon => icon.Type));
+
+        Assert.Equal([11], Read(readers, generation: 2).Select(icon => icon.Type));
     }
 
     [Fact]
@@ -123,7 +166,7 @@ public class MapIconReaderTests
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1), new FakeIcon(1000, 2, 2), new FakeIcon(7, 3, 3));
-        world.SetIconMap(minimap, (10, world.AddTexture("UI_MiniMap_Portal")), (1000, world.AddTexture("UI_MiniMap_Entrence")), (7, 0x7777_0000_0000L));
+        world.SetIconMap(minimap, (10, world.AddTexture("UI_MiniMap_Portal")), (1000, world.AddTexture("UI_MiniMap_Entrence")), (7, FakeWorld.Unmapped));
         var clock = new Clock();
         var readers = ReadersFor(world, clock);
 
@@ -265,7 +308,7 @@ public class MapIconReaderTests
         world.SetMapIcons(minimap, 7, new FakeIcon(10, 1, 2));
         world.SetMapIconInfoTable(5, (10, null));
         var map = world.SetIconMap(minimap, (10, world.AddTexture("UI_MiniMap_Portal")));
-        world.Memory.TryReadPtr((nint)map, out var data);
+        world.Memory.TryReadPtr(map, out var data);
         var clock = new Clock();
         var readers = ReadersFor(world, clock);
         Assert.Equal("UI_MiniMap_Portal", Read(readers)[0].Texture);
@@ -294,17 +337,17 @@ public class MapIconReaderTests
     [Fact]
     public void NoWidgetGivesNoIcons() => Assert.Empty(Read(ReadersFor(new FakeWorld())));
 
+    public static TheoryData<int, bool> BadHeaders => new() { { -1, true }, { Offsets.MaxMapIcons + 1, true }, { 2, false } };
+
     [Theory]
-    [InlineData(-1, true)]
-    [InlineData(2049, true)]
-    [InlineData(2, false)]
+    [MemberData(nameof(BadHeaders))]
     public void ABadListHeaderGivesNoIcons(int count, bool mapped)
     {
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1));
         world.Memory.Write(minimap.Widget + Offsets.MinimapIconList + Offsets.TArrayNum, count);
-        if (!mapped) world.Memory.Write(minimap.Widget + Offsets.MinimapIconList, 0x7777_0000_0000L);
+        if (!mapped) world.Memory.Write(minimap.Widget + Offsets.MinimapIconList, FakeWorld.Unmapped);
 
         Assert.Empty(Read(ReadersFor(world)));
     }
@@ -328,7 +371,7 @@ public class MapIconReaderTests
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1));
         world.SetFollowIcons(minimap, (5, 4, 1));
-        world.Memory.TryReadPtr(unchecked((nint)(minimap.Widget + Offsets.MinimapFollowTypes)), out var buckets);
+        world.Memory.TryReadPtr(minimap.Widget + Offsets.MinimapFollowTypes, out var buckets);
         world.Memory.TryReadPtr(buckets + 5 % 3 * 8, out var node);
         world.Memory.Write(node + Offsets.FollowNodeNext, (long)node);
 
@@ -342,7 +385,7 @@ public class MapIconReaderTests
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1));
         world.SetFollowIcons(minimap, (5, 4, 1));
-        var map = unchecked((nint)(minimap.Widget + Offsets.MinimapFollowTypes));
+        var map = minimap.Widget + Offsets.MinimapFollowTypes;
         world.Memory.TryReadPtr(map, out var buckets);
         world.Memory.TryReadPtr(buckets + 5 % 3 * 8, out var node);
         var bucketCount = Offsets.MaxFollowIcons + 1;
@@ -406,7 +449,7 @@ public class MapIconReaderTests
         var readers = ReadersFor(world);
         readers.Minimap.ReadRotationDegrees(1);
 
-        var icons = readers.Icons.Read(readers.Minimap, NoEntities, id => id == 72 ? new Vector2(-625, -24197) : null);
+        var icons = readers.Icons.Read(readers.Minimap, 1, NoEntities, id => id == 72 ? new Vector2(-625, -24197) : null);
 
         Assert.Equal([new MapIcon(2642, "", new Vector2(-625, -24197), 1, 0, 72)], icons);
     }

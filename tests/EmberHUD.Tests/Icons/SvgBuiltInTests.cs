@@ -5,9 +5,9 @@ namespace EmberHUD.Tests;
 
 public sealed class SvgBuiltInTests
 {
-    static readonly Dictionary<string, string> BuiltIns = SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly).ToDictionary(icon => icon.Name, icon => icon.Svg);
+    static readonly Dictionary<string, string> BuiltIns = SvgIcons.BuiltIns(typeof(SvgIconStore).Assembly).ToDictionary(icon => icon.Name, icon => icon.Svg);
 
-    static DecodedImage Render(string name, Color colour, Color accent) => SvgRasterizer.Rasterize(SvgRecolor.Apply(BuiltIns[name], colour, accent), 64);
+    static DecodedImage Render(string name, Color colour, Color accent) => SvgIcons.Rasterize(SvgIcons.Recolor(BuiltIns[name], colour, accent), 64);
 
     [Fact]
     public void TheBuiltInSetIsQuestPortalGemAndElite() => Assert.Equal(["elite", "gem", "portal", "quest"], BuiltIns.Keys.Order().ToArray());
@@ -21,7 +21,7 @@ public sealed class SvgBuiltInTests
     {
         var image = Render(name, Color.Red, Color.Blue);
 
-        Assert.Null(SvgIconSources.ExternalReference(BuiltIns[name]));
+        Assert.Null(SvgIcons.ExternalReference(BuiltIns[name]));
         Assert.Contains("viewBox=\"0 0 64 64\"", BuiltIns[name]);
         Assert.Equal(255, image.Rgba[(32 * 64 + 32) * 4 + 3]);
         Assert.Equal(0, image.Rgba[3]);

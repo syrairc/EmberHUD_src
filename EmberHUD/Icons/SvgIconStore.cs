@@ -23,6 +23,7 @@ internal sealed class SvgIconStore
     readonly Dictionary<Request, LinkedListNode<(Request Request, string Key)>> _cache = [];
     readonly LinkedList<(Request Request, string Key)> _recent = new();
     readonly HashSet<string> _failed = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<string, string> _names = new(StringComparer.OrdinalIgnoreCase);
     bool _off;
 
     public IReadOnlyList<string> Names { get; }
@@ -30,11 +31,12 @@ internal sealed class SvgIconStore
     public SvgIconStore(IReadOnlyDictionary<string, string> sources, TextureUpload upload, Func<string, Sprite?> resolve, Action<string> release, Func<string, int, DecodedImage>? rasterize = null, bool inline = false)
     {
         _sources = sources;
+        foreach (var name in sources.Keys) _names[name] = name;
         Names = [.. sources.Keys.Order(StringComparer.Ordinal)];
         _upload = upload;
         _resolve = resolve;
         _release = release;
-        _rasterize = rasterize ?? SvgRasterizer.Rasterize;
+        _rasterize = rasterize ?? SvgIcons.Rasterize;
         _job = new BackgroundJob<Rendered>(inline);
     }
 
@@ -42,20 +44,29 @@ internal sealed class SvgIconStore
 
     public Sprite? Resolve(string icon, int screenPixels, Color colour, Color accent)
     {
-        if (_off || _failed.Contains(icon)) return null;
-        if (!_sources.ContainsKey(icon))
+        if (_off) return null;
+        var request = new Request(icon, Bucket(screenPixels), colour.ToArgb() & 0xFFFFFF, accent.ToArgb() & 0xFFFFFF);
+        return _cache.TryGetValue(request, out var node) ? Touch(node) : Miss(request);
+    }
+
+    Sprite? Touch(LinkedListNode<(Request Request, string Key)> node)
+    {
+        _recent.Remove(node);
+        _recent.AddFirst(node);
+        return _resolve(node.Value.Key);
+    }
+
+    Sprite? Miss(Request request)
+    {
+        if (_failed.Contains(request.Icon)) return null;
+        if (!_names.TryGetValue(request.Icon, out var name))
         {
-            _failed.Add(icon);
-            Log.Warn($"svg icon {icon} - not found");
+            _failed.Add(request.Icon);
+            Log.Warn($"svg icon {request.Icon} - not found");
             return null;
         }
-        var request = new Request(icon, Bucket(screenPixels), colour.ToArgb() & 0xFFFFFF, accent.ToArgb() & 0xFFFFFF);
-        if (_cache.TryGetValue(request, out var node))
-        {
-            _recent.Remove(node);
-            _recent.AddFirst(node);
-            return _resolve(node.Value.Key);
-        }
+        request = request with { Icon = name };
+        if (_cache.TryGetValue(request, out var node)) return Touch(node);
         if (_queue.Count < MaxQueued && _queued.Add(request)) _queue.Enqueue(request);
         return null;
     }
@@ -81,7 +92,7 @@ internal sealed class SvgIconStore
     {
         try
         {
-            return new Rendered(request, _rasterize(SvgRecolor.Apply(svg, Color.FromArgb(request.Colour), Color.FromArgb(request.Accent)), request.Pixels), null, false);
+            return new Rendered(request, _rasterize(SvgIcons.Recolor(svg, Color.FromArgb(request.Colour), Color.FromArgb(request.Accent)), request.Pixels), null, false);
         }
         catch (Exception ex) when (ex is DllNotFoundException or TypeInitializationException or BadImageFormatException or EntryPointNotFoundException)
         {
@@ -120,18 +131,7 @@ internal sealed class SvgIconStore
             var oldest = _recent.Last!.Value;
             _recent.RemoveLast();
             _cache.Remove(oldest.Request);
-            Release(oldest.Key);
-        }
-    }
-
-    void Release(string key)
-    {
-        try
-        {
-            _release(key);
-        }
-        catch (Exception)
-        {
+            _release(oldest.Key);
         }
     }
 }

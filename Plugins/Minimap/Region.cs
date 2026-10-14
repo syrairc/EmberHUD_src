@@ -15,7 +15,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
     public bool Stale(ExploredTrail? trail, (int Col, int Row)? playerCell, Color regionFill, Color exploredFill) =>
         regionFill.ToArgb() != RegionFill.ToArgb() || exploredFill.ToArgb() != ExploredFill.ToArgb()
         || (trail is null) != (Trail is null)
-        || trail is not null && (trail.Points.Length != Trail!.Points.Length || !trail.Radius.Equals(Trail.Radius) || playerCell != PlayerCell);
+        || trail is not null && (trail.Count != Trail!.Count || !trail.Radius.Equals(Trail.Radius) || playerCell != PlayerCell);
 
     public static (int Col, int Row)? CellOf(Terrain terrain, Vector2? at)
     {
@@ -42,7 +42,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
             Map.Project(new Vector3(right, bottom, 0)),
             Map.Project(new Vector3(terrain.Origin.X, bottom, 0)),
         ];
-        Polyline[] outline = everything ? [] : Outline.Join(WallExtractor.Extract(terrain, (col, row) => terrain.IsWalkable(col, row) && explored[row * terrain.Cols + col]), terrain);
+        Polyline[] outline = everything ? [] : Outline.Join(terrain.Walls((col, row) => terrain.IsWalkable(col, row) && explored[row * terrain.Cols + col]), terrain);
         return new Region(areaId, terrain, trail, explored, playerCell, regionFill, exploredFill, pixels, width, terrain.Rows, corners, outline);
     }
 
@@ -51,9 +51,9 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
         var cells = terrain.Cols * terrain.Rows;
         if (trail is null || !float.IsFinite(trail.Radius) || trail.Radius <= 0) return new BitArray(cells);
 
-        var keep = previous is { Trail: { } old } && ReferenceEquals(previous.Source, terrain) && previous.Explored.Length == cells && old.Radius.Equals(trail.Radius) && old.Points.Length <= trail.Points.Length;
+        var keep = previous is { Trail: { } old } && ReferenceEquals(previous.Source, terrain) && previous.Explored.Length == cells && old.Radius.Equals(trail.Radius) && old.Count <= trail.Count;
         var explored = keep ? new BitArray(previous!.Explored) : new BitArray(cells);
-        for (var i = keep ? previous!.Trail!.Points.Length : 0; i < trail.Points.Length; i++) Disc(explored, terrain, trail.Points[i], trail.Radius);
+        for (var i = keep ? previous!.Trail!.Count : 0; i < trail.Count; i++) Disc(explored, terrain, trail.Buffer[i], trail.Radius);
         if (player is { } at) Disc(explored, terrain, at, trail.Radius);
         return explored;
     }

@@ -19,9 +19,9 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
 
     public int Generation { get; private set; } = firstGeneration;
 
-    public Terrain? Read(nint scene)
+    public Terrain? Read(nint geometry, nint gridModule)
     {
-        if (!TryReadHeader(scene, out var header))
+        if (!TryReadHeader(geometry, gridModule, out var header))
             return Forget();
 
         if (_terrain is not null && header.Key == _key)
@@ -53,28 +53,29 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
         return null;
     }
 
-    private bool TryReadHeader(nint scene, out Header header)
+    private bool TryReadHeader(nint geometry, nint gridModule, out Header header)
     {
         header = default;
-        if (!memory.TryReadPtr(scene + Offsets.SceneGeometry, out var geometry) ||
-            !memory.TryReadPtr(scene + Offsets.SceneGridModule, out var module) ||
-            !memory.TryRead(geometry + Offsets.GeometryCellSize, out int cellSize) ||
-            !memory.TryRead(geometry + Offsets.GeometryOriginX, out double originX) ||
-            !memory.TryRead(geometry + Offsets.GeometryOriginY, out double originY))
+        if (geometry == 0 || gridModule == 0)
             return false;
 
-        var grid = module + Offsets.GridModuleHybrid;
-        if (!memory.TryRead(grid + Offsets.HybridCols, out int cols) ||
-            !memory.TryRead(grid + Offsets.HybridRows, out int rows) ||
-            !memory.TryReadPtr(grid + Offsets.HybridCells, out var cells) ||
-            !memory.TryRead(grid + Offsets.HybridIsHybrid, out byte hybrid))
+        var grid = gridModule + Offsets.GridModuleHybrid;
+        Span<byte> geometryBlock = stackalloc byte[Offsets.GeometryHeaderSize];
+        Span<byte> gridBlock = stackalloc byte[Offsets.HybridHeaderSize];
+        if (!memory.TryRead(geometry, geometryBlock) || !memory.TryRead(grid, gridBlock))
             return false;
 
-        if (cols <= 0 || rows <= 0 || (long)cols * rows > Offsets.MaxCells || cellSize <= 0 ||
+        var cellSize = BitConverter.ToInt32(geometryBlock[Offsets.GeometryCellSize..]);
+        var originX = BitConverter.ToDouble(geometryBlock[Offsets.GeometryOriginX..]);
+        var originY = BitConverter.ToDouble(geometryBlock[Offsets.GeometryOriginY..]);
+        var cols = BitConverter.ToInt32(gridBlock[Offsets.HybridCols..]);
+        var rows = BitConverter.ToInt32(gridBlock[Offsets.HybridRows..]);
+        var cells = (nint)BitConverter.ToInt64(gridBlock[Offsets.HybridCells..]);
+        if (cells == 0 || cols <= 0 || rows <= 0 || (long)cols * rows > Offsets.MaxCells || cellSize <= 0 ||
             !double.IsFinite(originX) || !double.IsFinite(originY))
             return false;
 
-        header = new Header(new GridKey(cols, rows, cellSize, new Vector2((float)originX, (float)originY)), grid, cells, hybrid != 0);
+        header = new Header(new GridKey(cols, rows, cellSize, new Vector2((float)originX, (float)originY)), grid, cells, gridBlock[Offsets.HybridIsHybrid] != 0);
         return true;
     }
 

@@ -1,14 +1,14 @@
-using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using System.Numerics;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal delegate bool TryName(uint index, out string name);
-
-internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, TryName name, Func<long>? clockMilliseconds = null)
+internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, Names names, Func<long>? clockMilliseconds = null)
 {
     private readonly record struct PanelSpec(PanelKind Kind, string RectChild);
+
+    private readonly record struct Root(nint Widget, nint Page, string PageClass, PanelSpec Spec, bool Reached);
 
     private static readonly Dictionary<string, PanelSpec> Specs = Offsets.GamePanels
         .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -18,45 +18,58 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     private static readonly HashSet<string> Hud = [.. Offsets.HudPages.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
     private static readonly PanelSpec Unknown = new(PanelKind.Other, "");
 
-    private readonly ConcurrentDictionary<(nint Class, string Ancestor), bool> _isA = [];
+    private readonly Dictionary<(nint Class, string Ancestor), bool> _isA = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<nint, (nint Child, long RetryAt)> _rectChildren = [];
-    private readonly ConcurrentDictionary<(nint Page, string Name), nint> _found = [];
     private readonly Dictionary<string, nint> _hudChildren = [];
+    private readonly Dictionary<nint, Root> _roots = [];
+    private readonly HashSet<nint> _rootsSeen = [];
+    private readonly HashSet<nint> _pagesSeen = [];
+    private readonly List<GamePanel> _panels = [];
+    private GameUi _last = GameUi.Empty;
+    private long _nextRootRefresh;
 
     public GameUi Read()
     {
         if (!TryOverlay(out var overlay, out var origin))
         {
+            _roots.Clear();
             _rectChildren.Clear();
-            _found.Clear();
             _hudChildren.Clear();
             if (++_tradeMisses >= 2) _tradePage = 0;
-            return GameUi.Empty;
+            return _last = GameUi.Empty;
+        }
+
+        var now = _clock();
+        var resolvedAny = now >= _nextRootRefresh;
+        if (resolvedAny)
+        {
+            _roots.Clear();
+            _nextRootRefresh = now + Offsets.UiRootRefreshMilliseconds;
         }
 
         nint tradePage = 0;
-        List<GamePanel> panels = [];
-        HashSet<nint> seen = [];
         var gameMinimapHidden = false;
-        foreach (var root in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
+        _panels.Clear();
+        _pagesSeen.Clear();
+        _rootsSeen.Clear();
+        foreach (var slot in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
         {
-            if (!TryUserWidget(root, out var widget) || !TryClassName(widget, out var className)) continue;
-            var page = widget;
-            var pageClass = className;
-            if (className == Offsets.PageHostClassName)
+            if (!_roots.TryGetValue(slot, out var root))
             {
-                if (!TryHostedPage(widget, out page) || !TryClassName(page, out pageClass)) continue;
+                if (ResolveRoot(slot) is not { } resolved) continue;
+                _roots[slot] = root = resolved;
+                resolvedAny = true;
             }
-            else if (!Specs.ContainsKey(pageClass) && pageClass != Offsets.TradePageClassName) continue;
 
-            if (pageClass == Offsets.GameMinimapPage) gameMinimapHidden = !Visible(page);
-            if (seen.Contains(page) || Hud.Contains(pageClass) || !Visible(widget) || !Visible(page)) continue;
-            if (pageClass == Offsets.TradePageClassName) tradePage = page;
-            var spec = Specs.GetValueOrDefault(pageClass, Unknown);
-            if (RectOf(page, spec.RectChild, origin) is not { } rect) continue;
-            seen.Add(page);
-            panels.Add(new GamePanel(pageClass, spec.Kind, rect.Min, rect.Max, false) { Address = page });
+            _rootsSeen.Add(slot);
+            if (!root.Reached) continue;
+            if (root.PageClass == Offsets.GameMinimapPage) gameMinimapHidden = !Visible(root.Page);
+            if (_pagesSeen.Contains(root.Page) || Hud.Contains(root.PageClass) || !Visible(root.Widget) || !Visible(root.Page)) continue;
+            if (root.PageClass == Offsets.TradePageClassName) tradePage = root.Page;
+            if (RectOf(root.Page, root.Spec.RectChild, origin) is not { } rect) continue;
+            _pagesSeen.Add(root.Page);
+            _panels.Add(new GamePanel(root.PageClass, root.Spec.Kind, rect.Min, rect.Max, false) { Address = root.Page });
         }
 
         if (tradePage != 0)
@@ -65,27 +78,36 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _tradeMisses = 0;
         }
         else if (++_tradeMisses >= 2) _tradePage = 0;
-        foreach (var gone in _rectChildren.Keys.Where(page => !seen.Contains(page)).ToArray())
-            _rectChildren.Remove(gone);
-        foreach (var gone in _found.Keys.Where(key => !seen.Contains(key.Page)))
-            _found.TryRemove(gone, out _);
-        return panels.Count == 0 ? GameUi.Empty : new GameUi([.. panels.Select(p => p with { FullScreen = gameMinimapHidden })]);
-    }
 
-    public (Vector2 Min, Vector2 Max)? FindRect(nint page, string childName)
-    {
-        if (!TryOverlay(out _, out var origin)) return null;
-        var key = (page, childName);
-        if (_found.TryGetValue(key, out var cached))
+        if (resolvedAny || _roots.Count != _rootsSeen.Count)
         {
-            if (Geometry(cached, origin) is { } cachedRect) return Visible(cached) ? cachedRect : null;
-            _found.TryRemove(key, out _);
+            foreach (var gone in _roots.Keys.Where(key => !_rootsSeen.Contains(key)).ToArray())
+                _roots.Remove(gone);
+            foreach (var gone in _rectChildren.Keys.Where(page => !_pagesSeen.Contains(page)).ToArray())
+                _rectChildren.Remove(gone);
         }
 
-        var child = FindChild(page, childName);
-        if (child == 0 || Geometry(child, origin) is not { } rect) return null;
-        _found[key] = child;
-        return Visible(child) ? rect : null;
+        if (gameMinimapHidden)
+            for (var i = 0; i < _panels.Count; i++)
+                _panels[i] = _panels[i] with { FullScreen = true };
+        if (CollectionsMarshal.AsSpan(_panels).SequenceEqual(_last.Panels))
+            return _last;
+        return _last = _panels.Count == 0 ? GameUi.Empty : new GameUi([.. _panels]);
+    }
+
+    private Root? ResolveRoot(nint canvas)
+    {
+        if (!TryUserWidget(canvas, out var widget) || !names.TryReadClassName(widget, out var className)) return null;
+        var page = widget;
+        var pageClass = className;
+        var reached = true;
+        if (className == Offsets.PageHostClassName)
+        {
+            if (!TryHostedPage(widget, out page) || !names.TryReadClassName(page, out pageClass)) return null;
+        }
+        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName;
+
+        return new Root(widget, page, pageClass, Specs.GetValueOrDefault(pageClass, Unknown), reached);
     }
 
     internal void ForgetHud() => _hudChildren.Clear();
@@ -120,8 +142,8 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         if (!TryOverlay(out var overlay, out _)) return false;
         foreach (var root in Children(overlay + Offsets.OverlayChildren, Offsets.MaxViewportRoots))
         {
-            if (!TryUserWidget(root, out var page) || !TryClassName(page, out var pageClass)) continue;
-            if (pageClass == Offsets.PageHostClassName && (!TryHostedPage(page, out page) || !TryClassName(page, out pageClass))) continue;
+            if (!TryUserWidget(root, out var page) || !names.TryReadClassName(page, out var pageClass)) continue;
+            if (pageClass == Offsets.PageHostClassName && (!TryHostedPage(page, out page) || !names.TryReadClassName(page, out pageClass))) continue;
             if (pageClass != Offsets.HudPageClassName) continue;
             hud = page;
             return true;
@@ -130,7 +152,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     }
 
     private bool NameIs(nint widget, string childName) =>
-        memory.TryRead(widget + Offsets.UObjectName, out uint index) && name(index, out var found) && found == childName;
+        memory.TryRead(widget + Offsets.UObjectName, out uint index) && names.TryRead(index, out var found) && found == childName;
 
     private bool TryText(nint fText, out string text)
     {
@@ -189,31 +211,25 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
                PanelContents(content, 1).FirstOrDefault() is var first && (page = first) != 0;
     }
 
-    private IEnumerable<nint> Children(nint panelChildren, int max)
+    private IEnumerable<nint> Children(nint panelChildren, int max) =>
+        Slots(panelChildren + Offsets.PanelChildrenSlots, Offsets.SlotWidget, Offsets.MaxViewportRoots, max);
+
+    private IEnumerable<nint> PanelContents(nint panel, int max) =>
+        Slots(panel + Offsets.PanelSlots, Offsets.PanelSlotContent, Offsets.MaxWidgetNodes, max);
+
+    private IEnumerable<nint> Slots(nint arrayAt, int widgetOffset, int validCount, int take)
     {
-        if (!memory.TryReadPtr(panelChildren + Offsets.PanelChildrenSlots, out var data) || data == 0 ||
-            !memory.TryRead(panelChildren + Offsets.PanelChildrenSlots + Offsets.TArrayNum, out int count) || count <= 0 || count > Offsets.MaxViewportRoots ||
-            !memory.TryReadArray(data, Math.Min(count, max), out long[] slots))
+        if (!memory.TryReadPtr(arrayAt, out var data) ||
+            !memory.TryRead(arrayAt + Offsets.TArrayNum, out int count) || count <= 0 || count > validCount ||
+            !memory.TryReadArray(data, Math.Min(count, take), out long[] slots))
             yield break;
 
         foreach (var slot in slots)
-            if (slot != 0 && memory.TryReadPtr((nint)slot + Offsets.SlotWidget, out var widget) && widget != 0)
+            if (slot != 0 && memory.TryReadPtr((nint)slot + widgetOffset, out var widget))
                 yield return widget;
     }
 
-    private IEnumerable<nint> PanelContents(nint panel, int max)
-    {
-        if (!memory.TryReadPtr(panel + Offsets.PanelSlots, out var data) || data == 0 ||
-            !memory.TryRead(panel + Offsets.PanelSlots + Offsets.TArrayNum, out int count) || count <= 0 || count > Offsets.MaxWidgetNodes ||
-            !memory.TryReadArray(data, Math.Min(count, max), out long[] slots))
-            yield break;
-
-        foreach (var slot in slots)
-            if (slot != 0 && memory.TryReadPtr((nint)slot + Offsets.PanelSlotContent, out var content) && content != 0)
-                yield return content;
-    }
-
-    private nint FindChild(nint page, string childName)
+    internal nint FindChild(nint page, string childName)
     {
         var split = childName.LastIndexOf('_');
         var number = 0u;
@@ -227,18 +243,18 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
 
         Queue<(nint Widget, int Depth)> queue = [];
         HashSet<nint> visited = [];
-        Enqueue(Root(page), 0);
+        Enqueue(WidgetTreeRoot(page), 0);
         while (queue.TryDequeue(out var next) && visited.Count < Offsets.MaxWidgetNodes)
         {
             var (widget, depth) = next;
             if (memory.TryRead(widget + Offsets.UObjectName, out uint nameIndex) && memory.TryRead(widget + Offsets.UObjectName + Offsets.FNameNumber, out uint nameNumber) &&
-                nameNumber == number && name(nameIndex, out var widgetName) && widgetName == baseName)
+                nameNumber == number && names.TryRead(nameIndex, out var widgetName) && widgetName == baseName)
                 return widget;
             if (depth >= Offsets.MaxWidgetDepth || !memory.TryReadPtr(widget + Offsets.UObjectClass, out var cls)) continue;
             if (IsA(cls, Offsets.PanelWidgetClassName))
                 foreach (var child in PanelContents(widget, Offsets.MaxWidgetNodes)) Enqueue(child, depth + 1);
             else if (IsA(cls, Offsets.UserWidgetClassName))
-                Enqueue(Root(widget), depth + 1);
+                Enqueue(WidgetTreeRoot(widget), depth + 1);
         }
         return 0;
 
@@ -248,26 +264,26 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         }
     }
 
-    private nint Root(nint userWidget) =>
+    private nint WidgetTreeRoot(nint userWidget) =>
         memory.TryReadPtr(userWidget + Offsets.UserWidgetTree, out var tree) && tree != 0 &&
         memory.TryReadPtr(tree + Offsets.WidgetTreeRoot, out var root) ? root : 0;
 
-    private bool IsA(nint cls, string ancestor) => _isA.GetOrAdd((cls, ancestor), key =>
+    private bool IsA(nint cls, string ancestor)
     {
-        var at = key.Class;
+        if (_isA.TryGetValue((cls, ancestor), out var known)) return known;
+
+        var at = cls;
+        var result = false;
         for (var depth = 0; at != 0 && depth < Offsets.MaxWidgetDepth * 4; depth++)
         {
-            if (memory.TryRead(at + Offsets.UObjectName, out uint index) && name(index, out var className) && className == key.Ancestor) return true;
-            if (!memory.TryReadPtr(at + Offsets.UStructSuper, out at)) return false;
+            if (memory.TryRead(at + Offsets.UObjectName, out uint index) && names.TryRead(index, out var className) && className == ancestor)
+            {
+                result = true;
+                break;
+            }
+            if (!memory.TryReadPtr(at + Offsets.UStructSuper, out at)) break;
         }
-        return false;
-    });
-
-    private bool TryClassName(nint obj, out string className)
-    {
-        className = "";
-        return memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && cls != 0 &&
-               memory.TryRead(cls + Offsets.UObjectName, out uint index) && name(index, out className);
+        return _isA[(cls, ancestor)] = result;
     }
 
     private bool Visible(nint widget) =>
@@ -287,8 +303,9 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     private bool TrySlateRect(nint slate, Vector2 origin, out (Vector2 Min, Vector2 Max) rect)
     {
         rect = default;
-        if (!memory.TryReadArray(slate + Offsets.SWidgetSize, 2, out float[] size) ||
-            !memory.TryReadArray(slate + Offsets.SWidgetTransform, 6, out float[] transform))
+        Span<float> size = stackalloc float[2];
+        Span<float> transform = stackalloc float[6];
+        if (!memory.TryRead(slate + Offsets.SWidgetSize, size) || !memory.TryRead(slate + Offsets.SWidgetTransform, transform))
             return false;
 
         var min = new Vector2(transform[4], transform[5]) - origin;

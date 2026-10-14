@@ -49,6 +49,11 @@ public sealed class HotkeyTests
     [InlineData("0x1B")]
     [InlineData("0x11")]
     [InlineData("0xFF")]
+    [InlineData("5")]
+    [InlineData("-1")]
+    [InlineData("A,B")]
+    [InlineData("Ctrl+B,C")]
+    [InlineData("0x")]
     public void TryParseRejectsAnythingThatIsNotABindableKey(string text)
     {
         Assert.False(Hotkey.TryParse(text, out var hotkey));

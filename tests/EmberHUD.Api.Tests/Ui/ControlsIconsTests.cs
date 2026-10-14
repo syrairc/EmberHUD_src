@@ -198,11 +198,9 @@ public class ControlsIconsTests
         UiFrame.Run("test", () =>
         {
             var list = ImGui.GetWindowDrawList();
-            var start = list.VtxBuffer.Size;
             var y = ImGui.GetCursorPosY();
-            body();
+            verts = UiFrame.Drawn(body);
             advance = ImGui.GetCursorPosY() - y;
-            for (var i = start; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
             for (var c = list.CmdBuffer.Size - 1; c >= 0; c--)
                 if (list.CmdBuffer[c].ElemCount > 0)
                 {
@@ -373,10 +371,7 @@ public class ControlsIconsTests
 
         public void Dispose()
         {
-            UiFrame.Run("test", () =>
-            {
-                if (ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)) ImGuiP.ClosePopupToLevel(0, true);
-            });
+            UiFrame.CloseAllPopups();
             Run();
         }
     }
@@ -670,10 +665,7 @@ public class ControlsIconsTests
         {
             Draw.GameIconNames = [];
             Draw.SvgIconNames = [];
-            UiFrame.Run("test", () =>
-            {
-                if (ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)) ImGuiP.ClosePopupToLevel(0, true);
-            });
+            UiFrame.CloseAllPopups();
         }
     }
 }

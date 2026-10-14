@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-
 namespace EmberHUD.Host.Overlay;
 
 internal enum TrayCommand
@@ -18,6 +16,7 @@ internal sealed class TrayIcon : IDisposable
     readonly Action<TrayCommand> _onCommand;
     readonly uint _taskbarCreated;
     nint _hwnd;
+    string _className = "";
     nint _icon;
     bool _disposed;
 
@@ -49,30 +48,8 @@ internal sealed class TrayIcon : IDisposable
 
     void CreateWindow()
     {
-        var className = $"EmberHUDTray_{Guid.NewGuid():N}";
-        var classNamePtr = Marshal.StringToHGlobalUni(className);
-        try
-        {
-            var cls = new Win32.WndClassEx
-            {
-                CbSize = (uint)Marshal.SizeOf<Win32.WndClassEx>(),
-                WndProc = Marshal.GetFunctionPointerForDelegate(_wndProc),
-                Instance = Win32.GetModuleHandle(null),
-                ClassName = classNamePtr,
-            };
-            if (Win32.RegisterClassExW(ref cls) == 0)
-                throw new InvalidOperationException($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
-
-            _hwnd = Win32.CreateWindowExW((uint)Win32.WS_EX_TOOLWINDOW, className, "EmberHUD tray", 0, 0, 0, 0, 0, 0, 0, Win32.GetModuleHandle(null), 0);
-            if (_hwnd == 0)
-                throw new InvalidOperationException($"CreateWindowEx failed: {Marshal.GetLastWin32Error()}");
-
-            Win32.ChangeWindowMessageFilterEx(_hwnd, _taskbarCreated, Win32.MSGFLT_ALLOW, 0);
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(classNamePtr);
-        }
+        (_hwnd, _className) = Win32.CreateWindow("EmberHUDTray", _wndProc, (uint)Win32.WS_EX_TOOLWINDOW, 0, "EmberHUD tray", 0, 0, 0, 0);
+        Win32.ChangeWindowMessageFilterEx(_hwnd, _taskbarCreated, Win32.MSGFLT_ALLOW, 0);
     }
 
     internal static unsafe nint LoadAppIcon(string exe)
@@ -148,7 +125,7 @@ internal sealed class TrayIcon : IDisposable
         {
             var data = NewData();
             Win32.ShellNotifyIcon(Win32.NIM_DELETE, &data);
-            Win32.DestroyWindow(_hwnd);
+            Win32.DestroyWindowAndClass(_hwnd, _className);
             _hwnd = 0;
         }
         if (_icon != 0) { Win32.DestroyIcon(_icon); _icon = 0; }

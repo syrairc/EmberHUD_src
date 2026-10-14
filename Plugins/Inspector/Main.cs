@@ -110,7 +110,7 @@ public sealed class Main : Plugin<Settings>
             if (shown)
             {
                 DrawHeader(state);
-                SideNav.SideTabs("sections", 110f, [.. Tabs(state)]);
+                Layout.SideTabs("sections", 110f, [.. Tabs(state)]);
             }
             ImGui.End();
         }

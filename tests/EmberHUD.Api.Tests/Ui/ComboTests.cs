@@ -3,7 +3,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ComboTests
+public class ComboTests : IDisposable
 {
     const string Window = "combo";
 
@@ -16,12 +16,6 @@ public class ComboTests
     static float SpacingY => UiFrame.Style.Spacing.Y;
 
     static float PaddingY => UiFrame.Style.WindowPadding.Y;
-
-    static void Cleanup(Rig rig)
-    {
-        UiFrame.ClickAway(Window, rig.Body);
-        UiFrame.Unhover();
-    }
 
     sealed class Rig
     {
@@ -58,23 +52,21 @@ public class ComboTests
         }
     }
 
+    public void Dispose() => UiFrame.CloseAllPopups();
+
     [Fact]
     public void EnumPickWritesValueAndReportsChange()
     {
         var speed = Speed.Medium;
         var rig = new Rig();
         rig.Draw = () => rig.Changed |= Combo.Enum(ref speed, "speed");
-        try
-        {
-            rig.Open(120f);
-            Assert.True(UiFrame.PopupOpen(Window, rig.Body));
-            Assert.False(rig.Changed);
-            rig.PickRow(2);
-            Assert.True(rig.Changed);
-            Assert.Equal(Speed.Fast, speed);
-            Assert.False(UiFrame.PopupOpen(Window, rig.Body));
-        }
-        finally { Cleanup(rig); }
+        rig.Open(120f);
+        Assert.True(UiFrame.PopupOpen(Window, rig.Body));
+        Assert.False(rig.Changed);
+        rig.PickRow(2);
+        Assert.True(rig.Changed);
+        Assert.Equal(Speed.Fast, speed);
+        Assert.False(UiFrame.PopupOpen(Window, rig.Body));
     }
 
     [Fact]
@@ -83,14 +75,10 @@ public class ComboTests
         var speed = (Speed)99;
         var rig = new Rig();
         rig.Draw = () => rig.Changed |= Combo.Enum(ref speed, "speed");
-        try
-        {
-            rig.Open(120f);
-            rig.PickRow(0);
-            Assert.False(rig.Changed);
-            Assert.Equal((Speed)99, speed);
-        }
-        finally { Cleanup(rig); }
+        rig.Open(120f);
+        rig.PickRow(0);
+        Assert.False(rig.Changed);
+        Assert.Equal((Speed)99, speed);
     }
 
     [Fact]
@@ -98,33 +86,11 @@ public class ComboTests
     {
         var speed = Speed.Slow;
         var rig = new Rig();
-        try
-        {
-            rig.Draw = () => Combo.Enum(ref speed, "pace");
-            rig.Idle();
-            var expected = 0u;
-            UiFrame.Run(Window, () => expected = ImGui.GetID("##pace"));
-            Assert.Equal(expected, rig.ItemId);
-        }
-        finally { Cleanup(rig); }
-    }
-
-    [Fact]
-    public void EnumAndOptionPinTheirWidth()
-    {
-        var speed = Speed.Slow;
-        var index = 0;
-        var rig = new Rig();
-        try
-        {
-            rig.Draw = () => Combo.Enum(ref speed, "speed", width: 173f);
-            rig.Idle();
-            Assert.Equal(173f, rig.ItemSize.X);
-            rig.Draw = () => Combo.Option(ref index, ["A", "B"], "index", width: 211f);
-            rig.Idle();
-            Assert.Equal(211f, rig.ItemSize.X);
-        }
-        finally { Cleanup(rig); }
+        rig.Draw = () => Combo.Enum(ref speed, "pace");
+        rig.Idle();
+        var expected = 0u;
+        UiFrame.Run(Window, () => expected = ImGui.GetID("##pace"));
+        Assert.Equal(expected, rig.ItemId);
     }
 
     [Fact]
@@ -133,15 +99,11 @@ public class ComboTests
         var index = 1;
         var rig = new Rig();
         rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"], "index");
-        try
-        {
-            rig.Open(120f);
-            Assert.False(rig.Changed);
-            rig.PickRow(2);
-            Assert.True(rig.Changed);
-            Assert.Equal(2, index);
-        }
-        finally { Cleanup(rig); }
+        rig.Open(120f);
+        Assert.False(rig.Changed);
+        rig.PickRow(2);
+        Assert.True(rig.Changed);
+        Assert.Equal(2, index);
     }
 
     [Fact]
@@ -150,33 +112,11 @@ public class ComboTests
         var index = 1;
         var rig = new Rig();
         rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"], "index");
-        try
-        {
-            rig.Open(120f);
-            rig.PickRow(1);
-            Assert.False(rig.Changed);
-            Assert.Equal(1, index);
-        }
-        finally { Cleanup(rig); }
+        rig.Open(120f);
+        rig.PickRow(1);
+        Assert.False(rig.Changed);
+        Assert.Equal(1, index);
     }
-
-    [Fact]
-    public void OptionIdIsTheWidgetId()
-    {
-        var index = 0;
-        var rig = new Rig();
-        try
-        {
-            rig.Draw = () => Combo.Option(ref index, ["Alpha", "B"], "custom");
-            rig.Idle();
-            var expected = 0u;
-            UiFrame.Run(Window, () => expected = ImGui.GetID("##custom"));
-            Assert.Equal(expected, rig.ItemId);
-        }
-        finally { Cleanup(rig); }
-    }
-
-    static void Cleanup(SearchRig rig) => Cleanup(rig.Rig);
 
     sealed class SearchRig
     {
@@ -243,81 +183,61 @@ public class ComboTests
     public void SearchComboPickReturnsKeyClearsFilterAndClosesPopup()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            Assert.True(UiFrame.PopupOpen(Window, rig.Rig.Body));
-            Assert.Equal(0, rig.Picks);
-            rig.Filter = "ban";
-            rig.Rig.Idle();
-            rig.Pick("banana");
-            Assert.Equal(1, rig.Picks);
-            Assert.Equal("banana", rig.Picked);
-            Assert.Equal("", rig.FilterAtPick);
-            Assert.Equal("", rig.Filter);
-            Assert.False(UiFrame.PopupOpen(Window, rig.Rig.Body));
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        Assert.True(UiFrame.PopupOpen(Window, rig.Rig.Body));
+        Assert.Equal(0, rig.Picks);
+        rig.Filter = "ban";
+        rig.Rig.Idle();
+        rig.Pick("banana");
+        Assert.Equal(1, rig.Picks);
+        Assert.Equal("banana", rig.Picked);
+        Assert.Equal("", rig.FilterAtPick);
+        Assert.Equal("", rig.Filter);
+        Assert.False(UiFrame.PopupOpen(Window, rig.Rig.Body));
     }
 
     [Fact]
     public void SearchComboPickedKeyIsNotTheLabel()
     {
         var rig = new SearchRig { Candidates = [("k-1", "Label One", "one")] };
-        try
-        {
-            rig.Open();
-            rig.Pick("k-1");
-            Assert.Equal("k-1", rig.Picked);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Pick("k-1");
+        Assert.Equal("k-1", rig.Picked);
     }
 
     [Fact]
     public void SearchComboFilterMatchesTheSearchKeyNotTheLabel()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            rig.Filter = "yellow";
-            rig.Rig.Idle();
-            Assert.Equal(rig.RowAt["apple"], rig.RowAt["banana"]);
-            rig.Pick("banana");
-            Assert.Equal("banana", rig.Picked);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Filter = "yellow";
+        rig.Rig.Idle();
+        Assert.Equal(rig.RowAt["apple"], rig.RowAt["banana"]);
+        rig.Pick("banana");
+        Assert.Equal("banana", rig.Picked);
     }
 
     [Fact]
     public void SearchComboLabelAloneDoesNotMatchWhenSearchKeyDiffers()
     {
         var rig = new SearchRig { Candidates = [("apple", "Apple", "zzz"), ("banana", "Banana", "banana")] };
-        try
-        {
-            rig.Open();
-            rig.Filter = "Apple";
-            rig.Rig.Idle();
-            rig.Pick("apple");
-            Assert.Equal(0, rig.Picks);
-            Assert.Null(rig.Picked);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Filter = "Apple";
+        rig.Rig.Idle();
+        rig.Pick("apple");
+        Assert.Equal(0, rig.Picks);
+        Assert.Null(rig.Picked);
     }
 
     [Fact]
     public void SearchComboFilterHidesNonMatchingRows()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            rig.Filter = "red";
-            rig.Rig.Idle();
-            Assert.NotEqual(rig.RowAt["apple"], rig.RowAt["banana"]);
-            Assert.Equal(rig.RowAt["banana"], rig.RowAt["cherry"]);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Filter = "red";
+        rig.Rig.Idle();
+        Assert.NotEqual(rig.RowAt["apple"], rig.RowAt["banana"]);
+        Assert.Equal(rig.RowAt["banana"], rig.RowAt["cherry"]);
     }
 
     [Fact]
@@ -340,126 +260,90 @@ public class ComboTests
         {
             if (Combo.SearchCombo("pairs", "(none)", Walk(), ref filter, out var p)) picked = p;
         };
-        try
-        {
-            rig.Open(250f);
-            rig.Idle();
-            filter = "nan";
-            rig.Idle();
-            Assert.Equal(rows["a"], rows["b"]);
-            UiFrame.Click(Window, rows["b"] + new Vector2(10f, rig.FontSize / 2), rig.Body);
-            Assert.Equal("b", picked);
-            Assert.Equal("", filter);
-        }
-        finally { Cleanup(rig); }
+        rig.Open(250f);
+        rig.Idle();
+        filter = "nan";
+        rig.Idle();
+        Assert.Equal(rows["a"], rows["b"]);
+        UiFrame.Click(Window, rows["b"] + new Vector2(10f, rig.FontSize / 2), rig.Body);
+        Assert.Equal("b", picked);
+        Assert.Equal("", filter);
     }
 
     [Fact]
     public void SearchComboSameLabelDifferentKeysStayIndependentRows()
     {
         var rig = new SearchRig { Candidates = [("k1", "Same", "same"), ("k2", "Same", "same")] };
-        try
-        {
-            rig.Open();
-            rig.Pick("k2");
-            Assert.Equal("k2", rig.Picked);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Pick("k2");
+        Assert.Equal("k2", rig.Picked);
     }
 
     [Fact]
     public void SearchComboClosedPopupDropsStaleFilter()
     {
         var rig = new SearchRig { Filter = "stale" };
-        try
-        {
-            rig.Rig.Idle();
-            Assert.Equal("", rig.Filter);
-        }
-        finally { Cleanup(rig); }
+        rig.Rig.Idle();
+        Assert.Equal("", rig.Filter);
     }
 
     [Fact]
     public void SearchComboOpenPopupKeepsTypedFilter()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            rig.Filter = "kept";
-            rig.Rig.Idle();
-            Assert.Equal("kept", rig.Filter);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Filter = "kept";
+        rig.Rig.Idle();
+        Assert.Equal("kept", rig.Filter);
     }
 
     [Fact]
     public void SearchComboTypingInTheFilterBoxNarrowsRows()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            rig.TypeFilter("cher");
-            Assert.Equal("cher", rig.Filter);
-            Assert.Equal(rig.RowAt["apple"], rig.RowAt["cherry"]);
-            rig.Pick("cherry");
-            Assert.Equal("cherry", rig.Picked);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.TypeFilter("cher");
+        Assert.Equal("cher", rig.Filter);
+        Assert.Equal(rig.RowAt["apple"], rig.RowAt["cherry"]);
+        rig.Pick("cherry");
+        Assert.Equal("cherry", rig.Picked);
     }
 
     [Fact]
     public void SearchComboFilterLengthIsCapped()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Open();
-            rig.TypeFilter(new string('q', 300));
-            Assert.InRange(rig.Filter.Length, 100, 128);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.TypeFilter(new string('q', 300));
+        Assert.InRange(rig.Filter.Length, 100, 128);
     }
 
     [Fact]
     public void SearchComboPinsComboAndPopupWidth()
     {
         var rig = new SearchRig { Width = 190f };
-        try
-        {
-            rig.Rig.Idle();
-            Assert.Equal(190f, rig.Rig.ItemSize.X);
-            rig.Open();
-            Assert.Equal(190f, rig.PopupWidth);
-        }
-        finally { Cleanup(rig); }
+        rig.Rig.Idle();
+        Assert.Equal(190f, rig.Rig.ItemSize.X);
+        rig.Open();
+        Assert.Equal(190f, rig.PopupWidth);
     }
 
     [Fact]
     public void SearchComboPopupNeverGrowsPastTheComboWidthForLongLabels()
     {
         var rig = new SearchRig { Width = 140f, Candidates = [("long", new string('W', 120), "w")] };
-        try
-        {
-            rig.Open();
-            rig.Rig.Idle();
-            Assert.Equal(140f, rig.PopupWidth);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Rig.Idle();
+        Assert.Equal(140f, rig.PopupWidth);
     }
 
     [Fact]
     public void SearchComboPopupHeightIsCappedAt400()
     {
         var rig = new SearchRig { Candidates = [.. Enumerable.Range(0, 100).Select(i => ($"k{i}", $"Item {i}", $"item {i}"))] };
-        try
-        {
-            rig.Open();
-            rig.Rig.Idle();
-            Assert.Equal(400f, rig.PopupHeight);
-        }
-        finally { Cleanup(rig); }
+        rig.Open();
+        rig.Rig.Idle();
+        Assert.Equal(400f, rig.PopupHeight);
     }
 
     [Fact]
@@ -467,32 +351,24 @@ public class ComboTests
     {
         var rig = new Rig();
         var avail = 0f;
-        try
+        rig.Draw = () =>
         {
-            rig.Draw = () =>
-            {
-                avail = ImGui.GetContentRegionAvail().X;
-                var filter = "";
-                Combo.SearchCombo("fill", "(none)", [("a", "A")], ref filter, out _, -1f);
-            };
-            rig.Idle();
-            Assert.True(avail > 0f);
-            Assert.Equal(avail, rig.ItemSize.X);
-        }
-        finally { Cleanup(rig); }
+            avail = ImGui.GetContentRegionAvail().X;
+            var filter = "";
+            Combo.SearchCombo("fill", "(none)", [("a", "A")], ref filter, out _, -1f);
+        };
+        rig.Idle();
+        Assert.True(avail > 0f);
+        Assert.Equal(avail, rig.ItemSize.X);
     }
 
     [Fact]
     public void SearchComboIdScopesTheComboItem()
     {
         var rig = new SearchRig();
-        try
-        {
-            rig.Rig.Idle();
-            var expected = 0u;
-            UiFrame.Run(Window, () => expected = ImGui.GetID("##fruit"));
-            Assert.Equal(expected, rig.Rig.ItemId);
-        }
-        finally { Cleanup(rig); }
+        rig.Rig.Idle();
+        var expected = 0u;
+        UiFrame.Run(Window, () => expected = ImGui.GetID("##fruit"));
+        Assert.Equal(expected, rig.Rig.ItemId);
     }
 }

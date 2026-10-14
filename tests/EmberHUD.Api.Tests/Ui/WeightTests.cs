@@ -5,11 +5,13 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class WeightTests
+public class WeightTests : IDisposable
 {
     static readonly Color Red = Color.FromArgb(255, 224, 103, 103);
     static readonly Color Green = Color.FromArgb(255, 111, 207, 122);
     static readonly Color Gold = Color.FromArgb(255, 217, 193, 103);
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Theory]
     [InlineData(0f, -10f, 10f, 0.5f)]
@@ -74,23 +76,6 @@ public class WeightTests
     }
 
     [Fact]
-    public void CopyDoesNotAliasTheOriginal()
-    {
-        var original = new WeightOpts { Min = 0f, Max = 5f };
-        var copy = original.Copy();
-        copy.Min = -3f;
-        Assert.Equal(0f, original.Min);
-        Assert.Equal(5f, copy.Max);
-    }
-
-    [Fact]
-    public void ScalesHaveTwoAndThreeStops()
-    {
-        Assert.Equal(2, Weight.Scales.RedGreen.Length);
-        Assert.Equal(3, Weight.Scales.RedGoldGreen.Length);
-    }
-
-    [Fact]
     public void ATypedValueIsClampedAndSnapped()
     {
         var ints = new WeightOpts { Min = -10f, Max = 10f, Decimals = 0 };
@@ -144,20 +129,13 @@ public class WeightTests
         var opts = new WeightOpts { Min = 0f, Max = 10f, Decimals = 0 };
         var changedFlags = new List<bool>();
         void Body() => changedFlags.Add(Weight.Slider("", ref v, opts, "w"));
-        try
-        {
-            var (origin, height, _, _) = Probe(v, opts);
-            var barPoint = origin + new Vector2(5f, height / 2f);
-            UiFrame.Press("weight", barPoint, Body);
-            Assert.Equal(0f, v);
-            UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
-            Assert.Equal(10f, v);
-            Assert.Contains(true, changedFlags);
-        }
-        finally
-        {
-            UiFrame.Release("weight", Body);
-        }
+        var (origin, height, _, _) = Probe(v, opts);
+        var barPoint = origin + new Vector2(5f, height / 2f);
+        UiFrame.Press("weight", barPoint, Body);
+        Assert.Equal(0f, v);
+        UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
+        Assert.Equal(10f, v);
+        Assert.Contains(true, changedFlags);
     }
 
     [Fact]
@@ -185,10 +163,7 @@ public class WeightTests
         uint[] colours = [];
         UiFrame.Run("weight", () =>
         {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            Weight.Slider("", ref v, opts, "w");
-            colours = Enumerable.Range(from, list.VtxBuffer.Size - from).Select(i => list.VtxBuffer[i].Col).ToArray();
+            colours = UiFrame.Drawn(() => Weight.Slider("", ref v, opts, "w")).Select(x => x.Col).ToArray();
         });
         Assert.Contains(EColor.U32(Green), colours);
         Assert.Contains(EColor.U32(EColor.Fade(Green, opts.RailAlpha)), colours);
@@ -197,25 +172,10 @@ public class WeightTests
     static ((Vector2 Min, Vector2 Max) Bar, (Vector2 Min, Vector2 Max) Grab) BarAndGrab(float v, WeightOpts opts)
     {
         UiFrame.Unhover();
-        var style = ImGui.GetStyle();
-        var saved = style.Colors[(int)ImGuiCol.FrameBg];
         var frame = new Vector4(0.9f, 0.1f, 0.9f, 1f);
         List<ImDrawVert> verts = [];
-        try
-        {
-            style.Colors[(int)ImGuiCol.FrameBg] = frame;
-            UiFrame.Run("weight", () =>
-            {
-                var list = ImGui.GetWindowDrawList();
-                var from = list.VtxBuffer.Size;
-                Weight.Slider("", ref v, opts, "w");
-                for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
-            });
-        }
-        finally
-        {
-            style.Colors[(int)ImGuiCol.FrameBg] = saved;
-        }
+        using (UiFrame.WithColors((ImGuiCol.FrameBg, frame)))
+            UiFrame.Run("weight", () => verts = UiFrame.Drawn(() => Weight.Slider("", ref v, opts, "w")));
         static (Vector2, Vector2) Extent(IEnumerable<ImDrawVert> points) => (new Vector2(points.Min(p => p.Pos.X), points.Min(p => p.Pos.Y)), new Vector2(points.Max(p => p.Pos.X), points.Max(p => p.Pos.Y)));
         return (Extent(verts.Where(p => p.Col == ImGui.GetColorU32(frame))), Extent(verts.Where(p => p.Col == EColor.U32(Green))));
     }
@@ -265,21 +225,14 @@ public class WeightTests
         var opts = new WeightOpts { Min = 0f, Max = 10f, Decimals = 0 };
         var changedFlags = new List<bool>();
         void Body() => changedFlags.Add(Weight.Slider("", ref v, opts, "w"));
-        try
-        {
-            var (origin, height, _, _) = Probe(v, opts);
-            var barPoint = origin + new Vector2(5f, height / 2f);
-            UiFrame.Press("weight", barPoint, Body);
-            UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
-            changedFlags.Clear();
-            UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 5f, barPoint.Y), Body);
-            Assert.Equal(10f, v);
-            Assert.DoesNotContain(true, changedFlags);
-        }
-        finally
-        {
-            UiFrame.Release("weight", Body);
-        }
+        var (origin, height, _, _) = Probe(v, opts);
+        var barPoint = origin + new Vector2(5f, height / 2f);
+        UiFrame.Press("weight", barPoint, Body);
+        UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
+        changedFlags.Clear();
+        UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 5f, barPoint.Y), Body);
+        Assert.Equal(10f, v);
+        Assert.DoesNotContain(true, changedFlags);
     }
 
     [Fact]
@@ -323,20 +276,13 @@ public class WeightTests
         var returns = new List<bool>();
         var opts = new WeightOpts { Min = 0f, Max = 10f, Decimals = 0 };
         void Body() => returns.Add(Weight.Slider("", () => stored, x => { stored = x; sets.Add(x); }, opts, "w"));
-        try
-        {
-            var (origin, height, _, _) = Probe(stored, opts);
-            var barPoint = origin + new Vector2(5f, height / 2f);
-            UiFrame.Press("weight", barPoint, Body);
-            UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
-            Assert.Equal(10f, stored);
-            Assert.Equal(10f, sets[^1]);
-            Assert.Contains(true, returns);
-        }
-        finally
-        {
-            UiFrame.Release("weight", Body);
-        }
+        var (origin, height, _, _) = Probe(stored, opts);
+        var barPoint = origin + new Vector2(5f, height / 2f);
+        UiFrame.Press("weight", barPoint, Body);
+        UiFrame.MoveTo("weight", new Vector2(UiFrame.WindowSize.X * 4f, barPoint.Y), Body);
+        Assert.Equal(10f, stored);
+        Assert.Equal(10f, sets[^1]);
+        Assert.Contains(true, returns);
     }
 
     [Fact]

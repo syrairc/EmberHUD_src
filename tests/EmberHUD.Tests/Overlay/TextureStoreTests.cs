@@ -147,4 +147,43 @@ public sealed class TextureStoreTests : IDisposable
 
         Assert.Null(_store.Resolve(Key));
     }
+
+    [Fact]
+    public void ReleaseDisposesTheGpuTexture()
+    {
+        _store.TryUpload(Key, Solid(2, 2, 1, 2, 3), 2, 2, out _);
+        var texture = _store.TextureOf(Key)!;
+
+        _store.Release(Key);
+
+        Assert.Equal(nint.Zero, texture.NativePointer);
+        Assert.Null(_store.TextureOf(Key));
+        Assert.Null(_store.Resolve(Key));
+    }
+
+    [Fact]
+    public void DetachDisposesTheGpuTextures()
+    {
+        _store.TryUpload(Key, Solid(2, 2, 1, 2, 3), 2, 2, out _);
+        var texture = _store.TextureOf(Key)!;
+
+        _store.Detach();
+
+        Assert.Equal(nint.Zero, texture.NativePointer);
+        Assert.Null(_store.TextureOf(Key));
+    }
+
+    [Fact]
+    public void AttachingAgainDisposesTheTexturesTheOldDeviceHeld()
+    {
+        var pixels = Solid(2, 2, 9, 8, 7);
+        _store.TryUpload(Key, pixels, 2, 2, out _);
+        var before = _store.TextureOf(Key)!;
+
+        _store.Attach(_device, _context);
+
+        Assert.Equal(nint.Zero, before.NativePointer);
+        Assert.NotNull(_store.TextureOf(Key));
+        Assert.Equal(pixels, ReadBack(Key, _device, _context));
+    }
 }

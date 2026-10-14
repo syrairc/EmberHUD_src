@@ -205,15 +205,41 @@ public sealed class ThemeGradientsTests
                 });
             ThemeGradients.Apply(ImGui.GetDrawData(), Shades, TextRgb, [], Frames);
 
-            var data = ImGui.GetDrawData();
-            var colours = new List<uint>();
-            for (var n = 0; n < data.CmdListsCount; n++)
-            {
-                var list = data.CmdLists[n];
-                for (var i = 0; i < list.VtxBuffer.Size; i++) colours.Add(list.VtxBuffer[i].Col & 0xFFFFFF);
-            }
+            var colours = ImGuiScene.Vertices().Select(v => v.Col & 0xFFFFFF).ToList();
             Assert.DoesNotContain(SentinelRgb(0), colours);
             Assert.Contains(Gold.Bottom, colours);
+        }
+        finally
+        {
+            style.Colors[(int)ImGuiCol.Button] = saved;
+        }
+    }
+
+    [Fact]
+    public void TheBackgroundAndForegroundDrawListsAreLeftAlone()
+    {
+        var style = ImGui.GetStyle();
+        var saved = style.Colors[(int)ImGuiCol.Button];
+        try
+        {
+            style.Colors[(int)ImGuiCol.Button] = ThemeGradients.Sentinel(0, 1);
+            var tag = ImGui.ColorConvertFloat4ToU32(ThemeGradients.Sentinel(0, 1));
+            for (var frame = 0; frame < 2; frame++)
+                TestFrame.Run(() =>
+                {
+                    ImGui.GetBackgroundDrawList().AddRectFilled(new Vector2(5, 5), new Vector2(60, 40), tag);
+                    ImGui.GetForegroundDrawList().AddRectFilled(new Vector2(70, 5), new Vector2(120, 40), tag);
+                    ImGui.Begin("gradients");
+                    ImGui.Button("gold");
+                    ImGui.End();
+                });
+            ThemeGradients.Apply(ImGui.GetDrawData(), Shades, TextRgb, [], Frames);
+
+            var rgbs = ImGuiScene.Vertices().Select(v => v.Col & 0xFFFFFF).ToList();
+            var untouched = rgbs.Count(c => c == SentinelRgb(0));
+            var shaded = rgbs.Count(c => c == Gold.Bottom);
+            Assert.Equal(8, untouched);
+            Assert.True(shaded > 0);
         }
         finally
         {

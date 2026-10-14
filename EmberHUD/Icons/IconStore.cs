@@ -33,7 +33,7 @@ internal sealed class IconStore
     {
         try
         {
-            var files = GameIconIndex.Parse(File.ReadAllText(Path.Combine(directory, "index.json")));
+            var files = ParseIndex(File.ReadAllText(Path.Combine(directory, "index.json")));
             if (files.Count > 0) return new IconStore(directory, files, upload, resolve, inline);
             Log.Warn($"game icons off - no icons in {directory}\\index.json");
         }
@@ -81,5 +81,19 @@ internal sealed class IconStore
         {
             return new Decoded(name, null, ex.Message);
         }
+    }
+
+    internal static Dictionary<string, string> ParseIndex(string json)
+    {
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("icons", out var icons) || icons.ValueKind != JsonValueKind.Object) return files;
+
+        foreach (var icon in icons.EnumerateObject())
+        {
+            if (icon.Value.ValueKind != JsonValueKind.Object || !icon.Value.TryGetProperty("file", out var file) || file.ValueKind != JsonValueKind.String) continue;
+            if (file.GetString() is { Length: > 0 } name && Path.GetFileName(name) == name) files[icon.Name] = name;
+        }
+        return files;
     }
 }

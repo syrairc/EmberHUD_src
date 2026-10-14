@@ -76,9 +76,9 @@ public sealed class MapInfoTests
         plugin.Settings.General.Show = false;
         try
         {
-            TestGame.Set(GameState.Empty with { AreaId = 7, Map = Rainforest with { Remaining = 421 } });
+            TestGame.Set(GameState.Empty with { AreaId = 7, Area = Rainforest with { Remaining = 421 } });
             plugin.Tick();
-            TestGame.Set(GameState.Empty with { AreaId = 7, Map = Rainforest with { Remaining = 300 } });
+            TestGame.Set(GameState.Empty with { AreaId = 7, Area = Rainforest with { Remaining = 300 } });
             plugin.Tick();
             plugin.Settings.General.Show = true;
             plugin.Tick();
@@ -120,13 +120,13 @@ public sealed class MapInfoTests
     public void HiddenRules()
     {
         var settings = new Settings();
-        var inMap = GameState.Empty with { Map = Rainforest };
+        var inMap = GameState.Empty with { Area = Rainforest };
         Check.That(!Main.Hidden(settings, inMap), "map shows");
         Check.That(Main.Hidden(settings, GameState.Empty), "no map hides");
-        Check.That(Main.Hidden(settings, inMap with { Map = Rainforest with { IsTown = true } }), "town hides");
+        Check.That(Main.Hidden(settings, inMap with { Area = Rainforest with { IsTown = true } }), "town hides");
         Check.That(Main.Hidden(settings, inMap with { Ui = new GameUi([new GamePanel("Big_C", PanelKind.WorldMap, default, new(100, 100), true)]) }), "full-screen panel hides");
         settings.General.HideInTown = false;
-        Check.That(!Main.Hidden(settings, inMap with { Map = Rainforest with { IsTown = true } }), "town shows when the rule is off");
+        Check.That(!Main.Hidden(settings, inMap with { Area = Rainforest with { IsTown = true } }), "town shows when the rule is off");
         settings.General.Show = false;
         Check.That(Main.Hidden(settings, inMap), "toggled off hides");
     }
@@ -201,7 +201,7 @@ public sealed class MapInfoTests
         var plugin = new Main();
         TestGame.Set(GameState.Empty);
         Check.That(Drawn(plugin.Render) == 0, "no map, nothing drawn");
-        TestGame.Set(GameState.Empty with { Map = Rainforest });
+        TestGame.Set(GameState.Empty with { Area = Rainforest });
         Check.That(Drawn(plugin.Render) > 0, "map drawn");
         TestGame.Set(GameState.Empty);
     }
@@ -228,7 +228,7 @@ public sealed class MapInfoTests
     public void ALockedPanelKeepsItsPlace()
     {
         var plugin = new Main();
-        TestGame.Set(GameState.Empty with { Map = Rainforest });
+        TestGame.Set(GameState.Empty with { Area = Rainforest });
         TestInput.Hold();
         Drawn(plugin.Render);
         Check.Equal(40, plugin.Settings.General.X);

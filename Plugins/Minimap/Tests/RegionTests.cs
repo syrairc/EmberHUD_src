@@ -230,4 +230,31 @@ public sealed class RegionTests
         var wrong = new byte[5];
         Check.That(!ReferenceEquals(wrong, Region.Build(1, terrain, trail, null, Blue, White, null, wrong).Pixels), "a wrong-sized buffer is ignored");
     }
+
+    [Test]
+    public void OnlyThePointsUpToTheCountAreStamped()
+    {
+        var buffer = new[] { new Vector2(5, 5), new Vector2(45, 5) };
+
+        var region = Build(Row(5), new ExploredTrail(buffer, 1, 4));
+
+        Check.That(region.Explored[0], "the counted point");
+        Check.That(!region.Explored[4], "the point past the count");
+    }
+
+    [Test]
+    public void AGrowingSharedBufferOnlyStampsTheNewPointsOnTheKeptRegion()
+    {
+        var buffer = new Vector2[4];
+        buffer[0] = new Vector2(5, 5);
+        var terrain = Row(5);
+        var first = Build(terrain, new ExploredTrail(buffer, 1, 4));
+        buffer[1] = new Vector2(45, 5);
+
+        var second = Build(terrain, new ExploredTrail(buffer, 2, 4), previous: first);
+
+        Check.That(second.Explored[0] && second.Explored[4], "the old and the new point");
+        Check.That(first.Stale(new ExploredTrail(buffer, 2, 4), null, Blue, White), "the first region is stale once the count grows");
+        Check.That(!second.Stale(new ExploredTrail(buffer, 2, 4), null, Blue, White), "the same count over the same buffer is not stale");
+    }
 }

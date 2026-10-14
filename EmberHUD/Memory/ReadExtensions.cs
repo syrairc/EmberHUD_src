@@ -1,6 +1,15 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace EmberHUD.Host.Memory;
+
+internal interface IReadBackend
+{
+    bool TryRead(nint address, Span<byte> target);
+}
+
+internal delegate bool NodeVisitor(nint node, ReadOnlySpan<byte> bytes);
 
 internal static class ReadExtensions
 {
@@ -12,6 +21,9 @@ internal static class ReadExtensions
             return backend.TryRead(address, new Span<byte>(p, sizeof(T)));
         }
     }
+
+    public static bool TryRead<T>(this IReadBackend backend, nint address, Span<T> values) where T : unmanaged =>
+        backend.TryRead(address, MemoryMarshal.AsBytes(values));
 
     public static bool TryReadPtr(this IReadBackend backend, nint address, out nint value) =>
         backend.TryRead(address, out value) && value != 0;
@@ -29,36 +41,73 @@ internal static class ReadExtensions
         data = 0;
         elements = [];
         bits = [];
-        return backend.TryRead(map + Offsets.TArrayNum, out int num) && num > 0 && num <= max &&
-               backend.TryReadTMapAllocationBits(map, num, out bits) &&
-               backend.TryReadPtr(map, out data) &&
+        Span<byte> header = stackalloc byte[Offsets.TMapHeaderSize];
+        if (!backend.TryRead(map, header))
+            return false;
+
+        var num = BitConverter.ToInt32(header[Offsets.TArrayNum..]);
+        data = (nint)BitConverter.ToInt64(header);
+        return num > 0 && num <= max && backend.TryReadTMapAllocationBits(header, num, out bits) && data != 0 &&
                backend.TryReadArray(data, num * stride, out elements);
     }
 
     public static bool IsAllocated(uint[] bits, int i) => (bits[i >> 5] >> (i & 31) & 1) != 0;
 
-    public static (int Key, nint Value)[] ReadTMapPointers(this IReadBackend backend, nint map)
+    public static void ReadTMapPointers(this IReadBackend backend, nint map, List<(int Key, nint Value)> into)
     {
         if (!backend.TryReadTMapElements(map, Offsets.TMapElementStride, Offsets.MaxMapElements, out _, out var elements, out var bits))
-            return [];
+            return;
 
-        var live = new List<(int, nint)>();
         for (var i = 0; i < elements.Length / Offsets.TMapElementStride; i++)
         {
             var at = i * Offsets.TMapElementStride;
             var value = (nint)BitConverter.ToInt64(elements, at + Offsets.TMapElementValue);
             if (IsAllocated(bits, i) && value != 0)
-                live.Add((BitConverter.ToInt32(elements, at), value));
+                into.Add((BitConverter.ToInt32(elements, at), value));
         }
+    }
 
+    public static (int Key, nint Value)[] ReadTMapPointers(this IReadBackend backend, nint map)
+    {
+        List<(int Key, nint Value)> live = [];
+        backend.ReadTMapPointers(map, live);
         return [.. live];
     }
 
-    public static bool TryReadBuckets(this IReadBackend backend, nint countAt, nint bucketsAt, int max, out nint[] buckets)
+    public static bool TryWalkBuckets(this IReadBackend backend, nint countAt, nint bucketsAt, int maxBuckets, int nodeSize, int nextOffset, int maxNodes, NodeVisitor visit)
     {
-        buckets = [];
-        return backend.TryReadBucketTable(countAt, bucketsAt, max, out var count, out var array) &&
-               backend.TryReadArray(array, (int)count, out buckets);
+        if (!backend.TryReadBucketTable(countAt, bucketsAt, maxBuckets, out var count, out var array))
+            return false;
+
+        var heads = ArrayPool<nint>.Shared.Rent((int)count);
+        try
+        {
+            if (!backend.TryRead(array, heads.AsSpan(0, (int)count)))
+                return false;
+
+            Span<byte> node = stackalloc byte[nodeSize];
+            var visited = 0;
+            for (var bucket = 0; bucket < count; bucket++)
+            {
+                var chain = 0;
+                for (var at = heads[bucket]; at != 0;)
+                {
+                    if (chain++ >= Offsets.MaxChain || visited >= maxNodes || !backend.TryRead(at, node))
+                        return false;
+
+                    visited++;
+                    if (!visit(at, node))
+                        return true;
+                    at = (nint)BitConverter.ToInt64(node[nextOffset..]);
+                }
+            }
+
+            return true;
+        }
+        finally
+        {
+            ArrayPool<nint>.Shared.Return(heads);
+        }
     }
 
     public static bool TryFindHashNode(this IReadBackend backend, nint countAt, nint bucketsAt, int max, ulong hash, int nextOffset, Func<nint, bool> isMatch, out nint node)
@@ -94,14 +143,15 @@ internal static class ReadExtensions
     {
         obj = 0;
         serial = 0;
+        Span<byte> item = stackalloc byte[Offsets.GObjectsItemSize];
         if (index / Offsets.GObjectsPerChunk >= Offsets.MaxGObjectChunks ||
             !backend.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
             !backend.TryReadPtr(chunks + (nint)(index / Offsets.GObjectsPerChunk) * nint.Size, out var chunk) ||
-            !backend.TryReadArray(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, Offsets.GObjectsItemSize, out byte[] item))
+            !backend.TryRead(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, item))
             return false;
 
-        obj = (nint)BitConverter.ToInt64(item, Offsets.GObjectsItemObject);
-        serial = BitConverter.ToInt32(item, Offsets.GObjectsItemSerial);
+        obj = (nint)BitConverter.ToInt64(item[Offsets.GObjectsItemObject..]);
+        serial = BitConverter.ToInt32(item[Offsets.GObjectsItemSerial..]);
         return obj != 0;
     }
 
@@ -112,15 +162,64 @@ internal static class ReadExtensions
                backend.TryReadPtr(bucketsAt, out buckets);
     }
 
-    private static bool TryReadTMapAllocationBits(this IReadBackend backend, nint map, int num, out uint[] bits)
+    private static bool TryReadTMapAllocationBits(this IReadBackend backend, ReadOnlySpan<byte> header, int num, out uint[] bits)
     {
         bits = [];
-        if (!backend.TryRead(map + Offsets.TMapSecondaryBits, out nint secondary))
-            return false;
+        var secondary = (nint)BitConverter.ToInt64(header[Offsets.TMapSecondaryBits..]);
         if (secondary != 0)
             return backend.TryReadArray(secondary, (num + 31) / 32, out bits);
+        if (num > Offsets.TMapInlineBitCount)
+            return false;
 
-        return num <= Offsets.TMapInlineBitCount &&
-               backend.TryReadArray(map + Offsets.TMapInlineBits, Offsets.TMapInlineBitCount / 32, out bits);
+        bits = new uint[Offsets.TMapInlineBitCount / 32];
+        for (var i = 0; i < bits.Length; i++)
+            bits[i] = BitConverter.ToUInt32(header[(Offsets.TMapInlineBits + i * sizeof(uint))..]);
+        return true;
+    }
+}
+
+internal sealed class Names(IReadBackend memory, nint moduleBase)
+{
+    private readonly Dictionary<uint, string> _known = [];
+
+    public bool TryRead(uint index, out string name)
+    {
+        if (_known.TryGetValue(index, out var cached))
+        {
+            name = cached;
+            return true;
+        }
+
+        if (!TryReadFromPool(index, out name))
+            return false;
+
+        _known[index] = name;
+        return true;
+    }
+
+    public bool TryReadClassName(nint obj, out string name)
+    {
+        name = "";
+        return memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && memory.TryRead(cls + Offsets.UObjectName, out uint index) && TryRead(index, out name);
+    }
+
+    private bool TryReadFromPool(uint index, out string name)
+    {
+        name = "";
+        var block = index / Offsets.FNameBlockSize;
+        if (block >= Offsets.MaxFNameBlocks ||
+            !memory.TryReadPtr(moduleBase + Offsets.FNamePoolRva + Offsets.FNameBlocks + (nint)block * nint.Size, out var blockStart))
+            return false;
+
+        var entry = blockStart + (nint)(index % Offsets.FNameBlockSize) * Offsets.FNameEntryStride;
+        if (!memory.TryRead(entry, out ushort header) || (header & Offsets.FNameWideBit) != 0)
+            return false;
+
+        var length = header >> Offsets.FNameLengthShift;
+        if (length == 0 || length > Offsets.MaxNameLength || !memory.TryReadArray(entry + Offsets.FNameHeaderSize, length, out byte[] chars))
+            return false;
+
+        name = Encoding.ASCII.GetString(chars);
+        return true;
     }
 }

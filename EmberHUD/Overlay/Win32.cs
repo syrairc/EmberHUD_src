@@ -12,9 +12,19 @@ internal static partial class Win32
     public const long WS_EX_LAYERED = 0x00080000;
     public const long WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
     public const uint WS_POPUP = 0x80000000;
+    public const uint WS_OVERLAPPEDWINDOW = 0x00CF0000;
+    public const int CW_USEDEFAULT = unchecked((int)0x80000000);
+
+    public const int SW_SHOW = 5;
+    public const int SW_SHOWNOACTIVATE = 8;
+    public const int IDC_ARROW = 32512;
+    public const uint MB_ICONERROR = 0x10;
 
     public const uint WM_CLOSE = 0x0010;
     public const uint WM_QUIT = 0x0012;
+    public const uint WM_DESTROY = 0x0002;
+    public const uint WM_SIZE = 0x0005;
+    public const uint WM_GETMINMAXINFO = 0x0024;
 
     public const uint LWA_ALPHA = 0x0002;
 
@@ -39,6 +49,16 @@ internal static partial class Win32
 
     [StructLayout(LayoutKind.Sequential)]
     public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MinMaxInfo
+    {
+        public Point Reserved;
+        public Point MaxSize;
+        public Point MaxPosition;
+        public Point MinTrackSize;
+        public Point MaxTrackSize;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct WndClassEx
@@ -71,6 +91,10 @@ internal static partial class Win32
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool DestroyWindow(nint hwnd);
+
+    [LibraryImport("user32.dll", EntryPoint = "UnregisterClassW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool UnregisterClass(string className, nint instance);
 
     [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
     public static partial nint DefWindowProc(nint hwnd, uint msg, nint wparam, nint lparam);
@@ -119,6 +143,12 @@ internal static partial class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ShowWindow(nint hwnd, int cmd);
 
+    [LibraryImport("user32.dll", EntryPoint = "LoadCursorW")]
+    public static partial nint LoadCursor(nint instance, nint name);
+
+    [LibraryImport("user32.dll", EntryPoint = "MessageBoxW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int MessageBox(nint owner, string text, string caption, uint type);
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool SetProcessDpiAwarenessContext(nint value);
@@ -145,6 +175,10 @@ internal static partial class Win32
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetClientRect(nint hwnd, out Rect rect);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindow(nint hwnd);
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -224,6 +258,45 @@ internal static partial class Win32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ChangeWindowMessageFilterEx(nint hwnd, uint message, uint action, nint filterStatus);
+
+    public static (nint Handle, string ClassName) CreateWindow(string classPrefix, WndProcDelegate proc, uint exStyle, uint style, string title, int x, int y, int width, int height, nint icon = 0, nint iconSm = 0, nint cursor = 0)
+    {
+        var className = $"{classPrefix}_{Guid.NewGuid():N}";
+        var instance = GetModuleHandle(null);
+        var classNamePtr = Marshal.StringToHGlobalUni(className);
+        try
+        {
+            var cls = new WndClassEx
+            {
+                CbSize = (uint)Marshal.SizeOf<WndClassEx>(),
+                WndProc = Marshal.GetFunctionPointerForDelegate(proc),
+                Instance = instance,
+                Icon = icon,
+                IconSm = iconSm,
+                Cursor = cursor,
+                ClassName = classNamePtr,
+            };
+            if (RegisterClassExW(ref cls) == 0) throw new InvalidOperationException($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
+            var handle = CreateWindowExW(exStyle, className, title, style, x, y, width, height, 0, 0, instance, 0);
+            if (handle == 0)
+            {
+                var error = Marshal.GetLastWin32Error();
+                UnregisterClass(className, instance);
+                throw new InvalidOperationException($"CreateWindowEx failed: {error}");
+            }
+            return (handle, className);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(classNamePtr);
+        }
+    }
+
+    public static void DestroyWindowAndClass(nint hwnd, string className)
+    {
+        DestroyWindow(hwnd);
+        UnregisterClass(className, GetModuleHandle(null));
+    }
 
     public static bool PumpMessages(ref bool quit)
     {

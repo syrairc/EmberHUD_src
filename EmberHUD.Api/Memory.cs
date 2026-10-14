@@ -35,10 +35,10 @@ public static class Memory
         value = default;
         fixed (T* p = &value)
         {
-            return Read(at, new Span<byte>(p, sizeof(T))) == sizeof(T);
+            return Read(at, new Span<byte>(p, sizeof(T)));
         }
     }
 
-    public static int Read(nint at, Span<byte> into) =>
-        !into.IsEmpty && at != 0 && _source is { } source && source.Read(at, into) ? into.Length : 0;
+    public static bool Read(nint at, Span<byte> into) =>
+        !into.IsEmpty && at != 0 && _source is { } source && source.Read(at, into);
 }

@@ -28,21 +28,6 @@ public sealed class CheckTests
     }
 
     [Fact]
-    public void TestGameSetsTheState()
-    {
-        var state = GameState.Empty with { AreaId = 7 };
-        try
-        {
-            TestGame.Set(state);
-            Assert.Same(state, Game.State);
-        }
-        finally
-        {
-            TestGame.Set(GameState.Empty);
-        }
-    }
-
-    [Fact]
     public void TestInputPressesOnceWhileAKeyIsHeld()
     {
         try

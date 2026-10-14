@@ -1,3 +1,4 @@
+using EmberHUD.Testing;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
@@ -5,24 +6,21 @@ namespace EmberHUD.Api.Tests;
 
 public sealed class ControlsTests : IDisposable
 {
-    readonly HashSet<int> _keys = [];
     Hotkey _value = new(Key.F8);
     bool _changed;
     Vector2 _button;
 
     public ControlsTests()
     {
-        Input.KeyDown = _keys.Contains;
         Input.CancelCapture();
-        Input.NewFrame(false);
-        Input.NewFrame(false);
+        TestInput.Hold();
+        TestInput.Hold();
     }
 
     public void Dispose()
     {
-        _keys.Clear();
         Input.CancelCapture();
-        Input.NewFrame(false);
+        TestInput.Hold();
     }
 
     void Body()
@@ -43,8 +41,7 @@ public sealed class ControlsTests : IDisposable
         ClickTheButton("hotkey capture");
         Assert.True(Input.Capturing);
 
-        _keys.UnionWith([0x11, 0x74]);
-        Input.NewFrame(false);
+        TestInput.Hold(Key.Ctrl, Key.F5);
         UiFrame.Run("hotkey capture", Body);
 
         Assert.True(_changed);
@@ -56,8 +53,7 @@ public sealed class ControlsTests : IDisposable
     public void EscapeLeavesTheBindingAlone()
     {
         ClickTheButton("hotkey escape");
-        _keys.Add(0x1B);
-        Input.NewFrame(false);
+        TestInput.Hold(Key.Escape);
         UiFrame.Run("hotkey escape", Body);
 
         Assert.False(_changed);
@@ -97,8 +93,7 @@ public sealed class ControlsTests : IDisposable
         UiFrame.Run("hotkey prompt", Body);
         Assert.NotEqual(idle, Drawn("hotkey prompt", _value, "toggle"));
 
-        _keys.Add(0x1B);
-        Input.NewFrame(false);
+        TestInput.Hold(Key.Escape);
         UiFrame.Run("hotkey prompt", Body);
         Assert.False(Input.Capturing);
         Assert.Equal(idle, Drawn("hotkey prompt", _value, "toggle"));
@@ -141,14 +136,99 @@ public sealed class ControlsTests : IDisposable
 
     static List<(Vector2 Pos, Vector2 Uv)> Drawn(string window, Hotkey value, string id)
     {
-        List<(Vector2, Vector2)> drawn = [];
+        List<(Vector2 Pos, Vector2 Uv)> drawn = [];
+        UiFrame.Run(window, () => drawn = UiFrame.Drawn(() => Controls.Hotkey("", ref value, id)).Select(v => (v.Pos, v.Uv)).ToList());
+        return drawn;
+    }
+
+    sealed class Probe(bool two = false, bool none = false) : Plugin
+    {
+        public override void Initialize()
+        {
+            if (none) return;
+            RegisterHotkey("Toggle", "Shows it", () => { }, new Hotkey(Key.F1));
+            if (two) RegisterHotkey("Unbound", "No default", () => { });
+        }
+    }
+
+    static Probe Started(bool two = false, bool none = false)
+    {
+        var plugin = new Probe(two, none);
+        plugin.Initialize();
+        return plugin;
+    }
+
+    static Vector2 DrawAndMeasureLastItem(string window, Plugin plugin)
+    {
+        var centre = Vector2.Zero;
         UiFrame.Run(window, () =>
         {
-            var list = ImGui.GetWindowDrawList();
-            var before = list.VtxBuffer.Size;
-            Controls.Hotkey("", ref value, id);
-            for (var i = before; i < list.VtxBuffer.Size; i++) drawn.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Uv));
+            Controls.HotkeyTable(plugin);
+            centre = (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2;
         });
-        return drawn;
+        return centre;
+    }
+
+    [Fact]
+    public void APluginWithNoHotkeysDrawsNothing()
+    {
+        var plugin = Started(none: true);
+        int before = -1, after = -1;
+        UiFrame.Run("hotkey table empty", () =>
+        {
+            var list = ImGui.GetWindowDrawList();
+            before = list.VtxBuffer.Size;
+            Controls.HotkeyTable(plugin);
+            after = list.VtxBuffer.Size;
+        });
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
+    public void ResetPutsTheDefaultBack()
+    {
+        var plugin = Started();
+        var binding = plugin.Hotkeys[0];
+        binding.Value = new Hotkey(Key.F2);
+        var reset = DrawAndMeasureLastItem("hotkey table reset", plugin);
+
+        UiFrame.Click("hotkey table reset", reset, () => Controls.HotkeyTable(plugin));
+
+        Assert.Equal(binding.Default, binding.Value);
+    }
+
+    [Fact]
+    public void ResetIsGoneWhileTheBindingIsTheDefault()
+    {
+        var plugin = Started();
+        var binding = plugin.Hotkeys[0];
+        var withoutReset = DrawAndMeasureLastItem("hotkey table no reset", plugin);
+        binding.Value = new Hotkey(Key.F2);
+        var withReset = DrawAndMeasureLastItem("hotkey table no reset", plugin);
+
+        Assert.True(withReset.X > withoutReset.X);
+    }
+
+    [Fact]
+    public void TheConflictHookIsAskedForBoundKeysOnly()
+    {
+        var plugin = Started(two: true);
+        List<(Hotkey Key, HotkeyBinding? Binding)> asked = [];
+        Controls.HotkeyConflict = (key, binding) =>
+        {
+            asked.Add((key, binding));
+            return null;
+        };
+        try
+        {
+            UiFrame.Run("hotkey table conflict", () => Controls.HotkeyTable(plugin));
+        }
+        finally
+        {
+            Controls.HotkeyConflict = (_, _) => null;
+        }
+
+        Assert.Contains(asked, entry => entry.Key == new Hotkey(Key.F1) && entry.Binding == plugin.Hotkeys[0]);
+        Assert.DoesNotContain(asked, entry => entry.Binding == plugin.Hotkeys[1]);
     }
 }

@@ -14,7 +14,7 @@ public sealed record Walls(int AreaId, Terrain? Source, Vector2[] Lines, Vector2
     {
         if (terrain is null) return new Walls(areaId, null, [], default, default, []);
 
-        var edges = WallExtractor.Extract(terrain);
+        var edges = terrain.Walls();
         var lines = new List<Vector2>();
         foreach (var wall in edges)
         {

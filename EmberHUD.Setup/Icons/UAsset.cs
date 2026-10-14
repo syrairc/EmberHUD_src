@@ -1,30 +1,29 @@
-using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
 using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
+using EmberHUD.Setup.Pak;
 using SkiaSharp;
 
 namespace EmberHUD.Setup.Icons;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record MapIconRow(int Id, string Key, string Label, string Texture, int Priority);
 
 internal static class UAsset
 {
     public static string[] Names(byte[] uasset)
     {
-        var at = 20;
-        at += 4 + BitConverter.ToInt32(uasset, at) * 20;
-        at += 4;
-        (_, at) = FString(uasset, at);
-        var count = BitConverter.ToInt32(uasset, at + 4);
-        at = BitConverter.ToInt32(uasset, at + 8);
+        var cursor = new Cursor(uasset, 20);
+        cursor.Take(cursor.I32() * 20);
+        cursor.Take(4);
+        cursor.FString();
+        cursor.Take(4);
+        var count = cursor.I32();
+        cursor.At = cursor.I32();
         var names = new string[count];
         for (var i = 0; i < count; i++)
         {
-            (names[i], at) = FString(uasset, at);
-            at += 4;
+            names[i] = cursor.FString();
+            cursor.Take(4);
         }
         return names;
     }
@@ -33,36 +32,33 @@ internal static class UAsset
     {
         var at = uexp.AsSpan().IndexOf("PF_"u8);
         if (at < 4) throw new InvalidDataException("no pixel format");
-        var (format, p) = FString(uexp, at - 4);
-        var mips = BitConverter.ToInt32(uexp, p + 4);
-        p += 8;
+        var cursor = new Cursor(uexp, at - 4);
+        var format = cursor.FString();
+        cursor.Take(4);
+        var mips = cursor.I32();
         for (var i = 0; i < mips; i++)
         {
-            var flags = BitConverter.ToUInt32(uexp, p + 4);
-            p += 8;
+            cursor.Take(4);
+            var flags = cursor.U32();
             long disk, offset;
             if ((flags & 0x2000) != 0)
             {
-                disk = BitConverter.ToInt64(uexp, p + 8);
-                offset = BitConverter.ToInt64(uexp, p + 16);
-                p += 24;
+                cursor.Take(8);
+                disk = cursor.I64();
+                offset = cursor.I64();
             }
             else
             {
-                disk = BitConverter.ToInt32(uexp, p + 4);
-                offset = BitConverter.ToInt64(uexp, p + 8);
-                p += 16;
+                cursor.Take(4);
+                disk = cursor.I32();
+                offset = cursor.I64();
             }
             byte[]? data = null;
             if ((flags & 0x100) != 0) data = ubulk is null ? null : ubulk[(int)offset..(int)(offset + disk)];
-            else if ((flags & 0x21) == 0)
-            {
-                data = uexp[p..(p + (int)disk)];
-                p += (int)disk;
-            }
-            var width = BitConverter.ToInt32(uexp, p);
-            var height = BitConverter.ToInt32(uexp, p + 4);
-            p += 12;
+            else if ((flags & 0x21) == 0) data = cursor.Take((int)disk).ToArray();
+            var width = cursor.I32();
+            var height = cursor.I32();
+            cursor.Take(4);
             if (data is { Length: > 0 }) return (Decode(format, data, width, height), width, height, format);
         }
         throw new InvalidDataException($"no mip with data ({format})");
@@ -111,21 +107,23 @@ internal static class UAsset
         BitConverter.TryWriteBytes(tag[8..], structName);
         var at = uexp.AsSpan().IndexOf(tag);
         if (at < 0 || at + 57 > uexp.Length) throw new InvalidDataException($"no {property}");
-        return (BitConverter.ToSingle(uexp, at + 49), BitConverter.ToSingle(uexp, at + 53));
+        var cursor = new Cursor(uexp, at + 49);
+        return (cursor.F32(), cursor.F32());
     }
 
     public static List<MapIconRow> MapIconConfig(byte[] data)
     {
         List<MapIconRow> rows = [];
-        var at = 8;
-        while (at < data.Length)
+        var cursor = new Cursor(data, 8);
+        while (!cursor.AtEnd)
         {
-            var id = BitConverter.ToInt32(data, at);
-            var (key, next) = FString(data, at + 8);
-            var (label, afterLabel) = FString(data, next);
-            var (texture, afterTexture) = FString(data, afterLabel);
-            rows.Add(new MapIconRow(id, key, label, texture, BitConverter.ToInt32(data, afterTexture)));
-            at = afterTexture + 5;
+            var id = cursor.I32();
+            cursor.Take(4);
+            var key = cursor.FString();
+            var label = cursor.FString();
+            var texture = cursor.FString();
+            rows.Add(new MapIconRow(id, key, label, texture, cursor.I32()));
+            cursor.At += 1;
         }
         return rows;
     }
@@ -135,13 +133,5 @@ internal static class UAsset
         using var image = SKImage.FromPixelCopy(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul), rgba);
         using var png = image.Encode(SKEncodedImageFormat.Png, 100);
         File.WriteAllBytes(path, png.ToArray());
-    }
-
-    static (string Text, int Next) FString(byte[] data, int at)
-    {
-        var length = BitConverter.ToInt32(data, at);
-        at += 4;
-        if (length < 0) return (Encoding.Unicode.GetString(data, at, -length * 2).TrimEnd('\0'), at - length * 2);
-        return (Encoding.UTF8.GetString(data, at, length).TrimEnd('\0'), at + length);
     }
 }

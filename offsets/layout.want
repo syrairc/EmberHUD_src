@@ -39,6 +39,7 @@ HashBucketCount = 12
 TMapInlineBits = 16
 TMapSecondaryBits = 32
 TMapInlineBitCount = 128
+TMapHeaderSize = 40
 TMapElementStride = 24
 TMapElementValue = 8
 
@@ -67,12 +68,14 @@ NodeSize = 32
 GeometryCellSize = 56
 GeometryOriginX = 128
 GeometryOriginY = 136
+GeometryHeaderSize = 144
 
 GridModuleHybrid = 56
 HybridCols = 8
 HybridRows = 12
 HybridCells = 16
 HybridIsHybrid = 24
+HybridHeaderSize = 32
 HybridBlockW = 28
 HybridBlockH = 32
 HybridBlocksPerRow = 36
@@ -94,6 +97,7 @@ RoleRarity = 32
 PositionX = 40
 
 MaxEntities = 4096
+MaxTornReuseTicks = 3
 MaxMapElements = 20000
 
 FNamePoolRva = 0x7FBCC80
@@ -174,6 +178,7 @@ VarNodeName = 0
 VarNodeNameLength = 8
 VarNodeValue = 24
 VarNodeNext = 40
+VarNodeSize = 48
 MaxVarBuckets = 4096
 MaxVarNameLength = 256
 LanguageRva = 0x766E6EA
@@ -186,6 +191,7 @@ LocNodeKeyLength = 8
 LocNodeValue = 16
 LocNodeHash = 24
 LocNodeNext = 32
+LocNodeSize = 40
 LocValueText = 32
 LocValueLength = 40
 MaxLocBuckets = 4000000
@@ -219,6 +225,7 @@ StatueClassPrefix = "EMapGodOf"
 
 MaxSaveRecords = 64
 MaxExploredPoints = 65536
+ExploredRefreshMilliseconds = 250
 
 MinimapClassName = "MiniMap_C"
 DefaultObjectPrefix = "Default__"
@@ -271,6 +278,7 @@ CameraCache = 0x1BE0
 PovLocation = 0x10
 PovRotation = 0x1C
 PovFov = 0x28
+CameraPovSize = 44
 
 GEngineGlobalRva = 0x811CCB0
 EngineGameViewport = 0x8C8
@@ -296,6 +304,7 @@ MaxWidgetDepth = 16
 MaxWidgetNodes = 2048
 MaxPanelPixels = 16384
 RectChildRetryMilliseconds = 1000
+UiRootRefreshMilliseconds = 500
 PageHostClassName = "UIPageHost_C"
 PanelWidgetClassName = "PanelWidget"
 UserWidgetClassName = "UserWidget"

@@ -13,7 +13,7 @@ public sealed class StateToolsTests
     static Entity Mob(int id, int cfgId, float x, EntityKind kind = EntityKind.Monster, Rarity rarity = Rarity.Normal, nint address = 0) =>
         new(id, cfgId, new Vector3(x, 0, 0), kind, rarity) { Address = address };
 
-    static void Use(params Entity[] entities) => TestGame.Set(new GameState("playing", 12, new Player(Vector3.Zero, Vector2.UnitX), entities, null));
+    static void Use(params Entity[] entities) => TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(Vector3.Zero, Vector2.UnitX), Entities = entities });
 
     static JsonArray Entities(JsonObject args) => Wire.Run(Tools, "get_entities", args)["entities"]!.AsArray();
 
@@ -50,8 +50,12 @@ public sealed class StateToolsTests
     [Test]
     public void StateCountsEntitiesAndShowsPlayerAndCamera()
     {
-        var state = new GameState("playing", 12, new Player(new Vector3(1, 2, 3), new Vector2(0, 1)), [Mob(1, 5, 10), Mob(2, 5, 20, rarity: Rarity.Rare), Mob(3, 9, 30, EntityKind.Portal)], null)
+        var state = new GameState
         {
+            Status = "playing",
+            AreaId = 12,
+            Player = new Player(new Vector3(1, 2, 3), new Vector2(0, 1)),
+            Entities = [Mob(1, 5, 10), Mob(2, 5, 20, rarity: Rarity.Rare), Mob(3, 9, 30, EntityKind.Portal)],
             Camera = new Camera(new Vector3(1, 2, 3), new Vector3(-45, 90, 0), 80),
         };
         TestGame.Set(state);
@@ -93,7 +97,7 @@ public sealed class StateToolsTests
     [Test]
     public void GetStateShowsTheMap()
     {
-        TestGame.Set(GameState.Empty with { Map = new EmberHUD.MapInfo("Rainforest", 78, 272, null, false, [new MapContent("Vigil", "svg:quest", ContentState.Done), new MapContent("The Devil", "game:x", ContentState.Active, 1, 2)], ["+15% Drop Quantity"]) });
+        TestGame.Set(GameState.Empty with { Area = new EmberHUD.MapInfo("Rainforest", 78, 272, null, false, [new MapContent("Vigil", "svg:quest", ContentState.Done), new MapContent("The Devil", "game:x", ContentState.Active, 1, 2)], ["+15% Drop Quantity"]) });
         var map = Wire.Run(Tools, "get_state")["map"]!;
         Check.Equal("Rainforest", (string?)map["name"]);
         Check.Equal(78, (int)map["monsterLevel"]!);
@@ -152,14 +156,14 @@ public sealed class StateToolsTests
         Check.That(Wire.Fails(Tools, "get_entities", new JsonObject { ["rarity"] = "Epic" }).Contains("Rare"), "rarities listed");
         Check.That(Wire.Fails(Tools, "get_entities", new JsonObject { ["limit"] = 0 }).Contains("between"), "limit range");
         Check.That(Wire.Fails(Tools, "get_entities", new JsonObject { ["address"] = "banana" }).Contains("hex"), "address");
-        TestGame.Set(new GameState("playing", 1, null, [Mob(1, 5, 10)], null));
+        TestGame.Set(new GameState { Status = "playing", AreaId = 1, Entities = [Mob(1, 5, 10)] });
         Check.That(Wire.Fails(Tools, "get_entities", new JsonObject { ["radius"] = 5 }).Contains("player"), "radius needs a player");
     }
 
     [Test]
     public void NonFiniteFloatsBecomeNullAndStillSerialise()
     {
-        TestGame.Set(new GameState("playing", 1, new Player(Vector3.Zero, Vector2.UnitX), [new Entity(1, 5, new Vector3(float.NaN, float.PositiveInfinity, 1), EntityKind.Monster, Rarity.Normal)], null));
+        TestGame.Set(new GameState { Status = "playing", AreaId = 1, Player = new Player(Vector3.Zero, Vector2.UnitX), Entities = [new Entity(1, 5, new Vector3(float.NaN, float.PositiveInfinity, 1), EntityKind.Monster, Rarity.Normal)] });
         var row = Entities(new JsonObject())[0]!;
         Check.That(row["x"] is null && row["y"] is null, "null, not NaN");
         Check.That(row.ToJsonString().Contains("\"z\":1"), "finite kept");

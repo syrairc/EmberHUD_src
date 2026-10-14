@@ -103,7 +103,7 @@ internal static class StateTools
             result["player"] = new JsonObject { ["x"] = Num.F(player.Position.X), ["y"] = Num.F(player.Position.Y), ["z"] = Num.F(player.Position.Z), ["forwardX"] = Num.F(player.Forward.X), ["forwardY"] = Num.F(player.Forward.Y) };
         if (state.Camera is { } camera)
             result["camera"] = new JsonObject { ["x"] = Num.F(camera.Location.X), ["y"] = Num.F(camera.Location.Y), ["z"] = Num.F(camera.Location.Z), ["pitch"] = Num.F(camera.Rotation.X), ["yaw"] = Num.F(camera.Rotation.Y), ["roll"] = Num.F(camera.Rotation.Z), ["fov"] = Num.F(camera.Fov) };
-        if (state.Map is { } map)
+        if (state.Area is { } map)
             result["map"] = new JsonObject
             {
                 ["name"] = map.Name,

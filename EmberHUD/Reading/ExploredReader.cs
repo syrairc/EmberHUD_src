@@ -5,62 +5,91 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class ExploredReader(IReadBackend memory)
+internal sealed class ExploredReader(IReadBackend memory, Func<long>? clockMilliseconds = null)
 {
-    private readonly List<Vector2> _points = [];
+    private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
+    private Vector2[] _buffer = [];
+    private int _count;
     private nint _widget;
-    private string _key = "";
+    private (int Level, int Instance) _level;
+    private string? _key;
+    private nint _record;
+    private nint _mapData;
+    private int? _generation;
+    private long _nextAt;
     private ExploredTrail? _trail;
 
-    public ExploredTrail? Read(nint widget, nint scene)
+    public ExploredTrail? Read(nint widget, nint geometry, int generation)
     {
-        if (widget == 0 || !TryReadKey(scene, out var key))
+        if (widget == 0)
             return null;
-        if (widget != _widget || key != _key)
+
+        var now = _clock();
+        if (widget == _widget && generation == _generation && now < _nextAt)
+            return _trail;
+        _generation = generation;
+        _nextAt = now + Offsets.ExploredRefreshMilliseconds;
+
+        if (!TryReadLevel(geometry, out var level))
+            return _trail = null;
+        if (widget != _widget || level != _level)
         {
+            Restart();
             _widget = widget;
-            _key = key;
-            _points.Clear();
-            _trail = null;
+            _level = level;
         }
 
         if (!TryReadRadius(widget, out var radius) ||
             !memory.TryReadPtr(widget + Offsets.MinimapSaveObject, out var save) ||
-            !TryFindRecord(save + Offsets.SaveRecords, key, out var record) ||
+            !TryResolveRecord(save + Offsets.SaveRecords, out var record) ||
             !memory.TryRead(record + Offsets.SaveRecordPos, out nint data) ||
             !memory.TryRead(record + Offsets.SaveRecordPos + Offsets.TArrayNum, out int count) || count < 0)
             return _trail;
 
         count = Math.Min(count, Offsets.MaxExploredPoints);
-        if (count < _points.Count)
+        if (count < _count)
         {
-            _points.Clear();
+            _buffer = [];
+            _count = 0;
             _trail = null;
         }
 
-        if (count > _points.Count)
+        if (count > _count)
         {
-            if (!memory.TryReadArray(data + _points.Count * Offsets.SavePointStride, (count - _points.Count) * Offsets.SavePointStride, out byte[] bytes))
+            var added = count - _count;
+            if (!memory.TryReadArray(data + _count * Offsets.SavePointStride, added * Offsets.SavePointStride, out byte[] bytes))
                 return _trail;
-            for (var at = 0; at < bytes.Length; at += Offsets.SavePointStride)
-                _points.Add(MemoryMarshal.Read<Vector2>(bytes.AsSpan(at)));
+            if (_buffer.Length < count)
+                Array.Resize(ref _buffer, Math.Max(count, _buffer.Length * 2));
+            for (var i = 0; i < added; i++)
+                _buffer[_count + i] = MemoryMarshal.Read<Vector2>(bytes.AsSpan(i * Offsets.SavePointStride));
+            _count = count;
             _trail = null;
         }
 
         if (_trail is null || _trail.Radius != radius)
-            _trail = new ExploredTrail([.. _points], radius);
+            _trail = new ExploredTrail(_buffer, _count, radius);
         return _trail;
     }
 
-    private bool TryReadKey(nint scene, out string key)
+    private void Restart()
     {
-        key = "";
-        if (!memory.TryReadPtr(scene + Offsets.SceneGeometry, out var geometry) ||
-            !memory.TryRead(geometry + Offsets.GeometryLevelId, out int level) ||
+        _buffer = [];
+        _count = 0;
+        _key = null;
+        _record = 0;
+        _trail = null;
+    }
+
+    private bool TryReadLevel(nint geometry, out (int Level, int Instance) level)
+    {
+        level = default;
+        if (geometry == 0 ||
+            !memory.TryRead(geometry + Offsets.GeometryLevelId, out int id) ||
             !memory.TryRead(geometry + Offsets.GeometryLevelInstance, out int instance))
             return false;
 
-        key = string.Format(CultureInfo.InvariantCulture, Offsets.ExploredRecordKey, level, instance);
+        level = (id, instance);
         return true;
     }
 
@@ -73,6 +102,38 @@ internal sealed class ExploredReader(IReadBackend memory)
 
         radius = 0.5f * brush * side;
         return float.IsFinite(radius) && radius > 0;
+    }
+
+    private bool TryResolveRecord(nint map, out nint record)
+    {
+        record = 0;
+        Span<byte> header = stackalloc byte[Offsets.TMapHeaderSize];
+        if (!memory.TryRead(map, header))
+            return false;
+
+        var data = (nint)BitConverter.ToInt64(header);
+        if (_record != 0 && data == _mapData && RecordHasKey(_record))
+        {
+            record = _record;
+            return true;
+        }
+
+        _record = 0;
+        _key ??= string.Format(CultureInfo.InvariantCulture, Offsets.ExploredRecordKey, _level.Level, _level.Instance);
+        if (!TryFindRecord(map, _key, out record))
+            return false;
+
+        _record = record;
+        _mapData = data;
+        return true;
+    }
+
+    private bool RecordHasKey(nint record)
+    {
+        var key = _key!;
+        Span<char> chars = stackalloc char[key.Length];
+        return memory.TryReadPtr(record, out var text) && memory.TryRead(record + Offsets.TArrayNum, out int length) &&
+               length == key.Length + 1 && memory.TryRead(text, chars) && chars.SequenceEqual(key);
     }
 
     private bool TryFindRecord(nint map, string key, out nint record)

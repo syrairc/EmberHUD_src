@@ -5,18 +5,18 @@ namespace EmberHUD.Tests;
 internal sealed class FakeUi
 {
     private readonly FakeWorld _world;
-    private readonly long _overlaySlots;
-    private readonly List<long> _roots = [];
-    private readonly long _panelWidget;
-    private readonly long _userWidget;
+    private readonly nint _overlaySlots;
+    private readonly List<nint> _roots = [];
+    private readonly nint _panelWidget;
+    private readonly nint _userWidget;
 
     public FakeUi(FakeWorld world, Vector2? origin = null)
     {
         _world = world;
-        world.Memory.Map(FakeWorld.ModuleBase + Offsets.GEngineGlobalRva, 8);
+        world.Memory.Map(FakeWorld.Module + Offsets.GEngineGlobalRva, 8);
         var engine = world.Alloc(0x1000);
         var viewport = world.Alloc(0x1000);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GEngineGlobalRva, engine);
+        world.Memory.Write(FakeWorld.Module + Offsets.GEngineGlobalRva, engine);
         world.Memory.Write(engine + Offsets.EngineGameViewport, viewport);
         Overlay = Slate(origin ?? Vector2.Zero, new Vector2(3440, 1440));
         WeakPtr(viewport + Offsets.ViewportOverlay, Overlay);
@@ -27,11 +27,11 @@ internal sealed class FakeUi
         Engine = engine;
     }
 
-    public long Engine { get; }
+    public nint Engine { get; }
 
-    public long Overlay { get; }
+    public nint Overlay { get; }
 
-    public long Slate(Vector2 position, Vector2 size, float scale = 1)
+    public nint Slate(Vector2 position, Vector2 size, float scale = 1)
     {
         var widget = _world.Alloc(0x1000);
         _world.Memory.WriteArray(widget + Offsets.SWidgetSize, new[] { size.X, size.Y });
@@ -39,7 +39,7 @@ internal sealed class FakeUi
         return widget;
     }
 
-    public void WeakPtr(long at, long target, int shared = 1)
+    public void WeakPtr(nint at, nint target, int shared = 1)
     {
         var controller = _world.Alloc(0x40);
         _world.Memory.Write(controller + Offsets.RefControllerShared, shared);
@@ -47,11 +47,11 @@ internal sealed class FakeUi
         _world.Memory.Write(at + Offsets.WeakPtrController, controller);
     }
 
-    public long UserClass(string name) => SubClass(name, _userWidget);
+    public nint UserClass(string name) => SubClass(name, _userWidget);
 
-    public long PanelClass(string name) => SubClass(name, _panelWidget);
+    public nint PanelClass(string name) => SubClass(name, _panelWidget);
 
-    public long Widget(long cls, string name, Vector2 position, Vector2 size, byte visibility = 4, uint nameNumber = 0)
+    public nint Widget(nint cls, string name, Vector2 position, Vector2 size, byte visibility = 4, uint nameNumber = 0)
     {
         var widget = _world.AddObject(cls, name, nameNumber);
         _world.Memory.Write(widget + Offsets.UWidgetVisibility, visibility);
@@ -59,7 +59,7 @@ internal sealed class FakeUi
         return widget;
     }
 
-    public void AddRoot(long userWidget)
+    public void AddRoot(nint userWidget)
     {
         var objectWidget = _world.Alloc(0x1000);
         _world.Memory.Write(objectWidget + Offsets.ObjectWidgetObject, userWidget);
@@ -73,7 +73,7 @@ internal sealed class FakeUi
         _world.Memory.Write(Overlay + Offsets.OverlayChildren + Offsets.PanelChildrenSlots + Offsets.TArrayNum, _roots.Count);
     }
 
-    public long Host(long page)
+    public nint Host(nint page)
     {
         var host = Widget(UserClass(Offsets.PageHostClassName), "UIPageHost_C_1", Vector2.Zero, new Vector2(3440, 1440));
         var content = Widget(PanelClass("NamedSlot"), "ContentHost", Vector2.Zero, new Vector2(3440, 1440));
@@ -82,7 +82,7 @@ internal sealed class FakeUi
         return host;
     }
 
-    public void SetChildren(long panel, params long[] children)
+    public void SetChildren(nint panel, params nint[] children)
     {
         var slots = _world.Alloc(8 * Math.Max(1, children.Length));
         for (var i = 0; i < children.Length; i++)
@@ -95,14 +95,14 @@ internal sealed class FakeUi
         _world.Memory.Write(panel + Offsets.PanelSlots + Offsets.TArrayNum, children.Length);
     }
 
-    public void SetTree(long userWidget, long root)
+    public void SetTree(nint userWidget, nint root)
     {
         var tree = _world.Alloc(0x40);
         _world.Memory.Write(tree + Offsets.WidgetTreeRoot, root);
         _world.Memory.Write(userWidget + Offsets.UserWidgetTree, tree);
     }
 
-    public void Text(long widget, int offset, string text)
+    public void Text(nint widget, int offset, string text)
     {
         var chars = _world.Alloc((text.Length + 1) * 2);
         _world.Memory.WriteArray(chars, System.Text.Encoding.Unicode.GetBytes(text + "\0"));
@@ -112,14 +112,42 @@ internal sealed class FakeUi
         _world.Memory.Write(widget + offset, data);
     }
 
-    private long SubClass(string name, long super)
+    public (nint Box, nint DetailRoot) MapHud(string[] lines, bool hosted = false, string? hiddenLine = null)
+    {
+        var hud = Widget(UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var hudRoot = Widget(PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
+        var detail = Widget(UserClass("FightMapDetailView_C"), "FightMapDetailView_C_1", Vector2.Zero, new Vector2(400, 300));
+        var detailRoot = Widget(PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(400, 300));
+        var xp = Widget(PanelClass("UIShrinkTextBlock"), Offsets.MapXpWidget, Vector2.Zero, new Vector2(200, 20));
+        var box = Widget(PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
+        var richClass = UserClass("UIRichTextBlock");
+        var items = lines.Select((text, i) => RichLine(richClass, i + 1, text, 4)).ToList();
+        if (hiddenLine is not null) items.Add(RichLine(richClass, items.Count + 1, hiddenLine, 1));
+        Text(xp, Offsets.ShrinkTextContent, "Map Base XP gain: 100%");
+        SetTree(hud, hudRoot);
+        SetChildren(hudRoot, detail);
+        SetTree(detail, detailRoot);
+        SetChildren(detailRoot, xp, box);
+        SetChildren(box, [.. items]);
+        AddRoot(hosted ? Host(hud) : hud);
+        return (box, detailRoot);
+    }
+
+    private nint RichLine(nint richClass, int number, string text, byte visibility)
+    {
+        var item = Widget(richClass, $"UIRichTextBlock_{number}", Vector2.Zero, new Vector2(400, 20), visibility);
+        Text(item, Offsets.TextBlockText, text);
+        return item;
+    }
+
+    private nint SubClass(string name, nint super)
     {
         var cls = _world.AddClass(name);
         _world.Memory.Write(cls + Offsets.UStructSuper, super);
         return cls;
     }
 
-    private long Slot(long widget)
+    private nint Slot(nint widget)
     {
         var slot = _world.Alloc(0x40);
         _world.Memory.Write(slot + Offsets.SlotWidget, widget);

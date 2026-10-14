@@ -71,6 +71,8 @@ internal sealed class ThemeStore
 
     public ThemeFile Current { get; private set; }
 
+    public event Action<string>? Changed;
+
     public IReadOnlyList<string> Names() =>
         Directory.Exists(_themes) ? [.. Directory.EnumerateFiles(_themes, "*.json").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order(StringComparer.OrdinalIgnoreCase)] : [];
 
@@ -105,6 +107,7 @@ internal sealed class ThemeStore
         Current = theme;
         ApplyLook();
         LoadFonts(theme.Fonts);
+        Changed?.Invoke(name);
     });
 
     public void UseFonts(ThemeFonts fonts) => _beforeFrame(() =>
@@ -155,6 +158,7 @@ internal sealed class ThemeStore
         }
         Name = name;
         Current = saved;
+        Changed?.Invoke(name);
     }
 
     ThemeFile? Read(string theme)
@@ -257,14 +261,7 @@ internal sealed class ThemeStore
             }),
         ];
         io.FontDefault = picked[0];
-        Fonts.Regular = picked[0];
-        Fonts.RegularSize = fonts.Regular.Size;
-        Fonts.Bold = picked[1];
-        Fonts.BoldSize = fonts.Bold.Size;
-        Fonts.Label = picked[2];
-        Fonts.LabelSize = fonts.Label.Size;
-        Fonts.Mono = picked[3];
-        Fonts.MonoSize = fonts.Mono.Size;
+        for (var i = 0; i < slots.Length; i++) Fonts.Of((FontFace)i) = (picked[i], slots[i].Size);
         foreach (var stale in _loaded.Keys.Where(file => !slots.Any(slot => slot.File.Equals(file, StringComparison.OrdinalIgnoreCase))).ToList())
         {
             ImGui.RemoveFont(io.Fonts, _loaded[stale]);

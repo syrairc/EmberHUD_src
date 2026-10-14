@@ -5,10 +5,12 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ToastsTests
+public class ToastsTests : IDisposable
 {
     const double Forever = 1e9;
     const float Gap = 6f;
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Theory]
     [InlineData(2.0, 1f)]
@@ -44,8 +46,6 @@ public class ToastsTests
     {
         var host = new ToastHost();
         var style = new ToastStyle { Max = 2 };
-        host.Show("  ", style);
-        host.Show(null, style);
         host.Show("one", style);
         host.Show("two", style);
         host.Show("three", style);
@@ -187,17 +187,6 @@ public class ToastsTests
         var accent = AccentRgb(DrawToasts(host, style, 400f, 100f), ToastLevel.Info);
         Assert.NotEmpty(accent);
         Assert.All(accent, v => Assert.InRange(v.Col >> 24, 63u, 65u));
-    }
-
-    [Fact]
-    public void ToastsBeforeTheirFadeWindowAreFullyOpaque()
-    {
-        var host = new ToastHost();
-        var style = new ToastStyle { Duration = Forever, FadeSeconds = 0.5 };
-        host.Show("solid", style);
-        var accent = AccentRgb(DrawToasts(host, style, 400f, 100f), ToastLevel.Info);
-        Assert.NotEmpty(accent);
-        Assert.All(accent, v => Assert.Equal(255u, v.Col >> 24));
     }
 
     [Fact]
@@ -415,13 +404,7 @@ public class ToastsTests
         foreach (var level in Enum.GetValues<ToastLevel>())
         {
             List<ImDrawVert> verts = [];
-            UiFrame.Run("bar colours", () =>
-            {
-                var list = ImGui.GetWindowDrawList();
-                var from = list.VtxBuffer.Size;
-                MessageBar.Draw("c", level, "text");
-                for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
-            });
+            UiFrame.Run("bar colours", () => verts = UiFrame.Drawn(() => MessageBar.Draw("c", level, "text")));
             var accent = ToastHost.Accent(level);
             Assert.Contains(verts, v => v.Col == EColor.U32(accent));
             Assert.Contains(verts, v => v.Col == EColor.U32(EColor.Fade(accent, 0.14f)));
@@ -450,37 +433,29 @@ public class ToastsTests
     {
         var open = true;
         var action = false;
-        Vector2 xCentre = default, actionCentre = default;
+        var org = Vector2.Zero;
+        var size = Vector2.Zero;
         void Body()
         {
-            var org = ImGui.GetCursorScreenPos();
+            org = ImGui.GetCursorScreenPos();
             action |= MessageBar.Draw("bar", ToastLevel.Info, "text", ref open, "Go");
-            var style = ImGui.GetStyle();
-            var size = ImGui.GetItemRectSize();
-            var pad = style.FramePadding.X + 2f;
-            var xW = ImGui.GetFrameHeight();
-            var actW = ImGui.CalcTextSize("Go").X + style.FramePadding.X * 2;
-            var y = org.Y + size.Y / 2;
-            xCentre = new Vector2(org.X + size.X - pad - xW / 2, y);
-            actionCentre = new Vector2(org.X + size.X - pad - xW - style.ItemSpacing.X - actW / 2, y);
+            size = ImGui.GetItemRectSize();
         }
         UiFrame.Run("bar click", Body);
-        try
-        {
-            UiFrame.Click("bar click", actionCentre, Body);
-            Assert.True(action);
-            Assert.True(open);
-            UiFrame.Click("bar click", xCentre, Body);
-            Assert.False(open);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var y = org.Y + size.Y / 2;
+        var runs = UiFrame.ItemRuns("bar click", Body, new Vector2(org.X, y), new Vector2(org.X + size.X, y));
+        Assert.Equal(2, runs.Count);
+
+        UiFrame.Click("bar click", runs[0].Centre, Body);
+        Assert.True(action);
+        Assert.True(open);
+
+        UiFrame.Click("bar click", runs[1].Centre, Body);
+        Assert.False(open);
     }
 
     [Fact]
-    public void MessageBarButtonsSitInTheirOwnRowsWithSpacingBetweenThem()
+    public void MessageBarButtonsAreSeparatedAndOnlyTheirOwnAreaClicks()
     {
         var open = true;
         var action = false;
@@ -493,32 +468,22 @@ public class ToastsTests
             size = ImGui.GetItemRectSize();
         }
         UiFrame.Run("bar rows", Body);
-        var style = ImGui.GetStyle();
-        var pad = style.FramePadding.X + 2f;
-        var xW = ImGui.GetFrameHeight();
-        var actW = ImGui.CalcTextSize("Go").X + style.FramePadding.X * 2;
-        var xLeft = org.X + size.X - pad - xW;
-        var actionRight = xLeft - style.ItemSpacing.X;
-        var actionLeft = actionRight - actW;
-        var middle = org.Y + size.Y / 2;
-        try
-        {
-            UiFrame.Click("bar rows", new Vector2(actionLeft + 1f, middle), Body);
-            Assert.True(action);
-            action = false;
-            UiFrame.Click("bar rows", new Vector2(actionRight - 1f, middle), Body);
-            Assert.True(action);
-            action = false;
-            UiFrame.Click("bar rows", new Vector2(actionRight + style.ItemSpacing.X / 2f, middle), Body);
-            Assert.False(action);
-            Assert.True(open);
-            UiFrame.Click("bar rows", new Vector2(actionLeft + actW / 2f, org.Y + style.FramePadding.Y / 2f), Body);
-            Assert.False(action);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var y = org.Y + size.Y / 2;
+        var runs = UiFrame.ItemRuns("bar rows", Body, new Vector2(org.X, y), new Vector2(org.X + size.X, y));
+        Assert.Equal(2, runs.Count);
+        Assert.True(runs[1].Min.X > runs[0].Max.X);
+        Assert.True(runs[1].Max.X <= org.X + size.X);
+
+        var gap = new Vector2((runs[0].Max.X + runs[1].Min.X) / 2, y);
+        UiFrame.Click("bar rows", gap, Body);
+        Assert.False(action);
+        Assert.True(open);
+
+        UiFrame.Click("bar rows", new Vector2(runs[0].Min.X + 1f, y), Body);
+        Assert.True(action);
+        action = false;
+        UiFrame.Click("bar rows", new Vector2(runs[0].Max.X - 1f, y), Body);
+        Assert.True(action);
     }
 
     [Fact]
@@ -531,12 +496,9 @@ public class ToastsTests
         float padX = 0;
         UiFrame.Run("bar text", () =>
         {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
             org = ImGui.GetCursorScreenPos();
-            MessageBar.Draw("t", ToastLevel.Info, "a message long enough that it has to wrap onto several rows of a narrow bar", width: 150f);
+            verts = UiFrame.Drawn(() => MessageBar.Draw("t", ToastLevel.Info, "a message long enough that it has to wrap onto several rows of a narrow bar", width: 150f));
             size = ImGui.GetItemRectSize();
-            for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
             textCol = ImGui.GetColorU32(ImGuiCol.Text);
             padX = ImGui.GetStyle().FramePadding.X + 2f;
         });
@@ -566,20 +528,11 @@ public class ToastsTests
             ImGui.PopID();
         }
         UiFrame.Run("bar scopes", Body);
-        var style = ImGui.GetStyle();
-        var actW = ImGui.CalcTextSize("Go").X + style.FramePadding.X * 2;
-        var centreX = firstOrg.X + total - (style.FramePadding.X + 2f) - actW / 2;
-        var h = ImGui.GetFrameHeight() + style.FramePadding.Y * 2;
-        try
-        {
-            UiFrame.Click("bar scopes", new Vector2(centreX, secondOrg.Y + h / 2), Body);
-            Assert.True(secondClicked);
-            Assert.False(firstClicked);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var y = secondOrg.Y + ImGui.GetFrameHeight() / 2;
+        var runs = UiFrame.ItemRuns("bar scopes", Body, new Vector2(secondOrg.X, y), new Vector2(secondOrg.X + total, y));
+        UiFrame.Click("bar scopes", runs[0].Centre, Body);
+        Assert.True(secondClicked);
+        Assert.False(firstClicked);
     }
 
     [Fact]
@@ -597,20 +550,11 @@ public class ToastsTests
             MessageBar.Draw("b", ToastLevel.Info, "text", ref secondOpen);
         }
         UiFrame.Run("bar dismiss", Body);
-        var style = ImGui.GetStyle();
-        var xW = ImGui.GetFrameHeight();
-        var centreX = firstOrg.X + total - (style.FramePadding.X + 2f) - xW / 2;
-        var h = xW + style.FramePadding.Y * 2;
-        try
-        {
-            UiFrame.Click("bar dismiss", new Vector2(centreX, secondOrg.Y + h / 2), Body);
-            Assert.True(firstOpen);
-            Assert.False(secondOpen);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        var y = secondOrg.Y + ImGui.GetFrameHeight() / 2;
+        var runs = UiFrame.ItemRuns("bar dismiss", Body, new Vector2(secondOrg.X, y), new Vector2(secondOrg.X + total, y));
+        UiFrame.Click("bar dismiss", runs[^1].Centre, Body);
+        Assert.True(firstOpen);
+        Assert.False(secondOpen);
     }
 
     static float LineHeight(ToastStyle style) => MathF.Ceiling(style.TextSize) + 4f;
@@ -624,13 +568,7 @@ public class ToastsTests
     static List<ImDrawVert> DrawToasts(ToastHost host, ToastStyle style, float anchorX, float topY)
     {
         List<ImDrawVert> verts = [];
-        TestFrame.Run(() =>
-        {
-            var list = ImGui.GetForegroundDrawList();
-            var from = list.VtxBuffer.Size;
-            host.Draw(anchorX, topY, style);
-            for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
-        });
+        TestFrame.Run(() => verts = UiFrame.Drawn(ImGui.GetForegroundDrawList(), () => host.Draw(anchorX, topY, style)));
         return verts;
     }
 

@@ -6,19 +6,21 @@ public sealed class IconSheetTests : IDisposable
 {
     const string Square = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="8" y="8" width="48" height="48" fill="currentColor"/></svg>""";
 
-    readonly string _directory = Path.Combine(Path.GetTempPath(), "emberhud-sheet-" + Guid.NewGuid().ToString("N"));
+    readonly TempDir _temp = new();
     readonly LogCapture _log = new();
+
+    string _directory => _temp.Path;
 
     public void Dispose()
     {
         _log.Dispose();
-        if (Directory.Exists(_directory)) Directory.Delete(_directory, true);
+        _temp.Dispose();
     }
 
     [Fact]
     public void EveryIconGetsARowOfSizesOnDarkAndLightAndABrokenOneStaysEmpty()
     {
-        var path = IconSheet.Write(_directory, new Dictionary<string, string> { ["svg:a"] = Square, ["svg:b"] = Square, ["svg:broken"] = "<svg><rect" });
+        var path = SvgIcons.WritePreviewSheet(_directory, new Dictionary<string, string> { ["svg:a"] = Square, ["svg:b"] = Square, ["svg:broken"] = "<svg><rect" });
 
         Assert.Equal(Path.Combine(_directory, "icons.png"), path);
         Assert.True(PngDecoder.TryDecode(File.ReadAllBytes(path), out var sheet, out var failure), failure);

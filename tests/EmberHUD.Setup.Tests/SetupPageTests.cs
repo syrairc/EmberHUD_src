@@ -1,6 +1,9 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using EmberHUD.Host;
 using EmberHUD.Launcher;
 using EmberHUD.Testing;
+using Hexa.NET.ImGui;
 
 namespace EmberHUD.Setup.Tests;
 
@@ -92,4 +95,22 @@ public class SetupPageTests
 
     [Fact]
     public void LocalUsersSkipsTheCurrentUser() => Assert.DoesNotContain(LocalUsers.List(), user => user.Equals(Environment.UserName, StringComparison.OrdinalIgnoreCase));
+
+    [Fact]
+    public void PercentSignsInAMessageDrawLiterally()
+    {
+        using var temp = new TempDir();
+        int VerticesFor(char formatChar)
+        {
+            var page = new SetupPage(temp.Path, [], _ => null, _ => null, _ => throw new Win32Exception($"a%{formatChar}b"));
+            page.SaveAndLaunch();
+            TestFrame.Run(page.Draw);
+            return ImGui.GetDrawData().TotalVtxCount;
+        }
+        Assert.Equal(VerticesFor('X'), VerticesFor('s'));
+    }
+
+    [Fact]
+    public void ExeNameMatchesTheProcessNameInTheOffsets() =>
+        Assert.Equal(Offsets.GameProcessName, Path.GetFileNameWithoutExtension(GameInstall.ExeName));
 }

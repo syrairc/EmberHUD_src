@@ -34,8 +34,7 @@ public static class SortableTable
         ImGui.PushID(id);
         if (filterText is not null)
         {
-            ImGui.SetNextItemWidth(-1f);
-            ImGui.InputTextWithHint("##filter", "Search...", ref filter, 128);
+            Controls.Filter(ref filter);
         }
 
         if (maxHeight > 0f)

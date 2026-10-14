@@ -40,7 +40,7 @@ public sealed class Main : Plugin<Settings>
     }
 
     internal static bool Hidden(Settings settings, GameState state) =>
-        !settings.General.Show || state.Map is not { } map ||
+        !settings.General.Show || state.Area is not { } map ||
         settings.General.HideInTown && map.IsTown ||
         settings.General.HideBehindPanels && state.Ui.AnyFullScreen;
 
@@ -80,7 +80,7 @@ public sealed class Main : Plugin<Settings>
 
     internal int SeenMax => _max;
 
-    public override void Tick() => EnemyMax(Game.State.AreaId, Game.State.Map?.Remaining);
+    public override void Tick() => EnemyMax(Game.State.AreaId, Game.State.Area?.Remaining);
 
     internal int EnemyMax(int areaId, int? remaining)
     {
@@ -101,7 +101,7 @@ public sealed class Main : Plugin<Settings>
         if (Hidden(Settings, state)) return;
         var general = Settings.General;
         var look = Settings.Look;
-        var laid = Layout(Rows(state.Map!, Settings.Sections, _max), look, general.Width);
+        var laid = Layout(Rows(state.Area!, Settings.Sections, _max), look, general.Width);
         if (laid.Count == 0) return;
 
         _panel.Locked = general.Lock;

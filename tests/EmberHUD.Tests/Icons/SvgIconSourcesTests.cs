@@ -6,8 +6,10 @@ public sealed class SvgIconSourcesTests : IDisposable
 {
     const string Plain = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="currentColor"/></svg>""";
 
-    readonly string _root = Directory.CreateTempSubdirectory("emberhud-svg-").FullName;
+    readonly TempDir _temp = new();
     readonly LogCapture _log = new();
+
+    string _root => _temp.Path;
 
     string Overrides => Path.Combine(_root, "Icons");
 
@@ -16,7 +18,7 @@ public sealed class SvgIconSourcesTests : IDisposable
     public void Dispose()
     {
         _log.Dispose();
-        Directory.Delete(_root, true);
+        _temp.Dispose();
     }
 
     void Write(string relative, string text)
@@ -34,7 +36,7 @@ public sealed class SvgIconSourcesTests : IDisposable
         Write(@"Plugins\Alpha\Icons\ring.svg", Plain);
         Write(@"Icons\notes.txt", "not an icon");
 
-        var sources = SvgIconSources.Load([("quest", Plain), ("gem", Plain)], Overrides, Plugins);
+        var sources = SvgIcons.Load([("quest", Plain), ("gem", Plain)], Overrides, Plugins);
 
         Assert.Equal(3, sources.Count);
         Assert.Contains("63\" fill", sources["svg:quest"]);
@@ -46,7 +48,7 @@ public sealed class SvgIconSourcesTests : IDisposable
     [Fact]
     public void MissingFoldersAreFine()
     {
-        Assert.Single(SvgIconSources.Load([("gem", Plain)], Path.Combine(_root, "none"), Path.Combine(_root, "none")));
+        Assert.Single(SvgIcons.Load([("gem", Plain)], Path.Combine(_root, "none"), Path.Combine(_root, "none")));
         Assert.Empty(_log.Text);
     }
 
@@ -59,7 +61,7 @@ public sealed class SvgIconSourcesTests : IDisposable
         Write(@"Icons\paint.svg", Plain.Replace("currentColor", "url(http://example.com/a.svg#g)"));
         Write(@"Icons\local.svg", Plain.Replace("<rect", """<defs><linearGradient id="g"/></defs><use href="#g"/><rect""").Replace("currentColor", "url(#g)"));
 
-        var sources = SvgIconSources.Load([("bad", Plain.Replace("<rect", """<image xlink:href="https://example.com/a.png"/><rect"""))], Overrides, Plugins);
+        var sources = SvgIcons.Load([("bad", Plain.Replace("<rect", """<image xlink:href="https://example.com/a.png"/><rect"""))], Overrides, Plugins);
 
         Assert.Equal(["svg:local"], sources.Keys.ToArray());
         var warnings = _log.Messages();
@@ -76,5 +78,5 @@ public sealed class SvgIconSourcesTests : IDisposable
     [InlineData("""<image xlink:href='http://x'/>""", "xlink:href='")]
     [InlineData("""<rect style="fill:url(file.svg#g)"/>""", "url(")]
     [InlineData("""<style>@IMPORT url(x.css);</style>""", "@IMPORT")]
-    public void ExternalReferencesAreAnythingThatDoesNotPointInsideTheFile(string svg, string? found) => Assert.Equal(found, SvgIconSources.ExternalReference(svg));
+    public void ExternalReferencesAreAnythingThatDoesNotPointInsideTheFile(string svg, string? found) => Assert.Equal(found, SvgIcons.ExternalReference(svg));
 }

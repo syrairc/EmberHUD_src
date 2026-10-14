@@ -13,7 +13,9 @@ internal sealed class PluginFixture : IDisposable
         public override void Dispose() => Log.Info("dispose");
         """;
 
-    public string Root { get; } = Directory.CreateTempSubdirectory("emberhud-test-").FullName;
+    readonly TempDir _temp = new();
+
+    public string Root => _temp.Path;
 
     public SdkSettings Sdk { get; } = new();
 
@@ -28,6 +30,17 @@ internal sealed class PluginFixture : IDisposable
     }
 
     public static PluginSlot Slot(PluginHost host, string name) => host.Slots.Single(slot => slot.Name == name);
+
+    public static void AssertCollected(Func<bool> alive, string what)
+    {
+        for (var i = 0; i < 20 && alive(); i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        Assert.False(alive(), $"{what} still loaded");
+    }
 
     public static void Settle(PluginHost host)
     {
@@ -69,14 +82,5 @@ internal sealed class PluginFixture : IDisposable
         }
         """;
 
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(Root, true);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
+    public void Dispose() => _temp.Dispose();
 }

@@ -1,8 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <Compile Include="..\TempDir.cs" Link="TempDir.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
   </ItemGroup>
 </Project>

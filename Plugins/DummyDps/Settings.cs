@@ -34,7 +34,7 @@ public sealed class Settings : PluginSettings
     public GeneralTab General = new();
     public LookTab Look = new();
 
-    public override void Draw() => Windows.TabBar("dummydps",
+    public override void Draw() => Layout.TabBar("dummydps",
         ("General", DrawGeneral),
         ("Look", DrawLook));
 

@@ -42,6 +42,15 @@ public sealed class HotkeyBindingTests
     }
 
     [Fact]
+    public void IdIsBuiltOnceAndReadsTheSameString()
+    {
+        var binding = Started().Hotkeys[1];
+
+        Assert.Equal("View/Zoom in", binding.Id);
+        Assert.Same(binding.Id, binding.Id);
+    }
+
+    [Fact]
     public void NoDefaultMeansUnbound()
     {
         var unbound = Started().Hotkeys[2];

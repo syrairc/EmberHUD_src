@@ -37,12 +37,7 @@ public sealed class PluginReloadTests : IDisposable
         PluginFixture.Settle(host);
         host.TickAll();
 
-        for (var i = 0; i < 20 && old.IsAlive; i++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-        Assert.False(old.IsAlive);
+        PluginFixture.AssertCollected(() => old.IsAlive, "old plugin assembly");
         Assert.Equal(["v1", "v2", "v2"], _log.Messages("Hot"));
     }
 
@@ -59,12 +54,7 @@ public sealed class PluginReloadTests : IDisposable
         var assembly = WeakAssembly(slot);
         host.Reload(slot);
         PluginFixture.Settle(host);
-        for (var i = 0; i < 20 && assembly.IsAlive; i++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-        Assert.False(assembly.IsAlive);
+        PluginFixture.AssertCollected(() => assembly.IsAlive, "held plugin assembly");
         GC.KeepAlive(held);
     }
 
@@ -188,6 +178,30 @@ public sealed class PluginReloadTests : IDisposable
         host.Dispose();
         Assert.Empty(host.Watchers);
         Assert.All(second, watcher => Assert.False(watcher.EnableRaisingEvents));
+    }
+
+    [Fact]
+    public void AutoReloadIsOnlyReconciledWhenTheSettingChanges()
+    {
+        _fixture.Write("Watched", "Main.cs", PluginFixture.Source("Watched", ""));
+        using var host = _fixture.Start();
+        var directory = Path.Combine(_fixture.Plugins, "Watched");
+        var moved = directory + "-away";
+        Directory.Move(directory, moved);
+        _fixture.Sdk.AutoReload = true;
+        host.TickAll();
+        Assert.Empty(host.Watchers);
+        Assert.Single(_log.Messages(), message => message.Contains("could not watch"));
+
+        Directory.Move(moved, directory);
+        host.TickAll();
+        Assert.Empty(host.Watchers);
+
+        _fixture.Sdk.AutoReload = false;
+        host.TickAll();
+        _fixture.Sdk.AutoReload = true;
+        host.TickAll();
+        Assert.Single(host.Watchers);
     }
 
     [Fact]

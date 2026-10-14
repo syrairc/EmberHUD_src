@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using EmberHUD.Host.Overlay;
 
 namespace EmberHUD.Setup;
@@ -6,6 +5,7 @@ namespace EmberHUD.Setup;
 internal sealed class AppWindow : IDisposable
 {
     readonly Win32.WndProcDelegate _wndProc;
+    string _className = "";
     bool _quit;
 
     AppWindow(Win32.WndProcDelegate wndProc) => _wndProc = wndProc;
@@ -32,9 +32,7 @@ internal sealed class AppWindow : IDisposable
             }
             if (msg == Win32.WM_GETMINMAXINFO)
             {
-                var minTrackSize = (Win32.Point*)(lparam + 24);
-                minTrackSize->X = minWidth;
-                minTrackSize->Y = minHeight;
+                ((Win32.MinMaxInfo*)lparam)->MinTrackSize = new Win32.Point { X = minWidth, Y = minHeight };
                 return 0;
             }
             if (msg == Win32.WM_DESTROY)
@@ -48,40 +46,19 @@ internal sealed class AppWindow : IDisposable
 
         nint large = 0, small = 0;
         if (Environment.ProcessPath is { } exe) Win32.ExtractIconEx(exe, 0, &large, &small, 1);
-        var className = $"EmberSetup_{Guid.NewGuid():N}";
-        var classNamePtr = Marshal.StringToHGlobalUni(className);
-        try
-        {
-            var cls = new Win32.WndClassEx
-            {
-                CbSize = (uint)Marshal.SizeOf<Win32.WndClassEx>(),
-                WndProc = Marshal.GetFunctionPointerForDelegate(proc),
-                Instance = Win32.GetModuleHandle(null),
-                Icon = large,
-                IconSm = small,
-                Cursor = Win32.LoadCursor(0, 32512),
-                ClassName = classNamePtr,
-            };
-            if (Win32.RegisterClassExW(ref cls) == 0) throw new InvalidOperationException($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
-            self.Handle = Win32.CreateWindowExW((uint)Win32.WS_EX_NOREDIRECTIONBITMAP, className, title, Win32.WS_OVERLAPPEDWINDOW, Win32.CW_USEDEFAULT, Win32.CW_USEDEFAULT, width, height, 0, 0, Win32.GetModuleHandle(null), 0);
-            if (self.Handle == 0) throw new InvalidOperationException($"CreateWindowEx failed: {Marshal.GetLastWin32Error()}");
-            Win32.ShowWindow(self.Handle, 5);
-            Win32.GetClientRect(self.Handle, out var client);
-            self.Width = Math.Max(1, client.Right - client.Left);
-            self.Height = Math.Max(1, client.Bottom - client.Top);
-            return self;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(classNamePtr);
-        }
+        (self.Handle, self._className) = Win32.CreateWindow("EmberSetup", proc, (uint)Win32.WS_EX_NOREDIRECTIONBITMAP, Win32.WS_OVERLAPPEDWINDOW, title, Win32.CW_USEDEFAULT, Win32.CW_USEDEFAULT, width, height, large, small, Win32.LoadCursor(0, Win32.IDC_ARROW));
+        Win32.ShowWindow(self.Handle, Win32.SW_SHOW);
+        Win32.GetClientRect(self.Handle, out var client);
+        self.Width = Math.Max(1, client.Right - client.Left);
+        self.Height = Math.Max(1, client.Bottom - client.Top);
+        return self;
     }
 
     public bool PumpMessages() => Win32.PumpMessages(ref _quit);
 
     public void Dispose()
     {
-        if (Handle != 0 && !_quit) Win32.DestroyWindow(Handle);
+        if (Handle != 0) Win32.DestroyWindowAndClass(Handle, _className);
         Handle = 0;
         GC.KeepAlive(_wndProc);
     }

@@ -74,53 +74,33 @@ public sealed class CheckRunnerTests : IDisposable
     }
 
     [Fact]
-    public void EveryTestStartsFromAnEmptyGameState()
+    public void EveryTestStartsFromACleanGameStateInputAndMapView()
     {
         _fixture.Write("Fresh", "Main.cs", PluginFixture.Source("Fresh", ""));
-        _fixture.Write("Fresh", "Tests/StateTests.cs", """
+        _fixture.Write("Fresh", "Tests/FreshTests.cs", """
+            using System.Numerics;
             using EmberHUD;
             using EmberHUD.Testing;
 
             namespace Fresh;
 
-            public sealed class StateTests
+            public sealed class FreshTests
             {
                 [Test]
-                public void First()
+                public void A_Dirties()
                 {
-                    Check.Equal(0, Game.State.AreaId);
                     TestGame.Set(GameState.Empty with { AreaId = 5 });
+                    TestInput.Hold(Key.F8);
+                    Map.View = new MapView(Vector2.Zero, 1f);
                 }
 
                 [Test]
-                public void Second()
+                public void B_SeesNothing()
                 {
                     Check.Equal(0, Game.State.AreaId);
-                    TestGame.Set(GameState.Empty with { AreaId = 5 });
+                    Check.That(!Input.IsDown(Key.F8), "key leaked");
+                    Check.That(Map.View is null, "view leaked");
                 }
-            }
-            """);
-        var (code, report) = Check();
-        Assert.True(code == 0, report);
-    }
-
-    [Fact]
-    public void EveryTestStartsWithNoKeysHeld()
-    {
-        _fixture.Write("Keys", "Main.cs", PluginFixture.Source("Keys", ""));
-        _fixture.Write("Keys", "Tests/KeyTests.cs", """
-            using EmberHUD;
-            using EmberHUD.Testing;
-
-            namespace Keys;
-
-            public sealed class KeyTests
-            {
-                [Test]
-                public void First() => TestInput.Hold(Key.F8);
-
-                [Test]
-                public void Second() => Check.That(!Input.IsDown(Key.F8));
             }
             """);
         var (code, report) = Check();
@@ -135,26 +115,6 @@ public sealed class CheckRunnerTests : IDisposable
         var (code, report) = Check();
         Assert.Equal(1, code);
         Assert.Contains("FAIL Defaults defaults - X - ", report);
-    }
-
-    [Fact]
-    public void ATestWithTheWrongShapeFails()
-    {
-        _fixture.Write("Shape", "Main.cs", PluginFixture.Source("Shape", ""));
-        _fixture.Write("Shape", "Tests/ShapeTests.cs", """
-            using EmberHUD.Testing;
-
-            namespace Shape;
-
-            public sealed class ShapeTests
-            {
-                [Test]
-                public int Returns() => 1;
-            }
-            """);
-        var (code, report) = Check();
-        Assert.Equal(1, code);
-        Assert.Contains("takes no parameters and returns void", report);
     }
 
     [Fact]
@@ -201,88 +161,35 @@ public sealed class CheckRunnerTests : IDisposable
     }
 
     [Fact]
-    public void OnlyTheGoodPluginPasses()
-    {
-        _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", ""));
-        _fixture.Write("Good", "Tests/MainTests.cs", """
-            using EmberHUD.Testing;
-
-            namespace Good;
-
-            public sealed class MainTests
-            {
-                [Test]
-                public void Fine() => Check.That(true);
-            }
-            """);
-        var (code, report) = Check();
-        Assert.Equal(0, code);
-        Assert.Contains("PASS Good MainTests.Fine", report);
-    }
-
-    [Fact]
     public void NoPluginsIsAPass()
     {
         var (code, report) = Check();
         Assert.Equal(0, code);
-        Assert.Contains("host: jit ", report);
+        Assert.StartsWith("host: jit", report);
         Assert.Contains("check: 0 plugins, 0 tests, 0 failed", report);
-    }
-
-    [Fact]
-    public void EveryTestStartsWithoutAMapView()
-    {
-        _fixture.Write("Maps", "Main.cs", PluginFixture.Source("Maps", ""));
-        _fixture.Write("Maps", "Tests/MapTests.cs", """
-            using System.Numerics;
-            using EmberHUD;
-            using EmberHUD.Testing;
-
-            namespace Maps;
-
-            public sealed class MapTests
-            {
-                [Test]
-                public void A_Sets() { Check.That(Map.View is null); Map.View = new MapView(Vector2.Zero, 1f); }
-
-                [Test]
-                public void B_Sees() => Check.That(Map.View is null, "view leaked");
-            }
-            """);
-        var (code, report) = Check();
-        Assert.True(code == 0, report);
     }
 
     [Fact]
     public void TestsLogUnderThePluginName()
     {
-        var seen = new List<string?>();
-        var previous = Log.Sink;
-        Log.Sink = (_, plugin, _) => seen.Add(plugin);
-        try
-        {
-            _fixture.Write("Named", "Main.cs", PluginFixture.Source("Named", ""));
-            _fixture.Write("Named", "Tests/LogTests.cs", """
-                using EmberHUD;
-                using EmberHUD.Testing;
+        using var log = new LogCapture();
+        _fixture.Write("Named", "Main.cs", PluginFixture.Source("Named", ""));
+        _fixture.Write("Named", "Tests/LogTests.cs", """
+            using EmberHUD;
+            using EmberHUD.Testing;
 
-                namespace Named;
+            namespace Named;
 
-                public sealed class LogTests
-                {
-                    [Test]
-                    public void Logs() => Log.Info("hello");
-                }
-                """);
-            var (code, report) = Check();
-            Assert.True(code == 0, report);
-            Assert.Equal(["Named"], seen);
-            Assert.Null(Log.CurrentPlugin.Value);
-        }
-        finally
-        {
-            Log.Sink = previous;
-        }
+            public sealed class LogTests
+            {
+                [Test]
+                public void Logs() => Log.Info("hello");
+            }
+            """);
+        var (code, report) = Check();
+        Assert.True(code == 0, report);
+        Assert.Equal(["Named"], log.Plugins());
+        Assert.Null(Log.CurrentPlugin.Value);
     }
 
     [Fact]
@@ -308,20 +215,11 @@ public sealed class CheckRunnerTests : IDisposable
 
     List<string> RunCapturingUnload(string plugin, int expectedCode)
     {
-        var messages = new List<string>();
-        var previous = Log.Sink;
-        Log.Sink = (_, _, message) => messages.Add(message);
-        try
-        {
-            var (code, report) = Check();
-            Assert.True(code == expectedCode, report);
-        }
-        finally
-        {
-            Log.Sink = previous;
-        }
-        AssertUnloaded($"check-{plugin}");
-        return messages;
+        using var log = new LogCapture();
+        var (code, report) = Check();
+        Assert.True(code == expectedCode, report);
+        PluginFixture.AssertCollected(() => ContextAlive($"check-{plugin}"), $"check-{plugin}");
+        return log.Messages();
     }
 
     [Fact]
@@ -366,18 +264,8 @@ public sealed class CheckRunnerTests : IDisposable
         Assert.Contains("unloaded", RunCapturingUnload("Unload2", 1));
     }
 
-    static void AssertUnloaded(string contextName)
-    {
-        for (var i = 0; i < 20 && ContextAlive(contextName); i++)
-        {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-        }
-        Assert.False(ContextAlive(contextName), $"{contextName} still loaded");
-    }
-
     [Fact]
-    public void ATestWithParametersFails()
+    public void ATestWithParametersOrAReturnValueFails()
     {
         _fixture.Write("Args", "Main.cs", PluginFixture.Source("Args", ""));
         _fixture.Write("Args", "Tests/ArgTests.cs", """
@@ -389,11 +277,15 @@ public sealed class CheckRunnerTests : IDisposable
             {
                 [Test]
                 public void WithArg(int x) { }
+
+                [Test]
+                public int Returns() => 1;
             }
             """);
         var (code, report) = Check();
         Assert.Equal(1, code);
         Assert.Contains("FAIL Args ArgTests.WithArg - System.InvalidOperationException: a [Test] method takes no parameters and returns void", report);
+        Assert.Contains("FAIL Args ArgTests.Returns - System.InvalidOperationException: a [Test] method takes no parameters and returns void", report);
     }
 
     [Fact]

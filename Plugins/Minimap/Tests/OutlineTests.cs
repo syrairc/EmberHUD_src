@@ -17,7 +17,7 @@ public sealed class OutlineTests
     public void ALoneCellIsOneClosedSquareWalkedCornerToCorner()
     {
         var terrain = Scene.OneCell();
-        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
+        var line = Outline.Join(terrain.Walls(), terrain).Single();
 
         Check.That(line.Closed, "closed");
         Check.Equal(4, line.Points.Length);
@@ -39,7 +39,7 @@ public sealed class OutlineTests
     public void TwoLoopsTouchingAtACornerUseEveryEdgeOnceAndStayClosed()
     {
         var terrain = Scene.Cells(2, 2, (0, 0), (1, 1));
-        var edges = WallExtractor.Extract(terrain);
+        var edges = terrain.Walls();
         var lines = Outline.Join(edges, terrain);
 
         Check.Equal(8, edges.Count);
@@ -64,7 +64,7 @@ public sealed class OutlineTests
     public void AStraightRunOfCellsIsOneLongSide()
     {
         var terrain = Scene.Cells(7, 3, (1, 1), (2, 1), (3, 1), (4, 1), (5, 1));
-        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
+        var line = Outline.Join(terrain.Walls(), terrain).Single();
 
         Check.That(line.Closed, "closed");
         Check.Equal(4, line.Points.Length);
@@ -75,7 +75,7 @@ public sealed class OutlineTests
     public void ACornerKeepsItsPointAndAnLShapeKeepsSix()
     {
         var terrain = Scene.Cells(4, 4, (1, 1), (2, 1), (1, 2));
-        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
+        var line = Outline.Join(terrain.Walls(), terrain).Single();
 
         Check.Equal(6, line.Points.Length);
         foreach (var corner in new[] { new Vector2(10, 10), new Vector2(30, 10), new Vector2(30, 20), new Vector2(20, 20), new Vector2(20, 30), new Vector2(10, 30) }) Check.That(line.Points.Contains(corner), $"has {corner}");

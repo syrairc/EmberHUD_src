@@ -8,7 +8,12 @@ public sealed record UProp(string Name, string Type, int Offset, int Size, int A
 
 public sealed record UStructInfo(nint Address, string Name, UStructInfo? Super, int Size, UProp[] Properties)
 {
-    public UProp? Property(string name) => Properties.FirstOrDefault(p => p.Name == name);
+    public UProp? Property(string name)
+    {
+        foreach (var property in Properties)
+            if (property.Name == name) return property;
+        return null;
+    }
 }
 
 public readonly record struct UObj(nint Address)
@@ -49,11 +54,7 @@ public readonly record struct UEntry(nint Address, UProp Key, UProp? Value);
 public static class Ue
 {
     const int MaxSuperDepth = 64;
-    const int MaxFields = 4096;
-    const int MaxEnumNames = 4096;
     const int MaxStringChars = 512;
-    const int MaxSparseSlots = 65536;
-    const int MaxEntryStride = 4096;
     static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     static readonly Lock Gate = new();
     static volatile Cache _cache = new(-1);
@@ -61,14 +62,14 @@ public static class Ue
     public static UEntry[] Entries(nint at, UProp prop, int max)
     {
         var key = prop.Type switch { "MapProperty" => prop.Key, "SetProperty" => prop.Element, _ => null };
-        if (Layout is not { } l || key is null || prop.Stride <= 0 || prop.Stride > MaxEntryStride || max <= 0 || prop.Type == "MapProperty" && prop.Value is null) return [];
+        if (Layout is not { } l || key is null || prop.Stride <= 0 || prop.Stride > 4096 || max <= 0 || prop.Type == "MapProperty" && prop.Value is null) return [];
         if (!Memory.TryRead(at, out nint data) || data == 0 ||
-            !Memory.TryRead(at + l.ArrayNum, out int slots) || slots <= 0 || slots > MaxSparseSlots ||
+            !Memory.TryRead(at + l.ArrayNum, out int slots) || slots <= 0 || slots > 65536 ||
             !Memory.TryRead(at + l.SparseNumBits, out int bits) || bits < slots)
             return [];
         var flagsAt = Memory.TryRead(at + l.SparseFlagsSecondary, out nint secondary) && secondary != 0 ? secondary : slots <= l.SparseInlineBits ? at + l.SparseFlagsInline : 0;
         var words = new byte[(slots + 31) / 32 * 4];
-        if (flagsAt == 0 || Memory.Read(flagsAt, words) != words.Length) return [];
+        if (flagsAt == 0 || !Memory.Read(flagsAt, words)) return [];
         List<UEntry> entries = [];
         for (var slot = 0; slot < slots && entries.Count < max; slot++)
             if (((words[slot >> 3] >> (slot & 7)) & 1) != 0) entries.Add(new UEntry(data + slot * prop.Stride, key, prop.Value));
@@ -93,7 +94,7 @@ public static class Ue
 
     public static string? ReadName(nint at) => ReadName(at, Current());
 
-    public static UObj[] Objects()
+    public static List<UObj> Objects()
     {
         if (Layout is not { } l || !Memory.TryRead(Memory.ObjectArray, out nint chunks) || chunks == 0 ||
             !Memory.TryRead(Memory.ObjectArray + l.ObjectsNum, out int count) || count <= 0 || count > l.MaxObjectChunks * l.ObjectsPerChunk)
@@ -105,7 +106,7 @@ public static class Ue
         {
             var inChunk = Math.Min(l.ObjectsPerChunk, count - chunk * l.ObjectsPerChunk);
             var span = items.AsSpan(0, inChunk * l.ObjectItemSize);
-            if (!Memory.TryRead(chunks + chunk * nint.Size, out nint start) || start == 0 || Memory.Read(start, span) != span.Length) continue;
+            if (!Memory.TryRead(chunks + chunk * nint.Size, out nint start) || start == 0 || !Memory.Read(start, span)) continue;
             for (var i = 0; i < inChunk; i++)
             {
                 var item = span[(i * l.ObjectItemSize)..];
@@ -113,7 +114,7 @@ public static class Ue
                 if (obj != 0 && (BitConverter.ToInt32(item[l.ObjectItemFlags..]) & l.PendingKillFlag) == 0) objects.Add(new UObj(obj));
             }
         }
-        return [.. objects];
+        return objects;
     }
 
     public static bool TryObject(nint at, out UObj obj)
@@ -126,7 +127,7 @@ public static class Ue
                ReadName(at + l.ObjectName, cache) is not null;
     }
 
-    public static bool TryWeak(int index, int serial, out UObj obj)
+    internal static bool TryWeak(int index, int serial, out UObj obj)
     {
         obj = default;
         if (Layout is not { } l || index < 0 || serial == 0 || !Memory.TryRead(Memory.ObjectArray, out nint chunks) || chunks == 0) return false;
@@ -161,6 +162,12 @@ public static class Ue
 
     public static UStructInfo? Struct(nint at) => Struct(at, 0, Current());
 
+    public static int ArrayCount(ReadOnlySpan<byte> container, UProp prop)
+    {
+        if (Layout is not { } l || prop.Offset < 0 || prop.Offset + l.ArrayNum + sizeof(int) > container.Length) return -1;
+        return BitConverter.ToInt32(container[(prop.Offset + l.ArrayNum)..]);
+    }
+
     public static string Format(ReadOnlySpan<byte> container, UProp prop)
     {
         if (Layout is not { } l || prop.Offset < 0 || prop.Size <= 0 || prop.Size > container.Length - prop.Offset) return "??";
@@ -185,13 +192,13 @@ public static class Ue
             "ObjectProperty" or "ClassProperty" => Pointer((nint)BitConverter.ToInt64(v)),
             "WeakObjectProperty" or "LazyObjectProperty" => BitConverter.ToInt32(v) < 0 || BitConverter.ToInt32(v[l.WeakSerial..]) == 0 ? "null" : TryWeak(BitConverter.ToInt32(v), BitConverter.ToInt32(v[l.WeakSerial..]), out var weak) ? Pointer(weak.Address) : "stale",
             "SoftObjectProperty" => SoftPath(container, prop, l),
-            "ArrayProperty" or "MapProperty" or "SetProperty" => $"[{BitConverter.ToInt32(v[l.ArrayNum..])}]",
+            "ArrayProperty" or "MapProperty" or "SetProperty" => $"[{ArrayCount(container, prop)}]",
             "StructProperty" => Struct(prop.Struct)?.Name ?? "struct",
             _ => prop.Type,
         };
     }
 
-    public static string? EnumName(nint enumAt, long value)
+    internal static string? EnumName(nint enumAt, long value)
     {
         if (Layout is not { } l || enumAt == 0) return null;
         foreach (var (known, name) in EnumNames(l, enumAt, Current()))
@@ -203,10 +210,10 @@ public static class Ue
     {
         if (cache.Enums.TryGetValue(at, out var cached)) return cached;
         if (!Memory.TryRead(at + l.EnumNames, out nint data) || data == 0 ||
-            !Memory.TryRead(at + l.EnumNames + l.ArrayNum, out int count) || count <= 0 || count > MaxEnumNames)
+            !Memory.TryRead(at + l.EnumNames + l.ArrayNum, out int count) || count <= 0 || count > 4096)
             return [];
         var raw = new byte[count * l.EnumNameStride];
-        if (Memory.Read(data, raw) != raw.Length) return [];
+        if (!Memory.Read(data, raw)) return [];
         List<(long, string)> names = [];
         for (var i = 0; i < count; i++)
         {
@@ -233,7 +240,7 @@ public static class Ue
         var length = header >> l.NameLengthShift;
         if (length == 0 || length > l.MaxNameLength) return null;
         var bytes = new byte[wide ? length * 2 : length];
-        if (Memory.Read(entry + sizeof(ushort), bytes) != bytes.Length) return null;
+        if (!Memory.Read(entry + sizeof(ushort), bytes)) return null;
         return cache.Names[index] = wide ? Encoding.Unicode.GetString(bytes) : Encoding.Latin1.GetString(bytes);
     }
 
@@ -253,7 +260,7 @@ public static class Ue
         if (superAt != 0 && super is null) return null;
         List<UProp> own = [];
         Memory.TryRead(at + l.StructChildProperties, out nint field);
-        for (var guard = 0; field != 0 && guard < MaxFields; guard++)
+        for (var guard = 0; field != 0 && guard < 4096; guard++)
         {
             if (Prop(l, field, 0, cache) is { } prop) own.Add(prop with { Owner = name });
             if (!Memory.TryRead(field + l.FieldNext, out field)) break;
@@ -298,7 +305,7 @@ public static class Ue
         if (count <= 0) return "\"\"";
         var chars = Math.Min(count, MaxStringChars);
         var bytes = new byte[chars * 2];
-        if (Memory.Read(data, bytes) != bytes.Length) return "??";
+        if (!Memory.Read(data, bytes)) return "??";
         var text = Encoding.Unicode.GetString(bytes).TrimEnd('\0');
         return count > MaxStringChars ? $"\"{text}...\"" : $"\"{text}\"";
     }

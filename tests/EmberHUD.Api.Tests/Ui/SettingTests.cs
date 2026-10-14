@@ -161,7 +161,7 @@ public class SettingTests
         var first = 0;
         var second = 0;
 
-        UiFrame.Run("setting tabs", () => Windows.TabBar("tabs", ("One", () => first++), ("Two", () => second++)));
+        UiFrame.Run("setting tabs", () => Layout.TabBar("tabs", ("One", () => first++), ("Two", () => second++)));
 
         Assert.Equal(1, first);
         Assert.Equal(0, second);

@@ -4,25 +4,8 @@ namespace EmberHUD.Host;
 
 internal static class OffsetTable
 {
-    private const int NonceSize = 12;
-    private const int TagSize = 16;
-
-    public static byte[] Pack(IReadOnlyList<int> ints, IReadOnlyList<string> strings)
-    {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream);
-        writer.Write(ints.Count);
-        foreach (var value in ints) writer.Write(value);
-        writer.Write(strings.Count);
-        foreach (var text in strings)
-        {
-            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
-            writer.Write(bytes.Length);
-            writer.Write(bytes);
-        }
-
-        return stream.ToArray();
-    }
+    internal const int NonceSize = 12;
+    internal const int TagSize = 16;
 
     public static int[] Unpack(byte[] packed)
     {
@@ -44,15 +27,6 @@ internal static class OffsetTable
         }
 
         return strings;
-    }
-
-    public static byte[] Seal(ReadOnlySpan<byte> plain, ReadOnlySpan<byte> key)
-    {
-        var box = new byte[NonceSize + TagSize + plain.Length];
-        RandomNumberGenerator.Fill(box.AsSpan(0, NonceSize));
-        using var aes = new AesGcm(key, TagSize);
-        aes.Encrypt(box.AsSpan(0, NonceSize), plain, box.AsSpan(NonceSize + TagSize), box.AsSpan(NonceSize, TagSize));
-        return box;
     }
 
     public static byte[] Open(ReadOnlySpan<byte> box, ReadOnlySpan<byte> key)

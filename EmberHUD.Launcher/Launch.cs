@@ -4,8 +4,6 @@ namespace EmberHUD.Launcher;
 
 public static class Launch
 {
-    public static bool NeedsSetup(LauncherConfig? config, GameInstall? game) => config is null || game is null;
-
     public static string GameInner(GameInstall game) =>
         $"set __COMPAT_LAYER=RunAsInvoker&& cd /d \"{game.Binaries}\" && start /high {GameInstall.ExeName} -SkipGameLauncher -UserDir=Torchlight{(game.Build is { } build ? $" -Version={build}" : "")}";
 
@@ -15,6 +13,19 @@ public static class Launch
             : RunAs(runAsUser, "cmd /c " + GameInner(game));
 
     public static ProcessStartInfo SavePassword(string runAsUser) => RunAs(runAsUser, "cmd /c exit");
+
+    public static TextWriter OpenLog(string root, string name)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "Logs"));
+            return new StreamWriter(new FileStream(Path.Combine(root, "Logs", name + ".log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return TextWriter.Null;
+        }
+    }
 
     static ProcessStartInfo RunAs(string user, string command)
     {

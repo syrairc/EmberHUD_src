@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
@@ -53,15 +54,19 @@ internal sealed class PakFile : IDisposable
     {
         var length = RandomAccess.GetLength(_file);
         if (length < 222) throw new InvalidDataException($"{Name} - too small for a pak footer - game patched?");
-        var footer = ReadAt(length - 222, 222);
-        var magic = BitConverter.ToUInt32(footer, 17);
-        var version = BitConverter.ToInt32(footer, 21);
+        var footer = new Cursor(ReadAt(length - 222, 222), 16);
+        var encryptedIndex = footer.U8() != 0;
+        var magic = footer.U32();
+        var version = footer.I32();
         if (magic != 0x6B2A56B8 || version != 12) throw new InvalidDataException($"{Name} - pak format changed - game patched? (magic 0x{magic:X8}, version {version})");
-        var encryptedIndex = footer[16] != 0;
-        Methods = [.. Enumerable.Range(0, 5).Select(i => Encoding.ASCII.GetString(footer, 62 + i * 32, 32).Split('\0')[0])];
+        footer.Take(1);
+        var indexOffset = footer.I64();
+        var indexSize = footer.I64();
+        footer.Take(20);
+        Methods = [.. Enumerable.Range(0, 5).Select(_ => Encoding.ASCII.GetString(footer.Take(32)).Split('\0')[0])];
         try
         {
-            var index = new Cursor(Blob(BitConverter.ToInt64(footer, 26), BitConverter.ToInt64(footer, 34), encryptedIndex));
+            var index = new Cursor(Blob(indexOffset, indexSize, encryptedIndex));
             var mount = index.FString();
             var count = index.I32();
             index.Take(8);
@@ -205,35 +210,57 @@ internal sealed class PakFile : IDisposable
         _file.Dispose();
         _aes.Dispose();
     }
+}
 
-    sealed class Cursor(byte[] data, int at = 0)
+internal sealed class Cursor(byte[] data, int at = 0)
+{
+    public int At { get; set; } = at;
+
+    public bool AtEnd => At >= data.Length;
+
+    public ReadOnlySpan<byte> Take(int count)
     {
-        int _at = at;
+        var span = data.AsSpan(At, count);
+        At += count;
+        return span;
+    }
 
-        public ReadOnlySpan<byte> Take(int count)
+    public byte U8() => Take(1)[0];
+
+    public int I32() => BitConverter.ToInt32(Take(4));
+
+    public uint U32() => BitConverter.ToUInt32(Take(4));
+
+    public long I64() => BitConverter.ToInt64(Take(8));
+
+    public float F32() => BitConverter.ToSingle(Take(4));
+
+    public string FString()
+    {
+        var length = I32();
+        return (length switch
         {
-            var span = data.AsSpan(_at, count);
-            _at += count;
-            return span;
-        }
+            0 => "",
+            < 0 => Encoding.Unicode.GetString(Take(checked(-length * 2))),
+            _ => Encoding.UTF8.GetString(Take(length)),
+        }).TrimEnd('\0');
+    }
+}
 
-        public byte U8() => Take(1)[0];
+internal static partial class Oodle
+{
+    [LibraryImport("ooz", EntryPoint = "ooz_decompress")]
+    private static unsafe partial int Native(byte* source, nint sourceLength, byte* target, nint targetLength);
 
-        public int I32() => BitConverter.ToInt32(Take(4));
-
-        public uint U32() => BitConverter.ToUInt32(Take(4));
-
-        public long I64() => BitConverter.ToInt64(Take(8));
-
-        public string FString()
-        {
-            var length = I32();
-            return (length switch
-            {
-                0 => "",
-                < 0 => Encoding.Unicode.GetString(Take(checked(-length * 2))),
-                _ => Encoding.Latin1.GetString(Take(length)),
-            }).TrimEnd('\0');
-        }
+    public static unsafe void Decompress(ReadOnlySpan<byte> source, Span<byte> target)
+    {
+        if (source.Length < 2) throw new InvalidDataException("oodle block is empty");
+        var buffer = new byte[target.Length + 64];
+        int written;
+        fixed (byte* from = source)
+        fixed (byte* to = buffer)
+            written = Native(from, source.Length, to, target.Length);
+        if (written != target.Length) throw new InvalidDataException(written < 0 ? "oodle block did not decode" : $"oodle block decoded to {written} bytes, expected {target.Length}");
+        buffer.AsSpan(0, target.Length).CopyTo(target);
     }
 }

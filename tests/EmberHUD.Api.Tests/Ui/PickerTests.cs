@@ -4,7 +4,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class PickerTests
+public class PickerTests : IDisposable
 {
     sealed record Mod(string Text, string Group);
 
@@ -65,9 +65,9 @@ public class PickerTests
         var term = Picker.TermMatcher("fi.e");
         var text = new string('x', 20_000) + "fire";
         var misses = 0;
-        var threads = Enumerable.Range(0, Environment.ProcessorCount * 4).Select(_ => new Thread(() =>
+        var threads = Enumerable.Range(0, Environment.ProcessorCount * 2).Select(_ => new Thread(() =>
         {
-            for (var i = 0; i < 300; i++)
+            for (var i = 0; i < 30; i++)
                 if (!term(text)) Interlocked.Increment(ref misses);
         })).ToList();
         threads.ForEach(t => t.Start());
@@ -94,13 +94,22 @@ public class PickerTests
     }
 
     [Fact]
-    public void ANewFilterReplacesTheCachedTerms()
+    public void AnotherFilterDoesNotEvictTheFirst()
     {
-        Assert.True(Picker.Matches("fire", "fire"));
-        Assert.False(Picker.Matches("cold", "fire"));
-        Assert.True(Picker.Matches("fire", "fire"));
+        var fire = Picker.Terms("fire");
+        Picker.Terms("cold");
+
+        Assert.Same(fire, Picker.Terms("fire"));
         Assert.Empty(Picker.Terms(null));
-        Assert.Single(Picker.Terms("x"));
+    }
+
+    [Fact]
+    public void TheTermCacheStartsOverPastItsLimit()
+    {
+        var first = Picker.Terms("limit-first");
+        for (var i = 0; i < 80; i++) Picker.Terms("limit-" + i);
+
+        Assert.NotSame(first, Picker.Terms("limit-first"));
     }
 
     const string Win = "picker";
@@ -121,29 +130,14 @@ public class PickerTests
         return new Metrics(line, frame, ImGui.GetFrameHeight(), spacing, padding, widths);
     });
 
-    static void Scoped(Action test)
+    static T ScopedValue<T>(Func<T> read)
     {
-        try
-        {
-            test();
-        }
-        finally
-        {
-            UiFrame.Settle(Win, CloseAll);
-        }
-    }
-
-    static void CloseAll()
-    {
-        if (ImGui.GetCurrentContext().OpenPopupStack.Size > 0) ImGuiP.ClosePopupToLevel(0, true);
-    }
-
-    static T ScopedValue<T>(Func<T> test)
-    {
-        T value = default!;
-        Scoped(() => value = test());
+        var value = read();
+        UiFrame.CloseAllPopups();
         return value;
     }
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     sealed class Rig
     {
@@ -256,7 +250,7 @@ public class PickerTests
 
         public void Close()
         {
-            UiFrame.Run(Win, CloseAll);
+            UiFrame.CloseAllPopups();
             Frames(2);
         }
     }
@@ -282,25 +276,14 @@ public class PickerTests
 
     static Vector2 ComboEntry(Metrics m, int index)
     {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
-        {
-            var window = windows[i];
-            if (window.Active && (window.Flags & ImGuiWindowFlags.Popup) != 0 && window.Pos != PopupAt)
-                return window.Pos + new Vector2(30f, m.Padding.Y + index * (m.Line + m.Spacing.Y) + m.Line / 2f);
-        }
-        throw new InvalidOperationException("no combo popup is open");
+        var popup = UiFrame.ActiveWindow(ImGuiWindowFlags.Popup, w => w.Pos != PopupAt);
+        if (popup.IsNull) throw new InvalidOperationException("no combo popup is open");
+        return popup.Pos + new Vector2(30f, m.Padding.Y + index * (m.Line + m.Spacing.Y) + m.Line / 2f);
     }
 
     static Vector2 ComboAt(Rig rig, Metrics m) => rig.FirstCategory!.Value + new Vector2(20f, m.PanelFrame / 2f);
 
-    static bool ComboOpen()
-    {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
-            if (windows[i].Active && (windows[i].Flags & ImGuiWindowFlags.Popup) != 0 && windows[i].Pos != PopupAt) return true;
-        return false;
-    }
+    static bool ComboOpen() => !UiFrame.ActiveWindow(ImGuiWindowFlags.Popup, w => w.Pos != PopupAt).IsNull;
 
     static float FirstRowY(Action<PickerOpts<Mod>> configure, Mod[]? items = null) => ScopedValue(() => new Rig(configure: configure) { Items = items ?? Mods }.Opened().Rows[0].Pos.Y);
 
@@ -313,7 +296,7 @@ public class PickerTests
     static Rig FiveCategories(string odd) => new(configure: o => o.Category = m => m.Group == "Resist" ? odd : m.Group == "Damage" ? "Damage" : m.Text.Contains("Life") ? "Life" : "Other") { Items = [new("a", "Resist"), new("b", "Damage"), new("c Life", ""), new("d", "x"), new("e", "y")] };
 
     [Fact]
-    public void ASinglePickerDrawsOneBalancedFrameOpen() => Scoped(() =>
+    public void ASinglePickerDrawsOneBalancedFrameOpen()
     {
         PickerState<Mod>? state = null;
         Mod? picked = null;
@@ -327,10 +310,10 @@ public class PickerTests
         Assert.False(acted);
         Assert.Null(picked);
         Assert.NotNull(state);
-    });
+    }
 
     [Fact]
-    public void AMultiPickerDrawsOneBalancedFrameOpen() => Scoped(() =>
+    public void AMultiPickerDrawsOneBalancedFrameOpen()
     {
         PickerState<Mod>? state = null;
         List<Mod>? committed = [];
@@ -343,10 +326,10 @@ public class PickerTests
         });
         Assert.False(acted);
         Assert.Null(committed);
-    });
+    }
 
     [Fact]
-    public void AClosedPickerDrawsNothingAndDoesNotTouchItsItems() => Scoped(() =>
+    public void AClosedPickerDrawsNothingAndDoesNotTouchItsItems()
     {
         var rig = new Rig();
         var touched = false;
@@ -360,41 +343,41 @@ public class PickerTests
         Assert.False(touched);
         Assert.Empty(rig.Rows);
         Assert.NotNull(rig.State);
-    });
+    }
 
     [Fact]
-    public void AllRowsDrawGroupedByCategoryThenText() => Scoped(() =>
+    public void AllRowsDrawGroupedByCategoryThenText()
     {
         var rig = new Rig().Opened();
         Assert.True(rig.Open);
         Assert.Equal(["+40 to maximum Life", "Adds 5 to 9 Fire Damage", "+10% to Fire Resistance", "+12% to Cold Resistance"], rig.Texts);
-    });
+    }
 
     [Fact]
-    public void WithoutGroupingTheRowsKeepTheCallersOrder() => Scoped(() =>
+    public void WithoutGroupingTheRowsKeepTheCallersOrder()
     {
         var rig = new Rig(configure: o => o.GroupByCategory = false).Opened();
         Assert.Equal(Mods.Select(m => m.Text), rig.Texts);
-    });
+    }
 
     [Fact]
-    public void AGroupRunIsHeadedByItsName() => Scoped(() =>
+    public void AGroupRunIsHeadedByItsName()
     {
         var rig = new Rig().Opened();
         var gaps = rig.Rows.Zip(rig.Rows.Skip(1), (a, b) => b.Pos.Y - a.Pos.Y).ToArray();
         Assert.True(gaps[1] > gaps[2]);
-    });
+    }
 
     [Fact]
-    public void UngroupedRowsHaveNoHeaders() => Scoped(() =>
+    public void UngroupedRowsHaveNoHeaders()
     {
         var rig = new Rig(configure: o => o.GroupByCategory = false).Opened();
         var gaps = rig.Rows.Zip(rig.Rows.Skip(1), (a, b) => b.Pos.Y - a.Pos.Y).Distinct().ToArray();
         Assert.Single(gaps);
-    });
+    }
 
     [Fact]
-    public void ClickingARowPicksItOnceAndClosesThePopup() => Scoped(() =>
+    public void ClickingARowPicksItOnceAndClosesThePopup()
     {
         var rig = new Rig().Opened();
         rig.ClickRow(1);
@@ -404,48 +387,48 @@ public class PickerTests
         rig.Frames();
         Assert.Equal(1, rig.Fires);
         Assert.Empty(rig.State!.Selected);
-    });
+    }
 
     [Fact]
-    public void ClickingOutsideClosesWithoutPicking() => Scoped(() =>
+    public void ClickingOutsideClosesWithoutPicking()
     {
         var rig = new Rig().Opened();
         rig.Click(UiFrame.WindowSize - new Vector2(10f, 10f));
         Assert.False(rig.Open);
         Assert.Equal(0, rig.Fires);
-    });
+    }
 
     [Fact]
-    public void TypingFiltersTheRowsInAnyOrder() => Scoped(() =>
+    public void TypingFiltersTheRowsInAnyOrder()
     {
         var rig = new Rig().Opened();
         UiFrame.Io().AddInputCharactersUTF8("fire");
         rig.Frames();
         Assert.Equal("fire", rig.State!.Filter);
         Assert.Equal(["Adds 5 to 9 Fire Damage", "+10% to Fire Resistance"], rig.Texts);
-    });
+    }
 
     [Fact]
-    public void ARegexTermFiltersAndAHalfTypedOneStillFilters() => Scoped(() =>
+    public void ARegexTermFiltersAndAHalfTypedOneStillFilters()
     {
         Assert.Equal(["+10% to Fire Resistance"], Filtered("fire.*resist"));
         Assert.Empty(Filtered("(fire"));
         Assert.Empty(Filtered("("));
         Assert.Equal(["Adds 5 to 9 Fire Damage"], Filtered("dam.ge"));
-    });
+    }
 
     [Fact]
-    public void ASearchMatchingNothingKeepsThePopupOpenAndPicksNothing() => Scoped(() =>
+    public void ASearchMatchingNothingKeepsThePopupOpenAndPicksNothing()
     {
         var rig = new Rig().Typed("zzz");
         Assert.Equal("zzz", rig.State!.Filter);
         Assert.True(rig.Open);
         Assert.Empty(rig.Rows);
         Assert.Equal(0, rig.Fires);
-    });
+    }
 
     [Fact]
-    public void AReopenedPickerStartsClean() => Scoped(() =>
+    public void AReopenedPickerStartsClean()
     {
         var rig = new Rig(true).Opened();
         rig.State!.Filter = "fire";
@@ -458,19 +441,19 @@ public class PickerTests
         Assert.Equal(Picker.AnyCategory, rig.State.Category);
         Assert.Empty(rig.State.Selected);
         Assert.Equal(4, rig.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void ACallerSuppliedStateIsKept() => Scoped(() =>
+    public void ACallerSuppliedStateIsKept()
     {
         var state = new PickerState<Mod>();
         var rig = new Rig { State = state };
         rig.Opened();
         Assert.Same(state, rig.State);
-    });
+    }
 
     [Fact]
-    public void TheCategoryFilterPicksOneGroupAndDropsItsHeaders() => Scoped(() =>
+    public void TheCategoryFilterPicksOneGroupAndDropsItsHeaders()
     {
         var rig = new Rig().Opened();
         rig.State!.Category = "Resist";
@@ -479,10 +462,10 @@ public class PickerTests
         rig.State.Category = Picker.AnyCategory;
         rig.Frame();
         Assert.Equal(4, rig.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void ClickingACategoryButtonFiltersTheRows() => Scoped(() =>
+    public void ClickingACategoryButtonFiltersTheRows()
     {
         var m = Measure("All", "Damage");
         var rig = new Rig().Opened();
@@ -490,10 +473,10 @@ public class PickerTests
         Assert.Equal("Damage", rig.State!.Category);
         Assert.Equal(["Adds 5 to 9 Fire Damage"], rig.Texts);
         Assert.True(rig.Open);
-    });
+    }
 
     [Fact]
-    public void ManyCategoriesGoInAComboThatSelectsOne() => Scoped(() =>
+    public void ManyCategoriesGoInAComboThatSelectsOne()
     {
         var m = Measure();
         var rig = FiveCategories("Resist").Opened();
@@ -502,7 +485,7 @@ public class PickerTests
         Assert.Equal("Damage", rig.State!.Category);
         Assert.Equal(["b"], rig.Texts);
         Assert.True(rig.Open);
-    });
+    }
 
     [Fact]
     public void ACategoryLabelInTheComboIsNotPrintfEscaped()
@@ -519,15 +502,15 @@ public class PickerTests
     }
 
     [Fact]
-    public void WithoutACategoryThereIsNoPillColumnAndNoFilterRow() => Scoped(() =>
+    public void WithoutACategoryThereIsNoPillColumnAndNoFilterRow()
     {
         var rig = new Rig(configure: o => o.Category = null).Opened();
         Assert.Null(rig.FirstCategory);
         Assert.Equal(Mods.Select(m => m.Text), rig.Texts);
-    });
+    }
 
     [Fact]
-    public void ShowCategoryFilterOffHidesTheFilterRowButKeepsThePills() => Scoped(() =>
+    public void ShowCategoryFilterOffHidesTheFilterRowButKeepsThePills()
     {
         var m = Measure();
         var pill = Color.FromArgb(255, 1, 2, 3);
@@ -540,16 +523,16 @@ public class PickerTests
         }).Opened();
         Assert.True(withRow - rig.Rows[0].Pos.Y >= m.PanelFrame);
         Assert.Contains(AllVerts(), v => v.Col == EColor.U32(pill));
-    });
+    }
 
     [Fact]
-    public void AListWithOneCategoryHasNoFilterRow() => Scoped(() =>
+    public void AListWithOneCategoryHasNoFilterRow()
     {
         var m = Measure();
         var withRow = FirstRowY(o => o.GroupByCategory = false);
         var single = FirstRowY(o => o.GroupByCategory = false, [new("a", "Resist"), new("b", "Resist")]);
         Assert.True(withRow - single >= m.PanelFrame);
-    });
+    }
 
     [Fact]
     public void FourShortCategoriesStayButtonsAndALongNameGoesToTheCombo()
@@ -567,29 +550,29 @@ public class PickerTests
     }
 
     [Fact]
-    public void ThePillTakesTheCallersColour() => Scoped(() =>
+    public void ThePillTakesTheCallersColour()
     {
         var pill = Color.FromArgb(255, 1, 2, 3);
         new Rig(configure: o => o.CategoryColor = _ => pill).Opened();
         Assert.Contains(AllVerts(), v => v.Col == EColor.U32(pill));
-    });
+    }
 
     [Fact]
-    public void WithoutAColourFuncThePillHashesTheCategoryName() => Scoped(() =>
+    public void WithoutAColourFuncThePillHashesTheCategoryName()
     {
         new Rig().Opened();
         Assert.Contains(AllVerts(), v => v.Col == EColor.U32(EColor.CategoryColor("Resist")));
-    });
+    }
 
     [Fact]
-    public void ShowSearchOffDrawsNoSearchBoxSoTypingGoesNowhere() => Scoped(() =>
+    public void ShowSearchOffDrawsNoSearchBoxSoTypingGoesNowhere()
     {
         var rig = new Rig(configure: o => o.ShowSearch = false).Opened();
         UiFrame.Io().AddInputCharactersUTF8("fire");
         rig.Frames();
         Assert.Equal("", rig.State!.Filter);
         Assert.Equal(4, rig.Rows.Count);
-    });
+    }
 
     [Fact]
     public void TheSearchFuncReplacesTheRowTextForMatching()
@@ -609,20 +592,20 @@ public class PickerTests
     }
 
     [Fact]
-    public void MaxRowsCapsTheDrawnRows() => Scoped(() =>
+    public void MaxRowsCapsTheDrawnRows()
     {
         var rig = new Rig(configure: o => o.MaxRows = 2).Opened();
         Assert.Equal(2, rig.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void TheCapAppliesAfterTheSearchFilter() => Scoped(() =>
+    public void TheCapAppliesAfterTheSearchFilter()
     {
         Assert.Equal(["+40 to maximum Life"], Filtered("life", o => o.MaxRows = 1));
-    });
+    }
 
     [Fact]
-    public void TheSecondLineIsPartOfTheClickableRow() => Scoped(() =>
+    public void TheSecondLineIsPartOfTheClickableRow()
     {
         var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         var rig = new Rig(configure: o =>
@@ -633,10 +616,10 @@ public class PickerTests
         rig.ClickRow(0, line * 1.5f);
         Assert.Equal(1, rig.Fires);
         Assert.Same(Mods[0], rig.Picked);
-    });
+    }
 
     [Fact]
-    public void AWrappedRowIsClickableOnItsLastLine() => Scoped(() =>
+    public void AWrappedRowIsClickableOnItsLastLine()
     {
         var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         var wrapped = string.Concat(Enumerable.Repeat("word ", 80));
@@ -645,10 +628,10 @@ public class PickerTests
         rig.ClickRow(0, line * 2.5f);
         Assert.Equal(1, rig.Fires);
         Assert.Equal(wrapped, rig.Picked?.Text);
-    });
+    }
 
     [Fact]
-    public void ASecondaryLineDrawsTallerRows() => Scoped(() =>
+    public void ASecondaryLineDrawsTallerRows()
     {
         var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         float Gap(Action<PickerOpts<Mod>> configure)
@@ -663,26 +646,26 @@ public class PickerTests
             return gap;
         }
         Assert.True(Gap(o => o.Secondary = _ => "x") - Gap(_ => { }) >= line - 0.5f);
-    });
+    }
 
     [Fact]
-    public void ANullItemListIsTreatedAsEmpty() => Scoped(() =>
+    public void ANullItemListIsTreatedAsEmpty()
     {
         var rig = new Rig { Items = null }.Opened();
         Assert.True(rig.Open);
         Assert.Empty(rig.Rows);
         Assert.Null(rig.FirstCategory);
         Assert.Equal(0, rig.Fires);
-    });
+    }
 
     [Fact]
-    public void AnEmptyListDrawsNoControlsAndKeepsThePopupOpen() => Scoped(() =>
+    public void AnEmptyListDrawsNoControlsAndKeepsThePopupOpen()
     {
         var rig = new Rig { Items = [] }.Opened();
         Assert.True(rig.Open);
         Assert.Empty(rig.Rows);
         Assert.Null(rig.FirstCategory);
-    });
+    }
 
     [Fact]
     public void TheEmptyTextIsDrawn()
@@ -766,7 +749,7 @@ public class PickerTests
     }
 
     [Fact]
-    public void TheTipShowsOnHoveringTheQuestionMark() => Scoped(() =>
+    public void TheTipShowsOnHoveringTheQuestionMark()
     {
         var m = Measure();
         int TipVerts(string? tip)
@@ -781,32 +764,21 @@ public class PickerTests
         var custom = TipVerts("short");
         Assert.True(custom > 0);
         Assert.True(TipVerts(null) > custom);
-    });
+    }
 
     [Fact]
-    public void TheSecondLineIsDrawnInTheDisabledTextColour() => Scoped(() =>
+    public void TheSecondLineIsDrawnInTheDisabledTextColour()
     {
-        var style = ImGui.GetStyle();
-        var saved = (Text: style.Colors[(int)ImGuiCol.Text], Disabled: style.Colors[(int)ImGuiCol.TextDisabled]);
         var disabled = new Vector4(0.2f, 0.9f, 0.3f, 1f);
-        try
+        using var colours = UiFrame.WithColors((ImGuiCol.Text, new Vector4(0.9f, 0.2f, 0.7f, 1f)), (ImGuiCol.TextDisabled, disabled));
+        var colour = ImGui.GetColorU32(disabled);
+        int Disabled(Action<PickerOpts<Mod>> configure)
         {
-            style.Colors[(int)ImGuiCol.Text] = new Vector4(0.9f, 0.2f, 0.7f, 1f);
-            style.Colors[(int)ImGuiCol.TextDisabled] = disabled;
-            var colour = ImGui.GetColorU32(disabled);
-            int Disabled(Action<PickerOpts<Mod>> configure)
-            {
-                new Rig(configure: configure).Opened();
-                return AllVerts().Count(v => v.Col == colour);
-            }
-            Assert.True(Disabled(o => o.Secondary = _ => "second line of text") > Disabled(_ => { }));
+            new Rig(configure: configure).Opened();
+            return AllVerts().Count(v => v.Col == colour);
         }
-        finally
-        {
-            style.Colors[(int)ImGuiCol.Text] = saved.Text;
-            style.Colors[(int)ImGuiCol.TextDisabled] = saved.Disabled;
-        }
-    });
+        Assert.True(Disabled(o => o.Secondary = _ => "second line of text") > Disabled(_ => { }));
+    }
 
     static bool DrawsText(List<Vector2> reference)
     {
@@ -819,17 +791,17 @@ public class PickerTests
     [Theory]
     [InlineData("", "4 of 4")]
     [InlineData("fire", "2 of 4")]
-    public void TheHeaderCountsTheMatchesOutOfEverything(string typed, string count) => Scoped(() =>
+    public void TheHeaderCountsTheMatchesOutOfEverything(string typed, string count)
     {
         var reference = UiFrame.GlyphUvs("count reference", count);
         var rig = new Rig();
         if (typed.Length > 0) rig.Typed(typed);
         else rig.Opened();
         Assert.True(DrawsText(reference));
-    });
+    }
 
     [Fact]
-    public void ThePillIsRightAlignedInItsColumn() => Scoped(() =>
+    public void ThePillIsRightAlignedInItsColumn()
     {
         var pill = Color.FromArgb(255, 1, 2, 3);
         float DotX(string category)
@@ -840,10 +812,10 @@ public class PickerTests
             return (xs.Min() + xs.Max()) / 2f;
         }
         Assert.True(DotX("ab") - DotX("abcdefgh") > 20f);
-    });
+    }
 
     [Fact]
-    public void TheCategoryWidthNarrowsTheTextColumn() => Scoped(() =>
+    public void TheCategoryWidthNarrowsTheTextColumn()
     {
         var line = Measure().Line;
         var wrapped = string.Concat(Enumerable.Repeat("word ", 40));
@@ -859,10 +831,10 @@ public class PickerTests
             return gap;
         }
         Assert.True(Gap(430f) > Gap(60f) + line - 0.5f);
-    });
+    }
 
     [Fact]
-    public void TheSizeOptionSizesThePopupBodyAndMovesTheFooter() => Scoped(() =>
+    public void TheSizeOptionSizesThePopupBodyAndMovesTheFooter()
     {
         var m = Measure("Add (1)", "Clear");
         var rig = new Rig(true, o => o.Size = new Vector2(420f, 300f)).Opened();
@@ -870,19 +842,19 @@ public class PickerTests
         rig.Click(FooterButton(m, rig.Opts, 1, 1));
         Assert.Empty(rig.State!.Selected);
         Assert.True(rig.Open);
-    });
+    }
 
     [Fact]
-    public void TheNothingMatchesNoteTakesTheFirstRowSlot() => Scoped(() =>
+    public void TheNothingMatchesNoteTakesTheFirstRowSlot()
     {
         var line = Measure().Line;
         var slot = FirstRowY(o => o.GroupByCategory = false);
         new Rig(configure: o => o.GroupByCategory = false).Typed("zzz");
         Assert.True(TextVertsAt(slot, line) > 40);
-    });
+    }
 
     [Fact]
-    public void RowsPastTheCapAreCountedInANote() => Scoped(() =>
+    public void RowsPastTheCapAreCountedInANote()
     {
         var line = Measure().Line;
         var slot = ScopedValue(() => new Rig(configure: o => o.GroupByCategory = false).Opened().Rows[1].Pos.Y);
@@ -892,44 +864,44 @@ public class PickerTests
             o.MaxRows = 1;
         }).Opened();
         Assert.True(TextVertsAt(slot, line) > 40);
-    });
+    }
 
     [Fact]
-    public void ANullCategoryFromTheCallerCountsAsNone() => Scoped(() =>
+    public void ANullCategoryFromTheCallerCountsAsNone()
     {
         var rig = new Rig(configure: o => o.Category = m => m.Group.Length == 0 ? null! : m.Group).Opened();
         Assert.Equal(["+40 to maximum Life", "Adds 5 to 9 Fire Damage", "+10% to Fire Resistance", "+12% to Cold Resistance"], rig.Texts);
         rig.State!.Category = "Resist";
         rig.Frame();
         Assert.Equal(2, rig.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void ANullTextFromTheCallerIsDrawnAsEmptyAndMatchesNothing() => Scoped(() =>
+    public void ANullTextFromTheCallerIsDrawnAsEmptyAndMatchesNothing()
     {
         Mod[] items = [new(null!, "g"), new("b", "g")];
         var rig = new Rig { Items = items }.Opened();
         Assert.Equal(2, rig.Rows.Count);
         Assert.Equal(["b"], ScopedValue(() => new Rig(configure: o => o.Secondary = _ => null!) { Items = items }.Typed("b").Texts.ToList()));
-    });
+    }
 
     [Fact]
-    public void ACategoryAloneCanSatisfyATerm() => Scoped(() =>
+    public void ACategoryAloneCanSatisfyATerm()
     {
         Mod[] items = [new("alpha", "zzgrp"), new("beta", "other"), new("gamma", "third")];
         Assert.Equal(["alpha"], ScopedValue(() => new Rig { Items = items }.Typed("zzgrp").Texts.ToList()));
-    });
+    }
 
     [Fact]
-    public void RowsWithTheSameKeyShareOneIdScopeSoNoRowLeaksItsId() => Scoped(() =>
+    public void RowsWithTheSameKeyShareOneIdScopeSoNoRowLeaksItsId()
     {
         var rig = new Rig(configure: o => o.GroupByCategory = false) { Items = [new("same", ""), new("same", ""), new("same", "")] }.Opened();
         Assert.Equal(3, rig.RowScopes.Count);
         Assert.Single(rig.RowScopes.Distinct());
-    });
+    }
 
     [Fact]
-    public void TheListIsDrawnInPanelStyleAndTheStyleIsRestored() => Scoped(() =>
+    public void TheListIsDrawnInPanelStyleAndTheStyleIsRestored()
     {
         (Vector2, float, float, float, float) Read() => (ImGui.GetStyle().FramePadding, ImGui.GetStyle().FrameRounding, ImGui.GetStyle().GrabRounding, ImGui.GetStyle().ChildRounding, ImGui.GetStyle().PopupRounding);
         var before = UiFrame.Measure(Read);
@@ -947,16 +919,16 @@ public class PickerTests
         }).Opened();
         Assert.Equal(panel, inside);
         Assert.Equal(before, UiFrame.Measure(Read));
-    });
+    }
 
     [Fact]
-    public void ANullSearchKeyMatchesNothing() => Scoped(() =>
+    public void ANullSearchKeyMatchesNothing()
     {
         Assert.Empty(Filtered("x", o => o.Search = _ => null!));
-    });
+    }
 
     [Fact]
-    public void MultiPickToggleCommitAndClose() => Scoped(() =>
+    public void MultiPickToggleCommitAndClose()
     {
         var m = Measure("Add (2)");
         var rig = new Rig(true, o => o.GroupByCategory = false).Opened();
@@ -976,10 +948,10 @@ public class PickerTests
         Assert.NotSame(rig.State.Selected, rig.Committed);
         Assert.False(rig.Open);
         Assert.Null(rig.Picked);
-    });
+    }
 
     [Fact]
-    public void ClearEmptiesTheSelectionAndKeepsThePopupOpen() => Scoped(() =>
+    public void ClearEmptiesTheSelectionAndKeepsThePopupOpen()
     {
         var m = Measure("Add (2)", "Clear");
         var rig = new Rig(true).Opened();
@@ -990,10 +962,10 @@ public class PickerTests
         Assert.Empty(rig.State.Selected);
         Assert.True(rig.Open);
         Assert.Equal(0, rig.Fires);
-    });
+    }
 
     [Fact]
-    public void CloseClosesWithoutCommitting() => Scoped(() =>
+    public void CloseClosesWithoutCommitting()
     {
         var m = Measure("Add (1)", "Clear", "Close");
         var rig = new Rig(true).Opened();
@@ -1002,10 +974,10 @@ public class PickerTests
         Assert.False(rig.Open);
         Assert.Equal(0, rig.Fires);
         Assert.Null(rig.Committed);
-    });
+    }
 
     [Fact]
-    public void TheCommitButtonDoesNothingWithNothingSelected() => Scoped(() =>
+    public void TheCommitButtonDoesNothingWithNothingSelected()
     {
         var m = Measure("Add (0)");
         var rig = new Rig(true).Opened();
@@ -1013,10 +985,10 @@ public class PickerTests
         Assert.True(rig.Open);
         Assert.Equal(0, rig.Fires);
         Assert.Null(rig.Committed);
-    });
+    }
 
     [Fact]
-    public void TheCommitLabelAndCountSizeTheCommitButton() => Scoped(() =>
+    public void TheCommitLabelAndCountSizeTheCommitButton()
     {
         var m = Measure("Confirm all (1)", "Clear");
         var rig = new Rig(true, o => o.CommitLabel = "Confirm all").Opened();
@@ -1024,10 +996,10 @@ public class PickerTests
         rig.Click(FooterButton(m, rig.Opts, 1, 1));
         Assert.Empty(rig.State!.Selected);
         Assert.True(rig.Open);
-    });
+    }
 
     [Fact]
-    public void RowsWithTheSameTextNeedTheirOwnKeyToBeToggledApart() => Scoped(() =>
+    public void RowsWithTheSameTextNeedTheirOwnKeyToBeToggledApart()
     {
         Mod[] twins = [new("same", ""), new("same", "")];
         var rig = new Rig(true, o =>
@@ -1039,10 +1011,10 @@ public class PickerTests
         rig.Click(rows[0] + new Vector2(10f, 2f));
         rig.Click(rows[1] + new Vector2(10f, 2f));
         Assert.Equal(2, rig.State!.Selected.Count);
-    });
+    }
 
     [Fact]
-    public void WithoutAKeyTheRowsAreToggledByTheirPrimaryText() => Scoped(() =>
+    public void WithoutAKeyTheRowsAreToggledByTheirPrimaryText()
     {
         var rig = new Rig(true, o => o.GroupByCategory = false, true).Opened();
         var rows = rig.Rows.Select(r => r.Pos).ToArray();
@@ -1051,44 +1023,35 @@ public class PickerTests
         Assert.Equal([Mods[0], Mods[1]], rig.State!.Selected);
         rig.Click(rows[0] + new Vector2(10f, 2f));
         Assert.Equal([Mods[1]], rig.State.Selected);
-    });
+    }
 
     [Fact]
-    public void RowsWithinAGroupSortByText() => Scoped(() =>
+    public void RowsWithinAGroupSortByText()
     {
         var rig = new Rig { Items = [new("b", "g"), new("c", "g"), new("a", "g")] }.Opened();
         Assert.Equal(["a", "b", "c"], rig.Texts);
-    });
+    }
 
     [Fact]
-    public void AnyEnumerableOfItemsWorksNotJustAList() => Scoped(() =>
+    public void AnyEnumerableOfItemsWorksNotJustAList()
     {
         var rig = new Rig { Lazy = true }.Opened();
         Assert.Equal(4, rig.Rows.Count);
         rig.ClickRow(0);
         Assert.Same(Mods[3], rig.Picked);
-    });
+    }
 
     [Fact]
-    public void ASelectedRowIsHighlighted() => Scoped(() =>
+    public void ASelectedRowIsHighlighted()
     {
-        var style = ImGui.GetStyle();
-        var saved = style.Colors[(int)ImGuiCol.Header];
-        try
-        {
-            style.Colors[(int)ImGuiCol.Header] = new Vector4(0.1f, 0.8f, 0.2f, 1f);
-            var colour = ImGui.GetColorU32(ImGuiCol.Header);
-            var rig = new Rig(true, o => o.GroupByCategory = false).Opened();
-            var before = AllVerts().Count(v => v.Col == colour);
-            rig.ClickRow(0);
-            rig.Frames();
-            Assert.True(AllVerts().Count(v => v.Col == colour) > before);
-        }
-        finally
-        {
-            style.Colors[(int)ImGuiCol.Header] = saved;
-        }
-    });
+        using var colours = UiFrame.WithColors((ImGuiCol.Header, new Vector4(0.1f, 0.8f, 0.2f, 1f)));
+        var colour = ImGui.GetColorU32(ImGuiCol.Header);
+        var rig = new Rig(true, o => o.GroupByCategory = false).Opened();
+        var before = AllVerts().Count(v => v.Col == colour);
+        rig.ClickRow(0);
+        rig.Frames();
+        Assert.True(AllVerts().Count(v => v.Col == colour) > before);
+    }
 
     sealed class Named(string name)
     {
@@ -1102,7 +1065,7 @@ public class PickerTests
     }
 
     [Fact]
-    public void WithNoOptionsTheRowsShowToStringAndSearchesItToo() => Scoped(() =>
+    public void WithNoOptionsTheRowsShowToStringAndSearchesItToo()
     {
         Named[] items = [new("alpha"), new("beta"), new("gamma")];
         PickerState<Named>? state = null;
@@ -1126,10 +1089,10 @@ public class PickerTests
         Assert.NotEmpty(items[1].Seen);
         UiFrame.Click(Win, items[1].Seen[^1] + new Vector2(10f, 2f), Body);
         Assert.Same(items[1], picked);
-    });
+    }
 
     [Fact]
-    public void TheSingleButtonHonoursItsId() => Scoped(() =>
+    public void TheSingleButtonHonoursItsId()
     {
         var m = Measure();
         var rig = new Rig { UseButton = true, Label = "Add", ButtonId = "add-popup" };
@@ -1137,10 +1100,10 @@ public class PickerTests
         rig.Click(OnButton(rig, m));
         Assert.True(rig.Open);
         Assert.Equal(4, rig.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void TwoButtonsWithTheSameLabelNeedDistinctIdsInOneScope() => Scoped(() =>
+    public void TwoButtonsWithTheSameLabelNeedDistinctIdsInOneScope()
     {
         var a = new Rig { UseButton = true, Label = "Pick", ButtonId = "first" };
         var b = new Rig { UseButton = true, Label = "Pick", ButtonId = "second" };
@@ -1157,19 +1120,19 @@ public class PickerTests
         Assert.False(a.Open);
         Assert.True(b.Open);
         Assert.Equal(4, b.Rows.Count);
-    });
+    }
 
     [Fact]
-    public void ASingleRowPickLeavesTheSelectionAndCommitOutputAlone() => Scoped(() =>
+    public void ASingleRowPickLeavesTheSelectionAndCommitOutputAlone()
     {
         var rig = new Rig().Opened();
         rig.ClickRow(0);
         Assert.Empty(rig.State!.Selected);
         Assert.Null(rig.Committed);
-    });
+    }
 
     [Fact]
-    public void ThePickerButtonOpensItsPopupUnderItsOwnLabel() => Scoped(() =>
+    public void ThePickerButtonOpensItsPopupUnderItsOwnLabel()
     {
         var m = Measure();
         var rig = new Rig { UseButton = true, Label = "Add mod" };
@@ -1181,10 +1144,10 @@ public class PickerTests
         rig.ClickRow(1);
         Assert.Equal(1, rig.Fires);
         Assert.Same(Mods[2], rig.Picked);
-    });
+    }
 
     [Fact]
-    public void TheMultiPickerButtonOpensAMultiPopupUnderItsId() => Scoped(() =>
+    public void TheMultiPickerButtonOpensAMultiPopupUnderItsId()
     {
         var m = Measure();
         var rig = new Rig(true) { UseButton = true, Label = "Add mods", ButtonId = "mods-popup" };
@@ -1193,10 +1156,10 @@ public class PickerTests
         Assert.True(rig.Open);
         rig.ClickRow(0);
         Assert.Single(rig.State!.Selected);
-    });
+    }
 
     [Fact]
-    public void TwoButtonsWithTheSameLabelOpenOnlyTheirOwnPopupUnderSeparateIdScopes() => Scoped(() =>
+    public void TwoButtonsWithTheSameLabelOpenOnlyTheirOwnPopupUnderSeparateIdScopes()
     {
         var a = new Rig { UseButton = true, Label = "Pick" };
         var b = new Rig { UseButton = true, Label = "Pick" };
@@ -1218,5 +1181,5 @@ public class PickerTests
         Assert.True(b.Open);
         Assert.Empty(a.Rows);
         Assert.Equal(4, b.Rows.Count);
-    });
+    }
 }

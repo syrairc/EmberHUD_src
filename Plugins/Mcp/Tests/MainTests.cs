@@ -162,12 +162,12 @@ public sealed class MainTests
         var main = Plugin(directory, clock);
         try
         {
-            TestGame.Set(new GameState("a", 1, null, [], null));
+            TestGame.Set(new GameState { Status = "a", AreaId = 1 });
             main.Tick();
             clock[0] = 4000;
             main.Tick();
             Check.Equal(3000L, main.CurrentStatus().MsSinceStateChange);
-            TestGame.Set(new GameState("b", 1, null, [], null));
+            TestGame.Set(new GameState { Status = "b", AreaId = 1 });
             main.Tick();
             Check.Equal(0L, main.CurrentStatus().MsSinceStateChange);
         }
@@ -187,17 +187,17 @@ public sealed class MainTests
         try
         {
             Entity[] entities = [];
-            TestGame.Set(new GameState("a", 1, null, entities, null));
+            TestGame.Set(new GameState { Status = "a", AreaId = 1, Entities = entities });
             main.Tick();
             clock[0] = 4000;
-            TestGame.Set(new GameState("a", 1, null, entities, null));
+            TestGame.Set(new GameState { Status = "a", AreaId = 1, Entities = entities });
             main.Tick();
             Check.Equal(3000L, main.CurrentStatus().MsSinceStateChange);
-            TestGame.Set(new GameState("a", 2, null, entities, null));
+            TestGame.Set(new GameState { Status = "a", AreaId = 2, Entities = entities });
             main.Tick();
             Check.Equal(0L, main.CurrentStatus().MsSinceStateChange);
             clock[0] = 5000;
-            TestGame.Set(new GameState("a", 2, null, new Entity[1], null));
+            TestGame.Set(new GameState { Status = "a", AreaId = 2, Entities = new Entity[1] });
             main.Tick();
             Check.Equal(0L, main.CurrentStatus().MsSinceStateChange);
         }

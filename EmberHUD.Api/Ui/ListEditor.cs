@@ -52,7 +52,7 @@ public static class ListEditor
         for (var i = 0; i < list.Count; i++)
         {
             ImGui.PushID(i);
-            using (Tables.Dim(filterText is not null && !Text.Matches(filter, filterText(list[i]))))
+            using (Layout.Dim(filterText is not null && !Text.Matches(filter, filterText(list[i]))))
             {
                 if (reorderable)
                 {
@@ -93,7 +93,7 @@ public static class ListEditor
         for (var i = 0; i < items.Count; i++)
         {
             ImGui.PushID(i);
-            using var dim = Tables.Dim(opts.FilterText is not null && !Text.Matches(filter, opts.FilterText(i)));
+            using var dim = Layout.Dim(opts.FilterText is not null && !Text.Matches(filter, opts.FilterText(i)));
             var rowTop = ImGui.GetCursorPosY();
 
             if (ImGui.Selectable("##row", selected == i, ImGuiSelectableFlags.AllowOverlap, new Vector2(0, rowH))) selected = i;
@@ -202,8 +202,7 @@ public static class ListEditor
     {
         if (!enabled) return "";
         var filter = _rowFilters.GetValueOrDefault(key, "");
-        ImGui.SetNextItemWidth(-1);
-        ImGui.InputTextWithHint("##rowfilter", "filter...", ref filter, 128);
+        Controls.Filter(ref filter);
         _rowFilters[key] = filter;
         return filter;
     }
@@ -256,7 +255,7 @@ public static class ListEditor
             _pendingDelete[key] = requested;
             ImGui.OpenPopup(DeletePopup);
         }
-        if (!Windows.ConfirmModal(DeletePopup, "Delete this item?", out var ok)) return false;
+        if (!Layout.ConfirmModal(DeletePopup, "Delete this item?", out var ok)) return false;
         var removed = false;
         if (ok && _pendingDelete.TryGetValue(key, out var at) && at >= 0 && at < list.Count)
         {

@@ -42,14 +42,12 @@ internal sealed class LiveGameSource : IGameSource
         if (!GameProcess.TryAttach(pid, ref _rejectedBuild, out _game, out _attachFailure)) return false;
         _reader = new LiveReader(_game!.Backend, _game.ModuleBase, _lastAreaId);
         EmberHUD.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
-        GameUi.Finder = _reader.FindRect;
         UseLookups(_game.Backend, _game.ModuleBase);
         return true;
     }
 
     private void Detach()
     {
-        GameUi.Finder = null;
         UseLookups(null, 0);
         EmberHUD.Memory.Use(null);
         _reader = null;
@@ -70,16 +68,14 @@ internal sealed class LiveGameSource : IGameSource
 
         var loc = new LocText(backend, moduleBase);
         var finder = new LocText(backend, moduleBase);
+        var world = new LogicWorldReader(backend, moduleBase);
+        var names = new Names(backend, moduleBase);
         var locGate = new Lock();
         var findGate = new Lock();
         var sceneGate = new Lock();
         Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
         Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
-        Scene.Lister = () => Guarded(sceneGate, () =>
-        {
-            var world = new LogicWorldReader(backend, moduleBase);
-            return world.TryReadScene(out var scene, out _) ? world.ListScene(scene, new MinimapReader(backend, moduleBase).TryReadName) : [];
-        }, []);
+        Scene.Lister = () => Guarded(sceneGate, () => world.TryReadScene(out var scene, out _) ? world.ListScene(scene, names) : [], []);
     }
 
     private static T Guarded<T>(Lock gate, Func<T> read, T fallback)
@@ -102,17 +98,53 @@ internal sealed class LiveGameSource : IGameSource
         int[] rvas = [Offsets.FNamePoolRva, Offsets.GObjectsGlobalRva, Offsets.LogicWorldGlobalRva, Offsets.FightMgrGlobalRva, Offsets.PlayerMgrGlobalRva, Offsets.MiniMapMgrGlobalRva];
         var globals = Offsets.GlobalLabels.Split(' ').Zip(rvas).ToDictionary(pair => pair.First, pair => moduleBase + pair.Second);
         var layout = new UeLayout(
-            Offsets.UObjectInternalIndex, Offsets.UObjectClass, Offsets.UObjectName, Offsets.UObjectOuter,
-            Offsets.UStructSuper, Offsets.UStructChildProperties, Offsets.UStructPropertiesSize,
-            Offsets.FFieldClass, Offsets.FFieldNext, Offsets.FFieldName, Offsets.FFieldClassName,
-            Offsets.FPropertyArrayDim, Offsets.FPropertyElementSize, Offsets.FPropertyOffset, Offsets.FPropertyInner, Offsets.FBoolByteOffset, Offsets.FBoolFieldMask,
-            Offsets.GObjectsNumElements, Offsets.GObjectsPerChunk, Offsets.GObjectsItemSize, Offsets.GObjectsItemFlags, Offsets.GObjectsPendingKill, Offsets.MaxGObjectChunks,
-            Offsets.FNameBlocks, Offsets.FNameBlockSize, Offsets.FNameEntryStride, Offsets.FNameLengthShift, Offsets.MaxFNameBlocks, Offsets.MaxNameLength,
-            Offsets.TArrayNum, Offsets.UeClassClassName, Offsets.DefaultObjectPrefix,
-            Offsets.UClassDefaultObject, Offsets.UEnumNames, Offsets.UEnumNameStride, Offsets.FEnumPropertyEnum, Offsets.FBytePropertyEnum,
-            Offsets.FMapPropertyValue, Offsets.FMapElementSize, Offsets.FSetElementSize,
-            Offsets.SparseFlagsInline, Offsets.SparseFlagsSecondary, Offsets.SparseNumBits, Offsets.SparseInlineBits,
-            Offsets.GObjectsItemSerial, Offsets.WeakPtrSerial, Offsets.SoftPathName);
+            ObjectIndex: Offsets.UObjectInternalIndex,
+            ObjectClass: Offsets.UObjectClass,
+            ObjectName: Offsets.UObjectName,
+            ObjectOuter: Offsets.UObjectOuter,
+            StructSuper: Offsets.UStructSuper,
+            StructChildProperties: Offsets.UStructChildProperties,
+            StructSize: Offsets.UStructPropertiesSize,
+            FieldClass: Offsets.FFieldClass,
+            FieldNext: Offsets.FFieldNext,
+            FieldName: Offsets.FFieldName,
+            FieldClassName: Offsets.FFieldClassName,
+            PropertyArrayDim: Offsets.FPropertyArrayDim,
+            PropertyElementSize: Offsets.FPropertyElementSize,
+            PropertyOffset: Offsets.FPropertyOffset,
+            PropertyInner: Offsets.FPropertyInner,
+            BoolByteOffset: Offsets.FBoolByteOffset,
+            BoolFieldMask: Offsets.FBoolFieldMask,
+            ObjectsNum: Offsets.GObjectsNumElements,
+            ObjectsPerChunk: Offsets.GObjectsPerChunk,
+            ObjectItemSize: Offsets.GObjectsItemSize,
+            ObjectItemFlags: Offsets.GObjectsItemFlags,
+            PendingKillFlag: Offsets.GObjectsPendingKill,
+            MaxObjectChunks: Offsets.MaxGObjectChunks,
+            NameBlocks: Offsets.FNameBlocks,
+            NameBlockSize: Offsets.FNameBlockSize,
+            NameEntryStride: Offsets.FNameEntryStride,
+            NameLengthShift: Offsets.FNameLengthShift,
+            MaxNameBlocks: Offsets.MaxFNameBlocks,
+            MaxNameLength: Offsets.MaxNameLength,
+            ArrayNum: Offsets.TArrayNum,
+            ClassClassName: Offsets.UeClassClassName,
+            DefaultPrefix: Offsets.DefaultObjectPrefix,
+            ClassDefaultObject: Offsets.UClassDefaultObject,
+            EnumNames: Offsets.UEnumNames,
+            EnumNameStride: Offsets.UEnumNameStride,
+            EnumPropertyEnum: Offsets.FEnumPropertyEnum,
+            BytePropertyEnum: Offsets.FBytePropertyEnum,
+            MapPropertyValue: Offsets.FMapPropertyValue,
+            MapElementSize: Offsets.FMapElementSize,
+            SetElementSize: Offsets.FSetElementSize,
+            SparseFlagsInline: Offsets.SparseFlagsInline,
+            SparseFlagsSecondary: Offsets.SparseFlagsSecondary,
+            SparseNumBits: Offsets.SparseNumBits,
+            SparseInlineBits: Offsets.SparseInlineBits,
+            ObjectItemSerial: Offsets.GObjectsItemSerial,
+            WeakSerial: Offsets.WeakPtrSerial,
+            SoftPathName: Offsets.SoftPathName);
         return new MemorySource(ReadOrFalse(backend), moduleBase, globals, layout, moduleBase + Offsets.FNamePoolRva, moduleBase + Offsets.GObjectsGlobalRva);
     }
 

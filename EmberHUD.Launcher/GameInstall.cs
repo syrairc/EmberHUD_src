@@ -45,9 +45,12 @@ public sealed record GameInstall(string Folder, int? Build)
 
     public IReadOnlyList<string> Paks() =>
     [
-        .. Files(Path.Combine(Folder, "Game", "UE_game", "Content", "Paks"), "*.pak").OrderBy(pak => new FileInfo(pak).Length).ThenBy(pak => pak, StringComparer.OrdinalIgnoreCase),
+        .. LargestLastSoItWins(Files(Path.Combine(Folder, "Game", "UE_game", "Content", "Paks"), "*.pak")),
         .. Files(Path.Combine(Saved, "PreMountPak"), "UE_game_*_P.pak").OrderBy(PatchVersion).ThenBy(pak => pak, StringComparer.OrdinalIgnoreCase),
     ];
+
+    static IEnumerable<string> LargestLastSoItWins(IEnumerable<string> paks) =>
+        paks.OrderBy(pak => new FileInfo(pak).Length).ThenBy(pak => pak, StringComparer.OrdinalIgnoreCase);
 
     static IEnumerable<string> Files(string folder, string pattern) =>
         Directory.Exists(folder) ? Directory.EnumerateFiles(folder, pattern).Where(file => file.EndsWith(".pak", StringComparison.OrdinalIgnoreCase)) : [];

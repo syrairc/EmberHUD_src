@@ -190,7 +190,7 @@ internal sealed class SetupPage
         if (!busy && _progress.Length > 0)
         {
             ImGui.SameLine();
-            ImGui.TextDisabled(_progress);
+            ImGui.TextDisabled(Text.EscPct(_progress));
         }
     }
 
@@ -229,7 +229,7 @@ internal sealed class SetupPage
         if (Message.Length > 0)
         {
             ImGui.SameLine();
-            ImGui.TextDisabled(Message);
+            ImGui.TextDisabled(Text.EscPct(Message));
         }
     }
 }

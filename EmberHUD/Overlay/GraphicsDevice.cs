@@ -6,7 +6,7 @@ using Vortice.DXGI;
 
 namespace EmberHUD.Host.Overlay;
 
-internal sealed partial class GraphicsDevice : IDisposable
+internal sealed class GraphicsDevice : IDisposable
 {
     static readonly FeatureLevel[] Levels = [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0];
 
@@ -58,7 +58,7 @@ internal sealed partial class GraphicsDevice : IDisposable
     {
         if (!TryCreate(DriverType.Hardware, out var device, out var context, out var failure))
         {
-            Console.Error.WriteLine($"falling back to warp: {failure}");
+            Log.Warn($"falling back to warp: {failure}");
             if (!TryCreate(DriverType.Warp, out device, out context, out failure))
                 throw new InvalidOperationException(failure);
         }

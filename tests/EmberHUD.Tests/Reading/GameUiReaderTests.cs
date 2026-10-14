@@ -10,13 +10,7 @@ public sealed class GameUiReaderTests
     static PanelKind PanelKindOf => Enum.Parse<PanelKind>(FirstPanel[1]);
     static string RectChild => FirstPanel[2];
 
-    static GameUiReader Reader(FakeWorld world, Func<long>? clock = null)
-    {
-        var minimap = new MinimapReader(world.Memory, FakeWorld.Module);
-        return new GameUiReader(world.Memory, FakeWorld.Module, minimap.TryReadName, clock);
-    }
-
-    static (FakeWorld World, FakeUi Ui, long Page, long Root, long Child) OpenNamedPanel(Vector2? origin = null)
+    static (FakeWorld World, FakeUi Ui, nint Page, nint Root, nint Child) OpenNamedPanel(Vector2? origin = null)
     {
         var world = new FakeWorld();
         var ui = new FakeUi(world, origin);
@@ -30,23 +24,16 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
-    public void ThePanelUnderTestHasARectChild()
-    {
-        Assert.Equal("PCBag_C", PanelClass);
-        Assert.NotEmpty(RectChild);
-    }
-
-    [Fact]
     public void HostedNamedPanelReportsKindRectAndFlag()
     {
         var (world, _, page, _, _) = OpenNamedPanel();
 
-        var panel = Assert.Single(Reader(world).Read().Panels);
+        var panel = Assert.Single(world.UiReader().Read().Panels);
 
         Assert.Equal(PanelClass, panel.Name);
         Assert.Equal(PanelKindOf, panel.Kind);
         Assert.False(panel.FullScreen);
-        Assert.Equal((nint)page, panel.Address);
+        Assert.Equal(page, panel.Address);
         Assert.Equal(new Vector2(2400, 200), panel.Min);
         Assert.Equal(new Vector2(3300, 1200), panel.Max);
     }
@@ -56,7 +43,7 @@ public sealed class GameUiReaderTests
     {
         var (world, _, _, _, _) = OpenNamedPanel(new Vector2(100, 50));
 
-        var panel = Assert.Single(Reader(world).Read().Panels);
+        var panel = Assert.Single(world.UiReader().Read().Panels);
 
         Assert.Equal(new Vector2(2400, 200), panel.Min);
     }
@@ -69,9 +56,9 @@ public sealed class GameUiReaderTests
         var page = ui.Widget(ui.UserClass("SomethingNew_C"), "SomethingNew_C_1", Vector2.Zero, new Vector2(3440, 1440));
         ui.AddRoot(ui.Host(page));
 
-        var panel = Assert.Single(Reader(world).Read().Panels);
+        var panel = Assert.Single(world.UiReader().Read().Panels);
 
-        Assert.Equal(new GamePanel("SomethingNew_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false) { Address = (nint)page }, panel);
+        Assert.Equal(new GamePanel("SomethingNew_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false) { Address = page }, panel);
     }
 
     [Fact]
@@ -82,7 +69,7 @@ public sealed class GameUiReaderTests
         ui.AddRoot(ui.Host(ui.Widget(ui.UserClass("SomethingNew_C"), "SomethingNew_C_1", Vector2.Zero, new Vector2(3440, 1440))));
         var gameMinimap = ui.Widget(ui.UserClass(Offsets.GameMinimapPage), Offsets.GameMinimapPage + "_1", Vector2.Zero, new Vector2(3440, 1440));
         ui.AddRoot(ui.Host(gameMinimap));
-        var reader = Reader(world);
+        var reader = world.UiReader();
 
         Assert.False(Assert.Single(reader.Read().Panels).FullScreen);
 
@@ -101,7 +88,7 @@ public sealed class GameUiReaderTests
         foreach (var hud in Offsets.HudPages.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(1))
             ui.AddRoot(ui.Host(ui.Widget(ui.UserClass(hud), hud + "_1", Vector2.Zero, new Vector2(3440, 1440))));
 
-        Assert.Empty(Reader(world).Read().Panels);
+        Assert.Empty(world.UiReader().Read().Panels);
     }
 
     [Fact]
@@ -113,7 +100,7 @@ public sealed class GameUiReaderTests
         ui.AddRoot(host);
         ui.AddRoot(host);
 
-        Assert.Single(Reader(world).Read().Panels);
+        Assert.Single(world.UiReader().Read().Panels);
     }
 
     [Fact]
@@ -124,14 +111,14 @@ public sealed class GameUiReaderTests
         foreach (var name in new[] { "Back_C", "Front_C" })
             ui.AddRoot(ui.Host(ui.Widget(ui.UserClass(name), name + "_1", Vector2.Zero, new Vector2(3440, 1440))));
 
-        Assert.Equal(["Back_C", "Front_C"], Reader(world).Read().Panels.Select(p => p.Name));
+        Assert.Equal(["Back_C", "Front_C"], world.UiReader().Read().Panels.Select(p => p.Name));
     }
 
     [Fact]
     public void DeadSlateWidgetDropsThePanel()
     {
         var (world, ui, page, _, child) = OpenNamedPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.Single(reader.Read().Panels);
 
         ui.WeakPtr(page + Offsets.UWidgetSlate, ui.Slate(Vector2.Zero, new Vector2(3440, 1440)), shared: 0);
@@ -149,24 +136,53 @@ public sealed class GameUiReaderTests
         var ui = new FakeUi(world);
         ui.AddRoot(ui.Host(ui.Widget(ui.UserClass("Odd_C"), "Odd_C_1", Vector2.Zero, new Vector2(width, 100))));
 
-        Assert.Empty(Reader(world).Read().Panels);
+        Assert.Empty(world.UiReader().Read().Panels);
     }
 
     [Fact]
     public void BrokenChainGivesEmptyUi()
     {
         var (world, ui, _, _, _) = OpenNamedPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
 
         world.Memory.Write(ui.Engine + Offsets.EngineGameViewport, 0L);
         Assert.Same(GameUi.Empty, reader.Read());
 
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GEngineGlobalRva, 0x7777L);
+        world.Memory.Write(FakeWorld.Module + Offsets.GEngineGlobalRva, FakeWorld.Unmapped);
         Assert.Same(GameUi.Empty, reader.Read());
     }
 
     [Fact]
-    public void FindRectWalksNestedPanelsByName()
+    public void MoreOverlayRootsThanTheViewportCapIsATornArray()
+    {
+        var (world, ui, _, _, _) = OpenNamedPanel();
+        var slotCount = ui.Overlay + Offsets.OverlayChildren + Offsets.PanelChildrenSlots + Offsets.TArrayNum;
+        var reader = world.UiReader();
+        Assert.Single(reader.Read().Panels);
+
+        world.Memory.Write(slotCount, Offsets.MaxViewportRoots + 1);
+        Assert.Same(GameUi.Empty, reader.Read());
+
+        world.Memory.Write(slotCount, 1);
+        Assert.Single(reader.Read().Panels);
+    }
+
+    [Fact]
+    public void MorePanelContentsThanTheNodeCapAreATornArray()
+    {
+        var (world, ui, page, root, child) = OpenNamedPanel();
+        var cell = ui.Widget(ui.UserClass("Image"), "Cell", new Vector2(2450, 300), new Vector2(80, 80));
+        ui.SetChildren(root, child, cell);
+        var reader = world.UiReader();
+        Assert.NotEqual((nint)0, reader.FindChild(page, "Cell"));
+
+        world.Memory.Write(root + Offsets.PanelSlots + Offsets.TArrayNum, Offsets.MaxWidgetNodes + 1);
+
+        Assert.Equal((nint)0, reader.FindChild(page, "Cell"));
+    }
+
+    [Fact]
+    public void FindChildWalksNestedPanelsByName()
     {
         var (world, ui, page, root, child) = OpenNamedPanel();
         var grid = ui.Widget(ui.PanelClass("GridPanel"), "Grid", new Vector2(2450, 300), new Vector2(800, 600));
@@ -174,19 +190,19 @@ public sealed class GameUiReaderTests
         ui.SetChildren(grid, cell);
         ui.SetChildren(root, child, grid);
 
-        Assert.Equal((new Vector2(2450, 300), new Vector2(2530, 380)), Reader(world).FindRect((nint)page, "Cell_0"));
-        Assert.Null(Reader(world).FindRect((nint)page, "Nope"));
+        Assert.Equal(cell, world.UiReader().FindChild(page, "Cell_0"));
+        Assert.Equal((nint)0, world.UiReader().FindChild(page, "Nope"));
     }
 
     [Fact]
-    public void FindRectStopsOnCycles()
+    public void FindChildStopsOnCycles()
     {
         var (world, ui, page, _, _) = OpenNamedPanel();
         var loop = ui.Widget(ui.PanelClass("Loop"), "Loop", Vector2.Zero, new Vector2(10, 10));
         ui.SetChildren(loop, loop);
         ui.SetTree(page, loop);
 
-        Assert.Null(Reader(world).FindRect((nint)page, "Nope"));
+        Assert.Equal((nint)0, world.UiReader().FindChild(page, "Nope"));
     }
 
     [Fact]
@@ -195,7 +211,7 @@ public sealed class GameUiReaderTests
         var (world, ui, _, root, _) = OpenNamedPanel();
         ui.SetChildren(root);
         long now = 0;
-        var reader = Reader(world, () => now);
+        var reader = world.UiReader(() => now);
 
         var before = world.Memory.Reads.Count;
         reader.Read();
@@ -204,6 +220,7 @@ public sealed class GameUiReaderTests
         reader.Read();
         var secondRead = world.Memory.Reads.Count - before;
         now = Offsets.RectChildRetryMilliseconds - 1;
+        reader.Read();
         before = world.Memory.Reads.Count;
         reader.Read();
         var thirdRead = world.Memory.Reads.Count - before;
@@ -223,7 +240,7 @@ public sealed class GameUiReaderTests
         var (world, ui, _, root, child) = OpenNamedPanel();
         ui.SetChildren(root);
         long now = 0;
-        var reader = Reader(world, () => now);
+        var reader = world.UiReader(() => now);
         Assert.Equal(Vector2.Zero, Assert.Single(reader.Read().Panels).Min);
 
         ui.SetChildren(root, child);
@@ -239,7 +256,7 @@ public sealed class GameUiReaderTests
     {
         var (world, ui, _, _, child) = OpenNamedPanel();
         long now = 0;
-        var reader = Reader(world, () => now);
+        var reader = world.UiReader(() => now);
         Assert.Equal(new Vector2(2400, 200), Assert.Single(reader.Read().Panels).Min);
 
         ui.WeakPtr(child + Offsets.UWidgetSlate, ui.Slate(Vector2.Zero, new Vector2(900, 1000)), shared: 0);
@@ -250,7 +267,7 @@ public sealed class GameUiReaderTests
         Assert.Equal(new Vector2(2400, 200), Assert.Single(reader.Read().Panels).Min);
     }
 
-    static (FakeWorld World, FakeUi Ui, long Page, long Root) PageWithCell(string name, uint number)
+    static (FakeWorld World, FakeUi Ui, nint Page, nint Root) PageWithCell(string name, uint number)
     {
         var (world, ui, page, root, child) = OpenNamedPanel();
         var cell = ui.Widget(ui.UserClass("Image"), name, new Vector2(2450, 300), new Vector2(80, 80), nameNumber: number);
@@ -262,20 +279,20 @@ public sealed class GameUiReaderTests
     public void FNameNumberOnePlusMapsToTheSuffixedName()
     {
         var (world, _, page, _) = PageWithCell("Cell", 1);
-        var reader = Reader(world);
+        var reader = world.UiReader();
 
-        Assert.Equal((new Vector2(2450, 300), new Vector2(2530, 380)), reader.FindRect((nint)page, "Cell_0"));
-        Assert.Null(reader.FindRect((nint)page, "Cell"));
+        Assert.NotEqual((nint)0, reader.FindChild(page, "Cell_0"));
+        Assert.Equal((nint)0, reader.FindChild(page, "Cell"));
     }
 
     [Fact]
     public void FNameNumberZeroMatchesThePlainName()
     {
         var (world, _, page, _) = PageWithCell("Cell", 0);
-        var reader = Reader(world);
+        var reader = world.UiReader();
 
-        Assert.NotNull(reader.FindRect((nint)page, "Cell"));
-        Assert.Null(reader.FindRect((nint)page, "Cell_0"));
+        Assert.NotEqual((nint)0, reader.FindChild(page, "Cell"));
+        Assert.Equal((nint)0, reader.FindChild(page, "Cell_0"));
     }
 
     [Fact]
@@ -283,7 +300,7 @@ public sealed class GameUiReaderTests
     {
         var (world, _, page, _) = PageWithCell("Foo_01", 0);
 
-        Assert.NotNull(Reader(world).FindRect((nint)page, "Foo_01"));
+        Assert.NotEqual((nint)0, world.UiReader().FindChild(page, "Foo_01"));
     }
 
     [Fact]
@@ -293,79 +310,7 @@ public sealed class GameUiReaderTests
         var numbered = ui.Widget(ui.UserClass("Image"), RectChild, new Vector2(2000, 100), new Vector2(500, 500), nameNumber: 1);
         ui.SetChildren(root, numbered);
 
-        Assert.Equal(Vector2.Zero, Assert.Single(Reader(world).Read().Panels).Min);
-    }
-
-    [Fact]
-    public void FindRectCachesTheChildPerPageAndName()
-    {
-        var (world, _, page, _) = PageWithCell("Cell", 1);
-        var reader = Reader(world);
-
-        var before = world.Memory.Reads.Count;
-        var first = reader.FindRect((nint)page, "Cell_0");
-        var firstReads = world.Memory.Reads.Count - before;
-        before = world.Memory.Reads.Count;
-        var second = reader.FindRect((nint)page, "Cell_0");
-        var secondReads = world.Memory.Reads.Count - before;
-
-        Assert.NotNull(first);
-        Assert.Equal(first, second);
-        Assert.True(secondReads * 3 < firstReads, $"first {firstReads} second {secondReads}");
-    }
-
-    [Fact]
-    public void FindRectDoesNotCacheMisses()
-    {
-        var (world, ui, page, root, child) = OpenNamedPanel();
-        var reader = Reader(world);
-        Assert.Null(reader.FindRect((nint)page, "Late"));
-
-        var late = ui.Widget(ui.UserClass("Image"), "Late", new Vector2(10, 20), new Vector2(30, 40));
-        ui.SetChildren(root, child, late);
-
-        Assert.Equal((new Vector2(10, 20), new Vector2(40, 60)), reader.FindRect((nint)page, "Late"));
-    }
-
-    [Fact]
-    public void AMissedLookupWalksTheTreeAgainWithoutReadingNamesAgain()
-    {
-        var (world, _, page, _, _) = OpenNamedPanel();
-        var reader = Reader(world);
-        var blockPointer = FakeWorld.Module + Offsets.FNamePoolRva + Offsets.FNameBlocks;
-
-        Assert.Null(reader.FindRect((nint)page, "Nope"));
-        Assert.Contains(world.Memory.Reads, r => r.Address == blockPointer);
-        world.Memory.Reads.Clear();
-        Assert.Null(reader.FindRect((nint)page, "Nope"));
-
-        Assert.NotEmpty(world.Memory.Reads);
-        Assert.DoesNotContain(world.Memory.Reads, r => r.Address == blockPointer);
-    }
-
-    [Fact]
-    public void FindRectFindsAgainWhenTheCachedChildSlateDied()
-    {
-        var (world, ui, page, root, child) = OpenNamedPanel();
-        var reader = Reader(world);
-        Assert.Equal((new Vector2(2400, 200), new Vector2(3300, 1200)), reader.FindRect((nint)page, RectChild));
-
-        ui.WeakPtr(child + Offsets.UWidgetSlate, ui.Slate(Vector2.Zero, new Vector2(900, 1000)), shared: 0);
-        Assert.Null(reader.FindRect((nint)page, RectChild));
-
-        var replacement = ui.Widget(ui.UserClass("Image"), RectChild, new Vector2(2500, 250), new Vector2(900, 1000));
-        ui.SetChildren(root, replacement);
-        Assert.Equal((new Vector2(2500, 250), new Vector2(3400, 1250)), reader.FindRect((nint)page, RectChild));
-    }
-
-    [Fact]
-    public void FindRectIgnoresACollapsedChild()
-    {
-        var (world, ui, page, root, child) = OpenNamedPanel();
-        var hidden = ui.Widget(ui.UserClass("Image"), "Cell", new Vector2(2450, 300), new Vector2(80, 80), visibility: 1);
-        ui.SetChildren(root, child, hidden);
-
-        Assert.Null(Reader(world).FindRect((nint)page, "Cell"));
+        Assert.Equal(Vector2.Zero, Assert.Single(world.UiReader().Read().Panels).Min);
     }
 
     [Fact]
@@ -374,14 +319,14 @@ public sealed class GameUiReaderTests
         var world = new FakeWorld();
         _ = new FakeUi(world);
 
-        Assert.Same(GameUi.Empty, Reader(world).Read());
+        Assert.Same(GameUi.Empty, world.UiReader().Read());
     }
 
     [Fact]
     public void RectChildCacheIsDroppedWhenThePageGoesAway()
     {
         var (world, ui, _, root, _) = OpenNamedPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
         var slotCount = ui.Overlay + Offsets.OverlayChildren + Offsets.PanelChildrenSlots + Offsets.TArrayNum;
         Assert.Equal(new Vector2(2400, 200), Assert.Single(reader.Read().Panels).Min);
 
@@ -394,30 +339,83 @@ public sealed class GameUiReaderTests
         Assert.Equal(new Vector2(2500, 250), Assert.Single(reader.Read().Panels).Min);
     }
 
-    static (FakeWorld World, FakeUi Ui, long Box, long DetailRoot) HudWithMapPanel(FakeWorld? into = null, bool hosted = false)
+    [Fact]
+    public void ASteadyUiCostsAFractionOfTheFirstRead()
+    {
+        var (world, _, _, _, _) = OpenNamedPanel();
+        var reader = world.UiReader(() => 0);
+        world.Memory.Reads.Clear();
+        reader.Read();
+        var first = world.Memory.Reads.Count;
+        world.Memory.Reads.Clear();
+
+        reader.Read();
+
+        Assert.True(world.Memory.Reads.Count * 2 <= first, $"first {first} steady {world.Memory.Reads.Count}");
+    }
+
+    [Fact]
+    public void AnUnchangedUiIsTheSameInstanceAndAMovedPanelIsANewOne()
+    {
+        var (world, ui, _, _, child) = OpenNamedPanel();
+        var reader = world.UiReader(() => 0);
+        var first = reader.Read();
+        Assert.Same(first, reader.Read());
+
+        ui.WeakPtr(child + Offsets.UWidgetSlate, ui.Slate(new Vector2(2500, 250), new Vector2(900, 1000)));
+        var moved = reader.Read();
+
+        Assert.NotSame(first, moved);
+        Assert.Equal(new Vector2(2500, 250), Assert.Single(moved.Panels).Min);
+    }
+
+    [Fact]
+    public void AHiddenPanelFollowsItsVisibilityWithoutWaitingForARefresh()
+    {
+        var (world, _, page, _, _) = OpenNamedPanel();
+        var reader = world.UiReader(() => 0);
+        Assert.Single(reader.Read().Panels);
+
+        world.Memory.Write(page + Offsets.UWidgetVisibility, (byte)1);
+        Assert.Empty(reader.Read().Panels);
+
+        world.Memory.Write(page + Offsets.UWidgetVisibility, (byte)4);
+        Assert.Single(reader.Read().Panels);
+    }
+
+    [Fact]
+    public void APageSwappedUnderTheSameRootIsPickedUpAtTheNextRefresh()
+    {
+        long now = 0;
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        var first = ui.Widget(ui.UserClass("First_C"), "First_C_1", Vector2.Zero, new Vector2(3440, 1440));
+        var second = ui.Widget(ui.UserClass("Second_C"), "Second_C_1", Vector2.Zero, new Vector2(3440, 1440));
+        var host = ui.Host(first);
+        ui.AddRoot(host);
+        var reader = world.UiReader(() => now);
+        Assert.Equal("First_C", Assert.Single(reader.Read().Panels).Name);
+
+        Assert.True(world.Memory.TryReadPtr(host + Offsets.PageHostContent, out var content));
+        ui.SetChildren(content, second);
+
+        now = Offsets.UiRootRefreshMilliseconds - 1;
+        Assert.Equal("First_C", Assert.Single(reader.Read().Panels).Name);
+        now = Offsets.UiRootRefreshMilliseconds;
+        Assert.Equal("Second_C", Assert.Single(reader.Read().Panels).Name);
+    }
+
+    static readonly string[] HudLines =
+    [
+        "<RichText Id=\"100004\">+60</>% <RichText Id=\"100007\" HyperLinkType=\"1\" EventId=\"509\">Drop Quantity</>",
+        "<RichText>-6% Max Elemental Resistance for you</>",
+    ];
+
+    static (FakeWorld World, FakeUi Ui, nint Box, nint DetailRoot) HudWithMapPanel(FakeWorld? into = null, bool hosted = false)
     {
         var world = into ?? new FakeWorld();
         var ui = new FakeUi(world);
-        var hud = ui.Widget(ui.UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
-        var hudRoot = ui.Widget(ui.PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
-        var detail = ui.Widget(ui.UserClass("FightMapDetailView_C"), "FightMapDetailView_C_1", Vector2.Zero, new Vector2(400, 300));
-        var detailRoot = ui.Widget(ui.PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(400, 300));
-        var xp = ui.Widget(ui.PanelClass("UIShrinkTextBlock"), Offsets.MapXpWidget, Vector2.Zero, new Vector2(200, 20));
-        var box = ui.Widget(ui.PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
-        var richClass = ui.UserClass("UIRichTextBlock");
-        var first = ui.Widget(richClass, "UIRichTextBlock_1", Vector2.Zero, new Vector2(400, 20));
-        var second = ui.Widget(richClass, "UIRichTextBlock_2", Vector2.Zero, new Vector2(400, 20));
-        var stale = ui.Widget(richClass, "UIRichTextBlock_3", Vector2.Zero, new Vector2(400, 20), visibility: 1);
-        ui.Text(xp, Offsets.ShrinkTextContent, "Map Base XP gain: 100%");
-        ui.Text(first, Offsets.TextBlockText, "<RichText Id=\"100004\">+60</>% <RichText Id=\"100007\" HyperLinkType=\"1\" EventId=\"509\">Drop Quantity</>");
-        ui.Text(second, Offsets.TextBlockText, "<RichText>-6% Max Elemental Resistance for you</>");
-        ui.Text(stale, Offsets.TextBlockText, "<RichText>There are Coffins awaiting escort in this stage</>");
-        ui.SetTree(hud, hudRoot);
-        ui.SetChildren(hudRoot, detail);
-        ui.SetTree(detail, detailRoot);
-        ui.SetChildren(detailRoot, xp, box);
-        ui.SetChildren(box, first, second, stale);
-        ui.AddRoot(hosted ? ui.Host(hud) : hud);
+        var (box, detailRoot) = ui.MapHud(HudLines, hosted, "<RichText>There are Coffins awaiting escort in this stage</>");
         return (world, ui, box, detailRoot);
     }
 
@@ -425,7 +423,7 @@ public sealed class GameUiReaderTests
     public void HudTextFindsTheHudInsideAPageHost()
     {
         var (world, _, _, _) = HudWithMapPanel(hosted: true);
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.Equal("Map Base XP gain: 100%", reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
         Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
     }
@@ -434,14 +432,14 @@ public sealed class GameUiReaderTests
     public void HudTextReadsANamedWidgetInsideANestedUserWidget()
     {
         var (world, _, _, _) = HudWithMapPanel();
-        Assert.Equal("Map Base XP gain: 100%", Reader(world).HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
+        Assert.Equal("Map Base XP gain: 100%", world.UiReader().HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
     }
 
     [Fact]
     public void HudTextsListsVisibleItemsWithMarkupStripped()
     {
         var (world, _, _, _) = HudWithMapPanel();
-        Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], Reader(world).HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+        Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], world.UiReader().HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
     }
 
     [Fact]
@@ -449,7 +447,7 @@ public sealed class GameUiReaderTests
     {
         var world = new FakeWorld();
         _ = new FakeUi(world);
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.Null(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
         Assert.Empty(reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
     }
@@ -458,8 +456,8 @@ public sealed class GameUiReaderTests
     public void AMissingChildGivesNothing()
     {
         var (world, _, _, _) = HudWithMapPanel();
-        Assert.Null(Reader(world).HudText("Nope", Offsets.TextBlockText));
-        Assert.Empty(Reader(world).HudTexts("Nope", Offsets.TextBlockText));
+        Assert.Null(world.UiReader().HudText("Nope", Offsets.TextBlockText));
+        Assert.Empty(world.UiReader().HudTexts("Nope", Offsets.TextBlockText));
     }
 
     [Fact]
@@ -468,18 +466,18 @@ public sealed class GameUiReaderTests
         var (world, ui, box, _) = HudWithMapPanel();
         var huge = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_9", Vector2.Zero, new Vector2(400, 20));
         ui.Text(huge, Offsets.TextBlockText, "x");
-        world.Memory.TryReadPtr((nint)(huge + Offsets.TextBlockText), out var data);
+        world.Memory.TryReadPtr(huge + Offsets.TextBlockText, out var data);
         world.Memory.Write(data + Offsets.TextDataString + Offsets.FStringNum, Offsets.MaxFStringChars + 1);
         var empty = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_10", Vector2.Zero, new Vector2(400, 20));
         ui.SetChildren(box, huge, empty);
-        Assert.Empty(Reader(world).HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+        Assert.Empty(world.UiReader().HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
     }
 
     [Fact]
     public void FoundChildrenAreCachedNotWalkedAgain()
     {
         var (world, _, _, _) = HudWithMapPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.NotNull(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
         var first = world.Memory.Reads.Count;
         Assert.NotNull(reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
@@ -487,7 +485,7 @@ public sealed class GameUiReaderTests
         Assert.True(second < first / 2, $"cached lookup took {second} reads, the walk took {first}");
     }
 
-    static long ReplaceAffixBox(FakeUi ui, long detailRoot, string line)
+    static nint ReplaceAffixBox(FakeUi ui, nint detailRoot, string line)
     {
         var box = ui.Widget(ui.PanelClass("VerticalBox"), Offsets.MapAffixWidget, Vector2.Zero, new Vector2(400, 200));
         var item = ui.Widget(ui.UserClass("UIRichTextBlock"), "UIRichTextBlock_1", Vector2.Zero, new Vector2(400, 20));
@@ -501,7 +499,7 @@ public sealed class GameUiReaderTests
     public void ForgetHudWalksAgainForAReplacedWidget()
     {
         var (world, ui, _, detailRoot) = HudWithMapPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
         ReplaceAffixBox(ui, detailRoot, "+20% Drop Quantity");
         Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
@@ -513,9 +511,9 @@ public sealed class GameUiReaderTests
     public void LosingTheOverlayForgetsTheHud()
     {
         var (world, _, _, _) = HudWithMapPanel();
-        var reader = Reader(world);
+        var reader = world.UiReader();
         Assert.Equal(2, reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Length);
-        world.Memory.Write(FakeWorld.ModuleBase + Offsets.GEngineGlobalRva, 0L);
+        world.Memory.Write(FakeWorld.Module + Offsets.GEngineGlobalRva, 0L);
         Assert.Empty(reader.Read().Panels);
         var (_, ui, _, detailRoot) = HudWithMapPanel(world);
         ReplaceAffixBox(ui, detailRoot, "+20% Drop Quantity");

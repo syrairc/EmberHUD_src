@@ -59,9 +59,9 @@ public static class Card
         ImGui.TextUnformatted(title ?? "");
         if (action is not null)
         {
-            Layout.BeginTrailing("##cardhead");
+            var headTrail = Layout.BeginTrailing("##cardhead");
             action();
-            Layout.EndTrailing();
+            Layout.EndTrailing(headTrail);
         }
         if (string.IsNullOrEmpty(description)) return;
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
@@ -92,7 +92,7 @@ public static class Card
         for (var i = 0; i < list.Count; i++)
         {
             ImGui.PushID(i);
-            using (Tables.Dim(filterText is not null && !Text.Matches(filter, filterText(list[i]))))
+            using (Layout.Dim(filterText is not null && !Text.Matches(filter, filterText(list[i]))))
             {
                 var keep = true;
                 var open = ImGui.CollapsingHeader(label(list[i]) + "###h", ref keep, ImGuiTreeNodeFlags.None);
@@ -132,9 +132,9 @@ public static class Card
         }
         if (trailing is not null)
         {
-            Layout.BeginTrailing("##trail", 6f);
+            var trail = Layout.BeginTrailing("##trail", 6f);
             trailing();
-            Layout.EndTrailing();
+            Layout.EndTrailing(trail);
         }
 
         _open.Push(open);

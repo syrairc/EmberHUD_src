@@ -3,7 +3,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class SideNavTests
+public class SideNavTests : IDisposable
 {
     const string Win = "sidenav";
 
@@ -23,32 +23,22 @@ public class SideNavTests
 
     static uint U32(Vector4 colour) => ImGui.ColorConvertFloat4ToU32(colour);
 
-    static void Scoped(Action test)
-    {
-        Measure();
-        var style = ImGui.GetStyle();
-        ImGuiCol[] touched = [ImGuiCol.Header, ImGuiCol.HeaderHovered, ImGuiCol.Button, ImGuiCol.Text, ImGuiCol.TextDisabled, ImGuiCol.Border];
-        var saved = touched.Select(c => style.Colors[(int)c]).ToArray();
-        try
-        {
-            test();
-        }
-        finally
-        {
-            for (var i = 0; i < touched.Length; i++) style.Colors[(int)touched[i]] = saved[i];
-            UiFrame.Settle(Win, () => { });
-        }
-    }
+    IDisposable? _colours;
 
-    static void Paint()
+    public SideNavTests() => Measure();
+
+    void Paint() => _colours ??= UiFrame.WithColors(
+        (ImGuiCol.Header, HeaderColour),
+        (ImGuiCol.HeaderHovered, HoveredColour),
+        (ImGuiCol.Button, ButtonColour),
+        (ImGuiCol.Text, TextColour),
+        (ImGuiCol.TextDisabled, DisabledColour),
+        (ImGuiCol.Border, BorderColour));
+
+    public void Dispose()
     {
-        var style = ImGui.GetStyle();
-        style.Colors[(int)ImGuiCol.Header] = HeaderColour;
-        style.Colors[(int)ImGuiCol.HeaderHovered] = HoveredColour;
-        style.Colors[(int)ImGuiCol.Button] = ButtonColour;
-        style.Colors[(int)ImGuiCol.Text] = TextColour;
-        style.Colors[(int)ImGuiCol.TextDisabled] = DisabledColour;
-        style.Colors[(int)ImGuiCol.Border] = BorderColour;
+        _colours?.Dispose();
+        UiFrame.CloseAllPopups();
     }
 
     sealed record Metrics(float FrameHeight, Vector2 FramePadding, Vector2 ItemSpacing, float LineHeight);
@@ -117,12 +107,6 @@ public class SideNavTests
         return new Vector2((content.Min.X + content.Max.X) / 2, content.Max.Y - Measure().FrameHeight / 2);
     }
 
-    static (Vector2 Min, Vector2 Max) Bounds(IEnumerable<ImDrawVert> verts)
-    {
-        var all = verts.ToList();
-        return (new Vector2(all.Min(v => v.Pos.X), all.Min(v => v.Pos.Y)), new Vector2(all.Max(v => v.Pos.X), all.Max(v => v.Pos.Y)));
-    }
-
     static List<ImDrawVert> WithColour(ImGuiWindowPtr window, Vector4 colour) => UiFrame.Verts(window.DrawList).Where(v => v.Col == U32(colour)).ToList();
 
     static List<ImDrawVert> WithUv(ImGuiWindowPtr window, Vector2 uv) => UiFrame.Verts(window.DrawList).Where(v => v.Uv == uv).ToList();
@@ -152,9 +136,7 @@ public class SideNavTests
         UiFrame.Run(Win, () =>
         {
             var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            list.AddRect(min, max, 0xFFFFFFFFu);
-            bounds = Bounds(UiFrame.Verts(list).Skip(from));
+            bounds = UiFrame.Bounds(UiFrame.Drawn(list, () => list.AddRect(min, max, 0xFFFFFFFFu)));
         });
         return bounds;
     }
@@ -223,7 +205,7 @@ public class SideNavTests
     [InlineData(-1, 1)]
     [InlineData(99, 1)]
     public void ARememberedIndexOnAHeaderOrOutOfRangeFallsToTheFirstRealTab(int want, int expected) =>
-        Assert.Equal(expected, SideNav.PickTab(Tabs, want));
+        Assert.Equal(expected, Layout.PickTab(Tabs, want));
 
     [Theory]
     [InlineData(0, 0)]
@@ -231,16 +213,16 @@ public class SideNavTests
     [InlineData(-1, 0)]
     [InlineData(2, 0)]
     public void ARememberedRealTabIsKept(int want, int expected) =>
-        Assert.Equal(expected, SideNav.PickTab([("A", Body), ("B", Body)], want));
+        Assert.Equal(expected, Layout.PickTab([("A", Body), ("B", Body)], want));
 
     [Fact]
-    public void AllHeadersDrawsNothing() => Assert.Equal(-1, SideNav.PickTab([("Only a header", null)], 0));
+    public void AllHeadersDrawsNothing() => Assert.Equal(-1, Layout.PickTab([("Only a header", null)], 0));
 
     [Fact]
-    public void NullTabsNeverThrow() => Assert.Equal(-1, SideNav.PickTab(null, 0));
+    public void NullTabsNeverThrow() => Assert.Equal(-1, Layout.PickTab(null, 0));
 
     [Fact]
-    public void EmptyTabsPickNothing() => Assert.Equal(-1, SideNav.PickTab([], 0));
+    public void EmptyTabsPickNothing() => Assert.Equal(-1, Layout.PickTab([], 0));
 
     [Fact]
     public void NavDrawsOneBalancedFrame()
@@ -265,7 +247,7 @@ public class SideNavTests
             changed |= SideNav.Rail("collapsed", items, state);
             ImGui.EndChild();
             ImGui.BeginChild("side", new Vector2(0, 200));
-            changed |= SideNav.SideTabs("side", 120f, Tabs);
+            changed |= Layout.SideTabs("side", 120f, Tabs);
             ImGui.EndChild();
         });
 
@@ -274,7 +256,7 @@ public class SideNavTests
     }
 
     [Fact]
-    public void ClickingARowMakesItActiveAndDrawsOnlyItsBody() => Scoped(() =>
+    public void ClickingARowMakesItActiveAndDrawsOnlyItsBody()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("b"), rig.Item("c")];
@@ -283,10 +265,10 @@ public class SideNavTests
         rig.Frame();
         Assert.Equal(["b"], rig.Bodies);
         Assert.False(rig.Changed);
-    });
+    }
 
     [Fact]
-    public void EachRowHasItsOwnItemId() => Scoped(() =>
+    public void EachRowHasItsOwnItemId()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("b")];
@@ -301,10 +283,10 @@ public class SideNavTests
         Assert.NotEqual(0u, first);
         Assert.NotEqual(0u, second);
         Assert.NotEqual(first, second);
-    });
+    }
 
     [Fact]
-    public void TheRailReturnsTheActiveBodysChangedFlag() => Scoped(() =>
+    public void TheRailReturnsTheActiveBodysChangedFlag()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a", bodyResult: true), rig.Item("b", bodyResult: false)];
@@ -314,22 +296,22 @@ public class SideNavTests
         rig.Frame();
         Assert.False(rig.Returned);
         Assert.Equal(["b"], rig.Bodies);
-    });
+    }
 
     [Fact]
-    public void AHiddenItemTakesNoRowAndCannotBeClicked() => Scoped(() =>
+    public void AHiddenItemTakesNoRowAndCannotBeClicked()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("gone", i => i.Visible = () => false), rig.Item("c")];
         rig.ClickRow(1);
         Assert.Equal("c", rig.State!.Active);
-    });
+    }
 
     [Theory]
     [InlineData(null)]
     [InlineData("unknown")]
     [InlineData("gone")]
-    public void AMissingUnknownOrHiddenActiveKeyFallsToTheFirstVisibleItem(string? active) => Scoped(() =>
+    public void AMissingUnknownOrHiddenActiveKeyFallsToTheFirstVisibleItem(string? active)
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("gone", i => i.Visible = () => false), rig.Item("a"), rig.Item("b")];
@@ -337,10 +319,10 @@ public class SideNavTests
         rig.Frame();
         Assert.Equal("a", rig.State.Active);
         Assert.Equal(["a"], rig.Bodies);
-    });
+    }
 
     [Fact]
-    public void AnActiveItemThatIsStillVisibleIsKept() => Scoped(() =>
+    public void AnActiveItemThatIsStillVisibleIsKept()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("b"), rig.Item("c")];
@@ -348,10 +330,10 @@ public class SideNavTests
         rig.Frame();
         Assert.Equal("c", rig.State.Active);
         Assert.Equal(["c"], rig.Bodies);
-    });
+    }
 
     [Fact]
-    public void WhenNothingIsVisibleNothingIsDrawn() => Scoped(() =>
+    public void WhenNothingIsVisibleNothingIsDrawn()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a", i => i.Visible = () => false), rig.Item("b", i => i.Visible = () => false)];
@@ -362,10 +344,10 @@ public class SideNavTests
         Assert.Equal("a", rig.State.Active);
         Assert.True(rig.Rail.IsNull);
         Assert.True(rig.BodyPane.IsNull);
-    });
+    }
 
     [Fact]
-    public void NullOrEmptyItemsOrNullStateDrawNothing() => Scoped(() =>
+    public void NullOrEmptyItemsOrNullStateDrawNothing()
     {
         var rig = new RailRig();
         rig.Items = null;
@@ -380,14 +362,14 @@ public class SideNavTests
         Assert.True(rig.Rail.IsNull);
         Assert.Empty(rig.Bodies);
         Assert.False(rig.Changed);
-    });
+    }
 
     [Theory]
     [InlineData(false, 40f, 152f)]
     [InlineData(true, 40f, 152f)]
     [InlineData(false, 64f, 200f)]
     [InlineData(true, 64f, 200f)]
-    public void TheRailIsTheCollapsedOrExpandedWidthAndTheBodyStartsAfterIt(bool labels, float collapsed, float expanded) => Scoped(() =>
+    public void TheRailIsTheCollapsedOrExpandedWidthAndTheBodyStartsAfterIt(bool labels, float collapsed, float expanded)
     {
         var rig = new RailRig { CollapsedWidth = collapsed, ExpandedWidth = expanded };
         rig.Items = [rig.Item("a")];
@@ -398,10 +380,10 @@ public class SideNavTests
         Assert.Equal(width, rail.Size.X, 0.01f);
         Assert.Equal(rail.Pos.X + width + Measure().ItemSpacing.X, rig.BodyPane.Pos.X, 0.01f);
         Assert.Equal(rail.Pos.Y, rig.BodyPane.Pos.Y, 0.01f);
-    });
+    }
 
     [Fact]
-    public void TheChevronAtTheFootTogglesLabelsBothWaysWithoutTouchingTheSelection() => Scoped(() =>
+    public void TheChevronAtTheFootTogglesLabelsBothWaysWithoutTouchingTheSelection()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("b")];
@@ -413,12 +395,12 @@ public class SideNavTests
         UiFrame.Click(Win, FootCentre(rig.Rail), rig.Draw);
         Assert.False(rig.State.ShowLabels);
         Assert.Equal("b", rig.State.Active);
-    });
+    }
 
     [Theory]
     [InlineData(false, ">>")]
     [InlineData(true, "<<")]
-    public void TheChevronShowsWhichWayItWillToggle(bool labels, string glyph) => Scoped(() =>
+    public void TheChevronShowsWhichWayItWillToggle(bool labels, string glyph)
     {
         Paint();
         var rig = new RailRig();
@@ -429,10 +411,10 @@ public class SideNavTests
         var footTop = rail.ContentRegionRect.Max.Y - Measure().FrameHeight;
         var actual = WithColour(rail, DisabledColour).Where(v => v.Pos.Y >= footTop - 1f).Select(v => v.Uv).ToList();
         Assert.Equal(UiFrame.GlyphUvs(Win, glyph), actual);
-    });
+    }
 
     [Fact]
-    public void TheChevronHasATopRuleAndFillsWithHeaderHoveredWhenHovered() => Scoped(() =>
+    public void TheChevronHasATopRuleAndFillsWithHeaderHoveredWhenHovered()
     {
         Paint();
         var rig = new RailRig();
@@ -448,13 +430,13 @@ public class SideNavTests
         Assert.Empty(WithColour(rail, HoveredColour));
 
         UiFrame.Hover(Win, FootCentre(rail), rig.Draw);
-        var fill = Bounds(WithColour(rig.Rail, HoveredColour));
+        var fill = UiFrame.Bounds(WithColour(rig.Rail, HoveredColour));
         AssertNear(new Vector2(content.Min.X, footTop), fill.Min);
         AssertNear(new Vector2(content.Max.X, content.Max.Y), fill.Max);
-    });
+    }
 
     [Fact]
-    public void ClickingInTheSlackBetweenTheItemsAndTheChevronChangesNothing() => Scoped(() =>
+    public void ClickingInTheSlackBetweenTheItemsAndTheChevronChangesNothing()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), rig.Item("b")];
@@ -464,23 +446,23 @@ public class SideNavTests
         UiFrame.Click(Win, middle, rig.Draw);
         Assert.False(rig.State!.ShowLabels);
         Assert.Equal("a", rig.State.Active);
-    });
+    }
 
     [Theory]
     [InlineData(4f)]
     [InlineData(40f)]
-    public void ARowIsAtLeastTheFrameHeightAndOtherwiseTheIconSizePlusPadding(float iconSize) => Scoped(() =>
+    public void ARowIsAtLeastTheFrameHeightAndOtherwiseTheIconSizePlusPadding(float iconSize)
     {
         Paint();
         var rig = new RailRig { IconSize = iconSize };
         rig.Items = [rig.Item("a"), rig.Item("b")];
         rig.Frame();
-        var fill = Bounds(WithColour(rig.Rail, HeaderColour));
+        var fill = UiFrame.Bounds(WithColour(rig.Rail, HeaderColour));
         Assert.Equal(Math.Max(Measure().FrameHeight, iconSize + SideNav.RowPad), fill.Max.Y - fill.Min.Y, 0.01f);
-    });
+    }
 
     [Fact]
-    public void TheSelectedRowIsFilledWithHeaderAndAHoveredRowWithHeaderHovered() => Scoped(() =>
+    public void TheSelectedRowIsFilledWithHeaderAndAHoveredRowWithHeaderHovered()
     {
         Paint();
         var rig = new RailRig();
@@ -491,21 +473,21 @@ public class SideNavTests
         var (min0, max0) = RowRect(rail, 0, rig.IconSize);
         var selected = WithColour(rail, HeaderColour);
         Assert.NotEmpty(selected);
-        AssertNear(min0, Bounds(selected).Min);
-        AssertNear(max0, Bounds(selected).Max);
+        AssertNear(min0, UiFrame.Bounds(selected).Min);
+        AssertNear(max0, UiFrame.Bounds(selected).Max);
         Assert.Empty(WithColour(rail, HoveredColour));
 
         var (min2, max2) = RowRect(rail, 2, rig.IconSize);
         UiFrame.Hover(Win, RowCentre(rail, 2, rig.IconSize), rig.Draw);
         rail = rig.Rail;
         var hovered = WithColour(rail, HoveredColour);
-        AssertNear(min2, Bounds(hovered).Min);
-        AssertNear(max2, Bounds(hovered).Max);
-        AssertNear(min0, Bounds(WithColour(rail, HeaderColour)).Min);
-    });
+        AssertNear(min2, UiFrame.Bounds(hovered).Min);
+        AssertNear(max2, UiFrame.Bounds(hovered).Max);
+        AssertNear(min0, UiFrame.Bounds(WithColour(rail, HeaderColour)).Min);
+    }
 
     [Fact]
-    public void HoverWinsOverSelectedOnTheSameRow() => Scoped(() =>
+    public void HoverWinsOverSelectedOnTheSameRow()
     {
         Paint();
         var rig = new RailRig();
@@ -515,10 +497,10 @@ public class SideNavTests
         UiFrame.Hover(Win, RowCentre(rig.Rail, 0, rig.IconSize), rig.Draw);
         Assert.Empty(WithColour(rig.Rail, HeaderColour));
         Assert.NotEmpty(WithColour(rig.Rail, HoveredColour));
-    });
+    }
 
     [Fact]
-    public void ARowDrawsTheActiveSpriteWhenSelectedAndTheIdleOneOtherwiseCentredInTheCollapsedRail() => Scoped(() =>
+    public void ARowDrawsTheActiveSpriteWhenSelectedAndTheIdleOneOtherwiseCentredInTheCollapsedRail()
     {
         var rig = new RailRig { IconSize = 24f };
         rig.Items = [rig.Item("a", i => (i.Icon, i.IconActive) = (IdleSprite, ActiveSprite)), rig.Item("b", i => i.Icon = PlainSprite)];
@@ -542,19 +524,19 @@ public class SideNavTests
         rail = rig.Rail;
         Assert.Single(WithUv(rail, IdleSprite.Uv0));
         Assert.Empty(WithUv(rail, ActiveSprite.Uv0));
-    });
+    }
 
     [Fact]
-    public void ASelectedItemWithoutAnActiveSpriteKeepsItsIcon() => Scoped(() =>
+    public void ASelectedItemWithoutAnActiveSpriteKeepsItsIcon()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a", i => i.Icon = IdleSprite)];
         rig.Frame();
         Assert.Single(WithUv(rig.Rail, IdleSprite.Uv0));
-    });
+    }
 
     [Fact]
-    public void WithLabelsOnTheIconSitsAtTheFramePaddingInsteadOfCentred() => Scoped(() =>
+    public void WithLabelsOnTheIconSitsAtTheFramePaddingInsteadOfCentred()
     {
         var rig = new RailRig { IconSize = 20f };
         rig.Items = [rig.Item("a", i => i.Icon = PlainSprite)];
@@ -564,10 +546,10 @@ public class SideNavTests
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
         var height = rowMax.Y - rowMin.Y;
         AssertNear(new Vector2(rowMin.X + Measure().FramePadding.X, rowMin.Y + (height - rig.IconSize) / 2), WithUv(rail, PlainSprite.Uv0).Single().Pos);
-    });
+    }
 
     [Fact]
-    public void LabelsAreDrawnOnlyWhenLabelsAreOn() => Scoped(() =>
+    public void LabelsAreDrawnOnlyWhenLabelsAreOn()
     {
         Paint();
         var rig = new RailRig();
@@ -577,10 +559,10 @@ public class SideNavTests
         rig.State!.ShowLabels = true;
         rig.Frame();
         AssertText(rig.Rail, "General");
-    });
+    }
 
     [Fact]
-    public void ALabelStartsOnePaddingRightOfTheIconAndIsCentredVertically() => Scoped(() =>
+    public void ALabelStartsOnePaddingRightOfTheIconAndIsCentredVertically()
     {
         Paint();
         var rig = new RailRig();
@@ -591,21 +573,21 @@ public class SideNavTests
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
         var metrics = Measure();
         var origin = new Vector2(rowMin.X + metrics.FramePadding.X + rig.IconSize + metrics.FramePadding.X, rowMin.Y + (rowMax.Y - rowMin.Y - metrics.LineHeight) / 2);
-        var drawn = Bounds(WithColour(rail, TextColour)).Min;
+        var drawn = UiFrame.Bounds(WithColour(rail, TextColour)).Min;
         var reference = default(Vector2);
         UiFrame.Run(Win, () =>
         {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            ImGui.SetCursorScreenPos(origin);
-            ImGui.TextUnformatted("General");
-            reference = Bounds(UiFrame.Verts(list).Skip(from)).Min;
+            reference = UiFrame.Bounds(UiFrame.Drawn(() =>
+            {
+                ImGui.SetCursorScreenPos(origin);
+                ImGui.TextUnformatted("General");
+            })).Min;
         });
         AssertNear(reference, drawn);
-    });
+    }
 
     [Fact]
-    public void ALabelIsClippedToItsRow() => Scoped(() =>
+    public void ALabelIsClippedToItsRow()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("General", i => i.Icon = PlainSprite)];
@@ -614,10 +596,10 @@ public class SideNavTests
         var rail = rig.Rail;
         var (min, max) = RowRect(rail, 0, rig.IconSize);
         Assert.Contains(DrawnClips(rail), clip => Math.Abs(clip.X - min.X) < 0.01f && Math.Abs(clip.Y - min.Y) < 0.01f && Math.Abs(clip.Z - max.X) < 0.01f && Math.Abs(clip.W - max.Y) < 0.01f);
-    });
+    }
 
     [Fact]
-    public void InitialsAreClippedToTheirBox() => Scoped(() =>
+    public void InitialsAreClippedToTheirBox()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("General")];
@@ -628,14 +610,14 @@ public class SideNavTests
         var boxMin = new Vector2(rowMin.X + (rowMax.X - rowMin.X - rig.IconSize) / 2, rowMin.Y + (height - rig.IconSize) / 2);
         var boxMax = boxMin + new Vector2(rig.IconSize);
         Assert.Contains(DrawnClips(rail), clip => Math.Abs(clip.X - boxMin.X) < 0.01f && Math.Abs(clip.Y - boxMin.Y) < 0.01f && Math.Abs(clip.Z - boxMax.X) < 0.01f && Math.Abs(clip.W - boxMax.Y) < 0.01f);
-    });
+    }
 
     [Theory]
     [InlineData("Map Icons Extra", "MI")]
     [InlineData("single", "S")]
     [InlineData("1st map", "SM")]
     [InlineData("a  b", "AB")]
-    public void AnItemWithoutASpriteDrawsUpToTwoInitialsInAnOutlinedBox(string label, string initials) => Scoped(() =>
+    public void AnItemWithoutASpriteDrawsUpToTwoInitialsInAnOutlinedBox(string label, string initials)
     {
         Paint();
         var rig = new RailRig();
@@ -643,7 +625,7 @@ public class SideNavTests
         rig.Frame();
         var rail = rig.Rail;
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
-        var outline = Bounds(WithColour(rail, DisabledColour).Where(v => v.Pos.Y <= rowMax.Y));
+        var outline = UiFrame.Bounds(WithColour(rail, DisabledColour).Where(v => v.Pos.Y <= rowMax.Y));
         var actual = TextUvs(rail);
         var height = rowMax.Y - rowMin.Y;
         var boxMin = new Vector2(rowMin.X + (rowMax.X - rowMin.X - rig.IconSize) / 2, rowMin.Y + (height - rig.IconSize) / 2);
@@ -651,12 +633,12 @@ public class SideNavTests
         AssertNear(expectedBox.Min, outline.Min);
         AssertNear(expectedBox.Max, outline.Max);
         Assert.Equal(UiFrame.GlyphUvs(Win, initials), actual);
-    });
+    }
 
     [Theory]
     [InlineData("")]
     [InlineData("123 456")]
-    public void AnItemWithNoLettersDrawsTheBoxWithoutText(string label) => Scoped(() =>
+    public void AnItemWithNoLettersDrawsTheBoxWithoutText(string label)
     {
         Paint();
         var rig = new RailRig();
@@ -665,10 +647,10 @@ public class SideNavTests
         var rail = rig.Rail;
         Assert.Empty(WithColour(rail, TextColour));
         Assert.Contains(WithColour(rail, DisabledColour), v => v.Pos.Y <= RowRect(rail, 0, rig.IconSize).Max.Y);
-    });
+    }
 
     [Fact]
-    public void AnItemWithASpriteDrawsNoInitialsBox() => Scoped(() =>
+    public void AnItemWithASpriteDrawsNoInitialsBox()
     {
         Paint();
         var rig = new RailRig();
@@ -679,10 +661,10 @@ public class SideNavTests
         Assert.NotEmpty(disabled);
         var footTop = rail.ContentRegionRect.Max.Y - Measure().FrameHeight;
         Assert.All(disabled, v => Assert.True(v.Pos.Y >= footTop - 1f));
-    });
+    }
 
     [Fact]
-    public void ACollapsedHoverShowsTheLabelWithPercentSignsIntactAsATooltip() => Scoped(() =>
+    public void ACollapsedHoverShowsTheLabelWithPercentSignsIntactAsATooltip()
     {
         var label = "100% done";
         var rig = new RailRig();
@@ -697,10 +679,10 @@ public class SideNavTests
         Assert.NotNull(tooltip);
         var expected = UiFrame.GlyphUvs(Win, label);
         Assert.True(tooltip.Count >= expected.Count && tooltip.Skip(tooltip.Count - expected.Count).SequenceEqual(expected));
-    });
+    }
 
     [Fact]
-    public void NoTooltipWhenLabelsAreOnOrNothingIsHovered() => Scoped(() =>
+    public void NoTooltipWhenLabelsAreOnOrNothingIsHovered()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a")];
@@ -719,10 +701,10 @@ public class SideNavTests
         rig.Frame();
         rig.Frame();
         Assert.Null(UiFrame.ActiveTooltipUvs());
-    });
+    }
 
     [Fact]
-    public void AnEmptyLabelHasNoTooltip() => Scoped(() =>
+    public void AnEmptyLabelHasNoTooltip()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a", i => i.Label = "")];
@@ -733,10 +715,10 @@ public class SideNavTests
         rig.Frame();
         rig.Frame();
         Assert.Null(UiFrame.ActiveTooltipUvs());
-    });
+    }
 
     [Fact]
-    public void ACollapsedBadgeSitsOnTheIconsTopCornerAndDrawsItsText() => Scoped(() =>
+    public void ACollapsedBadgeSitsOnTheIconsTopCornerAndDrawsItsText()
     {
         Paint();
         var rig = new RailRig();
@@ -745,7 +727,7 @@ public class SideNavTests
         rig.Frame();
         var rail = rig.Rail;
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
-        var box = Bounds(WithColour(rail, ButtonColour));
+        var box = UiFrame.Bounds(WithColour(rail, ButtonColour));
         var width = textSize.X + SideNav.BadgePad * 2;
         var iconMaxX = rowMin.X + (rowMax.X - rowMin.X - rig.IconSize) / 2 + rig.IconSize;
         Assert.Equal(width, box.Max.X - box.Min.X, 0.01f);
@@ -753,10 +735,10 @@ public class SideNavTests
         Assert.Equal(rowMin.Y, box.Min.Y, 0.01f);
         Assert.Equal(Math.Min(iconMaxX - width / 2, rowMax.X - width), box.Min.X, 0.01f);
         AssertText(rail, "3");
-    });
+    }
 
     [Fact]
-    public void ABadgeBesideALabelIsRightAlignedAndVerticallyCentred() => Scoped(() =>
+    public void ABadgeBesideALabelIsRightAlignedAndVerticallyCentred()
     {
         Paint();
         var rig = new RailRig();
@@ -766,27 +748,27 @@ public class SideNavTests
         rig.Frame();
         var rail = rig.Rail;
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
-        var box = Bounds(WithColour(rail, ButtonColour));
+        var box = UiFrame.Bounds(WithColour(rail, ButtonColour));
         var width = textSize.X + SideNav.BadgePad * 2;
         Assert.Equal(rowMax.X - SideNav.BadgePad * 2, box.Max.X, 0.01f);
         Assert.Equal(width, box.Max.X - box.Min.X, 0.01f);
         Assert.Equal(rowMin.Y + (rowMax.Y - rowMin.Y - textSize.Y) / 2, box.Min.Y, 0.01f);
-    });
+    }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public void ANullOrEmptyBadgeDrawsNothing(string? badge) => Scoped(() =>
+    public void ANullOrEmptyBadgeDrawsNothing(string? badge)
     {
         Paint();
         var rig = new RailRig();
         rig.Items = [rig.Item("a", i => (i.Icon, i.Badge) = (PlainSprite, () => badge))];
         rig.Frame();
         Assert.Empty(WithColour(rig.Rail, ButtonColour));
-    });
+    }
 
     [Fact]
-    public void ABadgeIsReReadEveryFrame() => Scoped(() =>
+    public void ABadgeIsReReadEveryFrame()
     {
         Paint();
         var rig = new RailRig();
@@ -797,12 +779,12 @@ public class SideNavTests
         text = "7";
         rig.Frame();
         AssertText(rig.Rail, "7");
-    });
+    }
 
     [Theory]
     [InlineData("a", "a")]
     [InlineData("b", "b")]
-    public void ANullItemEntryTakesNoRowAndIsSkipped(string active, string expected) => Scoped(() =>
+    public void ANullItemEntryTakesNoRowAndIsSkipped(string active, string expected)
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a"), null!, rig.Item("b")];
@@ -812,20 +794,20 @@ public class SideNavTests
         Assert.Equal([expected], rig.Bodies);
         rig.ClickRow(1);
         Assert.Equal("b", rig.State.Active);
-    });
+    }
 
     [Fact]
-    public void ANullItemLabelDrawsInAnExpandedRail() => Scoped(() =>
+    public void ANullItemLabelDrawsInAnExpandedRail()
     {
         var rig = new RailRig();
         rig.Items = [rig.Item("a", i => i.Label = null!)];
         rig.State!.ShowLabels = true;
         rig.Frame();
         Assert.False(rig.Rail.IsNull);
-    });
+    }
 
     [Fact]
-    public void ABodyThatReadsIdsSeesTheRailsOwnScope() => Scoped(() =>
+    public void ABodyThatReadsIdsSeesTheRailsOwnScope()
     {
         var inside = new List<uint>();
         var outside = 0u;
@@ -842,10 +824,10 @@ public class SideNavTests
         Assert.Equal(2, inside.Count);
         Assert.NotEqual(inside[0], inside[1]);
         Assert.DoesNotContain(outside, inside);
-    });
+    }
 
     [Fact]
-    public void TwoRailsWithDifferentIdsKeepIndependentSelections() => Scoped(() =>
+    public void TwoRailsWithDifferentIdsKeepIndependentSelections()
     {
         var first = new RailRig { Wrapper = "first" };
         var second = new RailRig { Wrapper = "second" };
@@ -861,10 +843,10 @@ public class SideNavTests
         UiFrame.Click(Win, RowCentre(second.Rail, 1, second.IconSize), Both);
         Assert.Equal("b", second.State!.Active);
         Assert.Equal("a", first.State!.Active);
-    });
+    }
 
     [Fact]
-    public void TheSameRailIdUnderTwoScopesKeepsIndependentSelections() => Scoped(() =>
+    public void TheSameRailIdUnderTwoScopesKeepsIndependentSelections()
     {
         var first = new RailRig { Id = "shared", Scope = "one", Wrapper = "wrap" };
         var second = new RailRig { Id = "shared", Scope = "two", Wrapper = "wrap" };
@@ -879,7 +861,7 @@ public class SideNavTests
         UiFrame.Click(Win, RowCentre(second.Rail, 1, second.IconSize), Both);
         Assert.Equal("b", second.State!.Active);
         Assert.Equal("a", first.State!.Active);
-    });
+    }
 
     static (string Label, Func<bool>? Body)[] Pages(List<string> log, bool lastResult = false) =>
     [
@@ -920,10 +902,10 @@ public class SideNavTests
         public void Draw()
         {
             var parent = Open(Scope, Wrapper);
-            Returned = SideNav.SideTabs(Id, leftWidth, Tabs);
+            Returned = Layout.SideTabs(Id, leftWidth, Tabs);
             ImGui.PushID(Id);
-            _navName = $"{parent}/##nav_{ImGui.GetID("##nav"):X8}";
-            _bodyName = $"{parent}/##body_{ImGui.GetID("##body"):X8}";
+            _navName = $"{parent}/##l_{ImGui.GetID("##l"):X8}";
+            _bodyName = $"{parent}/##r_{ImGui.GetID("##r"):X8}";
             ImGui.PopID();
             Close(Scope, Wrapper);
         }
@@ -942,7 +924,7 @@ public class SideNavTests
     }
 
     [Fact]
-    public void ClickingATabSelectsItDrawsOnlyItsBodyAndKeepsItAcrossFrames() => Scoped(() =>
+    public void ClickingATabSelectsItDrawsOnlyItsBodyAndKeepsItAcrossFrames()
     {
         var log = new List<string>();
         var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log));
@@ -953,10 +935,10 @@ public class SideNavTests
         rig.Frame();
         rig.Frame();
         Assert.Equal(["B", "B"], log);
-    });
+    }
 
     [Fact]
-    public void TheSideTabsReturnTheSelectedBodysChangedFlag() => Scoped(() =>
+    public void TheSideTabsReturnTheSelectedBodysChangedFlag()
     {
         var log = new List<string>();
         var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log, lastResult: true));
@@ -965,10 +947,10 @@ public class SideNavTests
         UiFrame.Click(Win, rig.Row(2), rig.Draw);
         rig.Frame();
         Assert.True(rig.Returned);
-    });
+    }
 
     [Fact]
-    public void ClickingAHeaderDoesNotSelectIt() => Scoped(() =>
+    public void ClickingAHeaderDoesNotSelectIt()
     {
         var log = new List<string>();
         (string Label, Func<bool>? Body)[] tabs = [("Group", null), ("A", () => { log.Add("A"); return false; }), ("B", () => { log.Add("B"); return false; })];
@@ -979,10 +961,10 @@ public class SideNavTests
         log.Clear();
         rig.Frame();
         Assert.Equal(["B"], log);
-    });
+    }
 
     [Fact]
-    public void TabsWithTheSameLabelAreSeparateRows() => Scoped(() =>
+    public void TabsWithTheSameLabelAreSeparateRows()
     {
         var log = new List<string>();
         (string Label, Func<bool>? Body)[] tabs = [("Same", () => { log.Add("first"); return false; }), ("Same", () => { log.Add("second"); return false; })];
@@ -992,10 +974,10 @@ public class SideNavTests
         log.Clear();
         rig.Frame();
         Assert.Equal(["second"], log);
-    });
+    }
 
     [Fact]
-    public void TheSelectedTabIsFilledWithHeader() => Scoped(() =>
+    public void TheSelectedTabIsFilledWithHeader()
     {
         Paint();
         var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages([]));
@@ -1003,25 +985,25 @@ public class SideNavTests
         UiFrame.Click(Win, rig.Row(1), rig.Draw);
         rig.Frame();
         var nav = rig.Nav;
-        var filled = Bounds(UiFrame.Verts(nav.DrawList).Where(v => v.Col == U32(HeaderColour)));
+        var filled = UiFrame.Bounds(UiFrame.Verts(nav.DrawList).Where(v => v.Col == U32(HeaderColour)));
         var offsets = SideRowOffsets(rig.Tabs);
         var top = nav.ContentRegionRect.Min.Y;
         Assert.InRange(top + offsets[1], filled.Min.Y, filled.Max.Y);
         Assert.True(top + offsets[0] < filled.Min.Y);
         Assert.True(top + offsets[2] > filled.Max.Y);
-    });
+    }
 
     [Fact]
-    public void TheNavColumnIsTheRequestedWidthAndTheBodyStartsAfterIt() => Scoped(() =>
+    public void TheNavColumnIsTheRequestedWidthAndTheBodyStartsAfterIt()
     {
         var rig = new SideRig(UiFrame.NextId("side"), 137f, Pages([]));
         rig.Frame();
         Assert.Equal(137f, rig.Nav.Size.X, 0.01f);
         Assert.Equal(rig.Nav.Pos.X + 137f + Measure().ItemSpacing.X, rig.BodyPane.Pos.X, 0.01f);
-    });
+    }
 
     [Fact]
-    public void ASelectionThatLandsOnAHeaderAfterTheTabsChangeFallsBackToTheFirstTab() => Scoped(() =>
+    public void ASelectionThatLandsOnAHeaderAfterTheTabsChangeFallsBackToTheFirstTab()
     {
         var log = new List<string>();
         var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log));
@@ -1034,10 +1016,10 @@ public class SideNavTests
         rig.Tabs = [("A", () => { log.Add("A"); return false; }), ("B", () => { log.Add("B"); return false; }), ("Group", null)];
         rig.Frame();
         Assert.Equal(["A"], log);
-    });
+    }
 
     [Fact]
-    public void TwoSideTabsWithDifferentIdsKeepIndependentSelections() => Scoped(() =>
+    public void TwoSideTabsWithDifferentIdsKeepIndependentSelections()
     {
         var logFirst = new List<string>();
         var logSecond = new List<string>();
@@ -1055,10 +1037,10 @@ public class SideNavTests
         UiFrame.Run(Win, Both);
         Assert.Equal(["A"], logFirst);
         Assert.Equal(["B"], logSecond);
-    });
+    }
 
     [Fact]
-    public void TheSameSideTabsIdUnderTwoScopesKeepsIndependentSelections() => Scoped(() =>
+    public void TheSameSideTabsIdUnderTwoScopesKeepsIndependentSelections()
     {
         var logOne = new List<string>();
         var logTwo = new List<string>();
@@ -1076,17 +1058,17 @@ public class SideNavTests
         UiFrame.Run(Win, Both);
         Assert.Equal(["A"], logOne);
         Assert.Equal(["B"], logTwo);
-    });
+    }
 
     [Fact]
-    public void TheSideTabsRethrowABodyExceptionWithTheIdStackBalanced() => Scoped(() =>
+    public void TheSideTabsRethrowABodyExceptionWithTheIdStackBalanced()
     {
         var rig = new SideRig(UiFrame.NextId("side"), 100f, [("A", () => throw new InvalidOperationException("body"))]);
-        UiFrame.Run(Win, () => Assert.Throws<InvalidOperationException>(() => SideNav.SideTabs(rig.Id, 100f, rig.Tabs)));
-    });
+        UiFrame.Run(Win, () => Assert.Throws<InvalidOperationException>(() => Layout.SideTabs(rig.Id, 100f, rig.Tabs)));
+    }
 
     [Fact]
-    public void AllHeadersAndNoTabsDrawNothingAndReturnFalse() => Scoped(() =>
+    public void AllHeadersAndNoTabsDrawNothingAndReturnFalse()
     {
         var headers = new SideRig(UiFrame.NextId("side"), 100f, [("Only", null)]);
         headers.Frame();
@@ -1096,5 +1078,5 @@ public class SideNavTests
         empty.Frame();
         Assert.False(empty.Returned);
         Assert.True(empty.Nav.IsNull);
-    });
+    }
 }

@@ -8,6 +8,9 @@
     <Using Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <Compile Include="$(MSBuildThisFileDirectory)TempDir.cs" Link="TempDir.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.mtp-v2" />
   </ItemGroup>
 </Project>

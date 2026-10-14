@@ -3,7 +3,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ListEditorTests
+public class ListEditorTests : IDisposable
 {
     static string Moved(int from, int to)
     {
@@ -11,6 +11,8 @@ public class ListEditorTests
         ListEditor.Move(list, from, to);
         return string.Concat(list);
     }
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void MoveForward() => Assert.Equal("BCA", Moved(0, 2));
@@ -71,11 +73,13 @@ public class ListEditorTests
 
     readonly Vector2 Spacing = UiFrame.Style.Spacing;
 
+    static readonly string[] Original = ["alpha", "beta", "gamma"];
+
     readonly float BaseAlpha = UiFrame.Style.Alpha;
 
     sealed class CompactList
     {
-        public readonly List<string> Items = ["alpha", "beta", "gamma"];
+        public readonly List<string> Items = [.. Original];
         public string Id = UiFrame.NextId("list");
         public AddSource<string>? Add;
         public bool Reorderable;
@@ -126,28 +130,20 @@ public class ListEditorTests
     public void CompactButtonAddAppendsTheFactoryItemOnce()
     {
         var list = new CompactList { Add = AddSource<string>.Button(() => "new") };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2(UiFrame.ButtonWidth("+ Add") / 2, FrameHeight / 2), list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma", "new"], list.Items);
-            Assert.Equal(1, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, list.Origin + new Vector2(UiFrame.ButtonWidth("+ Add") / 2, FrameHeight / 2), list.Draw);
+        Assert.Equal(["alpha", "beta", "gamma", "new"], list.Items);
+        Assert.Equal(1, list.Returns);
     }
 
     [Fact]
     public void CompactButtonAddUsesTheCallerLabelForItsWidth()
     {
         var list = new CompactList { Add = AddSource<string>.Button(() => "new", "Add a much longer label") };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            var farRight = list.Origin + new Vector2(UiFrame.ButtonWidth("Add a much longer label") - 2f, FrameHeight / 2);
-            UiFrame.Click(Window, farRight, list.Draw);
-            Assert.Equal(4, list.Items.Count);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        var farRight = list.Origin + new Vector2(UiFrame.ButtonWidth("Add a much longer label") - 2f, FrameHeight / 2);
+        UiFrame.Click(Window, farRight, list.Draw);
+        Assert.Equal(4, list.Items.Count);
     }
 
     sealed class Walker : IEnumerable<(string key, string label)>
@@ -172,18 +168,14 @@ public class ListEditorTests
     {
         var walker = new Walker();
         var list = new CompactList { Add = AddSource<string>.Combo(walker, key => "made:" + key) };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2(125f, FrameHeight / 2), list.Draw);
-            UiFrame.Run(Window, list.Draw);
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, list.Origin + new Vector2(125f, FrameHeight / 2), list.Draw);
+        UiFrame.Run(Window, list.Draw);
 
-            Assert.Equal(3, list.Items.Count);
-            UiFrame.Click(Window, walker.RowAt["banana"] + new Vector2(10f, FontSize / 2), list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma", "made:banana"], list.Items);
-            Assert.Equal(1, list.Returns);
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
+        Assert.Equal(3, list.Items.Count);
+        UiFrame.Click(Window, walker.RowAt["banana"] + new Vector2(10f, FontSize / 2), list.Draw);
+        Assert.Equal(["alpha", "beta", "gamma", "made:banana"], list.Items);
+        Assert.Equal(1, list.Returns);
     }
 
     [Fact]
@@ -193,24 +185,20 @@ public class ListEditorTests
         var a = new CompactList { Add = AddSource<string>.Combo(walkerA, key => key) };
         var b = new CompactList { Id = a.Id, Add = AddSource<string>.Combo(new Walker(), key => key) };
         void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Click(Window, a.Origin + new Vector2(125f, FrameHeight / 2), Body);
-            UiFrame.Run(Window, Body);
-            var firstRow = walkerA.RowAt["apple"];
-            UiFrame.Click(Window, firstRow + new Vector2(20f, -Spacing.Y - FrameHeight / 2), Body);
-            UiFrame.Io().AddInputCharactersUTF8("ban");
-            UiFrame.Run(Window, Body);
-            UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, true);
-            UiFrame.Run(Window, Body);
-            UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, false);
-            UiFrame.Run(Window, Body);
-            UiFrame.Run(Window, Body);
-            Assert.Equal(walkerA.RowAt["apple"], walkerA.RowAt["banana"]);
-            Assert.NotEqual(walkerA.RowAt["banana"], walkerA.RowAt["cherry"]);
-        }
-        finally { UiFrame.ClickAway(Window, Body); UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        UiFrame.Click(Window, a.Origin + new Vector2(125f, FrameHeight / 2), Body);
+        UiFrame.Run(Window, Body);
+        var firstRow = walkerA.RowAt["apple"];
+        UiFrame.Click(Window, firstRow + new Vector2(20f, -Spacing.Y - FrameHeight / 2), Body);
+        UiFrame.Io().AddInputCharactersUTF8("ban");
+        UiFrame.Run(Window, Body);
+        UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, true);
+        UiFrame.Run(Window, Body);
+        UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, false);
+        UiFrame.Run(Window, Body);
+        UiFrame.Run(Window, Body);
+        Assert.Equal(walkerA.RowAt["apple"], walkerA.RowAt["banana"]);
+        Assert.NotEqual(walkerA.RowAt["banana"], walkerA.RowAt["cherry"]);
     }
 
     [Fact]
@@ -218,12 +206,8 @@ public class ListEditorTests
     {
         List<string> items = ["alpha"];
         var returned = false;
-        try
-        {
-            UiFrame.Run(Window, () => returned = ListEditor.Compact(UiFrame.NextId("edit"), items, (_, _) => true));
-            Assert.True(returned);
-        }
-        finally { UiFrame.Settle(Window, () => { }); }
+        UiFrame.Run(Window, () => returned = ListEditor.Compact(UiFrame.NextId("edit"), items, (_, _) => true));
+        Assert.True(returned);
     }
 
     [Theory]
@@ -233,28 +217,20 @@ public class ListEditorTests
     public void CompactXButtonRemovesExactlyThatRow(int row)
     {
         var list = new CompactList();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            var expected = list.Items.Where((_, i) => i != row).ToList();
-            UiFrame.Click(Window, XButton(list, row), list.Draw);
-            Assert.Equal(expected, list.Items);
-            Assert.Equal(1, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        var expected = list.Items.Where((_, i) => i != row).ToList();
+        UiFrame.Click(Window, XButton(list, row), list.Draw);
+        Assert.Equal(expected, list.Items);
+        Assert.Equal(1, list.Returns);
     }
 
     [Fact]
     public void CompactRowsAreScopedUnderTheListIdAndTheRowIndex()
     {
         var list = new CompactList { Id = "scoped" };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
-            Assert.Equal(3, list.Rows.Select(r => r.Probe).Distinct().Count());
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
+        Assert.Equal(3, list.Rows.Select(r => r.Probe).Distinct().Count());
     }
 
     [Fact]
@@ -263,48 +239,36 @@ public class ListEditorTests
         var a = new CompactList();
         var b = new CompactList { Id = a.Id };
         void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
-        try
-        {
-            UiFrame.Run(Window, Body);
-            Assert.Empty(a.Rows.Select(r => r.Probe).Intersect(b.Rows.Select(r => r.Probe)));
-        }
-        finally { UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        Assert.Empty(a.Rows.Select(r => r.Probe).Intersect(b.Rows.Select(r => r.Probe)));
     }
 
     [Fact]
     public void CompactConfirmDeleteAsksFirstAndConfirmRemovesTheClickedRow()
     {
         var list = new CompactList { Confirm = true };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, XButton(list, 1), list.Draw);
-            Assert.True(UiFrame.PopupOpen(Window, list.Draw));
-            Assert.Equal(3, list.Items.Count);
-            Assert.Equal(0, list.Returns);
-            UiFrame.Click(Window, ModalButton(list, true), list.Draw);
-            Assert.Equal(["alpha", "gamma"], list.Items);
-            Assert.Equal(1, list.Returns);
-            Assert.False(UiFrame.PopupOpen(Window, list.Draw));
-        }
-        finally { UiFrame.CloseModal(Window, list.Draw, () => ModalButton(list, false)); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, XButton(list, 1), list.Draw);
+        Assert.True(UiFrame.PopupOpen(Window, list.Draw));
+        Assert.Equal(3, list.Items.Count);
+        Assert.Equal(0, list.Returns);
+        UiFrame.Click(Window, ModalButton(list, true), list.Draw);
+        Assert.Equal(["alpha", "gamma"], list.Items);
+        Assert.Equal(1, list.Returns);
+        Assert.False(UiFrame.PopupOpen(Window, list.Draw));
     }
 
     [Fact]
     public void CompactConfirmDeleteCancelKeepsTheRowAndReportsNothing()
     {
         var list = new CompactList { Confirm = true };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, XButton(list, 0), list.Draw);
-            Assert.True(UiFrame.PopupOpen(Window, list.Draw));
-            UiFrame.Click(Window, ModalButton(list, false), list.Draw);
-            Assert.Equal(3, list.Items.Count);
-            Assert.Equal(0, list.Returns);
-            Assert.False(UiFrame.PopupOpen(Window, list.Draw));
-        }
-        finally { UiFrame.CloseModal(Window, list.Draw, () => ModalButton(list, false)); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, XButton(list, 0), list.Draw);
+        Assert.True(UiFrame.PopupOpen(Window, list.Draw));
+        UiFrame.Click(Window, ModalButton(list, false), list.Draw);
+        Assert.Equal(3, list.Items.Count);
+        Assert.Equal(0, list.Returns);
+        Assert.False(UiFrame.PopupOpen(Window, list.Draw));
     }
 
     [Fact]
@@ -317,18 +281,14 @@ public class ListEditorTests
             other.Draw();
             owner.Draw();
         }
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Click(Window, XButton(owner, 1), Body);
-            Assert.True(UiFrame.PopupOpen(Window, Body));
-            UiFrame.Click(Window, ModalButton(owner, true), Body);
-            Assert.Equal(["alpha", "gamma"], owner.Items);
-            Assert.Equal(["alpha", "beta", "gamma"], other.Items);
-            Assert.Equal(1, owner.Returns);
-            Assert.Equal(0, other.Returns);
-        }
-        finally { UiFrame.CloseModal(Window, owner.Draw, () => ModalButton(owner, false)); UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        UiFrame.Click(Window, XButton(owner, 1), Body);
+        Assert.True(UiFrame.PopupOpen(Window, Body));
+        UiFrame.Click(Window, ModalButton(owner, true), Body);
+        Assert.Equal(["alpha", "gamma"], owner.Items);
+        Assert.Equal(Original, other.Items);
+        Assert.Equal(1, owner.Returns);
+        Assert.Equal(0, other.Returns);
     }
 
     [Fact]
@@ -336,92 +296,72 @@ public class ListEditorTests
     {
         var plain = new CompactList();
         var grips = new CompactList { Reorderable = true };
-        try
-        {
-            UiFrame.Run(Window, plain.Draw);
-            UiFrame.Run(Window, grips.Draw);
-            Assert.Equal(plain.Origin.X, plain.Rows[0].Cursor.X);
-            Assert.Equal(grips.Origin.X + UiFrame.ButtonWidth(":::") + Spacing.X, grips.Rows[0].Cursor.X);
-        }
-        finally { UiFrame.Settle(Window, plain.Draw); }
+        UiFrame.Run(Window, plain.Draw);
+        UiFrame.Run(Window, grips.Draw);
+        Assert.Equal(plain.Origin.X, plain.Rows[0].Cursor.X);
+        Assert.Equal(grips.Origin.X + UiFrame.ButtonWidth(":::") + Spacing.X, grips.Rows[0].Cursor.X);
     }
 
     [Fact]
     public void CompactDraggingAGripOntoARowMovesTheItem()
     {
         var list = new CompactList { Reorderable = true };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, Grip(list, 0), Grip(list, 2), list.Draw);
-            Assert.Equal(["beta", "gamma", "alpha"], list.Items);
-            Assert.Equal(1, list.Returns);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, Grip(list, 2), Grip(list, 0), list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma"], list.Items);
-            Assert.Equal(2, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, Grip(list, 0), Grip(list, 2), list.Draw);
+        Assert.Equal(["beta", "gamma", "alpha"], list.Items);
+        Assert.Equal(1, list.Returns);
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, Grip(list, 2), Grip(list, 0), list.Draw);
+        Assert.Equal(Original, list.Items);
+        Assert.Equal(2, list.Returns);
     }
 
     [Fact]
     public void CompactDroppingAGripOnNothingChangesNothing()
     {
         var list = new CompactList { Reorderable = true };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Press(Window, Grip(list, 1), list.Draw);
-            UiFrame.MoveTo(Window, Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0), list.Draw);
-            UiFrame.MoveTo(Window, Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0), list.Draw);
-            UiFrame.Release(Window, list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma"], list.Items);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Press(Window, Grip(list, 1), list.Draw);
+        UiFrame.MoveTo(Window, Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0), list.Draw);
+        UiFrame.MoveTo(Window, Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0), list.Draw);
+        UiFrame.Release(Window, list.Draw);
+        Assert.Equal(Original, list.Items);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
     public void CompactDroppingAGripAfterCrossingRowsButOffTheListChangesNothing()
     {
         var list = new CompactList { Reorderable = true };
-        try
+        UiFrame.Run(Window, list.Draw);
+        var away = Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0);
+        UiFrame.Press(Window, Grip(list, 0), list.Draw);
+        for (var row = 1; row <= 2; row++)
         {
-            UiFrame.Run(Window, list.Draw);
-            var away = Grip(list, 1) + new Vector2(UiFrame.WindowSize.X / 2, 0);
-            UiFrame.Press(Window, Grip(list, 0), list.Draw);
-            for (var row = 1; row <= 2; row++)
-            {
-                UiFrame.MoveTo(Window, Grip(list, row), list.Draw);
-                UiFrame.MoveTo(Window, Grip(list, row), list.Draw);
-            }
-            UiFrame.MoveTo(Window, away, list.Draw);
-            UiFrame.MoveTo(Window, away, list.Draw);
-            UiFrame.Release(Window, list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma"], list.Items);
-            Assert.Equal(0, list.Returns);
+            UiFrame.MoveTo(Window, Grip(list, row), list.Draw);
+            UiFrame.MoveTo(Window, Grip(list, row), list.Draw);
         }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.MoveTo(Window, away, list.Draw);
+        UiFrame.MoveTo(Window, away, list.Draw);
+        UiFrame.Release(Window, list.Draw);
+        Assert.Equal(Original, list.Items);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
     public void CompactReleasingInTheGapBetweenRowsIsANoOp()
     {
         var list = new CompactList { Reorderable = true };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            var gap = new Vector2(Grip(list, 1).X, Grip(list, 1).Y + FrameHeight / 2 + Spacing.Y / 2);
-            UiFrame.Press(Window, Grip(list, 0), list.Draw);
-            UiFrame.MoveTo(Window, Grip(list, 1), list.Draw);
-            UiFrame.MoveTo(Window, Grip(list, 1), list.Draw);
-            UiFrame.MoveTo(Window, gap, list.Draw);
-            UiFrame.MoveTo(Window, gap, list.Draw);
-            UiFrame.Release(Window, list.Draw);
-            Assert.Equal(["alpha", "beta", "gamma"], list.Items);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        var gap = new Vector2(Grip(list, 1).X, Grip(list, 1).Y + FrameHeight / 2 + Spacing.Y / 2);
+        UiFrame.Press(Window, Grip(list, 0), list.Draw);
+        UiFrame.MoveTo(Window, Grip(list, 1), list.Draw);
+        UiFrame.MoveTo(Window, Grip(list, 1), list.Draw);
+        UiFrame.MoveTo(Window, gap, list.Draw);
+        UiFrame.MoveTo(Window, gap, list.Draw);
+        UiFrame.Release(Window, list.Draw);
+        Assert.Equal(Original, list.Items);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
@@ -443,18 +383,14 @@ public class ListEditorTests
             ImGui.PopID();
             ImGui.EndGroup();
         }
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Press(Window, Grip(a, 0), Body);
-            UiFrame.MoveTo(Window, Grip(b, 2), Body);
-            UiFrame.MoveTo(Window, Grip(b, 2), Body);
-            UiFrame.Release(Window, Body);
-            Assert.Equal(["alpha", "beta", "gamma"], a.Items);
-            Assert.Equal(["alpha", "beta", "gamma"], b.Items);
-            Assert.Equal(0, a.Returns + b.Returns);
-        }
-        finally { UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        UiFrame.Press(Window, Grip(a, 0), Body);
+        UiFrame.MoveTo(Window, Grip(b, 2), Body);
+        UiFrame.MoveTo(Window, Grip(b, 2), Body);
+        UiFrame.Release(Window, Body);
+        Assert.Equal(Original, a.Items);
+        Assert.Equal(Original, b.Items);
+        Assert.Equal(0, a.Returns + b.Returns);
     }
 
     [Fact]
@@ -471,15 +407,11 @@ public class ListEditorTests
             owner.Draw();
             ImGui.PopID();
         }
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Drag(Window, Grip(owner, 0), Grip(owner, 2), Body);
-            Assert.Equal(["beta", "gamma", "alpha"], owner.Items);
-            Assert.Equal(["alpha", "beta", "gamma"], other.Items);
-            Assert.Equal(0, other.Returns);
-        }
-        finally { UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        UiFrame.Drag(Window, Grip(owner, 0), Grip(owner, 2), Body);
+        Assert.Equal(["beta", "gamma", "alpha"], owner.Items);
+        Assert.Equal(Original, other.Items);
+        Assert.Equal(0, other.Returns);
     }
 
     [Fact]
@@ -508,31 +440,23 @@ public class ListEditorTests
     {
         var list = new CompactList { FilterText = s => s };
         var alpha = BaseAlpha;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2(20f, FrameHeight / 2), list.Draw);
-            UiFrame.Io().AddInputCharactersUTF8("bet");
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.ClickAway(Window, list.Draw);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal([true, false, true], list.Rows.Select(r => r.Alpha < alpha));
-            EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2));
-            Assert.All(list.Rows, r => Assert.Equal(alpha, r.Alpha));
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, list.Origin + new Vector2(20f, FrameHeight / 2), list.Draw);
+        UiFrame.Io().AddInputCharactersUTF8("bet");
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.ClickAway(Window, list.Draw);
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal([true, false, true], list.Rows.Select(r => r.Alpha < alpha));
+        EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2));
+        Assert.All(list.Rows, r => Assert.Equal(alpha, r.Alpha));
     }
 
     [Fact]
     public void CompactWithoutFilterTextDrawsNoFilterBox()
     {
         var list = new CompactList();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(list.Origin.Y, list.Rows[0].Cursor.Y);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal(list.Origin.Y, list.Rows[0].Cursor.Y);
     }
 
     [Fact]
@@ -623,15 +547,11 @@ public class ListEditorTests
     public void OrderedClickSelectsTheRowWithoutReportingAChange()
     {
         var list = new OrderedList();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, RowAt(list, 2), list.Draw);
-            Assert.Equal(2, list.Selected);
-            Assert.Equal(0, list.Returns);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, RowAt(list, 2), list.Draw);
+        Assert.Equal(2, list.Selected);
+        Assert.Equal(0, list.Returns);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
     }
 
     [Fact]
@@ -639,27 +559,19 @@ public class ListEditorTests
     {
         var list = new OrderedList { Selected = 2 };
         list.Opts.PinnedHead = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, RowAt(list, 0), list.Draw);
-            Assert.Equal(0, list.Selected);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, RowAt(list, 0), list.Draw);
+        Assert.Equal(0, list.Selected);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
     public void OrderedRowsAreScopedUnderTheListIdAndTheRowIndex()
     {
         var list = new OrderedList { Id = "scoped" };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
-            Assert.Equal(5, list.Rows.Select(r => r.Probe).Distinct().Count());
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
+        Assert.Equal(5, list.Rows.Select(r => r.Probe).Distinct().Count());
     }
 
     [Fact]
@@ -667,23 +579,19 @@ public class ListEditorTests
     {
         var tall = new OrderedList();
         var plain = new OrderedList();
-        try
-        {
-            tall.Opts.RowHeight = FrameHeight * 3;
-            tall.Opts.ShowIndex = false;
-            UiFrame.Run(Window, tall.Draw);
-            UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 2.5f), tall.Draw);
-            Assert.Equal(0, tall.Selected);
-            Assert.Equal((tall.Opts.RowHeight - FontSize) / 2, tall.Rows[0].Cursor.Y - tall.Origin.Y);
-            tall.Selected = -1;
-            UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 3 + Spacing.Y + 2f), tall.Draw);
-            Assert.Equal(1, tall.Selected);
-            UiFrame.Run(Window, plain.Draw);
-            plain.Selected = -1;
-            UiFrame.Click(Window, new Vector2(plain.Rows[0].Cursor.X + 1f, plain.Origin.Y + FrameHeight * 1.5f), plain.Draw);
-            Assert.Equal(1, plain.Selected);
-        }
-        finally { UiFrame.Settle(Window, plain.Draw); }
+        tall.Opts.RowHeight = FrameHeight * 3;
+        tall.Opts.ShowIndex = false;
+        UiFrame.Run(Window, tall.Draw);
+        UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 2.5f), tall.Draw);
+        Assert.Equal(0, tall.Selected);
+        Assert.Equal((tall.Opts.RowHeight - FontSize) / 2, tall.Rows[0].Cursor.Y - tall.Origin.Y);
+        tall.Selected = -1;
+        UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 3 + Spacing.Y + 2f), tall.Draw);
+        Assert.Equal(1, tall.Selected);
+        UiFrame.Run(Window, plain.Draw);
+        plain.Selected = -1;
+        UiFrame.Click(Window, new Vector2(plain.Rows[0].Cursor.X + 1f, plain.Origin.Y + FrameHeight * 1.5f), plain.Draw);
+        Assert.Equal(1, plain.Selected);
     }
 
     [Fact]
@@ -693,14 +601,10 @@ public class ListEditorTests
         shown.Opts.PinnedHead = 1;
         var hidden = new OrderedList();
         hidden.Opts.ShowIndex = false;
-        try
-        {
-            UiFrame.Run(Window, shown.Draw);
-            UiFrame.Run(Window, hidden.Draw);
-            Assert.Equal(UiFrame.TextWidth("01") + Spacing.X, shown.Rows[1].Cursor.X - hidden.Rows[1].Cursor.X);
-            Assert.Equal(UiFrame.TextWidth("--") + Spacing.X, shown.Rows[0].Cursor.X - hidden.Rows[0].Cursor.X);
-        }
-        finally { UiFrame.Settle(Window, shown.Draw); }
+        UiFrame.Run(Window, shown.Draw);
+        UiFrame.Run(Window, hidden.Draw);
+        Assert.Equal(UiFrame.TextWidth("01") + Spacing.X, shown.Rows[1].Cursor.X - hidden.Rows[1].Cursor.X);
+        Assert.Equal(UiFrame.TextWidth("--") + Spacing.X, shown.Rows[0].Cursor.X - hidden.Rows[0].Cursor.X);
     }
 
     [Fact]
@@ -709,42 +613,34 @@ public class ListEditorTests
         var list = new OrderedList { Selected = -1 };
         list.Opts.PinnedHead = 1;
         list.Opts.PinnedTail = 1;
-        try
-        {
-            UiFrame.Unhover();
-            var dashes = UiFrame.GlyphUvs(Window, "--");
-            var two = UiFrame.GlyphUvs(Window, "02");
-            var three = UiFrame.GlyphUvs(Window, "03");
-            var four = UiFrame.GlyphUvs(Window, "04");
-            Assert.NotEqual(two, three);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal([dashes, two, three, four, dashes], list.IndexUvs);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Unhover();
+        var dashes = UiFrame.GlyphUvs(Window, "--");
+        var two = UiFrame.GlyphUvs(Window, "02");
+        var three = UiFrame.GlyphUvs(Window, "03");
+        var four = UiFrame.GlyphUvs(Window, "04");
+        Assert.NotEqual(two, three);
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal([dashes, two, three, four, dashes], list.IndexUvs);
     }
 
     [Fact]
     public void OrderedDraggingARowReordersLiveAndSelectsWhereItLanded()
     {
         var list = new OrderedList();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Press(Window, RowAt(list, 1), list.Draw);
-            UiFrame.MoveTo(Window, RowAt(list, 2), list.Draw);
-            Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(2, list.Selected);
-            Assert.True(list.Returns >= 1);
-            UiFrame.MoveTo(Window, RowAt(list, 3), list.Draw);
-            Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
-            Assert.Equal(3, list.Selected);
-            var returnsWhileHeld = list.Returns;
-            UiFrame.Release(Window, list.Draw);
-            Assert.Equal(returnsWhileHeld, list.Returns);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Press(Window, RowAt(list, 1), list.Draw);
+        UiFrame.MoveTo(Window, RowAt(list, 2), list.Draw);
+        Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(2, list.Selected);
+        Assert.True(list.Returns >= 1);
+        UiFrame.MoveTo(Window, RowAt(list, 3), list.Draw);
+        Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
+        Assert.Equal(3, list.Selected);
+        var returnsWhileHeld = list.Returns;
+        UiFrame.Release(Window, list.Draw);
+        Assert.Equal(returnsWhileHeld, list.Returns);
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
     }
 
     [Fact]
@@ -771,14 +667,10 @@ public class ListEditorTests
     {
         var picked = new OrderedList { Selected = 0 };
         var none = new OrderedList { Selected = -1 };
-        try
-        {
-            UiFrame.Run(Window, picked.Draw);
-            UiFrame.Run(Window, picked.Draw);
-            UiFrame.Run(Window, none.Draw);
-            Assert.True(picked.Vertices > none.Vertices);
-        }
-        finally { UiFrame.Settle(Window, picked.Draw); }
+        UiFrame.Run(Window, picked.Draw);
+        UiFrame.Run(Window, picked.Draw);
+        UiFrame.Run(Window, none.Draw);
+        Assert.True(picked.Vertices > none.Vertices);
     }
 
     [Fact]
@@ -786,19 +678,15 @@ public class ListEditorTests
     {
         var list = new OrderedList();
         list.Opts.PinnedTail = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, RowAt(list, 1), RowAt(list, 2), list.Draw);
-            Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Press(Window, RowAt(list, 4), list.Draw);
-            UiFrame.MoveTo(Window, RowAt(list, 0), list.Draw);
-            UiFrame.MoveTo(Window, RowAt(list, 0), list.Draw);
-            Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
-            UiFrame.Release(Window, list.Draw);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, RowAt(list, 1), RowAt(list, 2), list.Draw);
+        Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Press(Window, RowAt(list, 4), list.Draw);
+        UiFrame.MoveTo(Window, RowAt(list, 0), list.Draw);
+        UiFrame.MoveTo(Window, RowAt(list, 0), list.Draw);
+        Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
+        UiFrame.Release(Window, list.Draw);
     }
 
     [Fact]
@@ -807,53 +695,41 @@ public class ListEditorTests
         var list = new OrderedList();
         list.Opts.PinnedHead = 1;
         list.Opts.PinnedTail = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            var below = new Vector2(list.Rows[4].Cursor.X + 1f, list.Rows[4].Cursor.Y + FrameHeight * 3);
-            UiFrame.Drag(Window, RowAt(list, 1), below, list.Draw);
-            Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
-            UiFrame.Run(Window, list.Draw);
-            var above = new Vector2(list.Rows[0].Cursor.X + 1f, list.Origin.Y - FrameHeight);
-            UiFrame.Drag(Window, RowAt(list, 3), above, list.Draw);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        var below = new Vector2(list.Rows[4].Cursor.X + 1f, list.Rows[4].Cursor.Y + FrameHeight * 3);
+        UiFrame.Drag(Window, RowAt(list, 1), below, list.Draw);
+        Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
+        UiFrame.Run(Window, list.Draw);
+        var above = new Vector2(list.Rows[0].Cursor.X + 1f, list.Origin.Y - FrameHeight);
+        UiFrame.Drag(Window, RowAt(list, 3), above, list.Draw);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
     }
 
     [Fact]
     public void OrderedTheMouseOnTheLastRowsBottomEdgeIsNotOverIt()
     {
         var list = new OrderedList();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Press(Window, RowAt(list, 1), list.Draw);
-            var edge = new Vector2(list.Rows[4].Cursor.X + 1f, list.Rows[4].Cursor.Y + FrameHeight + Spacing.Y - MathF.Floor(Spacing.Y / 2));
-            UiFrame.MoveTo(Window, edge, list.Draw);
-            UiFrame.MoveTo(Window, edge, list.Draw);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            UiFrame.Release(Window, list.Draw);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Press(Window, RowAt(list, 1), list.Draw);
+        var edge = new Vector2(list.Rows[4].Cursor.X + 1f, list.Rows[4].Cursor.Y + FrameHeight + Spacing.Y - MathF.Floor(Spacing.Y / 2));
+        UiFrame.MoveTo(Window, edge, list.Draw);
+        UiFrame.MoveTo(Window, edge, list.Draw);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        UiFrame.Release(Window, list.Draw);
     }
 
     [Fact]
     public void OrderedPressingAMovableRowSelectsItEvenWhenReleasedOffTheRow()
     {
         var list = new OrderedList { Selected = 0 };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Press(Window, RowAt(list, 2), list.Draw);
-            var away = RowAt(list, 2) + new Vector2(UiFrame.WindowSize.X, 0);
-            UiFrame.MoveTo(Window, away, list.Draw);
-            UiFrame.MoveTo(Window, away, list.Draw);
-            UiFrame.Release(Window, list.Draw);
-            Assert.Equal(2, list.Selected);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Press(Window, RowAt(list, 2), list.Draw);
+        var away = RowAt(list, 2) + new Vector2(UiFrame.WindowSize.X, 0);
+        UiFrame.MoveTo(Window, away, list.Draw);
+        UiFrame.MoveTo(Window, away, list.Draw);
+        UiFrame.Release(Window, list.Draw);
+        Assert.Equal(2, list.Selected);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
     }
 
     [Fact]
@@ -862,16 +738,12 @@ public class ListEditorTests
         var list = new OrderedList();
         list.Opts.PinnedHead = 1;
         list.Opts.PinnedTail = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, RowAt(list, 0), RowAt(list, 3), list.Draw);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, RowAt(list, 4), RowAt(list, 1), list.Draw);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, RowAt(list, 0), RowAt(list, 3), list.Draw);
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, RowAt(list, 4), RowAt(list, 1), list.Draw);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
@@ -879,14 +751,10 @@ public class ListEditorTests
     {
         var list = new OrderedList();
         list.Opts.Reorderable = false;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Drag(Window, RowAt(list, 1), RowAt(list, 3), list.Draw);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Drag(Window, RowAt(list, 1), RowAt(list, 3), list.Draw);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
@@ -895,15 +763,11 @@ public class ListEditorTests
         var a = new OrderedList();
         var b = new OrderedList { Id = a.Id };
         void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Drag(Window, RowAt(a, 3), RowAt(a, 1), Body);
-            Assert.Equal(["Priority", "Scarabs", "Currency", "Maps", "Everything else"], a.Items);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], b.Items);
-            Assert.Equal(0, b.Returns);
-        }
-        finally { UiFrame.Settle(Window, Body); }
+        UiFrame.Run(Window, Body);
+        UiFrame.Drag(Window, RowAt(a, 3), RowAt(a, 1), Body);
+        Assert.Equal(["Priority", "Scarabs", "Currency", "Maps", "Everything else"], a.Items);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], b.Items);
+        Assert.Equal(0, b.Returns);
     }
 
     static void PressKey(OrderedList list, ImGuiKey key)
@@ -918,21 +782,17 @@ public class ListEditorTests
     public void OrderedCtrlArrowMovesTheSelectedRowOnlyWhileCtrlIsHeld()
     {
         var list = new OrderedList { Selected = 2 };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            PressKey(list, ImGuiKey.DownArrow);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            list.Opts.CtrlHeld = true;
-            PressKey(list, ImGuiKey.DownArrow);
-            Assert.Equal(["Priority", "Currency", "Scarabs", "Maps", "Everything else"], list.Items);
-            Assert.Equal(3, list.Selected);
-            Assert.Equal(1, list.Returns);
-            PressKey(list, ImGuiKey.UpArrow);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(2, list.Selected);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        PressKey(list, ImGuiKey.DownArrow);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        list.Opts.CtrlHeld = true;
+        PressKey(list, ImGuiKey.DownArrow);
+        Assert.Equal(["Priority", "Currency", "Scarabs", "Maps", "Everything else"], list.Items);
+        Assert.Equal(3, list.Selected);
+        Assert.Equal(1, list.Returns);
+        PressKey(list, ImGuiKey.UpArrow);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(2, list.Selected);
     }
 
     [Fact]
@@ -941,15 +801,11 @@ public class ListEditorTests
         var list = new OrderedList { Selected = 3 };
         list.Opts.CtrlHeld = true;
         list.Opts.PinnedTail = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            PressKey(list, ImGuiKey.DownArrow);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(3, list.Selected);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        PressKey(list, ImGuiKey.DownArrow);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(3, list.Selected);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
@@ -958,15 +814,11 @@ public class ListEditorTests
         var list = new OrderedList { Selected = 1 };
         list.Opts.CtrlHeld = true;
         list.Opts.PinnedHead = 1;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            PressKey(list, ImGuiKey.UpArrow);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Equal(1, list.Selected);
-            Assert.Equal(0, list.Returns);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        PressKey(list, ImGuiKey.UpArrow);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Equal(1, list.Selected);
+        Assert.Equal(0, list.Returns);
     }
 
     [Fact]
@@ -974,16 +826,12 @@ public class ListEditorTests
     {
         var list = new OrderedList();
         list.Opts.Menu = list.RecordingMenu();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, RowAt(list, 3), list.Draw, button: 1);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(3, list.Selected);
-            Assert.NotEmpty(list.MenuRows);
-            Assert.All(list.MenuRows, row => Assert.Equal(3, row));
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, RowAt(list, 3), list.Draw, button: 1);
+        UiFrame.Run(Window, list.Draw);
+        Assert.Equal(3, list.Selected);
+        Assert.NotEmpty(list.MenuRows);
+        Assert.All(list.MenuRows, row => Assert.Equal(3, row));
     }
 
     [Fact]
@@ -991,17 +839,13 @@ public class ListEditorTests
     {
         var list = new OrderedList();
         list.Opts.Menu = list.RecordingMenu();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, RowAt(list, 4), list.Draw, button: 1);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.MenuPos + new Vector2(10f, FontSize / 2), list.Draw);
-            Assert.Equal(["Priority", "Currency", "Maps", "Scarabs"], list.Items);
-            Assert.Equal(3, list.Selected);
-            Assert.Equal(1, list.Returns);
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, RowAt(list, 4), list.Draw, button: 1);
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, list.MenuPos + new Vector2(10f, FontSize / 2), list.Draw);
+        Assert.Equal(["Priority", "Currency", "Maps", "Scarabs"], list.Items);
+        Assert.Equal(3, list.Selected);
+        Assert.Equal(1, list.Returns);
     }
 
     [Fact]
@@ -1009,17 +853,13 @@ public class ListEditorTests
     {
         var list = new OrderedList();
         list.Opts.Menu = list.RecordingMenu();
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, RowAt(list, 1), list.Draw, button: 1);
-            UiFrame.Run(Window, list.Draw);
-            list.RowCounts.Clear();
-            UiFrame.Click(Window, list.MenuPos + new Vector2(10f, FontSize / 2), list.Draw);
-            Assert.Equal(["Priority", "Maps", "Scarabs", "Everything else"], list.Items);
-            Assert.Contains(1, list.RowCounts);
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
+        UiFrame.Run(Window, list.Draw);
+        UiFrame.Click(Window, RowAt(list, 1), list.Draw, button: 1);
+        UiFrame.Run(Window, list.Draw);
+        list.RowCounts.Clear();
+        UiFrame.Click(Window, list.MenuPos + new Vector2(10f, FontSize / 2), list.Draw);
+        Assert.Equal(["Priority", "Maps", "Scarabs", "Everything else"], list.Items);
+        Assert.Contains(1, list.RowCounts);
     }
 
     [Fact]

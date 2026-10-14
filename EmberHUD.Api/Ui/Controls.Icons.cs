@@ -158,8 +158,7 @@ public static partial class Controls
         var filter = _pickerFilter.GetValueOrDefault(key, "");
         if (sh.Label is not null)
         {
-            ImGui.SetNextItemWidth(180f);
-            ImGui.InputTextWithHint("##filter", "search", ref filter, 64);
+            Filter(ref filter, width: 180f);
             _pickerFilter[key] = filter;
         }
 

@@ -13,7 +13,7 @@ public sealed class MemoryTests : IDisposable
 
         Assert.False(Memory.Attached);
         Assert.False(Memory.TryRead(0x10000, out int _));
-        Assert.Equal(0, Memory.Read(0x10000, new byte[4]));
+        Assert.False(Memory.Read(0x10000, new byte[4]));
         Assert.Empty(Memory.Globals);
         Assert.Equal(0, Memory.ModuleBase);
     }
@@ -38,8 +38,8 @@ public sealed class MemoryTests : IDisposable
         var at = TestMemory.Alloc(8);
 
         Assert.False(Memory.TryRead(at + 4, out long _));
-        Assert.Equal(0, Memory.Read(at + 4, new byte[8]));
-        Assert.Equal(4, Memory.Read(at + 4, new byte[4]));
+        Assert.False(Memory.Read(at + 4, new byte[8]));
+        Assert.True(Memory.Read(at + 4, new byte[4]));
     }
 
     [Fact]

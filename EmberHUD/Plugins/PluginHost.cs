@@ -14,13 +14,19 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     readonly List<PluginSlot> _slots = [];
     PluginSlot[] _renderOrder = [];
     readonly ConcurrentQueue<(PluginSlot Slot, CompileResult Result)> _compiled = new();
-    readonly Dictionary<string, string> _written = new() { [Path.Combine(root, "Config", "sdk.json")] = SettingsJson.Serialize(sdk) };
+    readonly Dictionary<string, string> _written = new() { [SdkPath(root)] = SettingsJson.Serialize(sdk) };
     readonly Dictionary<string, string> _warned = [];
     readonly Dictionary<PluginSlot, FileSystemWatcher> _watchers = [];
     readonly HashSet<PluginSlot> _watchFailed = [];
     bool _warnedCache;
+    bool _watching;
 
     internal long SavedAt = Environment.TickCount64;
+    bool _settingsOpen;
+
+    internal static string SdkPath(string root) => Path.Combine(root, "Config", "sdk.json");
+
+    public void MarkSettingsOpen() => _settingsOpen = true;
 
     internal MethodInfo? ClearSerializerCache { get; set; } = typeof(JsonSerializerOptions).Assembly.GetType("System.Text.Json.JsonSerializerOptionsUpdateHandler")?.GetMethod("ClearCache", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 
@@ -30,7 +36,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
 
     public void Discover(string pluginsDirectory)
     {
-        foreach (var directory in PluginCache.Plugins(pluginsDirectory))
+        foreach (var directory in PluginCompiler.Plugins(pluginsDirectory))
         {
             var name = Path.GetFileName(directory);
             if (!sdk.Plugins.TryGetValue(name, out var state)) sdk.Plugins[name] = state = new PluginState();
@@ -49,14 +55,14 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             var changedAt = Interlocked.Read(ref slot.ChangedAt);
             if (changedAt != 0 && !slot.Compiling && Environment.TickCount64 - changedAt >= 500 && Interlocked.CompareExchange(ref slot.ChangedAt, 0, changedAt) == changedAt) Reload(slot);
         }
-        SyncWatchers();
+        if (sdk.AutoReload != _watching) SyncWatchers();
         foreach (var slot in _slots)
             if (slot.Enabled) Call(slot, PluginStage.Tick, plugin =>
             {
                 plugin.DispatchHotkeys();
                 plugin.Tick();
             });
-        if (Environment.TickCount64 - SavedAt >= 2000) SaveAll();
+        if (Environment.TickCount64 - SavedAt >= (_settingsOpen ? 2000 : 30000)) SaveAll();
     }
 
     public void RenderAll()
@@ -86,10 +92,11 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     public void SaveAll()
     {
         SavedAt = Environment.TickCount64;
+        _settingsOpen = false;
         foreach (var slot in _slots) SyncHotkeys(slot);
         foreach (var slot in _slots)
             if (slot.Instance?.SettingsObject is { } settings) Guard(slot, PluginStage.Settings, () => Write(SettingsPath(slot), SettingsJson.Serialize(settings)));
-        Write(Path.Combine(_config, "sdk.json"), SettingsJson.Serialize(sdk));
+        Write(SdkPath(root), SettingsJson.Serialize(sdk));
     }
 
     public void Dispose()
@@ -112,7 +119,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     public void WriteDefaults(PluginSlot slot)
     {
         if (slot.Instance?.SettingsObject is not { } settings) return;
-        var path = DefaultsPath(slot.Directory);
+        var path = PluginCompiler.DefaultsPath(slot.Directory);
         _written.Remove(path);
         if (Write(path, SettingsJson.Serialize(settings))) Log.Info($"{slot.Name} - wrote {path}");
     }
@@ -134,31 +141,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         Log.Info($"{slot.Name} - settings reset to defaults");
     }
 
-    public void ClearCache()
-    {
-        var failed = 0;
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(_cache, "*.dll"))
-            {
-                try
-                {
-                    File.Delete(file);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    failed++;
-                    Log.Warn($"could not delete {file} - {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            failed++;
-            Log.Warn($"could not read {_cache} - {ex.Message}");
-        }
-        if (failed == 0) Log.Info("compile cache cleared");
-    }
+    public void ClearCache() => PluginCompiler.ClearCache(_cache);
 
     void StartCompile(PluginSlot slot)
     {
@@ -168,7 +151,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             CompileResult result;
             try
             {
-                result = PluginCache.Build(slot.Name, slot.Directory, _cache);
+                result = PluginCompiler.Build(slot.Name, slot.Directory, _cache);
             }
             catch (Exception ex)
             {
@@ -180,6 +163,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
 
     void SyncWatchers()
     {
+        _watching = sdk.AutoReload;
         foreach (var slot in _slots)
         {
             var watching = _watchers.ContainsKey(slot);
@@ -191,23 +175,28 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
                 Interlocked.Exchange(ref slot.ChangedAt, 0);
                 continue;
             }
-            FileSystemWatcher? watcher = null;
-            try
-            {
-                watcher = new FileSystemWatcher(slot.Directory, "*.cs") { IncludeSubdirectories = true };
-                void Touch(object sender, FileSystemEventArgs e) => Interlocked.Exchange(ref slot.ChangedAt, Environment.TickCount64);
-                watcher.Changed += Touch;
-                watcher.Created += Touch;
-                watcher.Deleted += Touch;
-                watcher.Renamed += Touch;
-                watcher.EnableRaisingEvents = true;
-                _watchers[slot] = watcher;
-            }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
-            {
-                watcher?.Dispose();
-                if (_watchFailed.Add(slot)) Log.Warn($"{slot.Name} - could not watch {slot.Directory} - {ex.Message}");
-            }
+            Watch(slot);
+        }
+    }
+
+    void Watch(PluginSlot slot)
+    {
+        FileSystemWatcher? watcher = null;
+        try
+        {
+            watcher = new FileSystemWatcher(slot.Directory, "*.cs") { IncludeSubdirectories = true };
+            void Touch(object sender, FileSystemEventArgs e) => Interlocked.Exchange(ref slot.ChangedAt, Environment.TickCount64);
+            watcher.Changed += Touch;
+            watcher.Created += Touch;
+            watcher.Deleted += Touch;
+            watcher.Renamed += Touch;
+            watcher.EnableRaisingEvents = true;
+            _watchers[slot] = watcher;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            watcher?.Dispose();
+            if (_watchFailed.Add(slot)) Log.Warn($"{slot.Name} - could not watch {slot.Directory} - {ex.Message}");
         }
     }
 
@@ -227,10 +216,9 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         Guard(slot, PluginStage.Initialize, () =>
         {
             using var stream = new MemoryStream(bytes);
-            var plugin = (Plugin)Activator.CreateInstance(FindPluginType(context.LoadFromStream(stream).GetTypes()))!;
+            var plugin = (Plugin)Activator.CreateInstance(PluginCompiler.FindPluginType(context.LoadFromStream(stream).GetTypes()))!;
             plugin.Name = slot.Name;
-            plugin.Directory = slot.Directory;
-            LoadSettings(slot, plugin, ReadText(SettingsPath(slot)));
+            LoadSettings(slot, plugin, PluginCompiler.ReadText(SettingsPath(slot)));
             slot.Order = plugin.Order;
             slot.Instance = plugin;
         });
@@ -243,7 +231,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     void LoadSettings(PluginSlot slot, Plugin plugin, string? user)
     {
         if (plugin.SettingsType is not { } type) return;
-        var settings = SettingsJson.Load(type, ReadDefaults(slot.Directory), user, problem => Log.Warn($"{slot.Name} settings - {problem}"));
+        var settings = SettingsJson.Load(type, PluginCompiler.ReadDefaults(slot.Directory), user, problem => Log.Warn($"{slot.Name} settings - {problem}"));
         plugin.SettingsObject = settings;
         _written[SettingsPath(slot)] = user ?? SettingsJson.Serialize(settings);
     }
@@ -283,9 +271,14 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         if (key.Key == Key.None) return null;
         if (sdk.Hotkeys.Settings == key) return "EmberHUD / Settings window";
         if (sdk.Hotkeys.Quit == key) return "EmberHUD / Quit";
-        foreach (var slot in _slots.Where(slot => slot.Enabled && slot.Initialized && slot.Instance is not null))
-            foreach (var binding in slot.Instance!.Hotkeys)
-                if (!ReferenceEquals(binding, self) && binding.Value == key) return $"{slot.Name} / {binding.Id}";
+        for (var i = 0; i < _slots.Count; i++)
+        {
+            var slot = _slots[i];
+            if (!slot.Enabled || !slot.Initialized || slot.Instance is not { } instance) continue;
+            var bindings = instance.Hotkeys;
+            for (var j = 0; j < bindings.Count; j++)
+                if (!ReferenceEquals(bindings[j], self) && bindings[j].Value == key) return $"{slot.Name} / {bindings[j].Id}";
+        }
         return null;
     }
 
@@ -318,12 +311,12 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         catch (Exception ex)
         {
-            Log.Warn($"serializer cache clear failed - {Unwrap(ex).Message}");
+            Log.Warn($"serializer cache clear failed - {PluginCompiler.Unwrap(ex).Message}");
         }
     }
 
     bool Call(PluginSlot slot, PluginStage stage, Action<Plugin> call) =>
-        slot.Instance is { } plugin && slot.ErrorStage is null && Guard(slot, stage, () => call(plugin));
+        slot.Instance is { } plugin && slot.ErrorStage is null && Guard(slot, stage, call, plugin);
 
     static bool InFrame()
     {
@@ -331,7 +324,9 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         return !context.IsNull && context.WithinFrameScope;
     }
 
-    static bool Guard(PluginSlot slot, PluginStage stage, Action action)
+    static bool Guard(PluginSlot slot, PluginStage stage, Action action) => Guard(slot, stage, static run => run(), action);
+
+    static bool Guard<T>(PluginSlot slot, PluginStage stage, Action<T> action, T argument)
     {
         var inFrame = InFrame();
         var state = default(ImGuiErrorRecoveryState);
@@ -341,15 +336,16 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             ImGuiP.ErrorRecoveryStoreState(ref state);
         }
         var outer = Log.CurrentPlugin.Value;
-        Log.CurrentPlugin.Value = slot.Name;
+        var retag = outer != slot.Name;
+        if (retag) Log.CurrentPlugin.Value = slot.Name;
         try
         {
-            action();
+            action(argument);
             return true;
         }
         catch (Exception ex)
         {
-            ex = Unwrap(ex);
+            ex = PluginCompiler.Unwrap(ex);
             if (slot.ErrorStage is null)
             {
                 slot.ErrorStage = stage;
@@ -360,7 +356,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         finally
         {
-            Log.CurrentPlugin.Value = outer;
+            if (retag) Log.CurrentPlugin.Value = outer;
             if (inFrame)
             {
                 ImGuiP.ErrorRecoveryTryToRecoverState(ref state);
@@ -392,18 +388,4 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     }
 
     string SettingsPath(PluginSlot slot) => Path.Combine(_config, "Plugins", slot.Name + ".json");
-
-    public static Type FindPluginType(IEnumerable<Type> types)
-    {
-        var found = types.Where(type => type.IsSubclassOf(typeof(Plugin)) && !type.IsAbstract).ToList();
-        return found.Count == 1 ? found[0] : throw new InvalidOperationException($"found {found.Count} Plugin subclasses, expected one");
-    }
-
-    public static string DefaultsPath(string directory) => Path.Combine(directory, "defaults.json");
-
-    public static string? ReadDefaults(string directory) => ReadText(DefaultsPath(directory));
-
-    public static Exception Unwrap(Exception ex) => ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
-
-    static string? ReadText(string path) => File.Exists(path) ? File.ReadAllText(path) : null;
 }

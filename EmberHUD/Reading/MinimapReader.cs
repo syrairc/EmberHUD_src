@@ -1,19 +1,17 @@
-using System.Collections.Concurrent;
-using System.Text;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
+internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Names names)
 {
     private readonly Dictionary<nint, bool> _isMinimapClass = [];
     private readonly Dictionary<uint, bool> _isRotateName = [];
-    private readonly ConcurrentDictionary<uint, string> _names = [];
     private nint _widget;
     private bool _scanned;
     private int? _generation;
 
     public nint Widget => _widget;
+    public int Scans { get; private set; }
 
     public void Reset()
     {
@@ -81,6 +79,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
             count <= 0 || count > Offsets.MaxGObjectChunks * Offsets.GObjectsPerChunk)
             return 0;
 
+        Scans++;
         for (var chunk = (count - 1) / Offsets.GObjectsPerChunk; chunk >= 0; chunk--)
         {
             var inChunk = Math.Min(Offsets.GObjectsPerChunk, count - chunk * Offsets.GObjectsPerChunk);
@@ -101,14 +100,14 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
 
     private bool IsWidget(nint obj) =>
         memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && IsMinimapClass(cls) &&
-        memory.TryRead(obj + Offsets.UObjectName, out uint nameIndex) && TryReadName(nameIndex, out var name) &&
+        memory.TryRead(obj + Offsets.UObjectName, out uint nameIndex) && names.TryRead(nameIndex, out var name) &&
         !name.StartsWith(Offsets.DefaultObjectPrefix, StringComparison.Ordinal);
 
     private bool IsMinimapClass(nint cls)
     {
         if (_isMinimapClass.TryGetValue(cls, out var known))
             return known;
-        if (!memory.TryRead(cls + Offsets.UObjectName, out uint nameIndex) || !TryReadName(nameIndex, out var name))
+        if (!memory.TryRead(cls + Offsets.UObjectName, out uint nameIndex) || !names.TryRead(nameIndex, out var name))
             return false;
 
         return _isMinimapClass[cls] = name == Offsets.MinimapClassName;
@@ -118,7 +117,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
     {
         if (_isRotateName.TryGetValue(nameIndex, out var known))
             return known;
-        if (!TryReadName(nameIndex, out var name))
+        if (!names.TryRead(nameIndex, out var name))
             return false;
 
         return _isRotateName[nameIndex] = name == Offsets.MinimapRotateParam;
@@ -147,40 +146,5 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
         }
 
         return false;
-    }
-
-    internal bool TryReadName(uint index, out string name)
-    {
-        if (_names.TryGetValue(index, out var known))
-        {
-            name = known;
-            return true;
-        }
-
-        if (!TryReadNameFromPool(index, out name))
-            return false;
-
-        _names[index] = name;
-        return true;
-    }
-
-    private bool TryReadNameFromPool(uint index, out string name)
-    {
-        name = "";
-        var block = index / Offsets.FNameBlockSize;
-        if (block >= Offsets.MaxFNameBlocks ||
-            !memory.TryReadPtr(moduleBase + Offsets.FNamePoolRva + Offsets.FNameBlocks + (nint)block * nint.Size, out var blockStart))
-            return false;
-
-        var entry = blockStart + (nint)(index % Offsets.FNameBlockSize) * Offsets.FNameEntryStride;
-        if (!memory.TryRead(entry, out ushort header) || (header & Offsets.FNameWideBit) != 0)
-            return false;
-
-        var length = header >> Offsets.FNameLengthShift;
-        if (length == 0 || length > Offsets.MaxNameLength || !memory.TryReadArray(entry + Offsets.FNameHeaderSize, length, out byte[] chars))
-            return false;
-
-        name = Encoding.ASCII.GetString(chars);
-        return true;
     }
 }

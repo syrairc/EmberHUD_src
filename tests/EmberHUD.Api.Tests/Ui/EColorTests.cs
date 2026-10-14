@@ -64,4 +64,11 @@ public sealed class EColorTests
     {
         using (new EColor.StyleColorScope((ImGuiCol.Text, EColor.U32(EColor.Bad)), (ImGuiCol.Button, 0xFF000000u))) ImGui.TextUnformatted("red");
     });
+
+    [Fact]
+    public void StyleColorScopeTakesASpan() => TestFrame.Run(() =>
+    {
+        ReadOnlySpan<(ImGuiCol col, uint rgba)> colors = [(ImGuiCol.Text, 0xFF0000FFu), (ImGuiCol.Button, 0u)];
+        using (new EColor.StyleColorScope(colors)) ImGui.TextUnformatted("red");
+    });
 }

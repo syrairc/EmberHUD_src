@@ -3,7 +3,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ChipsTests
+public class ChipsTests : IDisposable
 {
     const string Window = "chips";
     static readonly List<string> Items = ["Fire", "Cold"];
@@ -27,7 +27,11 @@ public class ChipsTests
 
     static float PlusX() => Chips.InputWidth + UiFrame.Style.Spacing.X + UiFrame.ButtonWidth("+") / 2;
 
-    static float ChipEnd(string label) => UiFrame.ButtonWidth(label) + Chips.RemoveGap + UiFrame.ButtonWidth("x");
+    static List<UiFrame.ItemRun> FirstRow(Rig rig)
+    {
+        var y = rig.Origin.Y + UiFrame.Style.FrameHeight / 2;
+        return UiFrame.ItemRuns(Window, rig.Body, new Vector2(rig.Origin.X, y), new Vector2(rig.Origin.X + 800f, y));
+    }
 
     static void Focus(Rig rig)
     {
@@ -51,6 +55,8 @@ public class ChipsTests
         io.AddKeyEvent(ImGuiKey.Enter, false);
         rig.Idle();
     }
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void ANewTagIsAccepted() => Assert.True(Chips.ShouldAdd("Lightning", Items, true, null));
@@ -91,9 +97,8 @@ public class ChipsTests
     {
         var rig = new Rig("remove", "Fire", "Cold");
         rig.Idle();
-        var at = rig.Origin + new Vector2(UiFrame.ButtonWidth("Fire") + 2f + 1f, UiFrame.Style.FrameHeight / 2);
 
-        UiFrame.Click(Window, at, rig.Body);
+        UiFrame.Click(Window, FirstRow(rig)[1].Centre, rig.Body);
 
         Assert.True(rig.Changed);
         Assert.Equal(["Cold"], rig.Tags);
@@ -104,9 +109,8 @@ public class ChipsTests
     {
         var rig = new Rig("removeSecond", "Fire", "Cold");
         rig.Idle();
-        var at = rig.Origin + new Vector2(ChipEnd("Fire") + UiFrame.Style.Spacing.X + UiFrame.ButtonWidth("Cold") + 2f + UiFrame.ButtonWidth("x") / 2, UiFrame.Style.FrameHeight / 2);
 
-        UiFrame.Click(Window, at, rig.Body);
+        UiFrame.Click(Window, FirstRow(rig)[3].Centre, rig.Body);
 
         Assert.True(rig.Changed);
         Assert.Equal(["Fire"], rig.Tags);
@@ -116,41 +120,27 @@ public class ChipsTests
     public void TypingThenEnterAddsTheTagAndClearsTheBox()
     {
         var rig = new Rig("enter");
-        try
-        {
-            Type(rig, "Chaos");
-            PressEnter(rig);
-            Assert.True(rig.Changed);
-            Assert.Equal(["Chaos"], rig.Tags);
+        Type(rig, "Chaos");
+        PressEnter(rig);
+        Assert.True(rig.Changed);
+        Assert.Equal(["Chaos"], rig.Tags);
 
-            rig.Changed = false;
-            rig.Tags.Clear();
-            Focus(rig);
-            PressEnter(rig);
-            Assert.False(rig.Changed);
-            Assert.Empty(rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        rig.Changed = false;
+        rig.Tags.Clear();
+        Focus(rig);
+        PressEnter(rig);
+        Assert.False(rig.Changed);
+        Assert.Empty(rig.Tags);
     }
 
     [Fact]
     public void LeavingTheBoxWithoutEnterAddsNothing()
     {
         var rig = new Rig("leave");
-        try
-        {
-            Type(rig, "Chaos");
-            UiFrame.ClickAway(Window, rig.Body);
-            Assert.False(rig.Changed);
-            Assert.Empty(rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        Type(rig, "Chaos");
+        UiFrame.ClickAway(Window, rig.Body);
+        Assert.False(rig.Changed);
+        Assert.Empty(rig.Tags);
     }
 
     [Fact]
@@ -158,42 +148,27 @@ public class ChipsTests
     {
         var rig = new Rig("escape");
         var io = UiFrame.Io();
-        try
-        {
-            Type(rig, "Chaos");
-            io.AddKeyEvent(ImGuiKey.Escape, true);
-            rig.Idle();
-            io.AddKeyEvent(ImGuiKey.Escape, false);
-            rig.Idle();
-            Assert.False(rig.Changed);
-            Assert.Empty(rig.Tags);
-        }
-        finally
-        {
-            io.AddKeyEvent(ImGuiKey.Escape, false);
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        Type(rig, "Chaos");
+        io.AddKeyEvent(ImGuiKey.Escape, true);
+        rig.Idle();
+        io.AddKeyEvent(ImGuiKey.Escape, false);
+        rig.Idle();
+        Assert.False(rig.Changed);
+        Assert.Empty(rig.Tags);
     }
 
     [Fact]
     public void KeypadEnterAddsTheTagToo()
     {
         var rig = new Rig("keypad");
-        try
-        {
-            Type(rig, "Chaos");
-            var io = UiFrame.Io();
-            io.AddKeyEvent(ImGuiKey.KeypadEnter, true);
-            rig.Idle();
-            io.AddKeyEvent(ImGuiKey.KeypadEnter, false);
-            rig.Idle();
-            Assert.True(rig.Changed);
-            Assert.Equal(["Chaos"], rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        Type(rig, "Chaos");
+        var io = UiFrame.Io();
+        io.AddKeyEvent(ImGuiKey.KeypadEnter, true);
+        rig.Idle();
+        io.AddKeyEvent(ImGuiKey.KeypadEnter, false);
+        rig.Idle();
+        Assert.True(rig.Changed);
+        Assert.Equal(["Chaos"], rig.Tags);
     }
 
     [Fact]
@@ -201,10 +176,8 @@ public class ChipsTests
     {
         var rig = new Rig("dupLabels", "A", "B", "A") { CaseInsensitiveDedup = false };
         rig.Idle();
-        var gap = UiFrame.Style.Spacing.X;
-        var at = rig.Origin + new Vector2(ChipEnd("A") + gap + ChipEnd("B") + gap + UiFrame.ButtonWidth("A") + 2f + 1f, UiFrame.Style.FrameHeight / 2);
 
-        UiFrame.Click(Window, at, rig.Body);
+        UiFrame.Click(Window, FirstRow(rig)[5].Centre, rig.Body);
 
         Assert.True(rig.Changed);
         Assert.Equal(["A", "B"], rig.Tags);
@@ -223,52 +196,37 @@ public class ChipsTests
             Chips.Draw("two", second);
         }
         var io = UiFrame.Io();
-        try
-        {
-            UiFrame.Run(Window, Body);
-            var frame = UiFrame.Style.FrameHeight;
-            var spacing = UiFrame.Style.Spacing.Y;
-            var inputY = frame + spacing * 2 + frame / 2;
-            UiFrame.Click(Window, secondOrigin + new Vector2(20f, inputY), Body);
-            io.AddInputCharactersUTF8("Chaos");
-            UiFrame.Run(Window, Body);
-            io.AddKeyEvent(ImGuiKey.Enter, true);
-            UiFrame.Run(Window, Body);
-            io.AddKeyEvent(ImGuiKey.Enter, false);
-            UiFrame.Run(Window, Body);
-            Assert.Equal(["Fire"], first);
-            Assert.Equal(["Fire", "Chaos"], second);
+        UiFrame.Run(Window, Body);
+        var frame = UiFrame.Style.FrameHeight;
+        var spacing = UiFrame.Style.Spacing.Y;
+        var inputY = frame + spacing * 2 + frame / 2;
+        UiFrame.Click(Window, secondOrigin + new Vector2(20f, inputY), Body);
+        io.AddInputCharactersUTF8("Chaos");
+        UiFrame.Run(Window, Body);
+        io.AddKeyEvent(ImGuiKey.Enter, true);
+        UiFrame.Run(Window, Body);
+        io.AddKeyEvent(ImGuiKey.Enter, false);
+        UiFrame.Run(Window, Body);
+        Assert.Equal(["Fire"], first);
+        Assert.Equal(["Fire", "Chaos"], second);
 
-            UiFrame.Click(Window, secondOrigin + new Vector2(UiFrame.ButtonWidth("Fire") + 2f + 1f, frame / 2), Body);
-            Assert.Equal(["Fire"], first);
-            Assert.Equal(["Chaos"], second);
-        }
-        finally
-        {
-            io.AddKeyEvent(ImGuiKey.Enter, false);
-            UiFrame.ClickAway(Window, Body);
-        }
+        UiFrame.Click(Window, secondOrigin + new Vector2(UiFrame.ButtonWidth("Fire") + 2f + 1f, frame / 2), Body);
+        Assert.Equal(["Fire"], first);
+        Assert.Equal(["Chaos"], second);
     }
 
     [Fact]
     public void EnterWhileTheBoxIsNotFocusedAddsNothing()
     {
         var rig = new Rig("unfocused");
-        try
-        {
-            Type(rig, "Chaos");
-            UiFrame.ClickAway(Window, rig.Body);
-            PressEnter(rig);
-            Assert.False(rig.Changed);
-            Assert.Empty(rig.Tags);
-            Focus(rig);
-            PressEnter(rig);
-            Assert.Equal(["Chaos"], rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        Type(rig, "Chaos");
+        UiFrame.ClickAway(Window, rig.Body);
+        PressEnter(rig);
+        Assert.False(rig.Changed);
+        Assert.Empty(rig.Tags);
+        Focus(rig);
+        PressEnter(rig);
+        Assert.Equal(["Chaos"], rig.Tags);
     }
 
     [Fact]
@@ -296,17 +254,10 @@ public class ChipsTests
     public void TypingThenThePlusButtonAddsTheTag()
     {
         var rig = new Rig("plus");
-        try
-        {
-            Type(rig, "Chaos");
-            UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), UiFrame.Style.FrameHeight / 2), rig.Body);
-            Assert.True(rig.Changed);
-            Assert.Equal(["Chaos"], rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        Type(rig, "Chaos");
+        UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), UiFrame.Style.FrameHeight / 2), rig.Body);
+        Assert.True(rig.Changed);
+        Assert.Equal(["Chaos"], rig.Tags);
     }
 
     [Fact]
@@ -324,46 +275,32 @@ public class ChipsTests
     {
         var accept = false;
         var rig = new Rig("rejected", "Fire") { Validate = _ => accept };
-        try
-        {
-            Type(rig, "Chaos");
-            PressEnter(rig);
-            Assert.False(rig.Changed);
-            Assert.Equal(["Fire"], rig.Tags);
+        Type(rig, "Chaos");
+        PressEnter(rig);
+        Assert.False(rig.Changed);
+        Assert.Equal(["Fire"], rig.Tags);
 
-            accept = true;
-            Focus(rig);
-            PressEnter(rig);
-            Assert.True(rig.Changed);
-            Assert.Equal(["Fire", "Chaos"], rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        accept = true;
+        Focus(rig);
+        PressEnter(rig);
+        Assert.True(rig.Changed);
+        Assert.Equal(["Fire", "Chaos"], rig.Tags);
     }
 
     [Fact]
     public void ADuplicateIsRejectedUnlessDedupIsOff()
     {
         var rig = new Rig("dup", "Fire");
-        try
-        {
-            Type(rig, "fire");
-            PressEnter(rig);
-            Assert.False(rig.Changed);
-            Assert.Equal(["Fire"], rig.Tags);
+        Type(rig, "fire");
+        PressEnter(rig);
+        Assert.False(rig.Changed);
+        Assert.Equal(["Fire"], rig.Tags);
 
-            rig.CaseInsensitiveDedup = false;
-            Focus(rig);
-            PressEnter(rig);
-            Assert.True(rig.Changed);
-            Assert.Equal(["Fire", "fire"], rig.Tags);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, rig.Body);
-        }
+        rig.CaseInsensitiveDedup = false;
+        Focus(rig);
+        PressEnter(rig);
+        Assert.True(rig.Changed);
+        Assert.Equal(["Fire", "fire"], rig.Tags);
     }
 
     [Fact]
@@ -385,26 +322,19 @@ public class ChipsTests
             ImGui.PopID();
         }
         var io = UiFrame.Io();
-        try
-        {
-            UiFrame.Run(Window, Body);
-            var middle = UiFrame.Style.FrameHeight / 2;
-            UiFrame.Click(Window, origin + new Vector2(20f, middle), Body);
-            io.AddInputCharactersUTF8("A");
-            UiFrame.Run(Window, Body);
+        UiFrame.Run(Window, Body);
+        var middle = UiFrame.Style.FrameHeight / 2;
+        UiFrame.Click(Window, origin + new Vector2(20f, middle), Body);
+        io.AddInputCharactersUTF8("A");
+        UiFrame.Run(Window, Body);
 
-            UiFrame.Click(Window, secondOrigin + new Vector2(PlusX(), middle), Body);
-            Assert.Empty(first);
-            Assert.Empty(second);
+        UiFrame.Click(Window, secondOrigin + new Vector2(PlusX(), middle), Body);
+        Assert.Empty(first);
+        Assert.Empty(second);
 
-            UiFrame.Click(Window, origin + new Vector2(PlusX(), middle), Body);
-            Assert.Equal(["A"], first);
-            Assert.Empty(second);
-        }
-        finally
-        {
-            UiFrame.ClickAway(Window, Body);
-        }
+        UiFrame.Click(Window, origin + new Vector2(PlusX(), middle), Body);
+        Assert.Equal(["A"], first);
+        Assert.Empty(second);
     }
 
     [Fact]

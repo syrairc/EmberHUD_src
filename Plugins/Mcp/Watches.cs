@@ -26,7 +26,7 @@ internal sealed class Watches
     {
         if (length < 1 || length > MaxLength) throw new ToolError($"length must be between 1 and {MaxLength}");
         var watch = new Watch(label, at, length);
-        if (Memory.Read(at, watch.Last) != length) throw new ToolError($"nothing readable at {Hex.Of(at)}");
+        if (!Memory.Read(at, watch.Last)) throw new ToolError($"nothing readable at {Hex.Of(at)}");
         watch.Readable = true;
         watch.Last.CopyTo(watch.Baseline, 0);
         lock (_gate)
@@ -44,7 +44,7 @@ internal sealed class Watches
             foreach (var watch in _watches.Values)
             {
                 watch.Samples++;
-                if (Memory.Read(watch.At, watch.Scratch) != watch.Length)
+                if (!Memory.Read(watch.At, watch.Scratch))
                 {
                     watch.Readable = false;
                     continue;

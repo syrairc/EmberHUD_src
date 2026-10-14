@@ -4,11 +4,10 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ControlsButtonsTests
+public class ControlsButtonsTests : IDisposable
 {
     enum Speed { Slow, Medium, Fast }
 
-    static readonly string[] Labels = ["One", "Two", "Three"];
     static readonly Controls.GroupButton[] Plain = [new("One"), new("Two"), new("Three")];
     static readonly Color Light = Color.FromArgb(255, 240, 230, 200);
     static readonly Color Dark = Color.FromArgb(255, 70, 110, 70);
@@ -24,33 +23,19 @@ public class ControlsButtonsTests
     {
         var io = UiFrame.Io();
         List<ImDrawVert> verts = [];
-        try
+        if (at is { } p)
         {
-            if (at is { } p)
+            io.AddMousePosEvent(p.X, p.Y);
+            UiFrame.Run("test", body);
+            if (held)
             {
-                io.AddMousePosEvent(p.X, p.Y);
-                UiFrame.Run("test", body);
-                if (held)
-                {
-                    io.AddMouseButtonEvent(0, true);
-                    UiFrame.Run("test", body);
-                }
+                io.AddMouseButtonEvent(0, true);
                 UiFrame.Run("test", body);
             }
-            else UiFrame.Unhover();
-            UiFrame.Run("test", () =>
-            {
-                var list = ImGui.GetWindowDrawList();
-                var start = list.VtxBuffer.Size;
-                body();
-                for (var i = start; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
-            });
+            UiFrame.Run("test", body);
         }
-        finally
-        {
-            io.AddMouseButtonEvent(0, false);
-            UiFrame.Unhover();
-        }
+        else UiFrame.Unhover();
+        UiFrame.Run("test", () => verts.AddRange(UiFrame.Drawn(body)));
         return verts;
     }
 
@@ -71,21 +56,16 @@ public class ControlsButtonsTests
         return (min + max) / 2;
     }
 
-    static Vector2[] RowCentres(params string[] labels)
+    static Vector2[] RowCentres(Action body, int count)
     {
-        var centres = new Vector2[labels.Length];
+        var row = Vector2.Zero;
         UiFrame.Run("test", () =>
         {
-            var start = ImGui.GetCursorScreenPos();
-            var style = ImGui.GetStyle();
-            var x = start.X;
-            for (var i = 0; i < labels.Length; i++)
-            {
-                var w = ImGui.CalcTextSize(labels[i]).X + style.FramePadding.X * 2;
-                centres[i] = new(x + w / 2, start.Y + ImGui.GetFrameHeight() / 2);
-                x += w + 1;
-            }
+            row = ImGui.GetCursorScreenPos() + new Vector2(0, ImGui.GetFrameHeight() / 2);
+            body();
         });
+        var centres = UiFrame.ItemRuns("test", body, row, row + new Vector2(800f, 0)).Select(r => r.Centre).ToArray();
+        Assert.Equal(count, centres.Length);
         return centres;
     }
 
@@ -97,22 +77,14 @@ public class ControlsButtonsTests
         return open;
     }
 
-    static void CloseMenus()
+    static List<UiFrame.ItemRun> MenuItems(Action body)
     {
-        UiFrame.Run("test", () =>
-        {
-            if (ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId | ImGuiPopupFlags.AnyPopupLevel)) ImGuiP.ClosePopupToLevel(0, true);
-        });
-        UiFrame.Unhover();
+        var popup = UiFrame.ActiveWindow(ImGuiWindowFlags.Popup);
+        var x = popup.Pos.X + popup.Size.X / 2;
+        return UiFrame.ItemRuns("test", body, new Vector2(x, popup.Pos.Y), new Vector2(x, popup.Pos.Y + popup.Size.Y));
     }
 
-    static Vector2 MenuRow(Vector2 anchor, int rowsAbove, int separatorsAbove, float intoRow = 0.5f)
-    {
-        var style = ImGui.GetStyle();
-        var line = ImGui.GetTextLineHeight();
-        var y = anchor.Y + style.WindowPadding.Y + rowsAbove * (line + style.ItemSpacing.Y) + separatorsAbove * style.ItemSpacing.Y + line * intoRow;
-        return new(anchor.X + style.WindowPadding.X + 8f, y);
-    }
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void AGroupNeedsTwoAndCapsAtFive()
@@ -185,7 +157,7 @@ public class ControlsButtonsTests
     {
         var hit = -1;
 
-        UiFrame.Click("test", RowCentres(Labels)[1], () =>
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("g", Plain), 3)[1], () =>
         {
             var clicked = Controls.ButtonGroup("g", Plain);
             if (clicked >= 0) hit = clicked;
@@ -233,7 +205,7 @@ public class ControlsButtonsTests
         var selected = 0;
         var changed = false;
 
-        UiFrame.Click("test", RowCentres(Labels)[2], () => changed |= Controls.ButtonGroup("g", ref selected, Plain));
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("g", ref selected, Plain), 3)[2], () => changed |= Controls.ButtonGroup("g", ref selected, Plain));
 
         Assert.True(changed);
         Assert.Equal(2, selected);
@@ -245,7 +217,7 @@ public class ControlsButtonsTests
         var selected = 1;
         var changed = false;
 
-        UiFrame.Click("test", RowCentres(Labels)[1], () => changed |= Controls.ButtonGroup("g", ref selected, Plain));
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("g", ref selected, Plain), 3)[1], () => changed |= Controls.ButtonGroup("g", ref selected, Plain));
 
         Assert.False(changed);
         Assert.Equal(1, selected);
@@ -330,7 +302,7 @@ public class ControlsButtonsTests
     {
         Controls.GroupButton[] buttons = [new("A", Dark), new("B")];
 
-        var verts = Verts(() => Controls.ButtonGroup("g", buttons), RowCentres("A", "B")[0]);
+        var verts = Verts(() => Controls.ButtonGroup("g", buttons), RowCentres(() => Controls.ButtonGroup("g", buttons), 2)[0]);
 
         Assert.Contains(verts, v => v.Col == Packed(EColor.Scale(Dark, 1.2f)));
     }
@@ -340,7 +312,7 @@ public class ControlsButtonsTests
     {
         Controls.GroupButton[] buttons = [new("A", Dark), new("B")];
 
-        var verts = Verts(() => Controls.ButtonGroup("g", buttons), RowCentres("A", "B")[0], held: true);
+        var verts = Verts(() => Controls.ButtonGroup("g", buttons), RowCentres(() => Controls.ButtonGroup("g", buttons), 2)[0], held: true);
 
         Assert.Contains(verts, v => v.Col == Packed(EColor.Scale(Dark, 0.8f)));
     }
@@ -418,7 +390,7 @@ public class ControlsButtonsTests
         var speed = Speed.Slow;
         var changed = false;
 
-        UiFrame.Click("test", RowCentres("Slow", "Medium", "Fast")[2], () =>
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("s", ref speed, ("Slow", Speed.Slow), ("Medium", Speed.Medium), ("Fast", Speed.Fast)), 3)[2], () =>
             changed |= Controls.ButtonGroup("s", ref speed, ("Slow", Speed.Slow), ("Medium", Speed.Medium), ("Fast", Speed.Fast)));
 
         Assert.True(changed);
@@ -431,7 +403,7 @@ public class ControlsButtonsTests
         var speed = Speed.Medium;
         var changed = false;
 
-        UiFrame.Click("test", RowCentres("Slow", "Medium", "Fast")[1], () =>
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("s", ref speed, ("Slow", Speed.Slow), ("Medium", Speed.Medium), ("Fast", Speed.Fast)), 3)[1], () =>
             changed |= Controls.ButtonGroup("s", ref speed, ("Slow", Speed.Slow), ("Medium", Speed.Medium), ("Fast", Speed.Fast)));
 
         Assert.False(changed);
@@ -458,7 +430,7 @@ public class ControlsButtonsTests
     {
         var category = "all";
 
-        UiFrame.Click("test", RowCentres("all", "mods")[1], () => Controls.ButtonGroup("c", ref category, ("all", "all"), ("mods", "mods")));
+        UiFrame.Click("test", RowCentres(() => Controls.ButtonGroup("c", ref category, ("all", "all"), ("mods", "mods")), 2)[1], () => Controls.ButtonGroup("c", ref category, ("all", "all"), ("mods", "mods")));
 
         Assert.Equal("mods", category);
     }
@@ -511,15 +483,8 @@ public class ControlsButtonsTests
         var at = CentreOf(Body);
         Assert.False(open);
 
-        try
-        {
-            UiFrame.Click("test", at, Body);
-            Assert.True(open);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        UiFrame.Click("test", at, Body);
+        Assert.True(open);
     }
 
     [Fact]
@@ -527,7 +492,7 @@ public class ControlsButtonsTests
     {
         string?[] items = ["Save as...", null, "Revert"];
 
-        var hit = PickMenu(items, anchor => MenuRow(anchor, 1, 1));
+        var hit = PickMenu(items, runs => runs[1].Centre);
 
         Assert.Equal(2, hit);
     }
@@ -537,7 +502,7 @@ public class ControlsButtonsTests
     {
         string?[] items = ["Save as...", null, "Revert"];
 
-        var hit = PickMenu(items, anchor => MenuRow(anchor, 0, 0));
+        var hit = PickMenu(items, runs => runs[0].Centre);
 
         Assert.Equal(0, hit);
     }
@@ -547,16 +512,12 @@ public class ControlsButtonsTests
     {
         string?[] items = ["Save as...", null, "Revert"];
 
-        var hit = PickMenu(items, anchor =>
-        {
-            var row = MenuRow(anchor, 0, 0, 1f);
-            return row + new Vector2(0, ImGui.GetStyle().ItemSpacing.Y);
-        });
+        var hit = PickMenu(items, runs => new Vector2(runs[0].Centre.X, (runs[0].Max.Y + runs[1].Min.Y) / 2));
 
         Assert.Equal(-1, hit);
     }
 
-    static int PickMenu(string?[] items, Func<Vector2, Vector2> row)
+    static int PickMenu(string?[] items, Func<List<UiFrame.ItemRun>, Vector2> target)
     {
         var hit = -1;
         void Body()
@@ -565,27 +526,22 @@ public class ControlsButtonsTests
             if (picked >= 0) hit = picked;
         }
         var (min, max) = LastItem(Body);
-        try
-        {
-            UiFrame.Click("test", (min + max) / 2, Body);
-            UiFrame.Click("test", row(new(min.X, max.Y)), Body);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        UiFrame.Click("test", (min + max) / 2, Body);
+        UiFrame.Click("test", target(MenuItems(Body)), Body);
         return hit;
     }
 
-    static (Vector2 Origin, float Primary, float Arrow, float Height) SplitGeometry(string label)
+    static (UiFrame.ItemRun Primary, UiFrame.ItemRun Arrow) SplitRuns(Action body)
     {
-        (Vector2, float, float, float) g = default;
+        var y = 0f;
         UiFrame.Run("test", () =>
         {
-            var h = ImGui.GetFrameHeight();
-            g = (ImGui.GetCursorScreenPos(), ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2, h * 0.8f, h);
+            y = ImGui.GetCursorScreenPos().Y + ImGui.GetFrameHeight() / 2;
+            body();
         });
-        return g;
+        var runs = UiFrame.ItemRuns("test", body, new Vector2(0, y), new Vector2(400f, y));
+        Assert.Equal(2, runs.Count);
+        return (runs[0], runs[1]);
     }
 
     sealed class SplitRig(string?[]? menu)
@@ -606,78 +562,50 @@ public class ControlsButtonsTests
     public void ClickingThePrimaryHalfReportsTrueAndLeavesTheMenuShut()
     {
         var rig = new SplitRig(["Run all", "Run one"]);
-        var (origin, primary, _, h) = SplitGeometry("Run");
+        var (primary, _) = SplitRuns(rig.Body);
 
-        try
-        {
-            UiFrame.Click("test", origin + new Vector2(primary / 2, h / 2), rig.Body);
+        UiFrame.Click("test", primary.Centre, rig.Body);
 
-            Assert.Equal(1, rig.Primary);
-            Assert.Equal(-1, rig.Picked);
-            Assert.False(rig.Open);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        Assert.Equal(1, rig.Primary);
+        Assert.Equal(-1, rig.Picked);
+        Assert.False(rig.Open);
     }
 
     [Fact]
     public void ClickingTheChevronHalfOpensTheMenuWithoutFiringThePrimary()
     {
         var rig = new SplitRig(["Run all", "Run one"]);
-        var (origin, primary, arrow, h) = SplitGeometry("Run");
+        var (_, arrow) = SplitRuns(rig.Body);
 
-        try
-        {
-            UiFrame.Click("test", origin + new Vector2(primary + arrow / 2, h / 2), rig.Body);
+        UiFrame.Click("test", arrow.Centre, rig.Body);
 
-            Assert.Equal(0, rig.Primary);
-            Assert.True(rig.Open);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        Assert.Equal(0, rig.Primary);
+        Assert.True(rig.Open);
     }
 
     [Fact]
     public void APickedSplitMenuEntryComesBackThroughPicked()
     {
         var rig = new SplitRig(["Run all", "Run one"]);
-        var (origin, primary, arrow, h) = SplitGeometry("Run");
+        var (_, arrow) = SplitRuns(rig.Body);
 
-        try
-        {
-            UiFrame.Click("test", origin + new Vector2(primary + arrow / 2, h / 2), rig.Body);
-            UiFrame.Click("test", MenuRow(origin + new Vector2(0, h), 1, 0), rig.Body);
+        UiFrame.Click("test", arrow.Centre, rig.Body);
+        UiFrame.Click("test", MenuItems(rig.Body)[1].Centre, rig.Body);
 
-            Assert.Equal(1, rig.Picked);
-            Assert.Equal(0, rig.Primary);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        Assert.Equal(1, rig.Picked);
+        Assert.Equal(0, rig.Primary);
     }
 
     [Fact]
     public void ASplitWithNoMenuHasADeadChevron()
     {
         var rig = new SplitRig(null);
-        var (origin, primary, arrow, h) = SplitGeometry("Run");
+        var (_, arrow) = SplitRuns(rig.Body);
 
-        try
-        {
-            UiFrame.Click("test", origin + new Vector2(primary + arrow / 2, h / 2), rig.Body);
+        UiFrame.Click("test", arrow.Centre, rig.Body);
 
-            Assert.False(rig.Open);
-            Assert.Equal(0, rig.Primary);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        Assert.False(rig.Open);
+        Assert.Equal(0, rig.Primary);
     }
 
     [Fact]
@@ -892,15 +820,8 @@ public class ControlsButtonsTests
         }
         var (min, max) = LastItem(Body);
 
-        try
-        {
-            UiFrame.Click("test", (min + max) / 2, Body);
-            UiFrame.Click("test", MenuRow(new(min.X, max.Y), 1, 0), Body);
-        }
-        finally
-        {
-            CloseMenus();
-        }
+        UiFrame.Click("test", (min + max) / 2, Body);
+        UiFrame.Click("test", MenuItems(Body)[1].Centre, Body);
 
         Assert.Equal(fit + 1, hit);
     }
@@ -930,5 +851,21 @@ public class ControlsButtonsTests
             Assert.Equal(-1, Controls.OverflowRow("tools", []));
             Assert.Equal(before, ImGui.GetCursorPos());
         });
+    }
+
+    [Fact]
+    public void ThePrimaryButtonDrawsWithTheActiveColourAtRest()
+    {
+        uint gold = 0, plain = 0;
+        List<uint> colours = [];
+        UiFrame.Run("primary", () =>
+        {
+            gold = ImGui.GetColorU32(ImGuiCol.ButtonActive);
+            plain = ImGui.GetColorU32(ImGuiCol.Button);
+            colours = UiFrame.Drawn(() => Controls.PrimaryButton("Save")).Select(v => v.Col).ToList();
+        });
+        Assert.NotEqual(gold, plain);
+        Assert.Contains(gold, colours);
+        Assert.DoesNotContain(plain, colours);
     }
 }

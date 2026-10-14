@@ -1,6 +1,6 @@
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Memory;
+namespace EmberHUD.Tests;
 
 public class GameProcessTests
 {

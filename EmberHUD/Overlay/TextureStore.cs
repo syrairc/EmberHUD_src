@@ -14,6 +14,7 @@ internal sealed class TextureStore
 
     public void Attach(ID3D11Device device, ID3D11DeviceContext context)
     {
+        Detach();
         _device = device;
         _context = context;
         foreach (var (key, data) in _pixels)

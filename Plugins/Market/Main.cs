@@ -182,7 +182,7 @@ public sealed class Main : Plugin<Settings>
     void PriceCell(Row row)
     {
         var size = ImGui.GetTextLineHeight();
-        if (_priceIcon.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal) && Draw.TryGameIcon(_priceIcon[Draw.GameIconPrefix.Length..], out var sprite))
+        if (_priceIcon.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal) && Draw.TryGameIcon(_priceIcon.AsSpan(Draw.GameIconPrefix.Length), out var sprite))
         {
             Controls.IconImage(sprite, size, row.Stale ? Dim : Color.White);
             ImGui.SameLine();

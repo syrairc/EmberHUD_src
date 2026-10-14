@@ -32,7 +32,7 @@ public sealed class RecordTests
         }
     }
 
-    static GameState State(float playerX, params Entity[] entities) => new("playing", 7, new Player(new Vector3(playerX, 0, 0), Vector2.UnitX), entities, null);
+    static GameState State(float playerX, params Entity[] entities) => new() { Status = "playing", AreaId = 7, Player = new Player(new Vector3(playerX, 0, 0), Vector2.UnitX), Entities = entities };
 
     static Entity Mob(int id, int cfgId, float x, EntityKind kind = EntityKind.Monster) => new(id, cfgId, new Vector3(x, 0, 0), kind, Rarity.Normal);
 
@@ -106,7 +106,7 @@ public sealed class RecordTests
         using var rig = new Rig();
         var file = Start(rig, "mobs", new JsonObject { ["radius"] = 10 });
         rig.Clock[0] = 0;
-        rig.Recorder.Sample(new GameState("loading", 0, null, [Mob(1, 5, 5)], null), 10);
+        rig.Recorder.Sample(new GameState { Status = "loading", Entities = [Mob(1, 5, 5)] }, 10);
         Wire.Run(rig.Tools, "record_stop");
         var frame = (JsonObject)JsonNode.Parse(File.ReadAllLines(Path.Combine(rig.Directory, file))[0])!;
         Check.Equal(0, frame["entities"]!.AsArray().Count);
@@ -263,7 +263,7 @@ public sealed class RecordTests
         using var rig = new Rig();
         Start(rig);
         rig.Clock[0] = 0;
-        rig.Recorder.Sample(new GameState("playing", 7, null, null!, null), 10);
+        rig.Recorder.Sample(new GameState { Status = "playing", AreaId = 7, Entities = null! }, 10);
         Check.Equal(false, rig.Recorder.Active);
         Check.That(((string?)Wire.Run(rig.Tools, "record_status")["stoppedBecause"])!.Contains("frame failed"), "says why");
     }

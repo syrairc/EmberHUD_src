@@ -22,13 +22,6 @@ public sealed class DrawTests
     public void AlignOffsetMovesTheTopLeftCorner(Align align, float x, float y) => Assert.Equal(new Vector2(x, y), Draw.AlignOffset(new Vector2(40, 10), align));
 
     [Fact]
-    public void ArrowHeadSitsBehindTheTipOnBothSides()
-    {
-        Assert.Equal((new Vector2(6, 2), new Vector2(6, -2)), Draw.ArrowHead(Vector2.Zero, new Vector2(10, 0), 4));
-        Assert.Null(Draw.ArrowHead(new Vector2(3, 3), new Vector2(3, 3), 4));
-    }
-
-    [Fact]
     public void RotatedQuadFacingUpTurnsTheSpriteLikeAPlayerArrow() =>
         Assert.Equal((new Vector2(110, 40), new Vector2(110, 60), new Vector2(90, 60), new Vector2(90, 40)), Draw.RotatedQuad(Centre, new Vector2(20), new Vector2(0, -1)));
 
@@ -50,26 +43,19 @@ public sealed class DrawTests
     [Fact]
     public void EveryMethodDrawsInsideAFrame() => TestFrame.Run(() =>
     {
-        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
+        var sprite = Unit();
         Assert.Equal(Draw.MeasureText("hello"), Draw.Text("hello", new Vector2(10, 10), Color.White));
         Assert.True(Draw.MeasureText("abc", 26).Y > Draw.MeasureText("abc", 13).Y);
         Assert.True(Draw.MeasureText("abc", face: FontFace.Mono).X > 0);
         Draw.TextOutlined("outlined", new Vector2(10, 30), Color.White, Color.Black, 2, Align.Center | Align.Middle);
-        Draw.TextShadow("shadow", new Vector2(10, 50), Color.White, Color.Black);
-        Assert.Equal(Draw.MeasureText("box") + new Vector2(8, 4), Draw.TextBackground("box", new Vector2(10, 70), Color.White, Color.DarkSlateGray, rounding: 3));
         Draw.Line(Vector2.Zero, new Vector2(50), Color.Red, 2);
         Draw.Polyline([new Vector2(0, 0), new Vector2(5, 5), new Vector2(9, 0)], Color.Red, closed: true);
         Draw.Polyline([new Vector2(1, 1)], Color.Red);
-        Draw.Arrow(Vector2.Zero, new Vector2(40, 0), Color.Red);
-        Draw.Arrow(Vector2.Zero, Vector2.Zero, Color.Red);
         Draw.Rect(Vector2.Zero, new Vector2(20), Color.Red, 1, 2);
         Draw.RectFilled(Vector2.Zero, new Vector2(20), Color.Red, 2);
         Draw.Circle(new Vector2(30), 5, Color.Red);
         Draw.CircleFilled(new Vector2(30), 5, Color.Red, 12);
-        Draw.Triangle(Vector2.Zero, new Vector2(5, 0), new Vector2(0, 5), Color.Red);
         Draw.TriangleFilled(Vector2.Zero, new Vector2(5, 0), new Vector2(0, 5), Color.Red);
-        Draw.Quad(Vector2.Zero, new Vector2(5, 0), new Vector2(5), new Vector2(0, 5), Color.Red);
-        Draw.QuadFilled(Vector2.Zero, new Vector2(5, 0), new Vector2(5), new Vector2(0, 5), Color.Red);
         Draw.ConvexPolyFilled([new Vector2(0, 0), new Vector2(5, 0), new Vector2(5, 5)], Color.Red);
         Draw.Glow(Centre, 12, Color.Gold, 4);
         Draw.Marker(Centre, 5, Color.Red, MarkerShape.Dot, 1);
@@ -85,27 +71,31 @@ public sealed class DrawTests
     [Fact]
     public void FontScopesSetTheSizeAndPopCleanly() => TestFrame.Run(() =>
     {
-        using (Fonts.UseMono(20)) Assert.Equal(20f, ImGui.GetFontSize());
-        using (Fonts.UseRegular(18)) Assert.Equal(18f, ImGui.GetFontSize());
-        using (Fonts.UseBold(19)) Assert.Equal(19f, ImGui.GetFontSize());
-        using (Fonts.UseLabel(21)) Assert.Equal(21f, ImGui.GetFontSize());
+        using (Fonts.Use(FontFace.Mono, 20)) Assert.Equal(20f, ImGui.GetFontSize());
+        using (Fonts.Use(FontFace.Regular, 18)) Assert.Equal(18f, ImGui.GetFontSize());
+        using (Fonts.Use(FontFace.Bold, 19)) Assert.Equal(19f, ImGui.GetFontSize());
+        using (Fonts.Use(FontFace.Label, 21)) Assert.Equal(21f, ImGui.GetFontSize());
     });
+
+    [Fact]
+    public void AnUnknownFaceMeasuresLikeRegular() => TestFrame.Run(() =>
+        Assert.Equal(Draw.MeasureText("abc", face: FontFace.Regular), Draw.MeasureText("abc", face: (FontFace)99)));
 
     [Fact]
     public void EachFaceMeasuresWithItsOwnFontAndSize() => TestFrame.Run(() =>
     {
-        var (label, labelSize) = (Fonts.Label, Fonts.LabelSize);
+        var (label, labelSize) = (Fonts.Of(FontFace.Label).Font, Fonts.Of(FontFace.Label).Size);
         try
         {
-            Fonts.Label = ImGui.GetFont();
-            Fonts.LabelSize = 40;
+            Fonts.Of(FontFace.Label).Font = ImGui.GetFont();
+            Fonts.Of(FontFace.Label).Size = 40;
             Assert.True(Draw.MeasureText("abc", face: FontFace.Label).Y > Draw.MeasureText("abc", face: FontFace.Regular).Y);
             Assert.Equal(Draw.MeasureText("abc", 40), Draw.MeasureText("abc", face: FontFace.Label));
         }
         finally
         {
-            Fonts.Label = label;
-            Fonts.LabelSize = labelSize;
+            Fonts.Of(FontFace.Label).Font = label;
+            Fonts.Of(FontFace.Label).Size = labelSize;
         }
     });
 
@@ -178,9 +168,9 @@ public sealed class DrawTests
     public void ImageQuadMapsTheSpriteCornersOntoTheFourPointsInOrder() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
-        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
+        var texture = Texture();
         var start = list.VtxBuffer.Size;
-        Draw.ImageQuad(new Sprite(texture, new Vector2(0.25f, 0.5f), new Vector2(0.75f, 1)), new Vector2(10, 20), new Vector2(50, 25), new Vector2(45, 70), new Vector2(5, 60), Color.Gold);
+        Draw.ImageQuad(Cell(texture), new Vector2(10, 20), new Vector2(50, 25), new Vector2(45, 70), new Vector2(5, 60), Color.Gold);
         Assert.Equal(4, list.VtxBuffer.Size - start);
         var expected = new[] { (new Vector2(10, 20), new Vector2(0.25f, 0.5f)), (new Vector2(50, 25), new Vector2(0.75f, 0.5f)), (new Vector2(45, 70), new Vector2(0.75f, 1)), (new Vector2(5, 60), new Vector2(0.25f, 1)) };
         for (var i = 0; i < 4; i++)
@@ -196,7 +186,7 @@ public sealed class DrawTests
     {
         var list = Draw.Background;
         var start = list.VtxBuffer.Size;
-        Draw.ImageQuad(new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One), Vector2.Zero, new Vector2(10, 0), new Vector2(10, 10), new Vector2(0, 10));
+        Draw.ImageQuad(Unit(), Vector2.Zero, new Vector2(10, 0), new Vector2(10, 10), new Vector2(0, 10));
         Assert.Equal(EColor.U32(Color.White), list.VtxBuffer[start].Col);
     });
 
@@ -204,9 +194,9 @@ public sealed class DrawTests
     public void ImageRotatedPutsTheQuadCornersAndUvsWhereTheConventionSays() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
-        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
+        var texture = Texture();
         var start = list.VtxBuffer.Size;
-        Draw.ImageRotated(new Sprite(texture, new Vector2(0.25f, 0.5f), new Vector2(0.75f, 1)), Centre, new Vector2(20), new Vector2(1, 0), Color.Gold);
+        Draw.ImageRotated(Cell(texture), Centre, new Vector2(20), new Vector2(1, 0), Color.Gold);
         Assert.Equal(4, list.VtxBuffer.Size - start);
         var expected = new[] { (new Vector2(110, 60), new Vector2(0.25f, 0.5f)), (new Vector2(90, 60), new Vector2(0.75f, 0.5f)), (new Vector2(90, 40), new Vector2(0.75f, 1)), (new Vector2(110, 40), new Vector2(0.25f, 1)) };
         for (var i = 0; i < 4; i++)
@@ -222,7 +212,7 @@ public sealed class DrawTests
     });
 
     [Fact]
-    public void TextOutlinedDrawsEightRingCopiesThenTheTextAndShadowDrawsTwo() => TestFrame.Run(() =>
+    public void TextOutlinedDrawsEightRingCopiesThenTheText() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
         var singleStart = list.VtxBuffer.Size;
@@ -235,11 +225,6 @@ public sealed class DrawTests
         Assert.Equal(single * 9, list.VtxBuffer.Size - outlinedStart);
         Assert.Equal(EColor.U32(Color.Black), list.VtxBuffer[outlinedStart].Col);
         Assert.Equal(EColor.U32(Color.White), list.VtxBuffer[list.VtxBuffer.Size - 1].Col);
-
-        var shadowStart = list.VtxBuffer.Size;
-        Draw.TextShadow("A", new Vector2(10, 10), Color.White, Color.Black);
-        Assert.Equal(single * 2, list.VtxBuffer.Size - shadowStart);
-        Assert.Equal(list.VtxBuffer[shadowStart + single].Pos + Vector2.One, list.VtxBuffer[shadowStart].Pos);
     });
 
     [Fact]
@@ -255,20 +240,6 @@ public sealed class DrawTests
     });
 
     [Fact]
-    public void TextBackgroundFillsThePaddedBoxOnlyWhenTheBackgroundIsVisible() => TestFrame.Run(() =>
-    {
-        var list = Draw.Background;
-        var start = list.VtxBuffer.Size;
-        Draw.TextBackground("A", new Vector2(10, 10), Color.White, Color.FromArgb(0, 0, 0, 0));
-        var withoutFill = list.VtxBuffer.Size - start;
-        var filledStart = list.VtxBuffer.Size;
-        Draw.TextBackground("A", new Vector2(10, 10), Color.White, Color.Red);
-        Assert.Equal(withoutFill + 4, list.VtxBuffer.Size - filledStart);
-        Assert.Equal(new Vector2(6, 8), list.VtxBuffer[filledStart].Pos);
-        Assert.Equal(EColor.U32(Color.Red), list.VtxBuffer[filledStart].Col);
-    });
-
-    [Fact]
     public void ClipScopePopsTheClipRectOnDispose() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
@@ -279,15 +250,14 @@ public sealed class DrawTests
     });
 
     [Fact]
-    public void ArrowPolylineAndConvexPolySkipDegenerateInput() => TestFrame.Run(() =>
+    public void PolylineAndConvexPolySkipDegenerateInput() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
         var start = list.VtxBuffer.Size;
-        Draw.Arrow(Vector2.Zero, Vector2.Zero, Color.Red);
         Draw.Polyline([new Vector2(1, 1)], Color.Red);
         Draw.ConvexPolyFilled([new Vector2(1, 1), new Vector2(2, 2)], Color.Red);
         Assert.Equal(start, list.VtxBuffer.Size);
-        Draw.Arrow(Vector2.Zero, new Vector2(40, 0), Color.Red);
+        Draw.Polyline([Vector2.Zero, new Vector2(40, 0)], Color.Red);
         Assert.True(list.VtxBuffer.Size > start);
     });
 
@@ -319,6 +289,21 @@ public sealed class DrawTests
         Draw.Glow(Centre, 0, colour);
         Draw.Glow(Centre, 20, Color.FromArgb(0, colour));
         Assert.Equal(before, list.VtxBuffer.Size);
+    });
+
+    [Fact]
+    public void GlowRingsSitOnTheUnitCircleAtInnerAndOuterRadius() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Glow(Centre, 12, Color.Gold, 4);
+        Assert.Equal(Centre, list.VtxBuffer[start].Pos);
+        for (var i = 0; i < Draw.GlowSegments; i++)
+        {
+            var direction = new Vector2(MathF.Cos(i * MathF.Tau / Draw.GlowSegments), MathF.Sin(i * MathF.Tau / Draw.GlowSegments));
+            Assert.True(Vector2.Distance(Centre + direction * 4, list.VtxBuffer[start + 1 + i * 2].Pos) < 1e-3f);
+            Assert.True(Vector2.Distance(Centre + direction * 12, list.VtxBuffer[start + 2 + i * 2].Pos) < 1e-3f);
+        }
     });
 
     [Fact]
@@ -443,7 +428,13 @@ public sealed class DrawTests
         Assert.Contains(coloured, p => MathF.Abs(p.X - 100) < 0.5f && p.Y < 44);
     });
 
-    static readonly Sprite Ready = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.25f), new Vector2(0.5f));
+    static ImTextureRef Texture(ulong id = 1ul) => new() { TexID = new ImTextureID(id) };
+
+    static Sprite Cell(ImTextureRef texture) => new(texture, new Vector2(0.25f, 0.5f), new Vector2(0.75f, 1));
+
+    static Sprite Unit(ulong id = 1ul) => new(Texture(id), Vector2.Zero, Vector2.One);
+
+    static readonly Sprite Ready = new(Texture(), new Vector2(0.25f), new Vector2(0.5f));
 
     [Fact]
     public void TryGameIconSaysNoToAnEmptyNameWithoutAskingTheHost()
@@ -457,7 +448,7 @@ public sealed class DrawTests
                 return Ready;
             });
             Assert.False(Draw.TryGameIcon("", out _));
-            Assert.False(Draw.TryGameIcon(null!, out _));
+            Assert.False(Draw.TryGameIcon(default, out _));
             Assert.Equal(0, asked);
         }
         finally
@@ -478,6 +469,27 @@ public sealed class DrawTests
             Assert.True(Draw.TryGameIcon("UI_MiniMap_Portal", out var sprite));
             Assert.Equal(Ready, sprite);
             Assert.False(Draw.TryGameIcon("UI_MiniMap_Other", out _));
+        }
+        finally
+        {
+            TestGame.UseGameIcons(null);
+        }
+    }
+
+    [Fact]
+    public void TryGameIconIsPublicAndTheSpanOverloadIsTheOnlyOne() =>
+        Assert.Equal(typeof(ReadOnlySpan<char>), typeof(Draw).GetMethods().Single(m => m.Name == "TryGameIcon").GetParameters()[0].ParameterType);
+
+    [Fact]
+    public void TryGameIconTakesASliceOfALongerKeyWithoutACopy()
+    {
+        try
+        {
+            TestGame.UseGameIcons(name => name == "UI_MiniMap_Portal" ? Ready : null);
+            var key = "game:UI_MiniMap_Portal";
+            Assert.True(Draw.TryGameIcon(key.AsSpan(Draw.GameIconPrefix.Length), out var sprite));
+            Assert.Equal(Ready, sprite);
+            Assert.False(Draw.TryGameIcon(key.AsSpan(0, Draw.GameIconPrefix.Length), out _));
         }
         finally
         {
@@ -545,9 +557,7 @@ public sealed class DrawTests
         }
     });
 
-    static readonly Sprite Whole = new(new ImTextureRef { TexID = new ImTextureID(2ul) }, Vector2.Zero, Vector2.One);
-
-    static readonly Color DarkAccent = Color.FromArgb(0x1A, 0x1A, 0x1A);
+    static readonly Sprite Whole = new(Texture(2ul), Vector2.Zero, Vector2.One);
 
     [Fact]
     public void AnSvgIconAsksTheHostWithTheFullKeyItsScreenSizeAndBothColours() => TestFrame.Run(() =>
@@ -566,7 +576,8 @@ public sealed class DrawTests
             Assert.Equal(("svg:quest", 15, Color.Gold, Color.Navy), asked[0]);
             Assert.Equal("svg:Plugin/ring", asked[1].Icon);
             Assert.Equal(16, asked[1].Pixels);
-            Assert.Equal(DarkAccent.ToArgb(), asked[1].Accent.ToArgb());
+            Assert.Equal(GameColors.MinimapIconAccent.ToArgb(), asked[1].Accent.ToArgb());
+            Assert.Equal(0x1A1A1A, GameColors.MinimapIconAccent.ToArgb() & 0xFFFFFF);
         }
         finally
         {
@@ -755,4 +766,19 @@ public sealed class DrawTests
         });
         Assert.Equal([50f, 0f, 0f, 100f], widths);
     }
+
+    [Fact]
+    public void TheIconCacheKeepsOneEntryPerStringAndStaysBounded() => TestFrame.Run(() =>
+    {
+        Draw.ParsedIcons.Clear();
+        for (var i = 0; i < 3; i++) Draw.Icon("marker:Star", Centre, 6, Color.Gold);
+        Draw.Icon("door", Centre, 6, Color.Gold);
+        Draw.Icon(null, Centre, 6, Color.Gold);
+        Assert.Equal(2, Draw.ParsedIcons.Count);
+        Assert.Equal(MarkerShape.Star, Draw.ParsedIcons["marker:Star"].Shape);
+
+        for (var i = 0; i < 1000; i++) Draw.Icon($"marker:Nope{i}", Centre, 6, Color.Gold);
+        Assert.InRange(Draw.ParsedIcons.Count, 1, 256);
+        Draw.ParsedIcons.Clear();
+    });
 }

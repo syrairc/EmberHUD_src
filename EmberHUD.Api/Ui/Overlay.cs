@@ -26,10 +26,14 @@ public sealed class Overlay
         Corner = Right | Bottom,
     }
 
-    public static ResizeEdge HitEdge(Vector2 mouse, Vector2 origin, Vector2 size, ResizeEdge enabled, float edge = Edge)
+    static bool Inside(Vector2 mouse, Vector2 origin, Vector2 size) =>
+        mouse.X >= origin.X && mouse.X <= origin.X + size.X && mouse.Y >= origin.Y && mouse.Y <= origin.Y + size.Y;
+
+    public static ResizeEdge HitEdge(Vector2 mouse, Vector2 origin, Vector2 size, ResizeEdge enabled, float edge = Edge) =>
+        Inside(mouse, origin, size) ? EdgeAt(mouse, origin, size, enabled, edge) : ResizeEdge.None;
+
+    static ResizeEdge EdgeAt(Vector2 mouse, Vector2 origin, Vector2 size, ResizeEdge enabled, float edge)
     {
-        var inside = mouse.X >= origin.X && mouse.X <= origin.X + size.X && mouse.Y >= origin.Y && mouse.Y <= origin.Y + size.Y;
-        if (!inside) return ResizeEdge.None;
         var nearR = mouse.X >= origin.X + size.X - edge;
         var nearB = mouse.Y >= origin.Y + size.Y - edge;
         var canR = enabled.HasFlag(ResizeEdge.Right);
@@ -42,7 +46,7 @@ public sealed class Overlay
 
     public static (bool hovered, bool onEdge) HitTest(Vector2 mouse, Vector2 origin, Vector2 size, float edge = Edge)
     {
-        var hovered = mouse.X >= origin.X && mouse.X <= origin.X + size.X && mouse.Y >= origin.Y && mouse.Y <= origin.Y + size.Y;
+        var hovered = Inside(mouse, origin, size);
         return (hovered, hovered && mouse.X >= origin.X + size.X - edge);
     }
 
@@ -57,8 +61,8 @@ public sealed class Overlay
         if (!Movable && _dragId != id && _resizeId != id) return (false, ResizeEdge.None, false);
 
         var mouse = ImGui.GetMousePos();
-        var (hovered, _) = HitTest(mouse, origin, size);
-        var edge = HitEdge(mouse, origin, size, resizable);
+        var hovered = Inside(mouse, origin, size);
+        var edge = hovered ? EdgeAt(mouse, origin, size, resizable, Edge) : ResizeEdge.None;
         var shown = _resizeId == id ? _resizeEdge : edge;
         if (shown == ResizeEdge.Corner) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNwse);
         else if (shown == ResizeEdge.Right) ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
@@ -145,13 +149,16 @@ public sealed class Overlay
         if (_resizeId == id) _resizeId = null;
     }
 
-    public static void ClickBlocker(string id, Vector2 pos, Vector2 size)
+    public static bool ClickBlocker(string id, Vector2 pos, Vector2 size)
     {
         ImGui.SetNextWindowPos(pos);
         ImGui.SetNextWindowSize(size);
-        const ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoScrollWithMouse;
+        const ImGuiWindowFlags flags = ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoScrollWithMouse;
         ImGui.Begin($"##eidrag_{ImGui.GetID(id):X8}", flags);
+        ImGuiP.BringWindowToDisplayBack(ImGuiP.GetCurrentWindow());
+        var clicked = ImGui.IsWindowHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left);
         ImGui.End();
+        return clicked;
     }
 
     public static void DragHint(Vector2 min, Vector2 max, bool active, bool hovered, ResizeEdge edge)

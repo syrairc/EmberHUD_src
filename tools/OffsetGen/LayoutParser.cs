@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using EmberHUD.Host;
 
 namespace OffsetGen;
 
@@ -48,5 +51,48 @@ internal static class LayoutParser
             if (!seen.Add(name)) throw new FormatException($"duplicate name '{name}'");
             yield return (name, parts[1]);
         }
+    }
+}
+
+internal static class OffsetEmitter
+{
+    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string> stringNames)
+    {
+        var source = new StringBuilder();
+        source.AppendLine("namespace EmberHUD.Host;");
+        source.AppendLine();
+        source.AppendLine("internal static partial class Offsets");
+        source.AppendLine("{");
+        source.AppendLine($"    internal static ReadOnlySpan<byte> Seed => [{string.Join(", ", seed.Select(b => $"0x{b:X2}"))}];");
+        for (var i = 0; i < names.Count; i++) source.AppendLine($"    internal static int {names[i]} => T[{i}];");
+        for (var i = 0; i < stringNames.Count; i++) source.AppendLine($"    internal static string {stringNames[i]} => S[{i}];");
+        source.AppendLine("}");
+        return source.ToString();
+    }
+
+    public static byte[] Pack(IReadOnlyList<int> ints, IReadOnlyList<string> strings)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write(ints.Count);
+        foreach (var value in ints) writer.Write(value);
+        writer.Write(strings.Count);
+        foreach (var text in strings)
+        {
+            var bytes = Encoding.UTF8.GetBytes(text);
+            writer.Write(bytes.Length);
+            writer.Write(bytes);
+        }
+
+        return stream.ToArray();
+    }
+
+    public static byte[] Seal(ReadOnlySpan<byte> plain, ReadOnlySpan<byte> key)
+    {
+        var box = new byte[OffsetTable.NonceSize + OffsetTable.TagSize + plain.Length];
+        RandomNumberGenerator.Fill(box.AsSpan(0, OffsetTable.NonceSize));
+        using var aes = new AesGcm(key, OffsetTable.TagSize);
+        aes.Encrypt(box.AsSpan(0, OffsetTable.NonceSize), plain, box.AsSpan(OffsetTable.NonceSize + OffsetTable.TagSize), box.AsSpan(OffsetTable.NonceSize, OffsetTable.TagSize));
+        return box;
     }
 }

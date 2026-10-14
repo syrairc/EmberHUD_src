@@ -182,7 +182,7 @@ public sealed class Settings : PluginSettings
         row.Name = name.Length == 0 ? row.Key : name;
     }
 
-    public override void Draw() => Windows.TabBar("minimap",
+    public override void Draw() => Layout.TabBar("minimap",
         ("General", DrawGeneral),
         ("Map", DrawMap),
         ("Icons", DrawIcons));
@@ -268,7 +268,7 @@ public sealed class Settings : PluginSettings
         changed |= ImGui.Checkbox("##show", ref row.Show);
         ImGui.TableNextColumn();
         changed |= Controls.IconPicker("icon", ref row.Icon, ref row.Colour, ref row.Scale, resetIcon: fixedDefault?.Icon ?? EmberHUD.Draw.GameIconPrefix + row.Key, resetColour: fixedDefault?.Colour, resetScale: fixedDefault?.Scale ?? 1, baseSize: fixedRow ? Main.MarkerRadius * 2 : 24);
-        using (Tables.Dim(!row.Show))
+        using (Layout.Dim(!row.Show))
         {
             ImGui.TableNextColumn();
             if (fixedRow) ImGui.TextUnformatted(row.Name);

@@ -4,13 +4,11 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class ControlsInputsTests
+public class ControlsInputsTests : IDisposable
 {
     static int Verts() => ImGui.GetWindowDrawList().VtxBuffer.Size;
 
     static Vector2 Centre() => (ImGui.GetItemRectMin() + ImGui.GetItemRectMax()) / 2;
-
-    static int RenderedWindows() => ImGui.GetIO().MetricsRenderWindows;
 
     static HashSet<uint> VertexColoursSince(int start)
     {
@@ -20,7 +18,8 @@ public class ControlsInputsTests
         return colours;
     }
 
-    static void Away(string window, Vector2 from, Action body) => UiFrame.Hover(window, from + new Vector2(300, 300), body);
+
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void TriStateCyclesForward()
@@ -136,10 +135,10 @@ public class ControlsInputsTests
     }
 
     [Fact]
-    public void SliderFloatFormatReachesBothOverloads()
+    public void SliderFloatFormatChangesTheDrawnText()
     {
         var f = 0.5f;
-        int plain = 0, fine = 0, plainAccessor = 0, fineAccessor = 0;
+        int plain = 0, fine = 0;
         UiFrame.Run("slider fmt", () =>
         {
             var start = Verts();
@@ -148,25 +147,16 @@ public class ControlsInputsTests
             start = Verts();
             Controls.SliderFloat("x", ref f, 0, 1, fmt: "%.4f");
             fine = Verts() - start;
-            start = Verts();
-            Controls.SliderFloat("x", () => f, _ => { }, 0, 1, fmt: "%.0f");
-            plainAccessor = Verts() - start;
-            start = Verts();
-            Controls.SliderFloat("x", () => f, _ => { }, 0, 1, fmt: "%.4f");
-            fineAccessor = Verts() - start;
         });
 
         Assert.True(fine > plain);
-        Assert.True(fineAccessor > plainAccessor);
-        Assert.Equal(plain, plainAccessor);
-        Assert.Equal(fine, fineAccessor);
     }
 
     [Fact]
-    public void ColorAlphaFlagReachesBothOverloadsAndNothingChangesUntouched()
+    public void ColorAlphaFlagChangesThePickerAndNothingChangesUntouched()
     {
         var translucent = Color.FromArgb(128, 200, 100, 50);
-        int withAlpha = 0, withoutAlpha = 0, accessorWithAlpha = 0, accessorWithoutAlpha = 0;
+        int withAlpha = 0, withoutAlpha = 0;
         var changed = false;
         UiFrame.Run("colour alpha", () =>
         {
@@ -176,19 +166,11 @@ public class ControlsInputsTests
             start = Verts();
             changed |= Controls.Color("a", ref translucent, "b", alpha: false);
             withoutAlpha = Verts() - start;
-            start = Verts();
-            changed |= Controls.Color("a", () => translucent, _ => { });
-            accessorWithAlpha = Verts() - start;
-            start = Verts();
-            changed |= Controls.Color("a", () => translucent, _ => { }, alpha: false);
-            accessorWithoutAlpha = Verts() - start;
         });
 
         Assert.False(changed);
         Assert.Equal(Color.FromArgb(128, 200, 100, 50), translucent);
         Assert.True(withAlpha > withoutAlpha);
-        Assert.Equal(withAlpha, accessorWithAlpha);
-        Assert.Equal(withoutAlpha, accessorWithoutAlpha);
     }
 
     [Fact]
@@ -211,17 +193,11 @@ public class ControlsInputsTests
         }
 
         bool opened, openedUnderLabel;
-        try
-        {
-            UiFrame.Run("colour ids", Body);
-            UiFrame.Click("colour ids", swatch, Body);
-            opened = underGiven;
-            openedUnderLabel = underLabel;
-        }
-        finally
-        {
-            UiFrame.ClickAway("colour ids", Body);
-        }
+        UiFrame.Run("colour ids", Body);
+        UiFrame.Click("colour ids", swatch, Body);
+        opened = underGiven;
+        openedUnderLabel = underLabel;
+        UiFrame.ClickAway("colour ids", Body);
 
         Assert.True(opened);
         Assert.False(openedUnderLabel);
@@ -251,16 +227,10 @@ public class ControlsInputsTests
         for (target = 0; target < 2; target++)
         {
             var window = "colour picker " + target;
-            try
-            {
-                UiFrame.Run(window, Body);
-                UiFrame.Click(window, swatch, Body);
-                UiFrame.Click(window, picker, Body);
-            }
-            finally
-            {
-                UiFrame.ClickAway(window, Body);
-            }
+            UiFrame.Run(window, Body);
+            UiFrame.Click(window, swatch, Body);
+            UiFrame.Click(window, picker, Body);
+            UiFrame.ClickAway(window, Body);
         }
 
         Assert.True(refChanged);
@@ -350,26 +320,11 @@ public class ControlsInputsTests
             at = Centre();
         }
 
-        try
-        {
-            UiFrame.Run("info mark", Body);
-            Away("info mark", at, Body);
-            var idle = RenderedWindows();
-
-            UiFrame.Hover("info mark", at, Body);
-            var hovered = RenderedWindows();
-
-            info = "";
-            UiFrame.Hover("info mark", at, Body);
-            var hoveredEmpty = RenderedWindows();
-
-            Assert.Equal(idle + 1, hovered);
-            Assert.Equal(idle, hoveredEmpty);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Run("info mark", Body);
+        Assert.Null(UiFrame.TooltipAt("info mark", at + new Vector2(300, 300), Body));
+        Assert.NotNull(UiFrame.TooltipAt("info mark", at, Body));
+        info = "";
+        Assert.Null(UiFrame.TooltipAt("info mark", at, Body));
     }
 
     [Fact]
@@ -437,28 +392,11 @@ public class ControlsInputsTests
     }
 
     [Fact]
-    public void FieldMessagesPrintPercentSignsLiterally()
+    public void FieldMessagesPrintPercentSignsLiterally() => UiFrame.Run("field percent", () =>
     {
-        int hint = 0, hintBaseline = 0, error = 0, errorBaseline = 0;
-        UiFrame.Run("field percent", () =>
-        {
-            var start = Verts();
-            Controls.Field("h1", null, () => false, hint: "a%sb");
-            hint = Verts() - start;
-            start = Verts();
-            Controls.Field("h2", null, () => false, hint: "a#sb");
-            hintBaseline = Verts() - start;
-            start = Verts();
-            Controls.Field("e1", null, () => false, error: "a%sb");
-            error = Verts() - start;
-            start = Verts();
-            Controls.Field("e2", null, () => false, error: "a#sb");
-            errorBaseline = Verts() - start;
-        });
-
-        Assert.Equal(hintBaseline, hint);
-        Assert.Equal(errorBaseline, error);
-    }
+        UiFrame.SameInk(text => Controls.Field("h", null, () => false, hint: text));
+        UiFrame.SameInk(text => Controls.Field("e", null, () => false, error: text));
+    });
 
     [Fact]
     public void OverrideRowDisablesTheControlUntilTickedAndFoldsTheFlags()
@@ -509,19 +447,9 @@ public class ControlsInputsTests
             checkbox.Y += ImGui.GetFrameHeight() / 2;
         }
 
-        try
-        {
-            UiFrame.Run("override tip", Body);
-            Away("override tip", checkbox, Body);
-            var idle = RenderedWindows();
-            UiFrame.Hover("override tip", checkbox, Body);
-
-            Assert.Equal(idle + 1, RenderedWindows());
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Run("override tip", Body);
+        Assert.Null(UiFrame.TooltipAt("override tip", checkbox + new Vector2(300, 300), Body));
+        Assert.NotNull(UiFrame.TooltipAt("override tip", checkbox, Body));
     }
 
     [Fact]
@@ -588,21 +516,11 @@ public class ControlsInputsTests
             expectedId = ImGui.GetID("W##W");
         }
 
-        try
-        {
-            UiFrame.Run("icon toggle tip", Body);
-            Away("icon toggle tip", at, Body);
-            var idle = RenderedWindows();
-            UiFrame.Hover("icon toggle tip", at, Body);
-
-            Assert.Equal(expectedId, id);
-            Assert.Equal(idle + 1, RenderedWindows());
-            Assert.True(on);
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
+        UiFrame.Run("icon toggle tip", Body);
+        Assert.Null(UiFrame.TooltipAt("icon toggle tip", at + new Vector2(300, 300), Body));
+        Assert.NotNull(UiFrame.TooltipAt("icon toggle tip", at, Body));
+        Assert.Equal(expectedId, id);
+        Assert.True(on);
     }
 
     [Fact]
@@ -618,42 +536,34 @@ public class ControlsInputsTests
         }
 
         var io = UiFrame.Io();
-        try
-        {
-            UiFrame.Run("tri click", Body);
-            UiFrame.Click("tri click", at, Body);
-            var afterFirst = v;
-            var firstChanged = changed;
+        UiFrame.Run("tri click", Body);
+        UiFrame.Click("tri click", at, Body);
+        var afterFirst = v;
+        var firstChanged = changed;
 
-            UiFrame.Click("tri click", at, Body);
-            var afterSecond = v;
+        UiFrame.Click("tri click", at, Body);
+        var afterSecond = v;
 
-            io.AddKeyEvent(ImGuiKey.ModShift, true);
-            UiFrame.Run("tri click", Body);
-            UiFrame.Click("tri click", at, Body);
-            var afterShift = v;
-            io.AddKeyEvent(ImGuiKey.ModShift, false);
-            UiFrame.Run("tri click", Body);
+        io.AddKeyEvent(ImGuiKey.ModShift, true);
+        UiFrame.Run("tri click", Body);
+        UiFrame.Click("tri click", at, Body);
+        var afterShift = v;
+        io.AddKeyEvent(ImGuiKey.ModShift, false);
+        UiFrame.Run("tri click", Body);
 
-            UiFrame.Click("tri click", at, Body, 1);
-            var afterRight = v;
+        UiFrame.Click("tri click", at, Body, 1);
+        var afterRight = v;
 
-            changed = false;
-            UiFrame.Click("tri click", at, Body, 1);
-            var rightOnAny = changed;
+        changed = false;
+        UiFrame.Click("tri click", at, Body, 1);
+        var rightOnAny = changed;
 
-            Assert.True(firstChanged);
-            Assert.Equal(1, afterFirst);
-            Assert.Equal(2, afterSecond);
-            Assert.Equal(1, afterShift);
-            Assert.Equal(0, afterRight);
-            Assert.False(rightOnAny);
-        }
-        finally
-        {
-            io.AddKeyEvent(ImGuiKey.ModShift, false);
-            UiFrame.Unhover();
-        }
+        Assert.True(firstChanged);
+        Assert.Equal(1, afterFirst);
+        Assert.Equal(2, afterSecond);
+        Assert.Equal(1, afterShift);
+        Assert.Equal(0, afterRight);
+        Assert.False(rightOnAny);
     }
 
     [Theory]

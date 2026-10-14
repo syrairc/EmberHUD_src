@@ -57,7 +57,6 @@ public sealed class MemoryToolsTests
         var at = Block();
         TestMemory.WriteBytes(at, "Hello, EmberHUD!"u8);
         var result = Wire.Run(Tools, "read_bytes", Args(at, ("length", 16)));
-        Check.Equal(16, (int)result["read"]!);
         var dump = (string)result["dump"]!;
         Check.That(dump.Contains("48 65 6C 6C 6F 2C 20 45 6D 62 65 72 48 55 44 21") && dump.EndsWith("Hello, EmberHUD!"), dump);
         Check.That(dump.StartsWith(Hex.Of(at)), "line starts with the address");
@@ -161,7 +160,7 @@ public sealed class MemoryToolsTests
 
     static JsonObject ListScene(JsonObject? args = null, Player? player = null)
     {
-        TestGame.Set(new GameState("playing", 12, player, [], null));
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = player });
         TestGame.UseScene(() => Listed);
         try
         {

@@ -57,21 +57,11 @@ public class IconExportTests
         Assert.Equal(new FileInfo(paks[0]).Length, root.GetProperty("source").GetProperty("pakchunk0-WindowsNoEditor.pak").GetInt64());
         Assert.Equal(["AtlasMap_Atlas", "Icon_Egg", "UI_MiniMap_Boss"], root.GetProperty("icons").EnumerateObject().Select(icon => icon.Name));
         var egg = root.GetProperty("icons").GetProperty("Icon_Egg");
-        Assert.Equal("sprite", egg.GetProperty("kind").GetString());
-        Assert.Equal("/Game/Art/UI/AtlasMap/AtlasMap_Atlas", egg.GetProperty("atlas").GetString());
-        Assert.Equal([1, 1, 2, 2], egg.GetProperty("rect").EnumerateArray().Select(v => v.GetInt32()));
+        Assert.Equal(["file", "pak"], egg.EnumerateObject().Select(property => property.Name));
         Assert.Equal("Icon_Egg.png", egg.GetProperty("file").GetString());
-        var boss = root.GetProperty("icons").GetProperty("UI_MiniMap_Boss");
-        Assert.Equal("texture", boss.GetProperty("kind").GetString());
-        Assert.Equal("/Game/Art/UI/MiniMap/UI_MiniMap_Boss", boss.GetProperty("asset").GetString());
-        Assert.Equal("pakchunk0-WindowsNoEditor.pak", boss.GetProperty("pak").GetString());
-        Assert.Equal("PF_B8G8R8A8", boss.GetProperty("format").GetString());
-        Assert.Equal([2, 2], boss.GetProperty("size").EnumerateArray().Select(v => v.GetInt32()));
-        Assert.False(boss.TryGetProperty("atlas", out _));
+        Assert.Equal("pakchunk0-WindowsNoEditor.pak", root.GetProperty("icons").GetProperty("UI_MiniMap_Boss").GetProperty("pak").GetString());
         Assert.Equal(["UI_Ghost", Offsets.TradePriceTexture], root.GetProperty("missing").EnumerateArray().Select(v => v.GetString()));
-        var row = root.GetProperty("map_icon_config")[0];
-        Assert.Equal((2, "boss", "首领", "UI_MiniMap_Boss", 98), (row.GetProperty("id").GetInt32(), row.GetProperty("key").GetString(), row.GetProperty("label").GetString(), row.GetProperty("texture").GetString(), row.GetProperty("priority").GetInt32()));
-        Assert.Contains("首领", File.ReadAllText(Path.Combine(folder, "index.json")));
+        Assert.False(root.TryGetProperty("map_icon_config", out _));
     }
 
     [Fact]
@@ -99,7 +89,6 @@ public class IconExportTests
         Assert.Equal(Blue, AssetBuilder.Pixels(Path.Combine(folder, "UI_MiniMap_Boss.png")).Rgba);
         using var index = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "index.json")));
         Assert.Equal("UE_game_10_P.pak", index.RootElement.GetProperty("icons").GetProperty("UI_MiniMap_Boss").GetProperty("pak").GetString());
-        Assert.Equal(2, index.RootElement.GetProperty("map_icon_config").GetArrayLength());
         Assert.Equal(3, index.RootElement.GetProperty("source").EnumerateObject().Count());
     }
 
@@ -133,6 +122,19 @@ public class IconExportTests
         using var temp = new TempDir();
         var pak = temp.File("a.pak", PakBuilder.Build(new PakSource("UE_game/x.bin", [1])));
         Assert.Contains("config_map_icon.bin", Assert.Throws<InvalidDataException>(() => IconExport.Run([pak], Path.Combine(temp.Path, "GameIcons"), PakBuilder.Key, _ => { })).Message);
+    }
+
+    [Fact]
+    public void PaksAreClosedAfterARunAndAfterAFailedOne()
+    {
+        using var temp = new TempDir();
+        var (folder, paks) = Game(temp);
+        IconExport.Run(paks, folder, PakBuilder.Key, _ => { });
+        using (File.Open(paks[0], FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+
+        var noConfig = temp.File("a.pak", PakBuilder.Build(new PakSource("UE_game/x.bin", [1])));
+        Assert.Throws<InvalidDataException>(() => IconExport.Run([noConfig], folder, PakBuilder.Key, _ => { }));
+        using (File.Open(noConfig, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
     }
 
     [Fact]

@@ -1,0 +1,221 @@
+using System.Diagnostics;
+using EmberHUD.Host;
+
+namespace EmberHUD.Tests;
+
+public class FakeGameSourceTests
+{
+    private static GameState At(long ticks)
+    {
+        using var source = new FakeGameSource(() => ticks);
+        Assert.True(source.TryRead(out var state, out var failure));
+        Assert.Null(failure);
+        return state;
+    }
+
+    [Fact]
+    public void ReportsTheMinimapRotationTheFakeOverlayLooksRightWith() => Assert.Equal(-90f, At(0).MinimapRotation);
+
+    [Fact]
+    public void SameClockGivesTheSameState() => Assert.Equal(At(5_000).Player, At(5_000).Player);
+
+    [Fact]
+    public void PlayerMovesAsTimePasses() => Assert.NotEqual(At(0).Player!.Position, At(100_000_000).Player!.Position);
+
+    [Fact]
+    public void ProvidesEveryKindTheMinimapDraws()
+    {
+        var state = At(0);
+        foreach (var kind in new[] { EntityKind.Monster, EntityKind.Portal, EntityKind.Npc, EntityKind.Interactive })
+            Assert.Contains(state.Entities, e => e.Kind == kind);
+        Assert.Contains(state.Entities, e => e.Rarity == Rarity.Boss);
+    }
+
+    [Fact]
+    public void EntitiesAreSortedByDrawRank()
+    {
+        var entities = At(0).Entities;
+        Assert.Equal(entities.OrderBy(e => e.Kind).ThenBy(e => e.Rarity), entities);
+        Assert.Equal(entities.Length, entities.Select(e => e.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void TerrainHasWalkableAndBlockedCells()
+    {
+        var terrain = At(0).Terrain!;
+        var walkable = 0;
+        for (var row = 0; row < terrain.Rows; row++)
+            for (var col = 0; col < terrain.Cols; col++)
+                if (terrain.IsWalkable(col, row)) walkable++;
+        Assert.InRange(walkable, 1, terrain.Cols * terrain.Rows - 1);
+        Assert.Equal(terrain.Cols * terrain.Rows, terrain.Walkable.Length);
+    }
+
+    [Fact]
+    public void IconisesPortalsInteractivesAndRareAndBossMonsters()
+    {
+        var state = At(0);
+        var iconised = state.Entities.Where(e => e.Kind is EntityKind.Portal or EntityKind.Interactive || e.Rarity is Rarity.Rare or Rarity.Boss).Select(e => e.Id).Order();
+
+        Assert.Equal(iconised, state.MapIcons.Select(i => i.EntityId).Order());
+        Assert.All(state.MapIcons, icon => Assert.NotEqual("", icon.Texture));
+        Assert.Contains(state.MapIcons, i => i.Texture == "UI_MiniMap_Portal" && i.Type == 10);
+        Assert.Contains(state.MapIcons, i => i.Texture == "UI_MiniMap_BOSS" && i.Type == 2);
+    }
+
+    [Fact]
+    public void FakeIconsSitOnTheirEntities()
+    {
+        var state = At(0);
+
+        foreach (var icon in state.MapIcons)
+        {
+            var entity = state.Entities.Single(e => e.Id == icon.EntityId);
+            Assert.Equal(new Vector2(entity.Position.X, entity.Position.Y), icon.Position);
+            Assert.Equal(1f, icon.Size);
+        }
+    }
+
+    private static readonly long HalfSecond = Stopwatch.Frequency / 2;
+
+    [Fact]
+    public void TheTrailStartsOnTheFirstReadAndGrowsEveryHalfSecondOfMovement()
+    {
+        using var source = new FakeGameSource(() => 0);
+        Assert.Equal([new Vector2(0, 0)], source.Sample(1, new Vector2(0, 0), 0).PointArray());
+        Assert.Single(source.Sample(1, new Vector2(10, 0), HalfSecond - 1).PointArray());
+        Assert.Equal([new Vector2(0, 0), new Vector2(10, 0)], source.Sample(1, new Vector2(10, 0), HalfSecond).PointArray());
+    }
+
+    [Fact]
+    public void HalfAUnitOrLessOfMovementAddsNothing()
+    {
+        using var source = new FakeGameSource(() => 0);
+        source.Sample(1, new Vector2(0, 0), 0);
+        Assert.Single(source.Sample(1, new Vector2(0.5f, -0.5f), HalfSecond).PointArray());
+        Assert.Equal(2, source.Sample(1, new Vector2(0.6f, 0), 2 * HalfSecond).PointArray().Length);
+    }
+
+    [Fact]
+    public void TheSameTrailComesBackUntilAPointIsAdded()
+    {
+        using var source = new FakeGameSource(() => 0);
+        var first = source.Sample(1, Vector2.Zero, 0);
+        Assert.Same(first, source.Sample(1, new Vector2(50, 0), HalfSecond / 2));
+        Assert.NotSame(first, source.Sample(1, new Vector2(50, 0), HalfSecond));
+        Assert.Single(first.PointArray());
+    }
+
+    [Fact]
+    public void AnAreaChangeStartsANewTrail()
+    {
+        using var source = new FakeGameSource(() => 0);
+        source.Sample(1, Vector2.Zero, 0);
+        source.Sample(1, new Vector2(50, 0), HalfSecond);
+        Assert.Equal([new Vector2(70, 0)], source.Sample(2, new Vector2(70, 0), HalfSecond + 1).PointArray());
+    }
+
+    [Fact]
+    public void TheFakeReadCarriesTheTrailWithAFewHundredUnitRadius()
+    {
+        var state = At(0);
+        Assert.Equal([new Vector2(state.Player!.Position.X, state.Player.Position.Y)], state.Explored!.PointArray());
+        Assert.Equal(250f, state.Explored!.Radius);
+    }
+
+    [Fact]
+    public void TheFakeCameraLooksAtThePlayer()
+    {
+        new FakeGameSource(() => 0).TryRead(out var state, out _);
+
+        var at = state.Camera!.ToScreen(state.Player!.Position, new Vector2(1920, 1080))!.Value;
+
+        Assert.Equal(960, at.X, 0.5f);
+        Assert.Equal(540, at.Y, 0.5f);
+    }
+
+    [Fact]
+    public void FakeInventoryOpensAndCloses()
+    {
+        var second = Stopwatch.Frequency;
+        var samples = Enumerable.Range(0, 60).Select(s => FakeGameSource.UiAt(s * second)).ToList();
+
+        Assert.Contains(samples, ui => ui.Panels.Any(p => p.Kind == PanelKind.Inventory));
+        Assert.Contains(samples, ui => ReferenceEquals(ui, GameUi.Empty));
+        Assert.All(samples.SelectMany(ui => ui.Panels).Where(p => p.Kind == PanelKind.Inventory), p =>
+        {
+            Assert.False(p.FullScreen);
+            Assert.True(p.Max.X > p.Min.X);
+        });
+    }
+
+    [Fact]
+    public void FakeMapCyclesEveryContentStateAndCountsEnemiesDown()
+    {
+        var f = Stopwatch.Frequency;
+        var start = FakeGameSource.MapAt(0);
+        Assert.NotEqual("", start.Name);
+        Assert.True(start.MonsterLevel > 0);
+        Assert.True(start.Remaining > 0);
+        Assert.False(start.IsTown);
+        Assert.NotEmpty(start.Modifiers);
+        Assert.All(start.Content, row => Assert.NotEqual("", row.Name));
+
+        var states = Enumerable.Range(0, 600).Select(s => FakeGameSource.MapAt(s * f).Content[0].State).Distinct().ToList();
+        Assert.Contains(ContentState.Pending, states);
+        Assert.Contains(ContentState.Active, states);
+        Assert.Contains(ContentState.Done, states);
+        Assert.True(FakeGameSource.MapAt(10 * f).Remaining < start.Remaining);
+    }
+
+    [Fact]
+    public void TryReadPublishesTheFakeMap()
+    {
+        using var source = new FakeGameSource(() => 0);
+        Assert.True(source.TryRead(out var state, out _));
+        Assert.Equal(FakeGameSource.MapAt(0).Name, state.Area!.Name);
+    }
+
+    [Fact]
+    public void TheFakeMarketFlipsThroughPagesWithAShortLastPageAndWraps()
+    {
+        var second = Stopwatch.Frequency;
+        var trades = Enumerable.Range(0, 300).Select(s => FakeGameSource.TradeAt(s * second)).ToList();
+        var pages = trades.Select(t => t.Page).Distinct().Order().ToList();
+
+        Assert.Equal(Enumerable.Range(1, pages.Count), pages);
+        Assert.True(pages.Count > 1);
+        var last = trades.First(t => t.LastPage);
+        Assert.Equal(pages[^1], last.Page);
+        Assert.True(last.Listings.Length < last.CellsPerPage);
+        Assert.All(trades.Where(t => !t.LastPage), t => Assert.Equal(t.CellsPerPage, t.Listings.Length));
+        Assert.Equal(1, trades[0].Page);
+        Assert.Contains(trades.SkipWhile(t => !t.LastPage).SkipWhile(t => t.LastPage), t => t.Page == 1);
+        Assert.Equal(EmberHUD.Draw.GameIconPrefix + Offsets.TradePriceTexture, trades[0].PriceIcon);
+    }
+
+    [Fact]
+    public void TheFakeMarketPagesAreStableAndTheirListingsWellFormed()
+    {
+        var second = Stopwatch.Frequency;
+        var first = FakeGameSource.TradeAt(1 * second).Listings;
+        Assert.Equal(first, FakeGameSource.TradeAt(2 * second).Listings);
+        Assert.Equal(first.Length, first.Select(l => l.Slot).Distinct().Count());
+        Assert.All(first, l =>
+        {
+            Assert.True(l.Max.X > l.Min.X && l.Max.Y > l.Min.Y);
+            Assert.True(l.Quantity > 0 && l.Price > 0);
+            Assert.NotEqual("", l.Name);
+        });
+    }
+
+    [Fact]
+    public void SomeLapsOfPageOneHaveASoldListingAndSomeDoNot()
+    {
+        var second = Stopwatch.Frequency;
+        var pageOne = Enumerable.Range(0, 600).Select(s => FakeGameSource.TradeAt(s * second)).Where(t => t.Page == 1).ToList();
+
+        Assert.Contains(pageOne, t => t.Listings.Any(l => l.Status is not null));
+        Assert.Contains(pageOne, t => t.Listings.All(l => l.Status is null));
+    }
+}

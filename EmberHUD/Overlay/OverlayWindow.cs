@@ -1,10 +1,9 @@
-using System.Runtime.InteropServices;
-
 namespace EmberHUD.Host.Overlay;
 
 internal sealed class OverlayWindow : IDisposable
 {
     readonly Win32.WndProcDelegate _wndProc;
+    string _className = "";
     bool _quit;
     bool _disposed;
     bool _clickable;
@@ -29,37 +28,11 @@ internal sealed class OverlayWindow : IDisposable
         };
         self = new OverlayWindow(proc);
 
-        var className = $"EmberHUDOverlay_{Guid.NewGuid():N}";
-        var classNamePtr = Marshal.StringToHGlobalUni(className);
-        try
-        {
-            var cls = new Win32.WndClassEx
-            {
-                CbSize = (uint)Marshal.SizeOf<Win32.WndClassEx>(),
-                WndProc = Marshal.GetFunctionPointerForDelegate(proc),
-                Instance = Win32.GetModuleHandle(null),
-                ClassName = classNamePtr,
-            };
-            if (Win32.RegisterClassExW(ref cls) == 0)
-                throw new InvalidOperationException($"RegisterClassEx failed: {Marshal.GetLastWin32Error()}");
-
-            var ex = (uint)(Win32.WS_EX_NOREDIRECTIONBITMAP | Win32.WS_EX_TOPMOST
-                | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_LAYERED | Win32.WS_EX_TRANSPARENT);
-            self.Handle = Win32.CreateWindowExW(
-                ex, className, title, Win32.WS_POPUP,
-                x, y, width, height, 0, 0, Win32.GetModuleHandle(null), 0);
-            if (self.Handle == 0)
-                throw new InvalidOperationException($"CreateWindowEx failed: {Marshal.GetLastWin32Error()}");
-
-            Win32.SetLayeredWindowAttributes(self.Handle, 0, 255, Win32.LWA_ALPHA);
-
-            Win32.ShowWindow(self.Handle, 8);
-            return self;
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(classNamePtr);
-        }
+        var exStyle = (uint)(Win32.WS_EX_NOREDIRECTIONBITMAP | Win32.WS_EX_TOPMOST | Win32.WS_EX_TOOLWINDOW | Win32.WS_EX_LAYERED | Win32.WS_EX_TRANSPARENT);
+        (self.Handle, self._className) = Win32.CreateWindow("EmberHUDOverlay", proc, exStyle, Win32.WS_POPUP, title, x, y, width, height);
+        Win32.SetLayeredWindowAttributes(self.Handle, 0, 255, Win32.LWA_ALPHA);
+        Win32.ShowWindow(self.Handle, Win32.SW_SHOWNOACTIVATE);
+        return self;
     }
 
     public bool PumpMessages() => Win32.PumpMessages(ref _quit);
@@ -80,7 +53,7 @@ internal sealed class OverlayWindow : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        if (Handle != 0) { Win32.DestroyWindow(Handle); Handle = 0; }
+        if (Handle != 0) { Win32.DestroyWindowAndClass(Handle, _className); Handle = 0; }
         GC.KeepAlive(_wndProc);
     }
 }

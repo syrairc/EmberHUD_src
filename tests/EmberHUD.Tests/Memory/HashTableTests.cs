@@ -1,11 +1,11 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Memory;
+namespace EmberHUD.Tests;
 
 public class HashTableTests
 {
-    private sealed record Table(FakeWorld World, nint CountAt, nint BucketsAt, List<long> Nodes)
+    private sealed record Table(FakeWorld World, nint CountAt, nint BucketsAt, List<nint> Nodes)
     {
         public FakeMemory Memory => World.Memory;
     }
@@ -14,36 +14,46 @@ public class HashTableTests
     {
         var world = new FakeWorld();
         var header = world.Alloc(16);
-        var buckets = new long[bucketCount];
-        var nodes = new List<long>();
-        foreach (var key in keys)
-        {
-            var node = world.Alloc(0x20);
-            var bucket = key % bucketCount;
-            world.Memory.Write(node + Offsets.NodeKey, key);
-            world.Memory.Write(node + Offsets.NodeEntity, 0x5000L + key);
-            world.Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
-            buckets[bucket] = node;
-            nodes.Add(node);
-        }
-
-        var array = world.Alloc(buckets.Length * 8);
-        world.Memory.WriteArray(array, buckets);
+        var (array, nodes) = world.WriteChains((int)bucketCount, keys.Select(key => (key, (nint)(0x5000 + key))));
         world.Memory.Write(header, bucketCount);
         world.Memory.Write(header + 8, array);
-        return new Table(world, (nint)header, (nint)(header + 8), nodes);
+        return new Table(world, header, header + 8, nodes);
     }
 
     private static bool Find(Table table, uint key, out nint value) => table.Memory.TryFindHashValue(table.CountAt, table.BucketsAt, key, out value);
 
+    private static List<nint> Walk(Table table, int maxBuckets, out bool whole, int maxNodes = int.MaxValue)
+    {
+        List<nint> visited = [];
+        whole = table.Memory.TryWalkBuckets(table.CountAt, table.BucketsAt, maxBuckets, Offsets.NodeSize, Offsets.NodeNext, maxNodes, (node, _) =>
+        {
+            visited.Add(node);
+            return true;
+        });
+        return visited;
+    }
+
     [Fact]
-    public void BucketsReadEveryHeadUpToTheirMax()
+    public void EveryNodeOfEveryBucketIsVisitedInBucketOrder()
     {
         var table = Build(4, 1, 2, 5);
 
-        Assert.True(table.Memory.TryReadBuckets(table.CountAt, table.BucketsAt, 4, out var buckets));
+        var visited = Walk(table, 4, out var whole);
 
-        Assert.Equal([0, (nint)table.Nodes[2], (nint)table.Nodes[1], 0], buckets);
+        Assert.True(whole);
+        Assert.Equal([table.Nodes[2], table.Nodes[0], table.Nodes[1]], visited);
+    }
+
+    [Fact]
+    public void TheVisitorGetsTheWholeNodeBlockInOneRead()
+    {
+        var table = Build(4, 1, 2, 5);
+        table.Memory.Reads.Clear();
+
+        Walk(table, 4, out _);
+
+        foreach (var node in table.Nodes)
+            Assert.Single(table.Memory.Reads, r => r.Address == node && r.Length == Offsets.NodeSize);
     }
 
     [Theory]
@@ -55,8 +65,8 @@ public class HashTableTests
         var table = Build(4, 1, 2);
         table.Memory.Write(table.CountAt, count);
 
-        Assert.False(table.Memory.TryReadBuckets(table.CountAt, table.BucketsAt, 4, out var buckets));
-        Assert.Empty(buckets);
+        Assert.Empty(Walk(table, 4, out var whole));
+        Assert.False(whole);
         Assert.False(table.Memory.TryFindHashNode(table.CountAt, table.BucketsAt, 4, 1, Offsets.NodeNext, _ => true, out _));
     }
 
@@ -77,8 +87,57 @@ public class HashTableTests
         var table = Build(4, 1);
         table.Memory.Write(table.BucketsAt, array);
 
-        Assert.False(table.Memory.TryReadBuckets(table.CountAt, table.BucketsAt, 4, out _));
+        Walk(table, 4, out var whole);
+
+        Assert.False(whole);
         Assert.False(Find(table, 1, out _));
+    }
+
+    [Fact]
+    public void AChainAtTheLimitIsWholeAndOneLongerIsTornAfterTheLimitOfNodes()
+    {
+        var atLimit = Build(1, [.. Enumerable.Range(1, Offsets.MaxChain).Select(i => (uint)i)]);
+        var tooLong = Build(1, [.. Enumerable.Range(1, Offsets.MaxChain + 1).Select(i => (uint)i)]);
+
+        Assert.Equal(Offsets.MaxChain, Walk(atLimit, 1, out var atLimitWhole).Count);
+        Assert.True(atLimitWhole);
+        Assert.Equal(Offsets.MaxChain, Walk(tooLong, 1, out var tooLongWhole).Count);
+        Assert.False(tooLongWhole);
+    }
+
+    [Fact]
+    public void MoreNodesThanTheNodeCapIsTornAndAnUnmappedNodeIsTorn()
+    {
+        var table = Build(3, 1, 2, 3, 4);
+        Assert.Equal(3, Walk(table, 3, out var capped, maxNodes: 3).Count);
+        Assert.False(capped);
+
+        table.Memory.Write(table.Nodes[0] + Offsets.NodeNext, FakeWorld.Unmapped);
+        Walk(table, 3, out var unmapped);
+        Assert.False(unmapped);
+    }
+
+    [Fact]
+    public void ACyclicChainIsTorn()
+    {
+        var table = Build(1, 1, 2);
+        table.Memory.Write(table.Nodes[0] + Offsets.NodeNext, table.Nodes[1]);
+
+        Walk(table, 1, out var whole);
+
+        Assert.False(whole);
+    }
+
+    [Fact]
+    public void AVisitorThatStopsEndsTheWalkWithoutCallingItATear()
+    {
+        var table = Build(4, 1, 2, 5);
+        var seen = 0;
+
+        var whole = table.Memory.TryWalkBuckets(table.CountAt, table.BucketsAt, 4, Offsets.NodeSize, Offsets.NodeNext, int.MaxValue, (_, _) => ++seen < 2);
+
+        Assert.True(whole);
+        Assert.Equal(2, seen);
     }
 
     [Fact]
@@ -130,62 +189,6 @@ public class HashTableTests
 
         Assert.True(table.Memory.TryFindHashNode(table.CountAt, table.BucketsAt, 3, 4, Offsets.NodeNext,
             node => table.Memory.TryRead(node + Offsets.NodeEntity, out long entity) && entity == 0x5004, out var found));
-        Assert.Equal((nint)table.Nodes[1], found);
-    }
-
-    private static readonly nint ModuleBase = FakeWorld.Module;
-
-    private static FakeMemory GObjects(params (uint Index, long Object, int Serial)[] items)
-    {
-        var memory = new FakeMemory();
-        const long chunks = 0x10_0000_0000;
-        memory.Map(ModuleBase + Offsets.GObjectsGlobalRva, 8);
-        memory.Write(ModuleBase + Offsets.GObjectsGlobalRva, chunks);
-        memory.Map(chunks, (Offsets.MaxGObjectChunks + 1) * 8);
-        foreach (var (index, obj, serial) in items)
-        {
-            var chunk = 0x20_0000_0000L + index / Offsets.GObjectsPerChunk * 0x100_0000L;
-            var item = chunk + index % Offsets.GObjectsPerChunk * Offsets.GObjectsItemSize;
-            memory.Write(chunks + index / Offsets.GObjectsPerChunk * 8, chunk);
-            memory.Map(item, Offsets.GObjectsItemSize);
-            memory.Write(item + Offsets.GObjectsItemObject, obj);
-            memory.Write(item + Offsets.GObjectsItemSerial, serial);
-        }
-
-        return memory;
-    }
-
-    [Fact]
-    public void AGObjectAndItsSerialAreReadFromAnyChunk()
-    {
-        var later = (uint)(3 * Offsets.GObjectsPerChunk + 7);
-        var memory = GObjects((5, 0x3000, 11), (later, 0x4000, 12));
-
-        Assert.True(memory.TryReadGObject(ModuleBase, 5, out var obj, out var serial));
-        Assert.Equal(((nint)0x3000, 11), (obj, serial));
-        Assert.True(memory.TryReadGObject(ModuleBase, later, out obj, out serial));
-        Assert.Equal(((nint)0x4000, 12), (obj, serial));
-    }
-
-    [Fact]
-    public void AGObjectPastTheChunkCapIsRejectedEvenWhenItsChunkReads()
-    {
-        var lastChunk = (uint)((Offsets.MaxGObjectChunks - 1) * Offsets.GObjectsPerChunk);
-        var pastCap = (uint)(Offsets.MaxGObjectChunks * Offsets.GObjectsPerChunk);
-        var memory = GObjects((lastChunk, 0x3000, 1), (pastCap, 0x4000, 1));
-
-        Assert.True(memory.TryReadGObject(ModuleBase, lastChunk, out _, out _));
-        Assert.False(memory.TryReadGObject(ModuleBase, pastCap, out _, out _));
-        Assert.False(memory.TryReadGObject(ModuleBase, uint.MaxValue, out _, out _));
-    }
-
-    [Fact]
-    public void ANullGObjectOrAMissingChunkFails()
-    {
-        var memory = GObjects((5, 0, 1));
-
-        Assert.False(memory.TryReadGObject(ModuleBase, 5, out _, out _));
-        Assert.False(memory.TryReadGObject(ModuleBase, 6, out _, out _));
-        Assert.False(memory.TryReadGObject(ModuleBase, (uint)Offsets.GObjectsPerChunk, out _, out _));
+        Assert.Equal(table.Nodes[1], found);
     }
 }

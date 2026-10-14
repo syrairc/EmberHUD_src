@@ -77,8 +77,7 @@ internal sealed class OverlayLoop : IDisposable
         {
             if (!_window.PumpMessages()) break;
 
-            var change = _target.Poll();
-            if (change != TargetChange.None && _target.Handle != 0) FollowTarget();
+            if (_target.Poll() && _target.Handle != 0) FollowTarget();
 
             IsOverlayActive = _target.IsVisibleTarget || _source.IsForeground(_window.Handle);
             while (_beforeFrame.TryDequeue(out var action)) action();

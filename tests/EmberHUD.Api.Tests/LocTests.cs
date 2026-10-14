@@ -12,7 +12,7 @@ public sealed class LocTests : IDisposable
     public void NoSourceGivesNullAndNothingFound()
     {
         Assert.Null(Loc.Get("level|name|4403"));
-        Assert.Empty(Loc.Find("Rainforest"));
+        Assert.Empty(Loc.Find("Rainforest", 50, out _));
     }
 
     [Fact]
@@ -24,9 +24,9 @@ public sealed class LocTests : IDisposable
 
         Assert.Equal("Rainforest of Divine Legacy", Loc.Get("level|name|4403"));
         Assert.Null(Loc.Get("level|name|1"));
-        Assert.Equal([("level|name|4403", "Rainforest of Divine Legacy")], Loc.Find("rainforest"));
+        Assert.Equal([("level|name|4403", "Rainforest of Divine Legacy")], Loc.Find("rainforest", 50, out _));
         Assert.Equal(("rainforest", 50), asked);
-        Loc.Find("x", 3);
+        Loc.Find("x", 3, out _);
         Assert.Equal(("x", 3), asked);
     }
 

@@ -2,18 +2,10 @@ using System.Drawing;
 
 namespace EmberHUD.Host.Overlay;
 
-[Flags]
-internal enum TargetChange
-{
-    None = 0,
-    Found = 1,
-    Resized = 2,
-    Lost = 4,
-}
-
 internal interface ITargetSource
 {
     nint Find();
+    bool Exists(nint hwnd);
     bool TryGetBounds(nint hwnd, out Rectangle bounds);
     bool IsForeground(nint hwnd);
     bool IsMinimized(nint hwnd);
@@ -48,13 +40,18 @@ internal sealed class Win32TargetSource(string? className, string? windowTitle) 
         return bounds.Width > 0 && bounds.Height > 0;
     }
 
+    public bool Exists(nint hwnd) => Win32.IsWindow(hwnd);
+
     public bool IsForeground(nint hwnd) => Win32.GetForegroundWindow() == hwnd;
 
     public bool IsMinimized(nint hwnd) => Win32.IsIconic(hwnd);
 }
 
-internal sealed class TargetWindow(ITargetSource source)
+internal sealed class TargetWindow(ITargetSource source, Func<long>? clock = null)
 {
+    readonly Func<long> _clock = clock ?? (() => Environment.TickCount64);
+    long _searchedAt;
+
     public nint Handle { get; private set; }
     public Rectangle Bounds { get; private set; }
     public bool IsForeground { get; private set; }
@@ -62,36 +59,44 @@ internal sealed class TargetWindow(ITargetSource source)
 
     public bool IsVisibleTarget => Handle != 0 && IsForeground && !IsMinimized;
 
-    public TargetChange Poll()
+    public bool Poll()
     {
-        var found = source.Find();
+        var found = Locate();
         if (found == 0)
         {
-            if (Handle == 0) return TargetChange.None;
+            if (Handle == 0) return false;
             Handle = 0;
             IsForeground = false;
             IsMinimized = false;
-            return TargetChange.Lost;
+            return true;
         }
 
-        var change = TargetChange.None;
+        var changed = false;
         if (found != Handle)
         {
             if (!source.TryGetBounds(found, out var bounds))
-                return TargetChange.None;
+                return false;
 
             Handle = found;
             Bounds = bounds;
-            change |= TargetChange.Found;
+            changed = true;
         }
         else if (source.TryGetBounds(found, out var bounds) && bounds != Bounds)
         {
             Bounds = bounds;
-            change |= TargetChange.Resized;
+            changed = true;
         }
 
         IsForeground = source.IsForeground(found);
         IsMinimized = source.IsMinimized(found);
-        return change;
+        return changed;
+    }
+
+    nint Locate()
+    {
+        var now = _clock();
+        if (Handle != 0 && now - _searchedAt < 1000 && source.Exists(Handle)) return Handle;
+        _searchedAt = now;
+        return source.Find();
     }
 }

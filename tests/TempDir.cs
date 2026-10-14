@@ -18,5 +18,14 @@ internal sealed class TempDir : IDisposable
         return path;
     }
 
-    public void Dispose() => Directory.Delete(Path, true);
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(Path, true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
 }

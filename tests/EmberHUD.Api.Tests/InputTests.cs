@@ -1,3 +1,5 @@
+using EmberHUD.Testing;
+
 namespace EmberHUD.Api.Tests;
 
 public sealed class InputTests : IDisposable
@@ -18,8 +20,7 @@ public sealed class InputTests : IDisposable
     {
         _keys.Clear();
         Input.CancelCapture();
-        Input.NewFrame(false);
-        Input.NewFrame(false);
+        TestInput.Hold();
     }
 
     [Fact]

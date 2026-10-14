@@ -97,6 +97,8 @@ static class UiFrame
 
     public static void Run(string window, Action body) => TestFrame.Run(() =>
     {
+        var context = ImGui.GetCurrentContext();
+        var errors = context.ErrorCountCurrentFrame;
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.SetNextWindowSize(WindowSize);
         ImGui.Begin(window, ImGuiWindowFlags.NoSavedSettings);
@@ -106,6 +108,7 @@ static class UiFrame
         if (host.IDStack.Size != ids) throw new InvalidOperationException($"the body left the ID stack at {host.IDStack.Size} instead of {ids}");
         if (!ImGuiP.GetCurrentTable().IsNull) throw new InvalidOperationException("the body left a table open");
         ImGui.End();
+        if (context.ErrorCountCurrentFrame != errors) throw new InvalidOperationException("ImGui had to recover from a leaked stack while ending the host window");
     });
 
     public static void Click(string window, Vector2 at, Action body, int button = 0)
@@ -190,6 +193,77 @@ static class UiFrame
         return verts;
     }
 
+    public static List<ImDrawVert> Drawn(ImDrawListPtr list, Action body)
+    {
+        var from = list.VtxBuffer.Size;
+        body();
+        List<ImDrawVert> verts = [];
+        for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(list.VtxBuffer[i]);
+        return verts;
+    }
+
+    public static List<ImDrawVert> Drawn(Action body) => Drawn(ImGui.GetWindowDrawList(), body);
+
+    public static (Vector2 Min, Vector2 Max) Bounds(IEnumerable<ImDrawVert> verts)
+    {
+        var all = verts.ToList();
+        return (new Vector2(all.Min(v => v.Pos.X), all.Min(v => v.Pos.Y)), new Vector2(all.Max(v => v.Pos.X), all.Max(v => v.Pos.Y)));
+    }
+
+    public static ImGuiWindowPtr ActiveWindow(ImGuiWindowFlags flags, Func<ImGuiWindowPtr, bool>? where = null)
+    {
+        var windows = ImGui.GetCurrentContext().Windows;
+        for (var i = 0; i < windows.Size; i++)
+            if (windows[i].Active && (windows[i].Flags & flags) != 0 && (where is null || where(windows[i]))) return windows[i];
+        return default;
+    }
+
+    public sealed record TooltipInfo(Vector2 Pos, Vector2 Size, List<ImDrawVert> Verts);
+
+    public static TooltipInfo? TooltipAt(string window, Vector2 at, Action body)
+    {
+        Hover(window, at, body);
+        Run(window, body);
+        var tip = ActiveWindow(ImGuiWindowFlags.Tooltip);
+        var found = tip.IsNull ? null : new TooltipInfo(tip.Pos, tip.Size, Verts(tip.DrawList));
+        Unhover();
+        return found;
+    }
+
+    public static void CloseAllPopups() => Settle("close popups", () =>
+    {
+        if (ImGui.GetCurrentContext().OpenPopupStack.Size > 0) ImGuiP.ClosePopupToLevel(0, true);
+    });
+
+    public static IDisposable WithColors(params (ImGuiCol Col, Vector4 Value)[] set)
+    {
+        Io();
+        var saved = set.Select(s => (s.Col, Value: ImGui.GetStyle().Colors[(int)s.Col])).ToArray();
+        foreach (var (col, value) in set) ImGui.GetStyle().Colors[(int)col] = value;
+        return new Restore(() =>
+        {
+            foreach (var (col, value) in saved) ImGui.GetStyle().Colors[(int)col] = value;
+        });
+    }
+
+    sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
+
+    public static void SameInk(Action<string> draw, string literal = "50%d %s")
+    {
+        string[] texts = [literal, literal.Replace('%', '#')];
+        var counts = new int[2];
+        for (var i = 0; i < 2; i++)
+        {
+            ImGui.PushID(i);
+            counts[i] = Drawn(() => draw(texts[i])).Count;
+            ImGui.PopID();
+        }
+        Assert.Equal(counts[1], counts[0]);
+    }
+
     public static List<Vector2> GlyphUvs(string window, string text)
     {
         List<Vector2> uvs = [];
@@ -205,12 +279,46 @@ static class UiFrame
 
     public static List<Vector2>? ActiveTooltipUvs()
     {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
+        var tip = ActiveWindow(ImGuiWindowFlags.Tooltip);
+        return tip.IsNull ? null : Verts(tip.DrawList).Select(v => v.Uv).ToList();
+    }
+
+    public sealed record ItemRun(Vector2 Min, Vector2 Max)
+    {
+        public Vector2 Centre => (Min + Max) / 2;
+    }
+
+    public static List<ItemRun> ItemRuns(string window, Action body, Vector2 from, Vector2 to, float step = 2f)
+    {
+        var low = new Vector2(5f);
+        var high = WindowSize - low;
+        from = Vector2.Clamp(from, low, high);
+        to = Vector2.Clamp(to, low, high);
+        List<ItemRun> runs = [];
+        var samples = Math.Max((int)(Vector2.Distance(from, to) / step), 1);
+        uint current = 0;
+        var start = Vector2.Zero;
+        var last = Vector2.Zero;
+        for (var i = 0; i <= samples; i++)
         {
-            var window = windows[i];
-            if (window.Active && (window.Flags & ImGuiWindowFlags.Tooltip) != 0) return Verts(window.DrawList).Select(v => v.Uv).ToList();
+            var at = Vector2.Lerp(from, to, i / (float)samples);
+            uint hovered = 0;
+            Io().AddMousePosEvent(at.X, at.Y);
+            Run(window, () =>
+            {
+                body();
+                hovered = ImGui.GetCurrentContext().HoveredId;
+            });
+            if (hovered != current)
+            {
+                if (current != 0) runs.Add(new ItemRun(start, last));
+                start = at;
+                current = hovered;
+            }
+            last = at;
         }
-        return null;
+        if (current != 0) runs.Add(new ItemRun(start, last));
+        Settle(window, body);
+        return runs;
     }
 }

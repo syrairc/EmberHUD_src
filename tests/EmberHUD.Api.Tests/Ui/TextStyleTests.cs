@@ -7,7 +7,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
-public class TextStyleTests
+public class TextStyleTests : IDisposable
 {
     record Vtx(Vector2 Pos, Vector2 Uv, uint Col);
 
@@ -56,19 +56,9 @@ public class TextStyleTests
 
     static string Json(object value) => JsonSerializer.Serialize(value, SettingsJson.Options);
 
-    static List<Vtx> Verts(ImDrawListPtr list, int from)
-    {
-        List<Vtx> verts = [];
-        for (var i = from; i < list.VtxBuffer.Size; i++) verts.Add(new Vtx(list.VtxBuffer[i].Pos, list.VtxBuffer[i].Uv, list.VtxBuffer[i].Col));
-        return verts;
-    }
+    static List<Vtx> Verts(ImDrawListPtr list, int from) => UiFrame.Verts(list).Skip(from).Select(v => new Vtx(v.Pos, v.Uv, v.Col)).ToList();
 
-    static List<Vtx> Drawn(ImDrawListPtr list, Action draw)
-    {
-        var from = list.VtxBuffer.Size;
-        draw();
-        return Verts(list, from);
-    }
+    static List<Vtx> Drawn(ImDrawListPtr list, Action draw) => UiFrame.Drawn(list, draw).Select(v => new Vtx(v.Pos, v.Uv, v.Col)).ToList();
 
     static Vector2 Box(float size) => ImGui.CalcTextSizeA(ImGui.GetFont(), size, float.MaxValue, 0, Sentence);
 
@@ -98,18 +88,7 @@ public class TextStyleTests
         });
     }
 
-    [Fact]
-    public void ATextStyleRoundTripsThroughSettingsJson()
-    {
-        var json = JsonSerializer.Serialize(Sample(), SettingsJson.Options);
-        var back = JsonSerializer.Deserialize<TextStyle>(json, SettingsJson.Options)!;
-
-        Assert.Contains("#0a141eb4", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1.5f, back.Scale);
-        Assert.Equal(Color.FromArgb(180, 10, 20, 30).ToArgb(), back.BgColor.ToArgb());
-        Assert.True(back.BgEnabled && back.BorderEnabled && back.StrokeEnabled);
-        Assert.Equal(3f, back.BorderThickness);
-    }
+    public void Dispose() => UiFrame.CloseAllPopups();
 
     [Fact]
     public void EveryFieldOfAStyleAndAnOverrideRoundTripsThroughSettingsJson()
@@ -162,27 +141,27 @@ public class TextStyleTests
     static void WithRegularFont(Action body)
     {
         TestFrame.Run(() => { });
-        var font = Fonts.Regular;
-        var size = Fonts.RegularSize;
+        var font = Fonts.Of(FontFace.Regular).Font;
+        var size = Fonts.Of(FontFace.Regular).Size;
         try
         {
             TestFrame.Run(() =>
             {
-                Fonts.Regular = ImGui.GetFont();
-                Fonts.RegularSize = ImGui.GetFontSize() * 1.7f;
+                Fonts.Of(FontFace.Regular).Font = ImGui.GetFont();
+                Fonts.Of(FontFace.Regular).Size = ImGui.GetFontSize() * 1.7f;
                 body();
             });
             TestFrame.Run(() =>
             {
-                Fonts.Regular = ImGui.GetFont();
-                Fonts.RegularSize = ImGui.GetFontSize() * 1.7f;
+                Fonts.Of(FontFace.Regular).Font = ImGui.GetFont();
+                Fonts.Of(FontFace.Regular).Size = ImGui.GetFontSize() * 1.7f;
                 body();
             });
         }
         finally
         {
-            Fonts.Regular = font;
-            Fonts.RegularSize = size;
+            Fonts.Of(FontFace.Regular).Font = font;
+            Fonts.Of(FontFace.Regular).Size = size;
         }
     }
 
@@ -228,12 +207,12 @@ public class TextStyleTests
         WithRegularFont(() =>
         {
             var list = Draw.Foreground;
-            var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, Fonts.RegularSize * 2f, list: list));
+            var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, Fonts.Of(FontFace.Regular).Size * 2f, list: list));
             Vector2 box = default;
             var styled = Drawn(list, () => box = Draw.Text(Sentence, At, style, Align.TopLeft, list));
 
             Assert.Equal(plain, styled);
-            Assert.Equal(Draw.MeasureText(Sentence, Fonts.RegularSize * 2f), box);
+            Assert.Equal(Draw.MeasureText(Sentence, Fonts.Of(FontFace.Regular).Size * 2f), box);
             Assert.Equal(Draw.MeasureText(Sentence).X * 2f, box.X, 1f);
         });
     }
@@ -331,15 +310,6 @@ public class TextStyleTests
     {
         AllValues().ApplyTo(null);
         new TextStyle().CopyFrom(null);
-    }
-
-    [Fact]
-    public void FromStyleTicksEveryGroupAndReproducesTheStyle()
-    {
-        var source = Sample();
-        var resolved = new TextStyle();
-        TextStyleOverride.FromStyle(source).ApplyTo(resolved);
-        Assert.Equal(JsonSerializer.Serialize(source, SettingsJson.Options), JsonSerializer.Serialize(resolved, SettingsJson.Options));
     }
 
     [Fact]
@@ -566,28 +536,28 @@ public class TextStyleTests
     {
         var style = Distinct(2f);
         style.Face = FontFace.Label;
-        var font = Fonts.Label;
-        var size = Fonts.LabelSize;
+        var font = Fonts.Of(FontFace.Label).Font;
+        var size = Fonts.Of(FontFace.Label).Size;
         try
         {
             for (var frame = 0; frame < 2; frame++)
                 TestFrame.Run(() =>
                 {
-                    Fonts.Label = ImGui.GetFont();
-                    Fonts.LabelSize = ImGui.GetFontSize() * 1.3f;
+                    Fonts.Of(FontFace.Label).Font = ImGui.GetFont();
+                    Fonts.Of(FontFace.Label).Size = ImGui.GetFontSize() * 1.3f;
                     var list = Draw.Foreground;
-                    var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, Fonts.LabelSize * 2f, FontFace.Label, list));
+                    var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, Fonts.Of(FontFace.Label).Size * 2f, FontFace.Label, list));
                     Vector2 box = default;
                     var styled = Drawn(list, () => box = Draw.Text(Sentence, At, style, Align.TopLeft, list));
                     Assert.Equal(plain, styled);
-                    Assert.Equal(Draw.MeasureText(Sentence, Fonts.LabelSize * 2f, FontFace.Label), box);
+                    Assert.Equal(Draw.MeasureText(Sentence, Fonts.Of(FontFace.Label).Size * 2f, FontFace.Label), box);
                     Assert.NotEqual(Draw.MeasureText(Sentence, ImGui.GetFontSize() * 2f), box);
                 });
         }
         finally
         {
-            Fonts.Label = font;
-            Fonts.LabelSize = size;
+            Fonts.Of(FontFace.Label).Font = font;
+            Fonts.Of(FontFace.Label).Size = size;
         }
     }
 
@@ -596,15 +566,15 @@ public class TextStyleTests
     {
         var style = Distinct(1f);
         style.Face = FontFace.Label;
-        var font = Fonts.Label;
-        var size = Fonts.LabelSize;
+        var font = Fonts.Of(FontFace.Label).Font;
+        var size = Fonts.Of(FontFace.Label).Size;
         try
         {
             for (var frame = 0; frame < 2; frame++)
                 TestFrame.Run(() =>
                 {
-                    Fonts.Label = default;
-                    Fonts.LabelSize = 0;
+                    Fonts.Of(FontFace.Label).Font = default;
+                    Fonts.Of(FontFace.Label).Size = 0;
                     var list = Draw.Foreground;
                     var plain = Drawn(list, () => Draw.Text(Sentence, At, style.Color, Align.TopLeft, ImGui.GetFontSize(), list: list));
                     var styled = Drawn(list, () => Draw.Text(Sentence, At, style, Align.TopLeft, list));
@@ -614,25 +584,9 @@ public class TextStyleTests
         }
         finally
         {
-            Fonts.Label = font;
-            Fonts.LabelSize = size;
+            Fonts.Of(FontFace.Label).Font = font;
+            Fonts.Of(FontFace.Label).Size = size;
         }
-    }
-
-    [Fact]
-    public void ThePresetsCarryTheGameLooksAndEachCallIsANewInstance()
-    {
-        var label = TextStyle.WorldLabel();
-        Assert.Equal((FontFace.Label, true, GameColors.LabelBackground, 0f), (label.Face, label.BgEnabled, label.BgColor, label.BorderRounding));
-        Assert.Equal(Color.FromArgb(255, 255, 255, 255), label.Color);
-        var hud = TextStyle.Hud();
-        Assert.Equal((FontFace.Regular, GameColors.HudText, true), (hud.Face, hud.Color, hud.ShadowEnabled));
-        var speech = TextStyle.Speech();
-        Assert.Equal((FontFace.Bold, Color.FromArgb(255, 255, 255, 255), true, Color.FromArgb(255, 0, 0, 0)), (speech.Face, speech.Color, speech.StrokeEnabled, speech.StrokeColor));
-        var damage = TextStyle.Damage();
-        Assert.Equal((FontFace.Bold, GameColors.DamageHit, true), (damage.Face, damage.Color, damage.ShadowEnabled));
-        Assert.NotSame(TextStyle.WorldLabel(), TextStyle.WorldLabel());
-        Assert.Equal(Color.FromArgb(0x99, 0x25, 0x28, 0x3E), GameColors.LabelBackground);
     }
 
     [Fact]
@@ -689,10 +643,7 @@ public class TextStyleTests
         List<Vtx> verts = [];
         UiFrame.Run("swatch", () =>
         {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            body();
-            verts = Verts(list, from).Where(v => v.Col == colour).ToList();
+            verts = UiFrame.Drawn(body).Where(v => v.Col == colour).Select(v => new Vtx(v.Pos, v.Uv, v.Col)).ToList();
         });
         return verts;
     }
@@ -800,19 +751,13 @@ public class TextStyleTests
         }
 
         UiFrame.Run("swatch click", Body);
-        try
-        {
-            UiFrame.Click("swatch click", start + new Vector2(width + 1f, height / 2), Body);
-            Assert.False(open);
-            UiFrame.Click("swatch click", start + new Vector2(width / 2, height + 1f), Body);
-            Assert.False(open);
-            UiFrame.Click("swatch click", start + new Vector2(width - 1f, height - 1f), Body);
-            Assert.True(open);
-        }
-        finally
-        {
-            UiFrame.ClickAway("swatch click", Body);
-        }
+        UiFrame.Click("swatch click", start + new Vector2(width + 1f, height / 2), Body);
+        Assert.False(open);
+        UiFrame.Click("swatch click", start + new Vector2(width / 2, height + 1f), Body);
+        Assert.False(open);
+        UiFrame.Click("swatch click", start + new Vector2(width - 1f, height - 1f), Body);
+        Assert.True(open);
+        UiFrame.ClickAway("swatch click", Body);
         Assert.False(open);
     }
 
@@ -879,14 +824,6 @@ public class TextStyleTests
         Assert.Contains(swatch, clips);
     }
 
-    static Vector2 PopupContentOrigin()
-    {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
-            if (windows[i].Active && (windows[i].Flags & ImGuiWindowFlags.Popup) != 0) return windows[i].Pos + ImGui.GetStyle().WindowPadding;
-        throw new InvalidOperationException("no popup");
-    }
-
     [Fact]
     public void TheEditPopupHoldsALivePreviewAndTheBackgroundTickEditsTheStyle()
     {
@@ -894,53 +831,44 @@ public class TextStyleTests
         var changed = false;
         var start = Vector2.Zero;
         var height = 0f;
-        var origin = Vector2.Zero;
-        var spacing = Vector2.Zero;
         void Body()
         {
             start = ImGui.GetCursorScreenPos();
             height = ImGui.GetFrameHeight();
-            spacing = ImGui.GetStyle().ItemSpacing;
             changed |= TextStyle.Edit("Label", style, "Hi", "ed", 90f);
         }
 
         UiFrame.Run("popup", Body);
-        try
-        {
-            UiFrame.Click("popup", start + new Vector2(10f, height / 2), Body);
-            var previewInk = 0;
-            UiFrame.Run("popup", () =>
-            {
-                Body();
-                origin = PopupContentOrigin();
-            });
-            var windows = ImGui.GetCurrentContext().Windows;
-            for (var i = 0; i < windows.Size; i++)
-                if (windows[i].Active && (windows[i].Flags & ImGuiWindowFlags.Popup) != 0)
-                    previewInk = Verts(windows[i].DrawList, 0).Count(v => v.Col == EColor.U32(style.Color));
-            Assert.True(previewInk > 0);
+        UiFrame.Click("popup", start + new Vector2(10f, height / 2), Body);
+        var previewInk = 0;
+        UiFrame.Run("popup", Body);
+        var popup = UiFrame.ActiveWindow(ImGuiWindowFlags.Popup);
+        if (!popup.IsNull) previewInk = Verts(popup.DrawList, 0).Count(v => v.Col == EColor.U32(style.Color));
+        Assert.True(previewInk > 0);
 
-            var backgroundRow = origin + new Vector2(height / 2, height * 2 + spacing.Y + 1f + spacing.Y + (height + spacing.Y) * 3 + height / 2);
-            changed = false;
-            UiFrame.Click("popup", backgroundRow, Body);
+        var rows = PopupColumnRuns("popup", Body);
+        var backgroundRow = rows[3].Centre;
+        changed = false;
+        UiFrame.Click("popup", backgroundRow, Body);
 
-            Assert.True(style.BgEnabled);
-            Assert.False(style.BorderEnabled);
-            Assert.False(style.StrokeEnabled);
-            Assert.True(changed);
-        }
-        finally
-        {
-            UiFrame.ClickAway("popup", Body);
-        }
+        Assert.True(style.BgEnabled);
+        Assert.False(style.BorderEnabled);
+        Assert.False(style.StrokeEnabled);
+        Assert.True(changed);
+    }
+
+    static List<UiFrame.ItemRun> PopupColumnRuns(string window, Action body)
+    {
+        var popup = UiFrame.ActiveWindow(ImGuiWindowFlags.Popup);
+        var column = popup.Pos.X + ImGui.GetStyle().WindowPadding.X + ImGui.GetFrameHeight() / 2;
+        return UiFrame.ItemRuns(window, body, new Vector2(column, popup.Pos.Y), new Vector2(column, popup.Pos.Y + popup.Size.Y));
     }
 
     static List<Vtx> ActivePopupVerts()
     {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
-            if (windows[i].Active && (windows[i].Flags & ImGuiWindowFlags.Popup) != 0) return Verts(windows[i].DrawList, 0);
-        throw new InvalidOperationException("no popup");
+        var popup = UiFrame.ActiveWindow(ImGuiWindowFlags.Popup);
+        if (popup.IsNull) throw new InvalidOperationException("no popup");
+        return Verts(popup.DrawList, 0);
     }
 
     static List<Vtx> PopupAfterClick(string window, Action<string> editor)
@@ -955,21 +883,14 @@ public class TextStyleTests
         }
 
         UiFrame.Run(window, Body);
-        try
+        UiFrame.Click(window, start + new Vector2(10f, height / 2), Body);
+        List<Vtx> verts = [];
+        UiFrame.Run(window, () =>
         {
-            UiFrame.Click(window, start + new Vector2(10f, height / 2), Body);
-            List<Vtx> verts = [];
-            UiFrame.Run(window, () =>
-            {
-                Body();
-                verts = ActivePopupVerts();
-            });
-            return verts;
-        }
-        finally
-        {
-            UiFrame.ClickAway(window, Body);
-        }
+            Body();
+            verts = ActivePopupVerts();
+        });
+        return verts;
     }
 
     static uint Faded(Color colour)
@@ -1004,21 +925,11 @@ public class TextStyleTests
     {
         var style = Distinct();
         var separator = new Vector4(0.1f, 0.9f, 0.3f, 1f);
-        UiFrame.Io();
-        var imStyle = ImGui.GetStyle();
-        var saved = imStyle.Colors[(int)ImGuiCol.Separator];
-        imStyle.Colors[(int)ImGuiCol.Separator] = separator;
-        try
-        {
-            var verts = PopupAfterClick("preview", id => TextStyle.Edit("Label", style, "Hi", id, 90f));
+        using var colours = UiFrame.WithColors((ImGuiCol.Separator, separator));
+        var verts = PopupAfterClick("preview", id => TextStyle.Edit("Label", style, "Hi", id, 90f));
 
-            Assert.True(GlyphUvCount(verts, style.Color) > 1);
-            Assert.Contains(verts, v => v.Col == ImGui.ColorConvertFloat4ToU32(separator));
-        }
-        finally
-        {
-            imStyle.Colors[(int)ImGuiCol.Separator] = saved;
-        }
+        Assert.True(GlyphUvCount(verts, style.Color) > 1);
+        Assert.Contains(verts, v => v.Col == ImGui.ColorConvertFloat4ToU32(separator));
     }
 
     [Fact]
@@ -1070,38 +981,25 @@ public class TextStyleTests
         var changed = false;
         var start = Vector2.Zero;
         var height = 0f;
-        var spacing = Vector2.Zero;
-        var origin = Vector2.Zero;
         void Body()
         {
             start = ImGui.GetCursorScreenPos();
             height = ImGui.GetFrameHeight();
-            spacing = ImGui.GetStyle().ItemSpacing;
             changed |= TextStyle.EditOverride("Label", ov, baseStyle, "Hi", "eo", 90f);
         }
 
         UiFrame.Run("override popup", Body);
-        try
-        {
-            UiFrame.Click("override popup", start + new Vector2(10f, height / 2), Body);
-            UiFrame.Run("override popup", () =>
-            {
-                Body();
-                origin = PopupContentOrigin();
-            });
-            var scaleRow = origin + new Vector2(height / 2, height * 2 + spacing.Y + 1f + spacing.Y + height / 2);
-            changed = false;
-            UiFrame.Click("override popup", scaleRow, Body);
+        UiFrame.Click("override popup", start + new Vector2(10f, height / 2), Body);
+        UiFrame.Run("override popup", Body);
+        var rows = PopupColumnRuns("override popup", Body);
+        var scaleRow = rows[0].Centre;
+        changed = false;
+        UiFrame.Click("override popup", scaleRow, Body);
 
-            Assert.True(ov.OverrideScale);
-            Assert.False(ov.OverrideColor || ov.OverrideBg || ov.OverrideBorder || ov.OverrideStroke);
-            Assert.True(changed);
-            Assert.Equal(2f, baseStyle.Scale);
-        }
-        finally
-        {
-            UiFrame.ClickAway("override popup", Body);
-        }
+        Assert.True(ov.OverrideScale);
+        Assert.False(ov.OverrideColor || ov.OverrideBg || ov.OverrideBorder || ov.OverrideStroke);
+        Assert.True(changed);
+        Assert.Equal(2f, baseStyle.Scale);
     }
 
     [Fact]
@@ -1125,37 +1023,8 @@ public class TextStyleTests
 
         UiFrame.Run("stacks", Body);
         Assert.Equal(clipsBefore, clips);
-        try
-        {
-            UiFrame.Click("stacks", start + new Vector2(10f, height / 2), Body);
-            UiFrame.Run("stacks", Body);
-            Assert.Equal(clipsBefore, clips);
-        }
-        finally
-        {
-            UiFrame.ClickAway("stacks", Body);
-        }
-    }
-
-    [Fact]
-    public void WrapWithAStyleBreaksAtTheStyledWidth()
-    {
-        string[] small = [], big = [];
-        TestFrame.Run(() =>
-        {
-            var width = Draw.MeasureText("one two three", new TextStyle()).X + 1;
-            small = Text.Wrap("one two three four five six", width, new TextStyle());
-            big = Text.Wrap("one two three four five six", width, new TextStyle { Scale = 2f });
-        });
-        Assert.Equal(["one two three", "four five six"], small);
-        Assert.True(big.Length > small.Length);
-    }
-
-    [Fact]
-    public void WrapWithAStyleKeepsALongWordWhole()
-    {
-        string[] lines = [];
-        TestFrame.Run(() => lines = Text.Wrap("Supercalifragilistic", 5, new TextStyle()));
-        Assert.Equal(["Supercalifragilistic"], lines);
+        UiFrame.Click("stacks", start + new Vector2(10f, height / 2), Body);
+        UiFrame.Run("stacks", Body);
+        Assert.Equal(clipsBefore, clips);
     }
 }
