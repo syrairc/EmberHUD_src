@@ -18,7 +18,7 @@ internal sealed class AppWindow : IDisposable
 
     public Func<nint, uint, nint, nint, nint?>? WndProcHook { get; set; }
 
-    public static unsafe AppWindow Create(string title, int width, int height)
+    public static unsafe AppWindow Create(string title, int width, int height, int minWidth, int minHeight)
     {
         Win32.SetProcessDpiAwarenessContext(Win32.DpiPerMonitorV2);
         AppWindow? self = null;
@@ -29,6 +29,13 @@ internal sealed class AppWindow : IDisposable
             {
                 self.Width = (int)(lparam & 0xFFFF);
                 self.Height = (int)(lparam >> 16 & 0xFFFF);
+            }
+            if (msg == Win32.WM_GETMINMAXINFO)
+            {
+                var minTrackSize = (Win32.Point*)(lparam + 24);
+                minTrackSize->X = minWidth;
+                minTrackSize->Y = minHeight;
+                return 0;
             }
             if (msg == Win32.WM_DESTROY)
             {

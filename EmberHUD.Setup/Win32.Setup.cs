@@ -8,6 +8,7 @@ internal static partial class Win32
     public const int CW_USEDEFAULT = unchecked((int)0x80000000);
     public const uint WM_DESTROY = 0x0002;
     public const uint WM_SIZE = 0x0005;
+    public const uint WM_GETMINMAXINFO = 0x0024;
 
     [LibraryImport("user32.dll", EntryPoint = "LoadCursorW")]
     public static partial nint LoadCursor(nint instance, nint name);

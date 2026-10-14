@@ -94,47 +94,62 @@ internal sealed class SetupPage
         }
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.SetNextWindowSize(ImGui.GetIO().DisplaySize);
-        if (ImGui.Begin("EmberHUD Setup", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoBringToFrontOnFocus))
+        if (ImGui.Begin("EmberHUD Setup", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoBringToFrontOnFocus))
         {
-            DrawGame();
-            DrawRunAs();
-            DrawLaunch();
-            DrawPrograms();
-            DrawIcons();
+            if (Tables.Begin("form", [("label", ImGui.CalcTextSize("Programs").X), ("value", 0)], false, ImGuiTableFlags.None))
+            {
+                Row(0, "Game", DrawGame);
+                Row(1, "Run as", DrawRunAs);
+                Row(2, "Launch", DrawLaunch);
+                Row(3, "Programs", DrawPrograms);
+                Row(4, "Icons", DrawIcons);
+                Tables.End();
+            }
             DrawFooter();
         }
         ImGui.End();
     }
 
+    static void Row(int id, string label, Action body)
+    {
+        using (Tables.Row(id))
+        {
+            ImGui.TableNextColumn();
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextUnformatted(label);
+            ImGui.TableNextColumn();
+            body();
+        }
+    }
+
     void DrawGame()
     {
-        Controls.Section("Game");
-        var buttons = ImGui.CalcTextSize("Browse").X + ImGui.CalcTextSize("Detect").X + ImGui.GetStyle().FramePadding.X * 4 + ImGui.GetStyle().ItemSpacing.X * 2;
-        ImGui.SetNextItemWidth(Math.Max(120, ImGui.GetContentRegionAvail().X - buttons));
+        var status = _game is null ? $"{GameInstall.ExeName} not found" : $"build {_game.Build?.ToString() ?? "unknown"}";
+        var style = ImGui.GetStyle();
+        var trailing = ImGui.CalcTextSize("Browse").X + ImGui.CalcTextSize("Detect").X + ImGui.CalcTextSize(status).X + style.FramePadding.X * 4 + style.ItemSpacing.X * 3;
+        ImGui.SetNextItemWidth(Math.Max(120, ImGui.GetContentRegionAvail().X - trailing));
         ImGui.InputTextWithHint("##folder", $"auto - {_registered ?? GameInstall.DefaultFolder}", ref Config.GameDirectory, 260);
         ImGui.SameLine();
         if (ImGui.Button("Browse") && _pickFolder(_game?.Folder ?? Config.GameDirectory) is { } picked) Config.GameDirectory = picked;
         ImGui.SameLine();
         if (ImGui.Button("Detect")) Config.GameDirectory = GameInstall.Find("", _registered)?.Folder ?? "";
-        if (_game is null) ImGui.TextColored(EColor.ToVector4(EColor.Bad), $"{GameInstall.ExeName} not found");
-        else ImGui.TextUnformatted($"ok - build {_game.Build?.ToString() ?? "unknown"}");
+        ImGui.SameLine();
+        if (_game is null) ImGui.TextColored(EColor.ToVector4(EColor.Bad), status);
+        else ImGui.TextDisabled(status);
     }
 
     void DrawRunAs()
     {
-        Controls.Section("Run as");
         var index = Math.Max(0, Array.FindIndex(_choices, choice => choice.Equals(Config.RunAsUser, StringComparison.OrdinalIgnoreCase)));
         if (Combo.Option(ref index, _choices, "runas", 220)) Config.RunAsUser = index == 0 ? "" : _choices[index];
         ImGui.SameLine();
         ImGui.BeginDisabled(Config.RunAsUser.Length == 0);
         if (ImGui.Button("Save password")) SavePassword();
         ImGui.EndDisabled();
-        ImGui.TextDisabled("Windows Home has no saved runas passwords - pick (yourself) there");
     }
 
     void DrawLaunch()
     {
-        Controls.Section("Launch");
         ImGui.Checkbox("Game", ref Config.LaunchGame);
         ImGui.SameLine();
         ImGui.Checkbox("EmberHUD", ref Config.LaunchEmberHUD);
@@ -142,7 +157,6 @@ internal sealed class SetupPage
 
     void DrawPrograms()
     {
-        Controls.Section("Other programs");
         ListEditor.Compact("programs", Config.Programs, DrawProgram, AddSource<LauncherProgram>.Button(() => new LauncherProgram()));
     }
 
@@ -166,13 +180,13 @@ internal sealed class SetupPage
 
     void DrawIcons()
     {
-        Controls.Section("Game icons");
         var busy = _extract is { IsCompleted: false };
         if (!busy) _iconStatus ??= _game is null ? "set the game folder first" : IconExport.Describe(Path.Combine(_root, "GameIcons"), _game.Paks(), _game.Build);
-        ImGui.TextUnformatted(busy ? _progress : _iconStatus ?? "");
         ImGui.BeginDisabled(busy || _game is null);
         if (ImGui.Button("Extract")) Extract(_game!);
         ImGui.EndDisabled();
+        ImGui.SameLine();
+        ImGui.TextUnformatted(busy ? _progress : _iconStatus ?? "");
         if (!busy && _progress.Length > 0)
         {
             ImGui.SameLine();

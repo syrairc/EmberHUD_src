@@ -20,7 +20,7 @@ internal static class Program
         };
         try
         {
-            using var window = AppWindow.Create("EmberHUD Setup", 820, 760);
+            using var window = AppWindow.Create("EmberHUD Setup", 820, 340, 640, 260);
             using var gd = GraphicsDevice.Create(window.Handle, window.Width, window.Height);
             using var imgui = ImGuiHost.Create(window.Handle, hook => window.WndProcHook = hook, gd);
             var io = ImGui.GetIO();
