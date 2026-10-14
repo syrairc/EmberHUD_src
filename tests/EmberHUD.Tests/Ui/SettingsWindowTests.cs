@@ -169,18 +169,16 @@ public sealed class SettingsWindowTests : IDisposable
 
     PluginHost Discovered(params string[] good)
     {
-        foreach (var name in good) _fixture.Write(name, "Main.cs", PluginFixture.Source(name, "", "public ToggleNode Show = new(true);"));
+        foreach (var name in good) _fixture.Write(name, "Main.cs", PluginFixture.Source(name, "", "public bool Show = true;"));
         var host = _fixture.Host();
         host.Discover(_fixture.Plugins);
         PluginFixture.Settle(host);
         return host;
     }
 
-    static ToggleNode Show(PluginSlot slot)
-    {
-        var settings = slot.Instance!.SettingsObject!;
-        return (ToggleNode)settings.GetType().GetField("Show")!.GetValue(settings)!;
-    }
+    static bool Show(PluginSlot slot) => (bool)slot.Instance!.SettingsObject!.GetType().GetField("Show")!.GetValue(slot.Instance.SettingsObject)!;
+
+    static void SetShow(PluginSlot slot, bool value) => slot.Instance!.SettingsObject!.GetType().GetField("Show")!.SetValue(slot.Instance.SettingsObject, value);
 
     [Fact]
     public void ThemeSaveIsThePrimaryButton()
@@ -211,7 +209,7 @@ public sealed class SettingsWindowTests : IDisposable
     public void EveryPageDrawsIncludingAnErroredPlugin()
     {
         _fixture.Write("Broken", "Main.cs", BrokenSource);
-        _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", "", "public ToggleNode Show = new(true);"));
+        _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", "", "public bool Show = true;"));
         using var host = _fixture.Host();
         host.Discover(_fixture.Plugins);
         PluginFixture.Settle(host);
@@ -410,7 +408,7 @@ public sealed class SettingsWindowTests : IDisposable
     [Fact]
     public void EachPluginPageKeepsItsOwnBodyScroll()
     {
-        var settings = string.Join(" ", Enumerable.Range(0, 60).Select(index => $"public ToggleNode T{index} = new(true);"));
+        var settings = "public bool[] T = new bool[60]; public override void Draw() { for (var i = 0; i < T.Length; i++) ImGui.Checkbox($\"T{i}\", ref T[i]); }";
         _fixture.Write("First", "Main.cs", PluginFixture.Source("First", "", settings));
         _fixture.Write("Second", "Main.cs", PluginFixture.Source("Second", "", settings));
         using var host = Discovered();
@@ -466,26 +464,26 @@ public sealed class SettingsWindowTests : IDisposable
         var window = Window(host);
         window.Page = SettingsPage.Plugin;
         window.Selected = good;
-        Show(good).Value = false;
+        SetShow(good, false);
                 var before = Settled(window);
         Assert.DoesNotContain(before, IsDim);
 
         Click(window, Buttons(before)[2].Centre);
         var open = Quad.Capture();
         Assert.Contains(open, IsDim);
-        Assert.False(Show(good).Value);
+        Assert.False(Show(good));
         var modal = Buttons(open).Except(Buttons(before)).OrderBy(button => button.Min.X).ToList();
         Assert.Equal(2, modal.Count);
 
         Click(window, modal[1].Centre);
         Assert.DoesNotContain(Settled(window), IsDim);
-        Assert.False(Show(good).Value);
+        Assert.False(Show(good));
 
         Click(window, Buttons(Settled(window))[2].Centre);
         modal = Buttons(Quad.Capture()).Except(Buttons(before)).OrderBy(button => button.Min.X).ToList();
         Click(window, modal[0].Centre);
 
-        Assert.True(Show(good).Value);
+        Assert.True(Show(good));
         Assert.DoesNotContain(Settled(window), IsDim);
     }
 

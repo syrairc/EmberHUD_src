@@ -22,6 +22,21 @@ public static class Windows
         return changed;
     }
 
+    public static void TabBar(string id, params (string label, Action body)[] tabs)
+    {
+        if (!ImGui.BeginTabBar("##" + id)) return;
+        try
+        {
+            foreach (var (label, body) in tabs)
+            {
+                if (!ImGui.BeginTabItem(label)) continue;
+                try { body(); }
+                finally { ImGui.EndTabItem(); }
+            }
+        }
+        finally { ImGui.EndTabBar(); }
+    }
+
     public static void MasterDetail(string id, float leftWidth, Action left, Action right)
     {
         ImGui.PushID(id);

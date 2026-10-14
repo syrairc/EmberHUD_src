@@ -65,6 +65,7 @@ internal sealed class PluginFixture : IDisposable
         public sealed class Settings : PluginSettings
         {
         {{settings}}
+        {{(settings.Contains("void Draw(") ? "" : "public override void Draw() { }")}}
         }
         """;
 

@@ -8,10 +8,12 @@ namespace EmberHUD.Api.Tests;
 
 public sealed class SettingsJsonTests
 {
+    public enum SampleMode { Fit, Follow }
+
     public sealed class Tab
     {
-        public ToggleNode Walls = new(true);
-        public RangeNode<float> Size = new(4, 1, 8);
+        public bool Walls = true;
+        public float Size = 4;
     }
 
     public sealed class Tabs
@@ -21,13 +23,15 @@ public sealed class SettingsJsonTests
 
     public sealed class Sample : PluginSettings
     {
-        public ToggleNode Show = new(true);
-        public RangeNode<float> Zoom = new(8, 1, 40);
-        public RangeNode<int> Count = new(3, 0, 10);
-        public ColorNode Wall = new(Color.FromArgb(255, 0xD8, 0xD0, 0x90));
-        public HotkeyNode Toggle = new(new Hotkey(Key.F10));
-        public TextNode Name = new("map");
-        public ChoiceNode Mode = new("Fit", "Fit", "Follow");
+        public override void Draw() { }
+
+        public bool Show = true;
+        public float Zoom = 8;
+        public int Count = 3;
+        public Color Wall = Color.FromArgb(255, 0xD8, 0xD0, 0x90);
+        public Hotkey Toggle = new(Key.F10);
+        public string Name = "map";
+        public SampleMode Mode = SampleMode.Fit;
         public List<string> Hidden = ["a"];
         public Tab Map = new();
         public Tabs Deep = new();
@@ -36,31 +40,31 @@ public sealed class SettingsJsonTests
 
     public sealed class Unbound : PluginSettings
     {
-        public HotkeyNode Toggle = new(default);
-    }
+        public override void Draw() { }
 
-    public sealed class L4 { public ToggleNode On = new(true); }
-    public sealed class L3 { public L4 Next = new(); }
-    public sealed class L2 { public L3 Next = new(); }
-    public sealed class L1 { public L2 Next = new(); }
-    public sealed class Four : PluginSettings { public L1 Top = new(); }
-    public sealed class L5 { public L1 Next = new(); }
-    public sealed class Five : PluginSettings { public L5 Top = new(); }
+        public Hotkey Toggle;
+    }
 
     public sealed class NullHolder : PluginSettings
     {
+        public override void Draw() { }
+
         public Tab? Map = null;
-        public ToggleNode Show = new(true);
+        public bool Show = true;
     }
 
     public sealed class Positioned : PluginSettings
     {
-        public ToggleNode Show = new(true);
+        public override void Draw() { }
+
+        public bool Show = true;
         public Vector2 Spot = new(40, 400);
     }
 
     public sealed class Styled : PluginSettings
     {
+        public override void Draw() { }
+
         public TextStyle Label = TextStyle.WorldLabel();
         public Dictionary<string, int> Counts = new() { ["a"] = 1 };
     }
@@ -74,8 +78,31 @@ public sealed class SettingsJsonTests
 
     public sealed class WithRows : PluginSettings
     {
-        public ToggleNode On = new(true);
+        public override void Draw() { }
+
+        public bool On = true;
         public List<Row> Rows = [];
+    }
+
+    public enum PlainMode { Region, Walls }
+
+    public sealed class PlainTab
+    {
+        public bool Show = true;
+        public int Count = 3;
+        public float Zoom = 8;
+        public Color Wall = Color.FromArgb(255, 0xD8, 0xD0, 0x90);
+        public Hotkey Toggle = new(Key.F10);
+        public string Name = "map";
+        public PlainMode Mode = PlainMode.Region;
+        public TextStyle Label = TextStyle.Hud();
+    }
+
+    public sealed class Plain : PluginSettings
+    {
+        public PlainTab Tab = new();
+
+        public override void Draw() { }
     }
 
     readonly List<string> _reports = [];
@@ -87,7 +114,7 @@ public sealed class SettingsJsonTests
     {
         var loaded = (WithRows)SettingsJson.Load(typeof(WithRows), null, """{ "View": { "Zoom": 0.5 }, "Markers": { "Portal": { "Radius": 6 } } }""", _reports.Add);
 
-        Assert.True(loaded.On.Value);
+        Assert.True(loaded.On);
         Assert.Empty(loaded.Rows);
         Assert.Empty(_reports);
     }
@@ -107,7 +134,7 @@ public sealed class SettingsJsonTests
     }
 
     [Fact]
-    public void SerializeWritesNodesAsBareValues()
+    public void SerializeWritesBareValues()
     {
         var json = JsonNode.Parse(SettingsJson.Serialize(new Sample()))!.AsObject();
         Assert.True(json["Show"]!.GetValue<bool>());
@@ -163,50 +190,41 @@ public sealed class SettingsJsonTests
     public void LoadLayersCodeDefaultsThenDefaultsJsonThenTheUserFile()
     {
         var settings = Load("""{ "Zoom": 12, "Count": 5, "Map": { "Size": 6, "Walls": false } }""", """{ "Zoom": 20, "Map": { "Size": 7 } }""");
-        Assert.Equal(20, settings.Zoom.Value);
-        Assert.Equal(5, settings.Count.Value);
-        Assert.Equal(7, settings.Map.Size.Value);
-        Assert.False(settings.Map.Walls.Value);
-        Assert.True(settings.Show.Value);
+        Assert.Equal(20, settings.Zoom);
+        Assert.Equal(5, settings.Count);
+        Assert.Equal(7, settings.Map.Size);
+        Assert.False(settings.Map.Walls);
+        Assert.True(settings.Show);
         Assert.Empty(_reports);
     }
 
     [Fact]
-    public void NestedHoldersKeepTheirBoundsAndNestDeeper()
+    public void NestedHoldersLoadDeeper()
     {
         var settings = Load(null, """{ "Map": { "Size": 100 }, "Deep": { "Inner": { "Size": 5, "Walls": false } } }""");
-        Assert.Equal(8, settings.Map.Size.Value);
-        Assert.Equal(8, settings.Map.Size.Max);
-        Assert.Equal(5, settings.Deep.Inner.Size.Value);
-        Assert.False(settings.Deep.Inner.Walls.Value);
+        Assert.Equal(100, settings.Map.Size);
+        Assert.Equal(5, settings.Deep.Inner.Size);
+        Assert.False(settings.Deep.Inner.Walls);
     }
 
     [Fact]
     public void EachBadFieldKeepsItsDefaultAndReportsOnce()
     {
         var settings = Load(null, """{ "Zoom": "big", "Wall": "#nope", "Toggle": "Ctrl+", "Hidden": 5, "Map": { "Size": "x" }, "Deep": 3, "Count": 4 }""");
-        Assert.Equal(8, settings.Zoom.Value);
-        Assert.Equal(Color.FromArgb(255, 0xD8, 0xD0, 0x90).ToArgb(), settings.Wall.Value.ToArgb());
-        Assert.Equal(new Hotkey(Key.F10), settings.Toggle.Value);
+        Assert.Equal(8, settings.Zoom);
+        Assert.Equal(Color.FromArgb(255, 0xD8, 0xD0, 0x90).ToArgb(), settings.Wall.ToArgb());
+        Assert.Equal(new Hotkey(Key.F10), settings.Toggle);
         Assert.Equal(["a"], settings.Hidden);
-        Assert.Equal(4, settings.Map.Size.Value);
-        Assert.Equal(4, settings.Count.Value);
+        Assert.Equal(4, settings.Map.Size);
+        Assert.Equal(4, settings.Count);
         Assert.Equal(["Zoom", "Wall", "Toggle", "Hidden", "Map.Size", "Deep"], _reports.Select(report => report.Split(" - ")[0]));
-    }
-
-    [Fact]
-    public void RangesClampAfterLoad()
-    {
-        var settings = Load(null, """{ "Zoom": 400, "Count": -3 }""");
-        Assert.Equal(40, settings.Zoom.Value);
-        Assert.Equal(0, settings.Count.Value);
     }
 
     [Fact]
     public void UnreadableJsonIsReportedAndTheOtherLayerStillApplies()
     {
         var settings = Load("""{ "Zoom": 12 }""", "{ nope");
-        Assert.Equal(12, settings.Zoom.Value);
+        Assert.Equal(12, settings.Zoom);
         Assert.Contains("not valid JSON", Assert.Single(_reports));
     }
 
@@ -214,7 +232,7 @@ public sealed class SettingsJsonTests
     public void UnknownKeysAndNullsAreIgnored()
     {
         var settings = Load(null, """{ "Nope": 1, "Zoom": null, "Transient": 9 }""");
-        Assert.Equal(8, settings.Zoom.Value);
+        Assert.Equal(8, settings.Zoom);
         Assert.Equal(5, settings.Transient);
         Assert.Empty(_reports);
     }
@@ -223,13 +241,13 @@ public sealed class SettingsJsonTests
     public void WhatSerializeWritesLoadsBackTheSame()
     {
         var changed = new Sample();
-        changed.Show.Value = false;
-        changed.Zoom.Value = 12.5f;
-        changed.Wall.Value = Color.FromArgb(10, 20, 30, 40);
-        changed.Toggle.Value = new Hotkey(Key.F5, KeyModifiers.Alt);
-        changed.Mode.Value = "Follow";
+        changed.Show = false;
+        changed.Zoom = 12.5f;
+        changed.Wall = Color.FromArgb(10, 20, 30, 40);
+        changed.Toggle = new Hotkey(Key.F5, KeyModifiers.Alt);
+        changed.Mode = SampleMode.Follow;
         changed.Hidden.Add("b");
-        changed.Map.Size.Value = 2;
+        changed.Map.Size = 2;
         var loaded = Load(null, SettingsJson.Serialize(changed));
         Assert.Equal(SettingsJson.Serialize(changed), SettingsJson.Serialize(loaded));
         Assert.Empty(_reports);
@@ -247,7 +265,7 @@ public sealed class SettingsJsonTests
     {
         var text = SettingsJson.Serialize(new Unbound());
         var loaded = (Unbound)SettingsJson.Load(typeof(Unbound), null, text, _reports.Add);
-        Assert.Equal(default, loaded.Toggle.Value);
+        Assert.Equal(default, loaded.Toggle);
         Assert.Empty(_reports);
     }
 
@@ -255,7 +273,7 @@ public sealed class SettingsJsonTests
     public void SerializeKeepsPlusSignsLiteral()
     {
         var sample = new Sample();
-        sample.Toggle.Value = new Hotkey(Key.F12, KeyModifiers.Ctrl);
+        sample.Toggle = new Hotkey(Key.F12, KeyModifiers.Ctrl);
         Assert.Contains("\"Ctrl+F12\"", SettingsJson.Serialize(sample));
     }
 
@@ -263,21 +281,12 @@ public sealed class SettingsJsonTests
     public void ANonObjectLayerIsIgnoredAloneAndReportedOnce()
     {
         var settings = Load("""{ "Zoom": 12 }""", "[1]");
-        Assert.Equal(12, settings.Zoom.Value);
+        Assert.Equal(12, settings.Zoom);
         Assert.Contains("not a JSON object", Assert.Single(_reports));
         _reports.Clear();
         settings = Load("5", """{ "Zoom": 20 }""");
-        Assert.Equal(20, settings.Zoom.Value);
+        Assert.Equal(20, settings.Zoom);
         Assert.Contains("not a JSON object", Assert.Single(_reports));
-    }
-
-    [Fact]
-    public void HoldersNestFourLevelsDownAndNoFurther()
-    {
-        var four = JsonNode.Parse(SettingsJson.Serialize(new Four()))!;
-        Assert.True(four["Top"]!["Next"]!["Next"]!["Next"]!["On"]!.GetValue<bool>());
-        var five = JsonNode.Parse(SettingsJson.Serialize(new Five()))!;
-        Assert.IsType<JsonObject>(five["Top"]!["Next"]!["Next"]!["Next"]!["Next"]!["On"]);
     }
 
     [Fact]
@@ -297,9 +306,9 @@ public sealed class SettingsJsonTests
     public void ABadFaceNameReportsAndTheStyleKeepsItsPreset()
     {
         var settings = (Styled)SettingsJson.Load(typeof(Styled), null, """{ "Label": { "Face": "Huge", "Scale": 3 } }""", _reports.Add);
-        Assert.StartsWith("Label - ", Assert.Single(_reports));
+        Assert.StartsWith("Label.Face - ", Assert.Single(_reports));
         Assert.Equal(FontFace.Label, settings.Label.Face);
-        Assert.Equal(1f, settings.Label.Scale);
+        Assert.Equal(3f, settings.Label.Scale);
     }
 
     [Fact]
@@ -311,10 +320,75 @@ public sealed class SettingsJsonTests
     }
 
     [Fact]
-    public void ANullHolderFieldReportsAndTheRestStillLoads()
+    public void ANullHolderFieldLoadsWhole()
     {
         var settings = (NullHolder)SettingsJson.Load(typeof(NullHolder), null, """{ "Map": { "Size": 2 }, "Show": false }""", _reports.Add);
-        Assert.False(settings.Show.Value);
-        Assert.Equal("Map - expected an object", Assert.Single(_reports));
+        Assert.False(settings.Show);
+        Assert.Equal(2f, settings.Map!.Size);
+        Assert.Empty(_reports);
+    }
+
+    [Fact]
+    public void NodeEraJsonLoadsIntoPlainFields()
+    {
+        var json = """{ "Tab": { "Show": false, "Count": 7, "Zoom": 2.5, "Wall": "#11223344", "Toggle": "Ctrl+F9", "Name": "town", "Mode": "Walls", "Label": { "Scale": 2 } } }""";
+        var reports = new List<string>();
+
+        var tab = ((Plain)SettingsJson.Load(typeof(Plain), null, json, reports.Add)).Tab;
+
+        Assert.Empty(reports);
+        Assert.False(tab.Show);
+        Assert.Equal(7, tab.Count);
+        Assert.Equal(2.5f, tab.Zoom);
+        Assert.Equal(Color.FromArgb(0x44, 0x11, 0x22, 0x33), tab.Wall);
+        Assert.Equal(new Hotkey(Key.F9, KeyModifiers.Ctrl), tab.Toggle);
+        Assert.Equal("town", tab.Name);
+        Assert.Equal(PlainMode.Walls, tab.Mode);
+        Assert.Equal(2f, tab.Label.Scale);
+        Assert.Equal(TextStyle.Hud().Face, tab.Label.Face);
+    }
+
+    [Fact]
+    public void ABadFieldInsideAPlainHolderReportsOnlyThatField()
+    {
+        var json = """{ "Tab": { "Count": "lots", "Name": "town", "Label": { "Scale": "big", "Face": "Bold" } } }""";
+        var reports = new List<string>();
+
+        var tab = ((Plain)SettingsJson.Load(typeof(Plain), null, json, reports.Add)).Tab;
+
+        Assert.Equal(2, reports.Count);
+        Assert.Contains(reports, report => report.StartsWith("Tab.Count - "));
+        Assert.Contains(reports, report => report.StartsWith("Tab.Label.Scale - "));
+        Assert.Equal(3, tab.Count);
+        Assert.Equal("town", tab.Name);
+        Assert.Equal(FontFace.Bold, tab.Label.Face);
+    }
+
+    [Fact]
+    public void AnUnknownEnumNameKeepsTheDefaultAndReports()
+    {
+        var reports = new List<string>();
+
+        var tab = ((Plain)SettingsJson.Load(typeof(Plain), null, """{ "Tab": { "Mode": "Fancy" } }""", reports.Add)).Tab;
+
+        Assert.Equal(PlainMode.Region, tab.Mode);
+        Assert.Single(reports);
+    }
+
+    [Fact]
+    public void PlainFieldsSerializeAsBareValuesAndRoundTrip()
+    {
+        var saved = new Plain();
+        saved.Tab.Count = 9;
+        saved.Tab.Mode = PlainMode.Walls;
+        var json = SettingsJson.Serialize(saved);
+
+        var tab = JsonNode.Parse(json)!["Tab"]!;
+        Assert.Equal(9, (int)tab["Count"]!);
+        Assert.Equal("Walls", (string)tab["Mode"]!);
+        Assert.Equal("#D8D090FF", (string)tab["Wall"]!);
+        var loaded = ((Plain)SettingsJson.Load(typeof(Plain), null, json, _ => Assert.Fail("no report expected"))).Tab;
+        Assert.Equal(9, loaded.Count);
+        Assert.Equal(PlainMode.Walls, loaded.Mode);
     }
 }

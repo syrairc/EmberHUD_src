@@ -46,7 +46,7 @@ public sealed class Main : Plugin<Settings>
             _lastAreaId = state.AreaId;
             _stateChangedAt = Clock();
         }
-        if (Settings.Serve.Value)
+        if (Settings.Serve)
         {
             if (_http is null && !StartFailed) Start();
         }
@@ -56,12 +56,12 @@ public sealed class Main : Plugin<Settings>
             StartFailed = false;
         }
         _watches.Sample();
-        Recorder.Sample(state, Settings.RecordHz.Value);
+        Recorder.Sample(state, Settings.RecordHz);
     }
 
     public override void Render()
     {
-        if (_http is null || !Settings.ShowStatusDot.Value) return;
+        if (_http is null || !Settings.ShowStatusDot) return;
         var colour = Clock() - _stateChangedAt > 2000 ? System.Drawing.Color.FromArgb(0xE0, 0x30, 0x30)
             : _http.InFlight > 0 || _http.MsSinceRequest < 500 ? System.Drawing.Color.FromArgb(0xF2, 0xCC, 0x1A)
             : System.Drawing.Color.FromArgb(0x33, 0xCC, 0x4D);
@@ -100,13 +100,13 @@ public sealed class Main : Plugin<Settings>
     {
         try
         {
-            _token = Auth.LoadToken(DataDirectory, Settings.CustomToken.Value);
-            var rpc = new Rpc(Registry.Build(CurrentStatus, () => Settings.MaxReadBytes.Value, _watches, Recorder, Recordings), HostVersion);
-            _http = Http.Start(rpc, _token, Settings.Port.Value);
+            _token = Auth.LoadToken(DataDirectory, Settings.CustomToken);
+            var rpc = new Rpc(Registry.Build(CurrentStatus, () => Settings.MaxReadBytes, _watches, Recorder, Recordings), HostVersion);
+            _http = Http.Start(rpc, _token, Settings.Port);
             if (_http is null)
             {
                 StartFailed = true;
-                Log.Error($"MCP: no free port from {Settings.Port.Value} to {Settings.Port.Value + 19}");
+                Log.Error($"MCP: no free port from {Settings.Port} to {Settings.Port + 19}");
                 return;
             }
             File.WriteAllText(Path.Combine(DataDirectory, "bridge-port.txt"), _http.Port.ToString());

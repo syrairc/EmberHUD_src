@@ -31,7 +31,7 @@ public sealed class MapInfoTests
     public void TheBarReplacesTheEnemyCount()
     {
         var sections = new SectionsTab();
-        sections.EnemiesBar.Value = true;
+        sections.EnemiesBar = true;
         var rows = Main.Rows(Rainforest with { Remaining = 148 }, sections, 421);
         Check.Equal("Title,Line,Bar,Line,Content,Modifier,Modifier", string.Join(',', rows.Select(r => r.Kind)));
         Check.Equal("Monster level 78", rows[1].Text);
@@ -54,7 +54,7 @@ public sealed class MapInfoTests
     public void NoRemainingNoBar()
     {
         var sections = new SectionsTab();
-        sections.EnemiesBar.Value = true;
+        sections.EnemiesBar = true;
         var rows = Main.Rows(Rainforest with { Remaining = null }, sections, 421);
         Check.That(rows.All(r => r.Kind != RowKind.Bar), "no bar row");
     }
@@ -65,22 +65,22 @@ public sealed class MapInfoTests
         var look = new LookTab();
         float height = 0;
         TestFrame.Run(() => height = Main.Layout([new Row(RowKind.Bar, "148 / 421", Remaining: 148, Max: 421)], look, 360).Single().Height);
-        Check.Equal(look.BarHeight.Value + Main.Gap, height);
+        Check.Equal(look.BarHeight + Main.Gap, height);
     }
 
     [Test]
     public void TheMaxIsTrackedWhileThePanelIsHidden()
     {
         var plugin = new Main();
-        plugin.Settings.Sections.EnemiesBar.Value = true;
-        plugin.Settings.General.Show.Value = false;
+        plugin.Settings.Sections.EnemiesBar = true;
+        plugin.Settings.General.Show = false;
         try
         {
             TestGame.Set(GameState.Empty with { AreaId = 7, Map = Rainforest with { Remaining = 421 } });
             plugin.Tick();
             TestGame.Set(GameState.Empty with { AreaId = 7, Map = Rainforest with { Remaining = 300 } });
             plugin.Tick();
-            plugin.Settings.General.Show.Value = true;
+            plugin.Settings.General.Show = true;
             plugin.Tick();
             var rows = Main.Rows(Rainforest with { Remaining = 300 }, plugin.Settings.Sections, plugin.SeenMax);
             Check.Equal("300 / 421", rows.Single(r => r.Kind == RowKind.Bar).Text);
@@ -92,9 +92,9 @@ public sealed class MapInfoTests
     public void SectionsTurnOff()
     {
         var sections = new SectionsTab();
-        sections.Enemies.Value = false;
-        sections.Xp.Value = false;
-        sections.Modifiers.Value = false;
+        sections.Enemies = false;
+        sections.Xp = false;
+        sections.Modifiers = false;
         var rows = Main.Rows(Rainforest, sections);
         Check.Equal("Title,Line,Content", string.Join(',', rows.Select(r => r.Kind)));
         Check.Equal("Monster level 78", rows[1].Text);
@@ -125,9 +125,9 @@ public sealed class MapInfoTests
         Check.That(Main.Hidden(settings, GameState.Empty), "no map hides");
         Check.That(Main.Hidden(settings, inMap with { Map = Rainforest with { IsTown = true } }), "town hides");
         Check.That(Main.Hidden(settings, inMap with { Ui = new GameUi([new GamePanel("Big_C", PanelKind.WorldMap, default, new(100, 100), true)]) }), "full-screen panel hides");
-        settings.General.HideInTown.Value = false;
+        settings.General.HideInTown = false;
         Check.That(!Main.Hidden(settings, inMap with { Map = Rainforest with { IsTown = true } }), "town shows when the rule is off");
-        settings.General.Show.Value = false;
+        settings.General.Show = false;
         Check.That(Main.Hidden(settings, inMap), "toggled off hides");
     }
 
@@ -231,8 +231,8 @@ public sealed class MapInfoTests
         TestGame.Set(GameState.Empty with { Map = Rainforest });
         TestInput.Hold();
         Drawn(plugin.Render);
-        Check.Equal(40, plugin.Settings.General.X.Value);
-        Check.Equal(360, plugin.Settings.General.Width.Value);
+        Check.Equal(40, plugin.Settings.General.X);
+        Check.Equal(360, plugin.Settings.General.Width);
         TestGame.Set(GameState.Empty);
     }
 }

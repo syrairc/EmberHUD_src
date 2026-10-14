@@ -57,5 +57,5 @@ public abstract class Plugin<TSettings> : Plugin where TSettings : PluginSetting
 
 public abstract class PluginSettings
 {
-    public virtual void Draw() => SettingsDrawer.DrawNodes(this);
+    public abstract void Draw();
 }

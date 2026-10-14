@@ -22,27 +22,27 @@ public sealed class Main : Plugin<Settings>
     internal static List<Row> Rows(MapInfo map, SectionsTab show, int? enemyMax = null)
     {
         List<Row> rows = [];
-        if (show.Title.Value && map.Name.Length > 0) rows.Add(new Row(RowKind.Title, map.Name));
+        if (show.Title && map.Name.Length > 0) rows.Add(new Row(RowKind.Title, map.Name));
         List<string> parts = [];
-        if (show.Level.Value) parts.Add($"Monster level {map.MonsterLevel}");
-        var bar = show.Enemies.Value && show.EnemiesBar.Value;
-        if (show.Enemies.Value && !bar && map.Remaining is { } remaining) parts.Add($"{remaining} enemies");
+        if (show.Level) parts.Add($"Monster level {map.MonsterLevel}");
+        var bar = show.Enemies && show.EnemiesBar;
+        if (show.Enemies && !bar && map.Remaining is { } remaining) parts.Add($"{remaining} enemies");
         if (parts.Count > 0) rows.Add(new Row(RowKind.Line, string.Join(" · ", parts)));
         if (bar && map.Remaining is { } left)
         {
             var max = Math.Max(enemyMax ?? 0, left);
             rows.Add(new Row(RowKind.Bar, $"{left} / {max}", Remaining: left, Max: max));
         }
-        if (show.Xp.Value && map.XpGain is { } xp) rows.Add(new Row(RowKind.Line, $"Map Base XP gain: {xp}"));
-        if (show.Content.Value) rows.AddRange(map.Content.Select(c => new Row(RowKind.Content, c.Total > 1 ? $"{c.Name}  {c.Done}/{c.Total}" : c.Name, c)));
-        if (show.Modifiers.Value) rows.AddRange(map.Modifiers.Select(m => new Row(RowKind.Modifier, m)));
+        if (show.Xp && map.XpGain is { } xp) rows.Add(new Row(RowKind.Line, $"Map Base XP gain: {xp}"));
+        if (show.Content) rows.AddRange(map.Content.Select(c => new Row(RowKind.Content, c.Total > 1 ? $"{c.Name}  {c.Done}/{c.Total}" : c.Name, c)));
+        if (show.Modifiers) rows.AddRange(map.Modifiers.Select(m => new Row(RowKind.Modifier, m)));
         return rows;
     }
 
     internal static bool Hidden(Settings settings, GameState state) =>
-        !settings.General.Show.Value || state.Map is not { } map ||
-        settings.General.HideInTown.Value && map.IsTown ||
-        settings.General.HideBehindPanels.Value && state.Ui.AnyFullScreen;
+        !settings.General.Show || state.Map is not { } map ||
+        settings.General.HideInTown && map.IsTown ||
+        settings.General.HideBehindPanels && state.Ui.AnyFullScreen;
 
     internal static TextStyle StyleOf(RowKind kind, LookTab look) => kind switch
     {
@@ -60,13 +60,13 @@ public sealed class Main : Plugin<Settings>
         {
             var style = StyleOf(row.Kind, look);
             var lineHeight = Draw.MeasureText("Ag", style).Y;
-            var textWidth = row.Kind == RowKind.Content ? width - 2 * (look.IconSize.Value + Gap) : width;
+            var textWidth = row.Kind == RowKind.Content ? width - 2 * (look.IconSize + Gap) : width;
             string[] lines = row.Kind is RowKind.Title or RowKind.Bar ? [row.Text] : Text.Wrap(row.Text, Math.Max(1, textWidth), style);
             var height = row.Kind switch
             {
                 RowKind.Title => lineHeight + UnderlineGap + 2,
-                RowKind.Bar => look.BarHeight.Value,
-                RowKind.Content => Math.Max(look.IconSize.Value, lineHeight * lines.Length),
+                RowKind.Bar => look.BarHeight,
+                RowKind.Content => Math.Max(look.IconSize, lineHeight * lines.Length),
                 _ => lineHeight * lines.Length,
             };
             laid.Add(new Laid(row, lines, lineHeight, height + Gap));
@@ -93,7 +93,7 @@ public sealed class Main : Plugin<Settings>
     }
 
     public override void Initialize() =>
-        RegisterHotkey("Toggle panel", "Shows or hides the map info panel", () => Settings.General.Show.Value = !Settings.General.Show.Value);
+        RegisterHotkey("Toggle panel", "Shows or hides the map info panel", () => Settings.General.Show = !Settings.General.Show);
 
     public override void Render()
     {
@@ -101,14 +101,14 @@ public sealed class Main : Plugin<Settings>
         if (Hidden(Settings, state)) return;
         var general = Settings.General;
         var look = Settings.Look;
-        var laid = Layout(Rows(state.Map!, Settings.Sections, _max), look, general.Width.Value);
+        var laid = Layout(Rows(state.Map!, Settings.Sections, _max), look, general.Width);
         if (laid.Count == 0) return;
 
-        _panel.Locked = general.Lock.Value;
-        _panel.MoveHeld = general.MoveKey.Value.Key != Key.None && Input.IsDown(general.MoveKey.Value.Key);
-        var origin = new Vector2(general.X.Value, general.Y.Value);
-        var size = new Vector2(general.Width.Value, laid.Sum(l => l.Height));
-        var (hovered, edge, active) = _panel.Handle("mapinfo", ref origin, size, ref general.X.Value, ref general.Y.Value, ref general.Width.Value, general.Width.Min, general.Width.Max);
+        _panel.Locked = general.Lock;
+        _panel.MoveHeld = general.MoveKey.Key != Key.None && Input.IsDown(general.MoveKey.Key);
+        var origin = new Vector2(general.X, general.Y);
+        var size = new Vector2(general.Width, laid.Sum(l => l.Height));
+        var (hovered, edge, active) = _panel.Handle("mapinfo", ref origin, size, ref general.X, ref general.Y, ref general.Width, GeneralTab.MinWidth, GeneralTab.MaxWidth);
         if (hovered || active) Overlay.ClickBlocker("mapinfo", origin, size);
 
         var at = origin;
@@ -125,7 +125,7 @@ public sealed class Main : Plugin<Settings>
         var style = StyleOf(laid.Row.Kind, look);
         if (laid.Row.Kind == RowKind.Content)
         {
-            var icon = look.IconSize.Value;
+            var icon = look.IconSize;
             var middle = at.Y + Math.Max(icon, laid.LineHeight * laid.Lines.Length) / 2;
             Draw.Icon(laid.Row.Content.Icon, new Vector2(at.X + icon / 2, middle), icon / 2, Color.White);
             var textAt = new Vector2(at.X + icon + Gap, middle - laid.LineHeight * laid.Lines.Length / 2);
@@ -140,9 +140,9 @@ public sealed class Main : Plugin<Settings>
 
         if (laid.Row.Kind == RowKind.Bar)
         {
-            var height = look.BarHeight.Value;
+            var height = look.BarHeight;
             var row = laid.Row;
-            Draw.Bar(at, at + new Vector2(width, height), row.Max > 0 ? 1 - row.Remaining / (float)row.Max : 0, look.BarFill.Value, look.BarTrack.Value);
+            Draw.Bar(at, at + new Vector2(width, height), row.Max > 0 ? 1 - row.Remaining / (float)row.Max : 0, look.BarFill, look.BarTrack);
             Draw.Text(row.Text, at + new Vector2(width / 2, height / 2), style, Align.Center | Align.Middle);
             return;
         }
@@ -153,7 +153,7 @@ public sealed class Main : Plugin<Settings>
             at.Y += laid.LineHeight;
         }
         if (laid.Row.Kind == RowKind.Title)
-            Draw.RectGradient(new Vector2(at.X, at.Y + UnderlineGap), new Vector2(at.X + width, at.Y + UnderlineGap + 2), look.Underline.Value, Color.FromArgb(0, look.Underline.Value));
+            Draw.RectGradient(new Vector2(at.X, at.Y + UnderlineGap), new Vector2(at.X + width, at.Y + UnderlineGap + 2), look.Underline, Color.FromArgb(0, look.Underline));
     }
 
     internal static void DrawMark(Vector2 centre, float radius, ContentState state, LookTab look)
@@ -162,14 +162,14 @@ public sealed class Main : Plugin<Settings>
         {
             case ContentState.Done:
                 Span<Vector2> tick = [centre + new Vector2(-radius, 0), centre + new Vector2(-radius * 0.3f, radius * 0.7f), centre + new Vector2(radius, -radius * 0.7f)];
-                Draw.Polyline(tick, look.Done.Value, 2.5f);
+                Draw.Polyline(tick, look.Done, 2.5f);
                 break;
             case ContentState.Active:
-                Draw.Circle(centre, radius, look.Active.Value, 2);
-                Draw.CircleFilled(centre, radius * 0.5f, look.Active.Value);
+                Draw.Circle(centre, radius, look.Active, 2);
+                Draw.CircleFilled(centre, radius * 0.5f, look.Active);
                 break;
             default:
-                Draw.Circle(centre, radius, look.Pending.Value, 2);
+                Draw.Circle(centre, radius, look.Pending, 2);
                 break;
         }
     }

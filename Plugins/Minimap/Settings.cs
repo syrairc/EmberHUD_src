@@ -20,45 +20,49 @@ public sealed class IconStyle
     public bool OverrideGameIcon;
 }
 
+public enum MapStyle { Region, Walls }
+
 public sealed class GeneralTab
 {
     internal const float DefaultZoom = 0.037f;
+    internal const float MinZoom = 0.002f;
+    internal const float MaxZoom = 4;
 
-    public ToggleNode Show = new(true);
-    public ToggleNode FollowPlayer = new(true);
-    [Menu("Hide behind full-screen panels", "Nothing draws while the game has a full-screen panel open, e.g. the big map or the talent tree")] public ToggleNode HideBehindPanels = new(true);
-    [Menu("Zoom", "Pixels per world unit. Real world units are small, about 0.005 to 0.05")] public RangeNode<float> Zoom = new(DefaultZoom, 0.002f, 4);
-    [Menu("Rotation", "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game")] public RangeNode<float> Rotation = new(0, -180, 180);
-    [Menu("Vertical scale", "Squashes the map vertically after the rotation, the game camera is isometric")] public RangeNode<float> VerticalScale = new(1, 0.2f, 1.5f);
-    public RangeNode<float> OffsetX = new(0, -960, 960);
-    public RangeNode<float> OffsetY = new(-50, -960, 960);
+    public bool Show = true;
+    public bool FollowPlayer = true;
+    public bool HideBehindPanels = true;
+    public float Zoom = DefaultZoom;
+    public float Rotation;
+    public float VerticalScale = 1;
+    public float OffsetX;
+    public float OffsetY = -50;
 }
 
 public sealed class RegionLook
 {
-    [Menu("Region fill", "Fill of the walkable area you haven't explored yet")] public ColorNode Fill = new(Color.FromArgb(0x1F, GameColors.MinimapUnexplored));
-    [Menu("Region outline", "Outline around the whole walkable area")] public ColorNode Outline = new(GameColors.MinimapUnexplored);
-    [Menu("Region outline width")] public RangeNode<float> OutlineWidth = new(1.5f, 0.5f, 6);
-    [Menu("Explored fill", "Fill of the area you've been through")] public ColorNode ExploredFill = new(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
-    [Menu("Explored outline", "Outline around the explored area and the islands inside it")] public ColorNode ExploredOutline = new(GameColors.MinimapOutline);
-    [Menu("Explored outline width")] public RangeNode<float> ExploredOutlineWidth = new(2.5f, 0.5f, 6);
+    public Color Fill = Color.FromArgb(0x1F, GameColors.MinimapUnexplored);
+    public Color Outline = GameColors.MinimapUnexplored;
+    public float OutlineWidth = 1.5f;
+    public Color ExploredFill = Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF);
+    public Color ExploredOutline = GameColors.MinimapOutline;
+    public float ExploredOutlineWidth = 2.5f;
 }
 
 public sealed class WallLook
 {
-    [Menu("Wall colour", "Only used by the Walls draw style")] public ColorNode Colour = new(Color.FromArgb(0xE6, 0xD8, 0xD0, 0x90));
-    [Menu("Wall thickness", "Only used by the Walls draw style")] public RangeNode<float> Thickness = new(1.5f, 0.5f, 6);
+    public Color Colour = Color.FromArgb(0xE6, 0xD8, 0xD0, 0x90);
+    public float Thickness = 1.5f;
 }
 
 public sealed class PlayerLook
 {
-    public ColorNode Colour = new(Color.FromArgb(0xFF, 0xFF, 0x40, 0x40));
-    public RangeNode<float> Size = new(10, 4, 30);
+    public Color Colour = Color.FromArgb(0xFF, 0xFF, 0x40, 0x40);
+    public float Size = 10;
 }
 
 public sealed class MapTab
 {
-    [Menu("Draw style", "Region fills the walkable area like the game's Tab map - white where you've been, blue where you haven't. Walls draws the old wall lines")] public ChoiceNode DrawStyle = new("Region", "Region", "Walls");
+    public MapStyle DrawStyle = MapStyle.Region;
     public RegionLook Region = new();
     public WallLook Walls = new();
     public PlayerLook Player = new();
@@ -66,12 +70,12 @@ public sealed class MapTab
 
 public sealed class IconsTab
 {
-    [Menu("Game icons", "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise")] public ToggleNode UseGameIcons = new(true);
-    [Menu("Game icon scale", "Scales every game icon on top of its own row scale")] public RangeNode<float> GameIconScale = new(1, 0.25f, 4);
-    [Menu("Scale with zoom", "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size")] public ToggleNode ScaleWithZoom = new(true);
-    [Menu("Zoom scale factor", "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size")] public RangeNode<float> ZoomScaleFactor = new(0.5f, 0, 1);
-    [Menu("Zoom scale min", "Smallest icon multiplier when zoomed out")] public RangeNode<float> ZoomScaleMin = new(0.5f, 0.1f, 1);
-    [Menu("Zoom scale max", "Largest icon multiplier when zoomed in")] public RangeNode<float> ZoomScaleMax = new(2, 1, 4);
+    public bool UseGameIcons = true;
+    public float GameIconScale = 1;
+    public bool ScaleWithZoom = true;
+    public float ZoomScaleFactor = 0.5f;
+    public float ZoomScaleMin = 0.5f;
+    public float ZoomScaleMax = 2;
     public IconStyle NormalMonsters = Row("Normal monsters", "marker:Dot", 0xEBEBEB, 0.75f);
     public IconStyle MagicMonsters = Row("Magic monsters", "marker:Dot", 0x598CFF, 0.75f);
     public IconStyle RareMonsters = Row("Rare monsters", "svg:elite", 0xFFD933, 1.25f);
@@ -91,8 +95,8 @@ public sealed class IconsTab
         new() { Name = name, Icon = icon, Colour = Color.FromArgb(0xFF, Color.FromArgb(rgb)), Scale = scale, Show = show };
 
     public float ZoomScale(float mapScale) =>
-        ScaleWithZoom.Value && mapScale > 0 && float.IsFinite(mapScale)
-            ? Math.Clamp(MathF.Pow(mapScale / GeneralTab.DefaultZoom, ZoomScaleFactor.Value), ZoomScaleMin.Value, ZoomScaleMax.Value)
+        ScaleWithZoom && mapScale > 0 && float.IsFinite(mapScale)
+            ? Math.Clamp(MathF.Pow(mapScale / GeneralTab.DefaultZoom, ZoomScaleFactor), ZoomScaleMin, ZoomScaleMax)
             : 1;
 
     public IEnumerable<IconStyle> Fixed => [NormalMonsters, MagicMonsters, RareMonsters, Bosses, Minions, Npcs, OtherPlayers, MapObjects, Destructibles];
@@ -186,24 +190,44 @@ public sealed class Settings : PluginSettings
     bool DrawGeneral()
     {
         if (ImGui.Button("Re-check map rotation")) Game.RescanMinimap();
-        return SettingsDrawer.DrawNodes(General);
+        var changed = Setting.Checkbox("Show", ref General.Show);
+        changed |= Setting.Checkbox("Follow Player", ref General.FollowPlayer);
+        changed |= Setting.Checkbox("Hide behind full-screen panels", ref General.HideBehindPanels, "Nothing draws while the game has a full-screen panel open, e.g. the big map or the talent tree");
+        changed |= Setting.Slider("Zoom", ref General.Zoom, GeneralTab.MinZoom, GeneralTab.MaxZoom, "Pixels per world unit. Real world units are small, about 0.005 to 0.05", log: true);
+        changed |= Setting.Slider("Rotation", ref General.Rotation, -180, 180, "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game");
+        changed |= Setting.Slider("Vertical scale", ref General.VerticalScale, 0.2f, 1.5f, "Squashes the map vertically after the rotation, the game camera is isometric");
+        changed |= Setting.Slider("Offset X", ref General.OffsetX, -960, 960);
+        changed |= Setting.Slider("Offset Y", ref General.OffsetY, -960, 960);
+        return changed;
     }
 
     internal bool DrawMap()
     {
-        var changed = SettingsDrawer.DrawNodes(Map);
+        var changed = Setting.Choice("Draw style", ref Map.DrawStyle, "Region fills the walkable area like the game's Tab map - white where you've been, blue where you haven't. Walls draws the old wall lines");
         Controls.Section("Region");
-        changed |= SettingsDrawer.DrawNodes(Map.Region);
+        changed |= Setting.Color("Region fill", ref Map.Region.Fill, "Fill of the walkable area you haven't explored yet");
+        changed |= Setting.Color("Region outline", ref Map.Region.Outline, "Outline around the whole walkable area");
+        changed |= Setting.Slider("Region outline width", ref Map.Region.OutlineWidth, 0.5f, 6);
+        changed |= Setting.Color("Explored fill", ref Map.Region.ExploredFill, "Fill of the area you've been through");
+        changed |= Setting.Color("Explored outline", ref Map.Region.ExploredOutline, "Outline around the explored area and the islands inside it");
+        changed |= Setting.Slider("Explored outline width", ref Map.Region.ExploredOutlineWidth, 0.5f, 6);
         Controls.Section("Walls");
-        changed |= SettingsDrawer.DrawNodes(Map.Walls);
+        changed |= Setting.Color("Wall colour", ref Map.Walls.Colour, "Only used by the Walls draw style");
+        changed |= Setting.Slider("Wall thickness", ref Map.Walls.Thickness, 0.5f, 6, "Only used by the Walls draw style");
         Controls.Section("Player");
-        changed |= SettingsDrawer.DrawNodes(Map.Player);
+        changed |= Setting.Color("Colour", ref Map.Player.Colour, id: "player colour");
+        changed |= Setting.Slider("Size", ref Map.Player.Size, 4, 30, id: "player size");
         return changed;
     }
 
     internal bool DrawIcons()
     {
-        var changed = SettingsDrawer.DrawNodes(Icons);
+        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
+        changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
+        changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
+        changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
+        changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
+        changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
         Controls.Section("Icons");
         ImGui.SetNextItemWidth(240);
         ImGui.InputTextWithHint("##filter", "search", ref _filter, 64);

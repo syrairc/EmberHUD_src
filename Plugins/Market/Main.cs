@@ -52,12 +52,12 @@ public sealed class Main : Plugin<Settings>
         listing.Status is null && listing.Quantity == pick.Quantity && listing.Price == pick.Price;
 
     internal static bool Passes(Row row, Settings settings) =>
-        (settings.MaxPrice.Value <= 0 || row.Listing.Price <= settings.MaxPrice.Value) &&
-        (settings.MaxPerUnit.Value <= 0 || row.PerUnit <= settings.MaxPerUnit.Value);
+        (settings.MaxPrice <= 0 || row.Listing.Price <= settings.MaxPrice) &&
+        (settings.MaxPerUnit <= 0 || row.PerUnit <= settings.MaxPerUnit);
 
     internal static List<Row> Shown(List<Row> rows, Settings settings, int currentPage)
     {
-        return [.. rows.Where(row => !row.Sold && (!settings.CurrentPageOnly.Value || row.Page == currentPage) && Passes(row, settings))
+        return [.. rows.Where(row => !row.Sold && (!settings.CurrentPageOnly || row.Page == currentPage) && Passes(row, settings))
             .OrderBy(row => row.PerUnit)
             .ThenBy(row => row.Listing.Price)
             .ThenBy(row => row.Page)
@@ -66,15 +66,15 @@ public sealed class Main : Plugin<Settings>
 
     internal List<Row> RowsFor(TradePage shown, long now)
     {
-        var staleAfter = Settings.StaleMinutes.Value * 60_000L;
-        var key = new RowsKey(_book.Version, _book.StaleSignature(now, staleAfter), staleAfter, Settings.CurrentPageOnly.Value ? shown.Page : null, Settings.MaxPrice.Value, Settings.MaxPerUnit.Value);
+        var staleAfter = Settings.StaleMinutes * 60_000L;
+        var key = new RowsKey(_book.Version, _book.StaleSignature(now, staleAfter), staleAfter, Settings.CurrentPageOnly ? shown.Page : null, Settings.MaxPrice, Settings.MaxPerUnit);
         if (key == _rowsKey) return _rows;
         _rowsKey = key;
         return _rows = Shown(_book.Rows(now, staleAfter), Settings, shown.Page);
     }
 
     public override void Initialize() =>
-        RegisterHotkey("Toggle window", "Shows or hides the market listing window", () => Settings.Show.Value = !Settings.Show.Value);
+        RegisterHotkey("Toggle window", "Shows or hides the market listing window", () => Settings.Show = !Settings.Show);
 
     public override void Tick()
     {
@@ -86,7 +86,7 @@ public sealed class Main : Plugin<Settings>
 
     public override void Render()
     {
-        if (Game.State.Trade is not { } shown || !Settings.Show.Value) return;
+        if (Game.State.Trade is not { } shown || !Settings.Show) return;
         _priceIcon = shown.PriceIcon;
         var rows = RowsFor(shown, Environment.TickCount64);
         _hovered = null;
@@ -103,7 +103,7 @@ public sealed class Main : Plugin<Settings>
         {
             ImGui.TextDisabled($"Pages {_book.PagesText}");
             ImGui.SameLine();
-            ImGui.Checkbox("Current page only", ref Settings.CurrentPageOnly.Value);
+            ImGui.Checkbox("Current page only", ref Settings.CurrentPageOnly);
             ImGui.SameLine();
             if (ImGui.Button("Clear"))
             {
@@ -112,15 +112,15 @@ public sealed class Main : Plugin<Settings>
             }
 
             ImGui.SetNextItemWidth(90);
-            if (ImGui.InputInt("Max price", ref Settings.MaxPrice.Value)) Settings.MaxPrice.Value = Math.Max(0, Settings.MaxPrice.Value);
+            if (ImGui.InputInt("Max price", ref Settings.MaxPrice)) Settings.MaxPrice = Math.Max(0, Settings.MaxPrice);
             ImGui.SameLine();
             ImGui.SetNextItemWidth(90);
-            if (ImGui.InputFloat("Max per unit", ref Settings.MaxPerUnit.Value, 0, 0, "%.3f")) Settings.MaxPerUnit.Value = Math.Max(0, Settings.MaxPerUnit.Value);
+            if (ImGui.InputFloat("Max per unit", ref Settings.MaxPerUnit, 0, 0, "%.3f")) Settings.MaxPerUnit = Math.Max(0, Settings.MaxPerUnit);
 
             SortableTable.Draw("rows", rows, _columns ??= Columns(), ref _tableFilter, row => row.Listing.Name, ImGui.GetContentRegionAvail().Y);
         }
         ImGui.End();
-        if (!open) Settings.Show.Value = false;
+        if (!open) Settings.Show = false;
     }
 
     internal TableColumn<Row>[] Columns() =>
@@ -146,14 +146,14 @@ public sealed class Main : Plugin<Settings>
 
     void DrawGrid(TradePage shown)
     {
-        var color = Settings.GlowColor.Value;
-        if (Settings.DimNonMatches.Value)
+        var color = Settings.GlowColor;
+        if (Settings.DimNonMatches)
             foreach (var listing in Dimmed(shown, Settings))
                 Draw.RectFilled(listing.Min, listing.Max, Color.FromArgb(128, 0, 0, 0));
         if (_hovered is { } hovered && hovered.Page == shown.Page && Cell(shown, hovered.Slot) is { } hover)
             Draw.Rect(hover.Min, hover.Max, Color.FromArgb(color.A * 7 / 10, color), 2);
         var pulse = 0.65f + 0.35f * MathF.Sin((float)ImGui.GetTime() * 1000f / 180f);
-        var thickness = Settings.GlowThickness.Value;
+        var thickness = Settings.GlowThickness;
         foreach (var pick in _picks)
             if (StateOf(pick, shown, _book) == PickState.Here && Cell(shown, pick.Slot) is { } picked)
                 Draw.GlowRect(picked.Min, picked.Max, Color.FromArgb((int)(color.A * pulse), color), thickness, thickness * 4);

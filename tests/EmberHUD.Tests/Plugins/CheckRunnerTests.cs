@@ -130,7 +130,7 @@ public sealed class CheckRunnerTests : IDisposable
     [Fact]
     public void ABadDefaultsJsonFieldFailsTheRun()
     {
-        _fixture.Write("Defaults", "Main.cs", PluginFixture.Source("Defaults", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Defaults", "Main.cs", PluginFixture.Source("Defaults", "", "public float X = 10;"));
         _fixture.Write("Defaults", "defaults.json", """{ "X": "big" }""");
         var (code, report) = Check();
         Assert.Equal(1, code);

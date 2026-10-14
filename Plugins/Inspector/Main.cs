@@ -97,7 +97,7 @@ public sealed class Main : Plugin<Settings>
 
     public override void Render()
     {
-        Snapshots.RefreshRate = Settings.RefreshRate.Value;
+        Snapshots.RefreshRate = Settings.RefreshRate;
         Snapshots.Prune();
         if (Picking) DrawPick();
         var state = Shown;
@@ -215,7 +215,7 @@ public sealed class Main : Plugin<Settings>
     void DrawPick()
     {
         if (ActorsJob.TakeFinished() is { } done) Actors = done.IsCompletedSuccessfully ? done.Result : [];
-        if (!Settings.PickActors.Value) Actors = [];
+        if (!Settings.PickActors) Actors = [];
         else if (!ActorsJob.Running && Clock() >= _nextActorScan)
         {
             _nextActorScan = Clock() + 500;
@@ -236,10 +236,10 @@ public sealed class Main : Plugin<Settings>
             Draw.TextOutlined("no camera", io.MousePos + new Vector2(16f, 16f), Color.White, Color.Black);
             return;
         }
-        var candidates = Pick.Candidates(Game.State, Settings.PickEntities.Value, Settings.PickIcons.Value, Actors);
+        var candidates = Pick.Candidates(Game.State, Settings.PickEntities, Settings.PickIcons, Actors);
         foreach (var candidate in candidates)
             if (camera.ToScreen(candidate.Position, io.DisplaySize) is { } at) Draw.Circle(at, 3f, Color.FromArgb(180, 255, 220, 80), 1.5f);
-        var under = Pick.Under(candidates, camera, io.DisplaySize, io.MousePos, Settings.PickRadius.Value);
+        var under = Pick.Under(candidates, camera, io.DisplaySize, io.MousePos, Settings.PickRadius);
         if (under.Length == 0) return;
         Draw.Circle(under[0].At, 14f, Color.Yellow, 2f);
         ImGui.SetTooltip(Text.EscPct(string.Join('\n', under.Select(u => Describe(u.Candidate, Game.State.Player)))));

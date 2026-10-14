@@ -140,14 +140,14 @@ public sealed class SettingsTests
         var map = new Settings().Map;
         var region = map.Region;
 
-        Check.Equal("Region", map.DrawStyle.Value);
-        Check.That(map.DrawStyle.Options.SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", map.DrawStyle.Options));
-        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), region.Fill.Value.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), region.Outline.Value.ToArgb());
-        Check.Equal(1.5f, region.OutlineWidth.Value);
-        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), region.ExploredFill.Value.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), region.ExploredOutline.Value.ToArgb());
-        Check.Equal(2.5f, region.ExploredOutlineWidth.Value);
+        Check.Equal(MapStyle.Region, map.DrawStyle);
+        Check.That(Enum.GetNames<MapStyle>().SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", Enum.GetNames<MapStyle>()));
+        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), region.Fill.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), region.Outline.ToArgb());
+        Check.Equal(1.5f, region.OutlineWidth);
+        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), region.ExploredFill.ToArgb());
+        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), region.ExploredOutline.ToArgb());
+        Check.Equal(2.5f, region.ExploredOutlineWidth);
     }
 
     [Test]
@@ -155,8 +155,8 @@ public sealed class SettingsTests
     {
         var icons = new Settings().Icons;
 
-        Check.That(icons.UseGameIcons.Value, "on by default, a missing icon folder falls back to shapes anyway");
-        Check.Equal(1f, icons.GameIconScale.Value);
+        Check.That(icons.UseGameIcons, "on by default, a missing icon folder falls back to shapes anyway");
+        Check.Equal(1f, icons.GameIconScale);
     }
 
     [Test]
@@ -229,11 +229,11 @@ public sealed class SettingsTests
     public void ZoomScaleFollowsTheFactorAsAPower()
     {
         var icons = new Settings().Icons;
-        icons.ZoomScaleFactor.Value = 1;
+        icons.ZoomScaleFactor = 1;
         Check.That(MathF.Abs(icons.ZoomScale(GeneralTab.DefaultZoom * 1.5f) - 1.5f) < 1e-4f);
-        icons.ZoomScaleFactor.Value = 0.5f;
+        icons.ZoomScaleFactor = 0.5f;
         Check.That(MathF.Abs(icons.ZoomScale(GeneralTab.DefaultZoom * 1.69f) - 1.3f) < 1e-4f);
-        icons.ZoomScaleFactor.Value = 0;
+        icons.ZoomScaleFactor = 0;
         Check.Equal(1f, icons.ZoomScale(GeneralTab.DefaultZoom * 3));
     }
 
@@ -241,9 +241,9 @@ public sealed class SettingsTests
     public void ZoomScaleIsClampedToMinAndMax()
     {
         var icons = new Settings().Icons;
-        icons.ZoomScaleFactor.Value = 1;
-        icons.ZoomScaleMin.Value = 0.5f;
-        icons.ZoomScaleMax.Value = 2;
+        icons.ZoomScaleFactor = 1;
+        icons.ZoomScaleMin = 0.5f;
+        icons.ZoomScaleMax = 2;
         Check.Equal(2f, icons.ZoomScale(GeneralTab.DefaultZoom * 10));
         Check.Equal(0.5f, icons.ZoomScale(GeneralTab.DefaultZoom / 10));
     }
@@ -254,7 +254,7 @@ public sealed class SettingsTests
         var icons = new Settings().Icons;
         Check.Equal(1f, icons.ZoomScale(0));
         Check.Equal(1f, icons.ZoomScale(float.NaN));
-        icons.ScaleWithZoom.Value = false;
+        icons.ScaleWithZoom = false;
         Check.Equal(1f, icons.ZoomScale(GeneralTab.DefaultZoom * 2));
     }
 }

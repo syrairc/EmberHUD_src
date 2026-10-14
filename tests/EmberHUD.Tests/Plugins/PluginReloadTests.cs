@@ -106,7 +106,7 @@ public sealed class PluginReloadTests : IDisposable
     [Fact]
     public void WriteDefaultsDumpsTheCurrentValuesAndResetRebuildsFromThem()
     {
-        _fixture.Write("Resettable", "Main.cs", PluginFixture.Source("Resettable", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Resettable", "Main.cs", PluginFixture.Source("Resettable", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var slot = host.Slots[0];
         var plugin = slot.Instance!;
@@ -305,7 +305,7 @@ public sealed class PluginReloadTests : IDisposable
     [Fact]
     public void WriteDefaultsRewritesAFileThatWasDeletedBehindItsBack()
     {
-        _fixture.Write("Defaulted", "Main.cs", PluginFixture.Source("Defaulted", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Defaulted", "Main.cs", PluginFixture.Source("Defaulted", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var slot = host.Slots[0];
         var path = Path.Combine(slot.Directory, "defaults.json");
@@ -332,7 +332,7 @@ public sealed class PluginReloadTests : IDisposable
     [Fact]
     public void ResetSettingsWithALockedUserFileWarnsAndDoesNotErrorAHealthyPlugin()
     {
-        _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var slot = host.Slots[0];
         var user = Path.Combine(_fixture.Root, "Config", "Plugins", "Locked.json");

@@ -46,17 +46,17 @@ public sealed class SampleTests
         {
             TestInput.Hold();
             TestInput.Dispatch(plugin);
-            Check.That(plugin.Settings.Display.Show.Value, "no key, no toggle");
+            Check.That(plugin.Settings.Show, "no key, no toggle");
             TestInput.Hold(Key.F8);
             TestInput.Dispatch(plugin);
-            Check.That(!plugin.Settings.Display.Show.Value, "press hides");
+            Check.That(!plugin.Settings.Show, "press hides");
             TestInput.Hold(Key.F8);
             TestInput.Dispatch(plugin);
-            Check.That(!plugin.Settings.Display.Show.Value, "held key does not toggle again");
+            Check.That(!plugin.Settings.Show, "held key does not toggle again");
             TestInput.Hold();
             TestInput.Hold(Key.F8);
             TestInput.Dispatch(plugin);
-            Check.That(plugin.Settings.Display.Show.Value, "second press shows");
+            Check.That(plugin.Settings.Show, "second press shows");
         }
         finally
         {
@@ -79,7 +79,7 @@ public sealed class SampleTests
     {
         var plugin = new Main();
         Check.That(Drawn(plugin.Render) > 0, "shown draws the marker and status");
-        plugin.Settings.Display.Show.Value = false;
+        plugin.Settings.Show = false;
         Check.That(Drawn(plugin.Render) == 0, "hidden draws nothing");
     }
 
@@ -101,7 +101,7 @@ public sealed class SampleTests
     [Test]
     public void TheStatusTextIsABoxedWorldLabelByDefault()
     {
-        var label = new Settings().Display.Label;
+        var label = new Settings().Label;
         Check.Equal(FontFace.Label, label.Face);
         Check.That(label.BgEnabled, "the label sits in a box");
     }

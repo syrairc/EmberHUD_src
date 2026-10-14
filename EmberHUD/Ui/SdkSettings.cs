@@ -11,6 +11,8 @@ internal sealed class SdkSettings : PluginSettings
     public string GameIconsDirectory = "";
     public Dictionary<string, PluginState> Plugins = [];
     public Dictionary<string, Dictionary<string, Hotkey>> PluginHotkeys = [];
+
+    public override void Draw() { }
 }
 
 [Obfuscation(Exclude = true, ApplyToMembers = true)]

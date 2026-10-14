@@ -24,17 +24,17 @@ public sealed class Main : Plugin<Settings>
     internal const float MarkerRadius = 4;
     const float GameIconSize = 24;
 
-    bool WallsStyle => Settings.Map.DrawStyle.Value == "Walls";
+    bool WallsStyle => Settings.Map.DrawStyle == MapStyle.Walls;
 
     public override void Initialize()
     {
-        RegisterHotkey("Toggle map", "Shows or hides the minimap", () => Settings.General.Show.Value = !Settings.General.Show.Value, new Hotkey(Key.F10));
-        RegisterHotkey("Zoom in", "Zooms the map in", () => SetZoom(Settings.General.Zoom.Value * 1.25f), new Hotkey(Key.PageUp));
-        RegisterHotkey("Zoom out", "Zooms the map out", () => SetZoom(Settings.General.Zoom.Value / 1.25f), new Hotkey(Key.PageDown));
+        RegisterHotkey("Toggle map", "Shows or hides the minimap", () => Settings.General.Show = !Settings.General.Show, new Hotkey(Key.F10));
+        RegisterHotkey("Zoom in", "Zooms the map in", () => SetZoom(Settings.General.Zoom * 1.25f), new Hotkey(Key.PageUp));
+        RegisterHotkey("Zoom out", "Zooms the map out", () => SetZoom(Settings.General.Zoom / 1.25f), new Hotkey(Key.PageDown));
         RegisterHotkey("Re-check rotation", "Drops the cached game minimap widget and finds it again, use when the map stops following the game's rotation", Game.RescanMinimap, new Hotkey(Key.F9));
     }
 
-    void SetZoom(float value) => Settings.General.Zoom.Value = Math.Clamp(value, Settings.General.Zoom.Min, Settings.General.Zoom.Max);
+    void SetZoom(float value) => Settings.General.Zoom = Math.Clamp(value, GeneralTab.MinZoom, GeneralTab.MaxZoom);
 
     public override void Tick()
     {
@@ -49,7 +49,7 @@ public sealed class Main : Plugin<Settings>
             var terrain = state.Terrain;
             WallJob.Start(() => Walls.Build(area, terrain));
         }
-        if (view.Show.Value && !WallsStyle) UpdateRegion(state);
+        if (view.Show && !WallsStyle) UpdateRegion(state);
 
         Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation);
     }
@@ -66,13 +66,13 @@ public sealed class Main : Plugin<Settings>
         var region = Settings.Map.Region;
         var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
         var now = Clock();
-        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill.Value, region.ExploredFill.Value))) return;
+        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill, region.ExploredFill))) return;
 
         _regionAt = now;
         var area = state.AreaId;
         var trail = state.Explored;
-        var regionFill = region.Fill.Value;
-        var exploredFill = region.ExploredFill.Value;
+        var regionFill = region.Fill;
+        var exploredFill = region.ExploredFill;
         var previous = _region.Matches(area, terrain) ? _region : null;
         var reuse = _spare;
         _spare = null;
@@ -95,15 +95,15 @@ public sealed class Main : Plugin<Settings>
     public static MapView? ViewFor(Settings settings, Vector3? player, Walls walls, Vector2 viewport, float? gameRotation = null)
     {
         var view = settings.General;
-        var rotation = (gameRotation ?? 0) + view.Rotation.Value;
-        var map = view.FollowPlayer.Value && player is { } at && float.IsFinite(at.X) && float.IsFinite(at.Y)
-            ? MapView.Follow(Map.Project(at), viewport, view.Zoom.Value, rotation, view.VerticalScale.Value)
-            : MapView.Fit(walls.Min, walls.Max, viewport, 40, rotation, view.VerticalScale.Value);
-        return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX.Value, view.OffsetY.Value) } : null;
+        var rotation = (gameRotation ?? 0) + view.Rotation;
+        var map = view.FollowPlayer && player is { } at && float.IsFinite(at.X) && float.IsFinite(at.Y)
+            ? MapView.Follow(Map.Project(at), viewport, view.Zoom, rotation, view.VerticalScale)
+            : MapView.Fit(walls.Min, walls.Max, viewport, 40, rotation, view.VerticalScale);
+        return map.Scale > 0 ? map with { Offset = map.Offset + new Vector2(view.OffsetX, view.OffsetY) } : null;
     }
 
     internal static bool Hidden(Settings settings, GameUi ui) =>
-        !settings.General.Show.Value || settings.General.HideBehindPanels.Value && ui.AnyFullScreen;
+        !settings.General.Show || settings.General.HideBehindPanels && ui.AnyFullScreen;
 
     public override void Render()
     {
@@ -141,8 +141,8 @@ public sealed class Main : Plugin<Settings>
 
     void DrawWalls(MapView map, Vector2 viewport)
     {
-        var colour = Settings.Map.Walls.Colour.Value;
-        var thickness = Settings.Map.Walls.Thickness.Value;
+        var colour = Settings.Map.Walls.Colour;
+        var thickness = Settings.Map.Walls.Thickness;
         for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
         {
             var a = map.ToScreen(_walls.Lines[i]);
@@ -159,11 +159,11 @@ public sealed class Main : Plugin<Settings>
             Draw.ImageQuad(fill, map.ToScreen(_region.Corners[0]), map.ToScreen(_region.Corners[1]), map.ToScreen(_region.Corners[2]), map.ToScreen(_region.Corners[3]));
         if (current && _region.Trail is null)
         {
-            DrawOutline(_walls.RegionOutline, map, viewport, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
+            DrawOutline(_walls.RegionOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
             return;
         }
-        DrawOutline(_walls.RegionOutline, map, viewport, view.Outline.Value, view.OutlineWidth.Value);
-        if (current) DrawOutline(_region.ExploredOutline, map, viewport, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
+        DrawOutline(_walls.RegionOutline, map, viewport, view.Outline, view.OutlineWidth);
+        if (current) DrawOutline(_region.ExploredOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
     }
 
     internal void DrawOutline(Polyline[] lines, MapView map, Vector2 viewport, Color colour, float width)
@@ -221,13 +221,13 @@ public sealed class Main : Plugin<Settings>
         var icons = Settings.Icons;
         var row = icons.FoundFor(icon.Texture);
         if (row is { Show: false }) return;
-        var size = GameIconSize * (float.IsFinite(icon.Size) && icon.Size > 0 ? icon.Size : 1) * icons.GameIconScale.Value * (row?.Scale ?? 1) * zoomScale;
+        var size = GameIconSize * (float.IsFinite(icon.Size) && icon.Size > 0 ? icon.Size : 1) * icons.GameIconScale * (row?.Scale ?? 1) * zoomScale;
         var name = row?.Icon ?? "";
         var colour = row?.Colour ?? Color.White;
         if (name.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal))
         {
             var defaultIcon = name.Length == Draw.GameIconPrefix.Length + icon.Texture.Length && name.EndsWith(icon.Texture, StringComparison.Ordinal);
-            if (icons.UseGameIcons.Value && Draw.TryGameIcon(defaultIcon ? icon.Texture : name[Draw.GameIconPrefix.Length..], out var sprite)) Draw.Image(sprite, at - new Vector2(size / 2), at + new Vector2(size / 2), colour);
+            if (icons.UseGameIcons && Draw.TryGameIcon(defaultIcon ? icon.Texture : name[Draw.GameIconPrefix.Length..], out var sprite)) Draw.Image(sprite, at - new Vector2(size / 2), at + new Vector2(size / 2), colour);
             else Draw.Marker(at, size / 4, colour, Settings.FallbackShape(icon.Type));
         }
         else if (name.Length == 0) Draw.Marker(at, size / 4, Color.FromArgb(0xF9, 0xDD, 0x75), Settings.FallbackShape(icon.Type));
@@ -238,15 +238,15 @@ public sealed class Main : Plugin<Settings>
     {
         if (!Visible(at, at, viewport)) return;
         var player = Settings.Map.Player;
-        var size = player.Size.Value * zoomScale;
-        var colour = player.Colour.Value;
+        var size = player.Size * zoomScale;
+        var colour = player.Colour;
         if (ArrowPoints(at, forward, size) is not { } arrow)
         {
             Draw.Marker(at, size / 2, colour);
             return;
         }
 
-        if (Settings.Icons.UseGameIcons.Value && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(GameIconSize * Settings.Icons.GameIconScale.Value * zoomScale), new Vector2(forward.Y, -forward.X), Color.White);
+        if (Settings.Icons.UseGameIcons && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(GameIconSize * Settings.Icons.GameIconScale * zoomScale), new Vector2(forward.Y, -forward.X), Color.White);
         else Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
     }
 

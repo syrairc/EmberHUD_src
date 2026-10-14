@@ -139,7 +139,7 @@ public sealed class PickTests
         TestFrame.Run(main.Render);
         Check.Equal(0, main.Actors.Length);
 
-        main.Settings.PickActors.Value = true;
+        main.Settings.PickActors = true;
         TestFrame.Run(main.Render);
         TestFrame.Run(main.Render);
         Check.Equal(hero, main.Actors.Single().Address);

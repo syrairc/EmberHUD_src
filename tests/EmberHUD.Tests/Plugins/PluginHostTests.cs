@@ -326,9 +326,9 @@ public sealed class PluginHostTests : IDisposable
     public void SettingsLayerCodeThenDefaultsJsonThenTheUserFile()
     {
         _fixture.Write("Layered", "Main.cs", PluginFixture.Source("Layered", "", """
-            public RangeNode<float> X = new(10, 0, 100);
-            public RangeNode<float> Y = new(20, 0, 100);
-            public RangeNode<float> Z = new(30, 0, 100);
+            public float X = 10;
+            public float Y = 20;
+            public float Z = 30;
             """));
         _fixture.Write("Layered", "defaults.json", """{ "X": 60, "Y": 50 }""");
         Directory.CreateDirectory(Path.Combine(_fixture.Root, "Config", "Plugins"));
@@ -344,7 +344,7 @@ public sealed class PluginHostTests : IDisposable
     [Fact]
     public void AutosaveWritesOnlyWhenTheTextChanged()
     {
-        _fixture.Write("Saver", "Main.cs", PluginFixture.Source("Saver", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Saver", "Main.cs", PluginFixture.Source("Saver", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var plugin = Slot(host, "Saver").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Saver.json");
@@ -384,7 +384,7 @@ public sealed class PluginHostTests : IDisposable
     [Fact]
     public void AutosaveRunsFromTickAllAfterTwoSeconds()
     {
-        _fixture.Write("Ticker", "Main.cs", PluginFixture.Source("Ticker", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Ticker", "Main.cs", PluginFixture.Source("Ticker", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var plugin = Slot(host, "Ticker").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Ticker.json");
@@ -400,7 +400,7 @@ public sealed class PluginHostTests : IDisposable
     [Fact]
     public void AFailedWriteWarnsOnceUntilTheTextChanges()
     {
-        _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public float X = 10;"));
         using var host = _fixture.Start();
         var plugin = Slot(host, "Locked").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Locked.json");
@@ -501,7 +501,7 @@ public sealed class PluginHostTests : IDisposable
     [Fact]
     public void AGuardedCallPutsTheOuterPluginNameBack()
     {
-        _fixture.Write("Inner", "Main.cs", PluginFixture.Source("Inner", "", "public RangeNode<float> X = new(10, 0, 100);"));
+        _fixture.Write("Inner", "Main.cs", PluginFixture.Source("Inner", "", "public float X = 10;"));
         using var host = _fixture.Start();
         host.Slots[0].Instance!.SettingsObject = SettingsJson.Load(host.Slots[0].Instance!.SettingsType!, null, """{ "X": 1 }""", _ => { });
         Log.CurrentPlugin.Value = "Outer";

@@ -47,7 +47,7 @@ public sealed class MainTests
                     blocker.Start();
                     blockers.Add(blocker);
                 }
-                main.Settings.Port.Value = port;
+                main.Settings.Port = port;
                 return [.. blockers];
             }
             catch (HttpListenerException)
@@ -61,7 +61,7 @@ public sealed class MainTests
     {
         var main = new Main { DataDirectory = directory };
         if (clock is not null) main.Clock = () => clock[0];
-        main.Settings.Port.Value = FreePort();
+        main.Settings.Port = FreePort();
         return main;
     }
 
@@ -84,13 +84,13 @@ public sealed class MainTests
         {
             main.Tick();
             Check.That(main.Server is null, "off by default");
-            main.Settings.Serve.Value = true;
+            main.Settings.Serve = true;
             main.Tick();
             Check.That(main.Server is not null, "started");
             var token = File.ReadAllText(Path.Combine(directory, "bridge-token.txt")).Trim();
             Check.Equal(HttpStatusCode.OK, Call(main, token));
             Check.Equal(main.Server!.Port.ToString(), File.ReadAllText(Path.Combine(directory, "bridge-port.txt")).Trim());
-            main.Settings.Serve.Value = false;
+            main.Settings.Serve = false;
             main.Tick();
             Check.That(main.Server is null, "stopped");
         }
@@ -109,12 +109,12 @@ public sealed class MainTests
         var second = Plugin(directory);
         try
         {
-            first.Settings.Serve.Value = true;
+            first.Settings.Serve = true;
             first.Tick();
             var port = first.Server!.Port;
             first.Dispose();
-            second.Settings.Port.Value = port;
-            second.Settings.Serve.Value = true;
+            second.Settings.Port = port;
+            second.Settings.Serve = true;
             second.Tick();
             Check.Equal(port, second.Server!.Port);
         }
@@ -131,7 +131,7 @@ public sealed class MainTests
     {
         var directory = Temp();
         var main = Plugin(directory);
-        main.Settings.Serve.Value = true;
+        main.Settings.Serve = true;
         var blockers = BlockTwenty(main);
         try
         {
@@ -140,9 +140,9 @@ public sealed class MainTests
             blockers[0].Stop();
             main.Tick();
             Check.That(main.Server is null, "no retry while Serve stays on");
-            main.Settings.Serve.Value = false;
+            main.Settings.Serve = false;
             main.Tick();
-            main.Settings.Serve.Value = true;
+            main.Settings.Serve = true;
             main.Tick();
             Check.That(main.Server is not null, "toggling retries");
         }
@@ -213,7 +213,7 @@ public sealed class MainTests
     {
         var directory = Temp();
         var main = Plugin(directory);
-        main.Settings.Serve.Value = true;
+        main.Settings.Serve = true;
         try
         {
             main.Tick();
@@ -223,7 +223,7 @@ public sealed class MainTests
             main.Watching.Start("w", at, 8);
             main.Recorder.Start("r", new EntityFilter(null, null, null, null));
             Check.That(main.Watching.Count == 1 && main.Recorder.Active, "running");
-            main.Settings.Serve.Value = false;
+            main.Settings.Serve = false;
             main.Tick();
             Check.Equal(0, main.Watching.Count);
             Check.That(!main.Recorder.Active, "recording closed");
@@ -247,14 +247,14 @@ public sealed class MainTests
                 main.Render();
                 main.DrawSettings();
             });
-            main.Settings.Serve.Value = true;
+            main.Settings.Serve = true;
             main.Tick();
             TestFrame.Run(() =>
             {
                 main.Render();
                 main.DrawSettings();
             });
-            main.Settings.ShowStatusDot.Value = false;
+            main.Settings.ShowStatusDot = false;
             TestFrame.Run(main.Render);
         }
         finally
@@ -267,8 +267,8 @@ public sealed class MainTests
     [Test]
     public void DefaultsKeepTheServerOff()
     {
-        Check.Equal(false, new Settings().Serve.Value);
-        Check.Equal(50902, new Settings().Port.Value);
+        Check.Equal(false, new Settings().Serve);
+        Check.Equal(50902, new Settings().Port);
     }
 
     [Test]
@@ -276,7 +276,7 @@ public sealed class MainTests
     {
         var directory = Temp();
         var main = Plugin(directory);
-        main.Settings.Serve.Value = true;
+        main.Settings.Serve = true;
         try
         {
             main.Tick();

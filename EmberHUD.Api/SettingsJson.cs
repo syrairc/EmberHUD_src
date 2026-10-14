@@ -57,16 +57,11 @@ internal static class SettingsJson
         return (over ?? under)?.DeepClone();
     }
 
-    internal static bool IsNode(Type type) =>
-        type == typeof(ToggleNode) || type == typeof(ColorNode) || type == typeof(HotkeyNode) || type == typeof(TextNode) || type == typeof(ChoiceNode)
-        || type.IsGenericType && type.GetGenericTypeDefinition() == typeof(RangeNode<>);
-
     internal static IEnumerable<FieldInfo> Fields(Type type) =>
         type.GetFields(BindingFlags.Public | BindingFlags.Instance).Where(field => !field.IsDefined(typeof(JsonIgnoreAttribute))).OrderBy(field => field.MetadataToken);
 
-    static bool IsHolder(Type type, int depth = 0) =>
-        depth < 4 && type.IsClass && type != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(type)
-        && Fields(type).Any(field => IsNode(field.FieldType) || IsHolder(field.FieldType, depth + 1));
+    static bool IsHolder(Type type) =>
+        type.IsClass && type != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(type) && Fields(type).Any();
 
     static void Populate(object holder, JsonObject json, string prefix, Action<string> report)
     {
@@ -75,21 +70,7 @@ internal static class SettingsJson
             if (!json.TryGetPropertyValue(field.Name, out var value) || value is null) continue;
             try
             {
-                var current = field.GetValue(holder);
-                if (IsNode(field.FieldType))
-                {
-                    var inner = field.FieldType.GetField("Value")!;
-                    inner.SetValue(current, value.Deserialize(inner.FieldType, Options));
-                    if (field.FieldType.IsGenericType)
-                        (field.FieldType.GetMethod("Clamp", BindingFlags.NonPublic | BindingFlags.Instance) ?? throw new MissingMethodException(field.FieldType.Name, "Clamp")).Invoke(current, null);
-                }
-                else if (IsHolder(field.FieldType))
-                {
-                    if (current is null || value is not JsonObject nested) throw new JsonException("expected an object");
-                    Populate(current, nested, $"{prefix}{field.Name}.", report);
-                }
-                else if (current is not null && value is JsonObject && field.FieldType.IsClass && !typeof(IEnumerable).IsAssignableFrom(field.FieldType))
-                    field.SetValue(holder, Merge(JsonSerializer.SerializeToNode(current, field.FieldType, Options), value)!.Deserialize(field.FieldType, Options));
+                if (IsHolder(field.FieldType) && field.GetValue(holder) is { } current && value is JsonObject nested) Populate(current, nested, $"{prefix}{field.Name}.", report);
                 else field.SetValue(holder, value.Deserialize(field.FieldType, Options));
             }
             catch (Exception ex)
@@ -105,14 +86,7 @@ internal static class SettingsJson
         foreach (var field in Fields(holder.GetType()))
         {
             var value = field.GetValue(holder);
-            if (value is null) json[field.Name] = null;
-            else if (IsNode(field.FieldType))
-            {
-                var inner = field.FieldType.GetField("Value")!;
-                json[field.Name] = JsonSerializer.SerializeToNode(inner.GetValue(value), inner.FieldType, Options);
-            }
-            else if (IsHolder(field.FieldType)) json[field.Name] = ToJson(value);
-            else json[field.Name] = JsonSerializer.SerializeToNode(value, field.FieldType, Options);
+            json[field.Name] = value is null ? null : IsHolder(field.FieldType) ? ToJson(value) : JsonSerializer.SerializeToNode(value, field.FieldType, Options);
         }
         return json;
     }

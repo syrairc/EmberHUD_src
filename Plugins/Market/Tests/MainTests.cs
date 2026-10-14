@@ -42,12 +42,12 @@ public sealed class MainTests
     public void BothFiltersApplyAndZeroIsOff()
     {
         var settings = new Settings();
-        settings.MaxPrice.Value = 200;
+        settings.MaxPrice = 200;
         Check.Equal("1:0,3:4", Keys(Main.Shown(Rows, settings, 1).OrderBy(r => r.Page).ThenBy(r => r.Listing.Slot)));
-        settings.MaxPrice.Value = 0;
-        settings.MaxPerUnit.Value = 0.1f;
+        settings.MaxPrice = 0;
+        settings.MaxPerUnit = 0.1f;
         Check.Equal("1:1", Keys(Main.Shown(Rows, settings, 1).OrderBy(r => r.Page).ThenBy(r => r.Listing.Slot)));
-        settings.MaxPrice.Value = 120;
+        settings.MaxPrice = 120;
         Check.Equal("", Keys(Main.Shown(Rows, settings, 1)));
     }
 
@@ -56,7 +56,7 @@ public sealed class MainTests
     {
         var settings = new Settings();
         Check.Equal("1:1,1:0,3:4,2:0", Keys(Main.Shown(Rows, settings, 1)));
-        settings.CurrentPageOnly.Value = true;
+        settings.CurrentPageOnly = true;
         Check.Equal("2:0", Keys(Main.Shown(Rows, settings, 2)));
         Check.Equal("", Keys(Main.Shown(Rows, settings, 4)));
     }
@@ -67,7 +67,7 @@ public sealed class MainTests
         var row = Row(1, 0, 0, 50);
         Check.That(double.IsPositiveInfinity(row.PerUnit), "per unit of qty 0");
         var settings = new Settings();
-        settings.MaxPerUnit.Value = 5;
+        settings.MaxPerUnit = 5;
         Check.That(!Main.Passes(row, settings), "qty 0 never passes a per-unit filter");
     }
 
@@ -80,7 +80,7 @@ public sealed class MainTests
         TestGame.Set(GameState.Empty with { Trade = new TradePage(1, false, 72, [Rows[0].Listing, Rows[1].Listing], "game:missing") });
         main.Tick();
         TestFrame.Run(main.Render);
-        Check.That(main.Settings.Show.Value, "drawing closed the window");
+        Check.That(main.Settings.Show, "drawing closed the window");
     }
 
     static TradePage Shown(int page, params Row[] rows) => new(page, false, 72, [.. rows.Select(r => r.Listing)], "game:missing");
@@ -99,10 +99,10 @@ public sealed class MainTests
     {
         var page = Shown(1, Row(1, 0, 1000, 129), Row(1, 1, 3712, 297), Row(1, 2, 100, 20), Row(1, 3, 50, 5, "Sold"));
         var settings = new Settings();
-        settings.MaxPrice.Value = 200;
+        settings.MaxPrice = 200;
         Check.Equal("1,3", Slots(Main.Dimmed(page, settings)));
-        settings.MaxPrice.Value = 0;
-        settings.MaxPerUnit.Value = 0.1f;
+        settings.MaxPrice = 0;
+        settings.MaxPerUnit = 0.1f;
         Check.Equal("0,2,3", Slots(Main.Dimmed(page, settings)));
     }
 
@@ -217,7 +217,7 @@ public sealed class MainTests
         main.Tick();
         Check.That(ReferenceEquals(rows, main.RowsFor(Game.State.Trade!, now)), "the same listings read again");
 
-        main.Settings.MaxPrice.Value = 200;
+        main.Settings.MaxPrice = 200;
         var filtered = main.RowsFor(Game.State.Trade!, now);
         Check.Equal(1, filtered.Count);
         Check.That(ReferenceEquals(filtered, main.RowsFor(Game.State.Trade!, now)), "nothing changed since the filter");
@@ -235,7 +235,7 @@ public sealed class MainTests
     public void CurrentPageOnlyRebuildsWhenAnAlreadyCachedPageComesBack()
     {
         var main = new Main();
-        main.Settings.CurrentPageOnly.Value = true;
+        main.Settings.CurrentPageOnly = true;
         var one = Row(1, 0, 1000, 129);
         var two = Row(2, 0, 95, 9999);
         var now = Environment.TickCount64;

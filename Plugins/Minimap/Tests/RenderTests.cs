@@ -86,21 +86,17 @@ public sealed class RenderTests
     [Test]
     public void TheWallsStyleDrawsTheOldWallLinesAndNoRegion()
     {
-        void WallsStyle(Main main) { main.Settings.Map.DrawStyle.Value = "Walls"; main.Settings.General.OffsetY.Value = 0; }
+        void WallsStyle(Main main) { main.Settings.Map.DrawStyle = MapStyle.Walls; main.Settings.General.OffsetY = 0; }
         var perLine = 0;
         TestFrame.Run(() =>
         {
             var before = Draw.Background.VtxBuffer.Size;
-            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().Map.Walls.Thickness.Value);
+            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().Map.Walls.Thickness);
             perLine = Draw.Background.VtxBuffer.Size - before;
         });
 
         Check.Equal(4 * perLine, DrawnWithFill(OneCellScene(), WallsStyle) - DrawnWithFill(Scene.State(), WallsStyle));
     }
-
-    [Test]
-    public void ADrawStyleItDoesNotKnowDrawsTheRegion() =>
-        Check.Equal(DrawnWithFill(OneCellScene()), DrawnWithFill(OneCellScene(), main => main.Settings.Map.DrawStyle.Value = "region"));
 
     static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
 
@@ -185,7 +181,7 @@ public sealed class RenderTests
     [Test]
     public void WallsMarkersAndTheArrowAllDraw()
     {
-        Action<Main> fixedSize = main => main.Settings.Icons.ScaleWithZoom.Value = false;
+        Action<Main> fixedSize = main => main.Settings.Icons.ScaleWithZoom = false;
         var full = Drawn(Busy(Facing(Vector2.UnitX)), configure: fixedSize);
 
         Check.That(full > Drawn(Busy(Facing(Vector2.UnitX), entities: false), configure: fixedSize), "markers draw");
@@ -195,7 +191,7 @@ public sealed class RenderTests
 
     [Test]
     public void AMapHiddenAfterItWasPublishedDrawsNothing() =>
-        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: main => main.Settings.General.Show.Value = false));
+        Check.Equal(0, Drawn(Busy(Facing(Vector2.UnitX)), beforeRender: main => main.Settings.General.Show = false));
 
     [Test]
     public void AMapWithoutAViewDrawsNothing() =>
@@ -251,7 +247,7 @@ public sealed class RenderTests
     [Test]
     public void TheArrowTurnsWithTheMapRotation()
     {
-        var tip = FarthestFromPlayer(new Vector2(0, -1), main => main.Settings.General.Rotation.Value = 90);
+        var tip = FarthestFromPlayer(new Vector2(0, -1), main => main.Settings.General.Rotation = 90);
 
         Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward -Y turns right with a 90 degree map rotation");
     }
@@ -268,7 +264,7 @@ public sealed class RenderTests
     public void TheArrowFollowsTheVerticalScaleToo()
     {
         var plain = FarthestFromPlayer(new Vector2(1, 1));
-        var squashed = FarthestFromPlayer(new Vector2(1, 1), main => main.Settings.General.VerticalScale.Value = 0.3f);
+        var squashed = FarthestFromPlayer(new Vector2(1, 1), main => main.Settings.General.VerticalScale = 0.3f);
 
         Check.That(MathF.Abs(squashed.Y) / MathF.Abs(squashed.X) < MathF.Abs(plain.Y) / MathF.Abs(plain.X), "arrow flattens with the map");
     }
@@ -311,7 +307,7 @@ public sealed class RenderTests
     [Test]
     public void TurningGameIconsOffDrawsTheMarkerEvenWhenTheTextureIsReady()
     {
-        var off = DrawnWith(_ => Ready, OneCellScene(Portal), main => main.Settings.Icons.UseGameIcons.Value = false);
+        var off = DrawnWith(_ => Ready, OneCellScene(Portal), main => main.Settings.Icons.UseGameIcons = false);
 
         Check.Equal(DrawnWith(_ => null, OneCellScene(Portal)), off);
     }
@@ -429,7 +425,7 @@ public sealed class RenderTests
         {
             var drawn = Drawn(Scene.State(entities: [rare], terrain: terrain), configure: main =>
             {
-                main.Settings.Icons.ScaleWithZoom.Value = false;
+                main.Settings.Icons.ScaleWithZoom = false;
                 main.Settings.Icons.RareMonsters.Scale = 1.5f;
                 main.Settings.Icons.RareMonsters.Colour = Color.DeepSkyBlue;
             });
@@ -569,8 +565,8 @@ public sealed class RenderTests
             TestGame.Set(OneCellScene(Portal with { Texture = "T", Size = 1 }));
             Map.View = null;
             var main = Scene.Plugin();
-            main.Settings.Icons.GameIconScale.Value = 2;
-            main.Settings.Icons.ScaleWithZoom.Value = false;
+            main.Settings.Icons.GameIconScale = 2;
+            main.Settings.Icons.ScaleWithZoom = false;
             main.Settings.Icons.Found.Add(FoundT(scale: 1.5f));
             TestFrame.Run(() =>
             {
@@ -599,8 +595,8 @@ public sealed class RenderTests
             TestGame.Set(Scene.State(player: player, terrain: Scene.OneCell(), icons: [Portal with { Texture = "T", Size = 1, Position = new Vector2(12, 12) }]));
             Map.View = null;
             var main = Scene.Plugin();
-            main.Settings.General.Zoom.Value = GeneralTab.DefaultZoom * 2;
-            main.Settings.Icons.ZoomScaleFactor.Value = 1;
+            main.Settings.General.Zoom = GeneralTab.DefaultZoom * 2;
+            main.Settings.Icons.ZoomScaleFactor = 1;
             main.Settings.Icons.Found.Add(FoundT(scale: 1));
             TestFrame.Run(() =>
             {
@@ -689,8 +685,8 @@ public sealed class RenderTests
 
         var colours = Colours(OneCellScene(), _ => { });
 
-        Check.That(colours.Contains(Packed(region.ExploredOutline.Value)), "explored colour");
-        Check.That(!colours.Contains(Packed(region.Outline.Value)), "region colour");
+        Check.That(colours.Contains(Packed(region.ExploredOutline)), "explored colour");
+        Check.That(!colours.Contains(Packed(region.Outline)), "region colour");
     }
 
     [Test]
