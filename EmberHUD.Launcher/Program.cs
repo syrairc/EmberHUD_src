@@ -17,6 +17,11 @@ if (config is null || game is null)
 else
 {
     Log($"game {game.Folder}, build {game.Build?.ToString() ?? "unknown"}, {(game.Steam ? "through Steam" : $"run as {(config.RunAsUser.Length > 0 ? config.RunAsUser : "yourself")}")}");
+    if (game.Steam && config.LaunchGame)
+    {
+        if (config.RunAsAdmin) Launch.RestoreElevation(game, Log);
+        else Launch.AllowNonElevated(game, Log);
+    }
     foreach (var (name, start) in Launch.Steps(config, game, root, IsRunning, Log)) Start(name, start);
 }
 if (runas is not null)

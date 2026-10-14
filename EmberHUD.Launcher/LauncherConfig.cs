@@ -21,6 +21,7 @@ public sealed class LauncherConfig
     public string GameDirectory = "";
     public bool LaunchGame = true;
     public bool LaunchEmberHUD = true;
+    public bool RunAsAdmin = false;
     public List<LauncherProgram> Programs = [];
 
     public static LauncherConfig FirstRun(IEnumerable<string> localUsers) =>

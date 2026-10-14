@@ -64,7 +64,7 @@ internal sealed partial class GameProcess : IDisposable
         if (handle.IsInvalid)
         {
             handle.Dispose();
-            failure = $"OpenProcess failed for pid {pid}, win32 error {error}";
+            failure = $"OpenProcess failed for pid {pid}, win32 error {error}{(error == 5 ? " - the game is running elevated, start it from EmberLauncher or run Ember as administrator" : "")}";
             return false;
         }
 

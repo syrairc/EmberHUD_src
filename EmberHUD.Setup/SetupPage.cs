@@ -17,6 +17,9 @@ internal sealed class SetupPage
     readonly Func<string, string?> _pickFolder;
     readonly Func<string, string?> _pickProgram;
     readonly Func<ProcessStartInfo, Process?> _start;
+    readonly Action<GameInstall, Action<string>> _applyFlag;
+    readonly Func<GameInstall, bool> _flagApplied;
+    bool _flagIsApplied;
     readonly string? _registered = GameInstall.Registered();
     GameInstall? _game;
     string? _checkedFolder;
@@ -24,8 +27,10 @@ internal sealed class SetupPage
     volatile string _progress = "";
     volatile string? _iconStatus;
 
-    public SetupPage(string root, IEnumerable<string> users, Func<string, string?> pickFolder, Func<string, string?> pickProgram, Func<ProcessStartInfo, Process?> start)
+    public SetupPage(string root, IEnumerable<string> users, Func<string, string?> pickFolder, Func<string, string?> pickProgram, Func<ProcessStartInfo, Process?> start, Action<GameInstall, Action<string>>? applyFlag = null, Func<GameInstall, bool>? flagApplied = null)
     {
+        _applyFlag = applyFlag ?? Launch.AllowNonElevated;
+        _flagApplied = flagApplied ?? Launch.NonElevatedApplied;
         _root = root;
         _configPath = Path.Combine(root, "Config", "launcher.json");
         _pickFolder = pickFolder;
@@ -91,6 +96,7 @@ internal sealed class SetupPage
             _checkedFolder = Config.GameDirectory;
             _game = GameInstall.Find(Config.GameDirectory, _registered);
             _iconStatus = null;
+            _flagIsApplied = _game is { Steam: true } && _flagApplied(_game);
         }
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.SetNextWindowSize(ImGui.GetIO().DisplaySize);
@@ -127,15 +133,30 @@ internal sealed class SetupPage
         var status = _game is null ? $"{GameInstall.ExeName} not found" : $"{(_game.Steam ? "Steam, " : "")}build {_game.Build?.ToString() ?? "unknown"}";
         var style = ImGui.GetStyle();
         var trailing = ImGui.CalcTextSize("Browse").X + ImGui.CalcTextSize("Detect").X + ImGui.CalcTextSize(status).X + style.FramePadding.X * 4 + style.ItemSpacing.X * 3;
+        if (_game is { Steam: true }) trailing += ImGui.CalcTextSize("Run without admin").X + style.FramePadding.X * 2 + style.ItemSpacing.X;
         ImGui.SetNextItemWidth(Math.Max(120, ImGui.GetContentRegionAvail().X - trailing));
         ImGui.InputTextWithHint("##folder", $"auto - {_registered ?? GameInstall.DefaultFolder}", ref Config.GameDirectory, 260);
         ImGui.SameLine();
         if (ImGui.Button("Browse") && _pickFolder(_game?.Folder ?? Config.GameDirectory) is { } picked) Config.GameDirectory = picked;
         ImGui.SameLine();
         if (ImGui.Button("Detect")) Config.GameDirectory = GameInstall.Find("", _registered)?.Folder ?? "";
+        if (_game is { Steam: true })
+        {
+            ImGui.SameLine();
+            ImGui.BeginDisabled(_flagIsApplied || Config.RunAsAdmin);
+            if (ImGui.Button("Run without admin")) ApplyFlag(_game);
+            ImGui.EndDisabled();
+            Text.Tip(_flagIsApplied ? "already applied" : @"The game asks for administrator rights, so Steam starts it elevated and the overlay cannot read it. This sets a per-user Windows compatibility flag (RunAsInvoker) on the game exe so it starts as you. Same as the reg edit under HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers.");
+        }
         ImGui.SameLine();
         if (_game is null) ImGui.TextColored(EColor.ToVector4(EColor.Bad), status);
         else ImGui.TextDisabled(status);
+    }
+
+    public void ApplyFlag(GameInstall game)
+    {
+        _applyFlag(game, text => Message = text.StartsWith("game - could not") ? text : "applied");
+        _flagIsApplied = _flagApplied(game);
     }
 
     void DrawRunAs()
@@ -146,6 +167,9 @@ internal sealed class SetupPage
         ImGui.BeginDisabled(Config.RunAsUser.Length == 0);
         if (ImGui.Button("Save password")) SavePassword();
         ImGui.EndDisabled();
+        ImGui.SameLine();
+        ImGui.Checkbox("Run as administrator", ref Config.RunAsAdmin);
+        Text.Tip("Starts EmberHUD elevated (a UAC prompt appears). Standalone installs still run the game as a normal user. Steam installs run the game elevated too unless the compatibility flag is applied.");
     }
 
     void DrawLaunch()

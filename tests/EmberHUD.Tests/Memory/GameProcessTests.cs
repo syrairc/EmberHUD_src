@@ -18,6 +18,15 @@ public class GameProcessTests
     }
 
     [Fact]
+    public void AnAccessDeniedPidSaysTheGameIsElevated()
+    {
+        using var elevated = Process.GetProcessesByName("winlogon").FirstOrDefault();
+        if (elevated is null) return;
+        if (!GameProcess.TryAttach(elevated.Id, out var game, out var failure)) Assert.EndsWith("win32 error 5 - the game is running elevated, start it from EmberLauncher or run Ember as administrator", failure);
+        else game?.Dispose();
+    }
+
+    [Fact]
     public void AnExeOfUnknownSizeStillAttaches()
     {
         var original = Offsets.Build;

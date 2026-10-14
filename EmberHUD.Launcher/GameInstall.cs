@@ -15,6 +15,8 @@ public sealed record GameInstall(string Folder, int? Build, bool Steam = false)
 
     public const string DefaultFolder = @"C:\Program Files (x86)\Torchlight Infinite";
 
+    public const string SteamDefaultFolder = @"C:\Program Files (x86)\Steam\steamapps\common\Torchlight Infinite";
+
     public string Exe => Path.Combine(Binaries, ExeName);
 
     string Saved => Path.Combine(Root, "UE_game", "Torchlight", "Saved", "PersistentDownloadDir");
@@ -28,8 +30,8 @@ public sealed record GameInstall(string Folder, int? Build, bool Steam = false)
         return null;
     }
 
-    public static GameInstall? Find(string configured, string? registered) =>
-        configured.Length > 0 ? At(configured) : At(registered ?? "") ?? At(DefaultFolder);
+    public static GameInstall? Find(string configured, string? registered, params string[] defaults) =>
+        configured.Length > 0 ? At(configured) : (defaults.Length > 0 ? defaults : [DefaultFolder, SteamDefaultFolder]).Aggregate(At(registered ?? ""), (found, folder) => found ?? At(folder));
 
     public static string? Registered()
     {

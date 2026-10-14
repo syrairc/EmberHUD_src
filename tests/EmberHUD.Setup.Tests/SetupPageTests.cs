@@ -110,6 +110,45 @@ public class SetupPageTests
         Assert.Equal(VerticesFor('X'), VerticesFor('s'));
     }
 
+    int VerticesFor(string layout, bool runAsAdmin = false)
+    {
+        using var temp = new TempDir();
+        temp.File(layout);
+        new LauncherConfig { GameDirectory = temp.Path, RunAsAdmin = runAsAdmin }.Save(Path.Combine(temp.Path, "Config", "launcher.json"));
+        var page = new SetupPage(temp.Path, [], _ => null, _ => null, _ => null, (_, _) => { }, _ => false);
+        TestFrame.Run(page.Draw);
+        TestFrame.Run(page.Draw);
+        return ImGui.GetDrawData().TotalVtxCount;
+    }
+
+    [Fact]
+    public void RunWithoutAdminShowsOnlyForASteamInstall() =>
+        Assert.True(VerticesFor(@"UE_game\Binaries\Win64\torchlight_infinite.exe") > VerticesFor(@"Game\UE_game\Binaries\Win64\torchlight_infinite.exe"));
+
+    [Fact]
+    public void RunAsAdministratorDrawsAndPersists()
+    {
+        VerticesFor(@"UE_game\Binaries\Win64\torchlight_infinite.exe", true);
+        using var temp = new TempDir();
+        new LauncherConfig { RunAsAdmin = true }.Save(Path.Combine(temp.Path, "Config", "launcher.json"));
+        Assert.True(Page(temp.Path).Config.RunAsAdmin);
+    }
+
+    [Fact]
+    public void ApplyFlagWritesThroughTheInjectedWriterAndReportsIt()
+    {
+        using var temp = new TempDir();
+        var written = new List<GameInstall>();
+        var page = new SetupPage(temp.Path, [], _ => null, _ => null, _ => null, (game, log) => { written.Add(game); log("game - set RunAsInvoker for the Steam exe so the overlay can read it"); }, _ => true);
+        var steam = new GameInstall(@"D:\Steam\Torchlight Infinite", null, true);
+        page.ApplyFlag(steam);
+        Assert.Equal([steam], written);
+        Assert.Equal("applied", page.Message);
+        var failing = new SetupPage(temp.Path, [], _ => null, _ => null, _ => null, (_, log) => log("game - could not set RunAsInvoker for the Steam exe (denied)"), _ => false);
+        failing.ApplyFlag(steam);
+        Assert.Contains("denied", failing.Message);
+    }
+
     [Fact]
     public void ExeNameMatchesTheProcessNameInTheOffsets() =>
         Assert.Equal(Offsets.GameProcessName, Path.GetFileNameWithoutExtension(GameInstall.ExeName));

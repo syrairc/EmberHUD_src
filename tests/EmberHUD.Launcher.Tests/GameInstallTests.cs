@@ -64,6 +64,16 @@ public class GameInstallTests
         Assert.Equal(registered.Path, GameInstall.Find("", registered.Path)!.Folder);
     }
 
+    [Fact]
+    public void FindFallsBackToTheDefaultFolders()
+    {
+        using var steamDefault = new TempDir();
+        Assert.Null(GameInstall.Find("", null, @"Z:\nope", steamDefault.Path));
+        steamDefault.File(@"UE_game\Binaries\Win64\torchlight_infinite.exe");
+        Assert.True(GameInstall.Find("", null, @"Z:\nope", steamDefault.Path)!.Steam);
+        Assert.Equal(@"C:\Program Files (x86)\Steam\steamapps\common\Torchlight Infinite", GameInstall.SteamDefaultFolder);
+    }
+
     [Theory]
     [InlineData(@"C:\Program Files (x86)\Torchlight Infinite\uninst.exe", @"C:\Program Files (x86)\Torchlight Infinite")]
     [InlineData(@"""C:\Program Files (x86)\Torchlight Infinite\uninst.exe"" /S", @"C:\Program Files (x86)\Torchlight Infinite")]

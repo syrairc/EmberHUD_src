@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Win32;
 
 namespace EmberHUD.Launcher;
 
@@ -13,6 +14,61 @@ public static class Launch
             : runAsUser.Length == 0
                 ? new ProcessStartInfo("cmd") { Arguments = "/c " + GameInner(game), UseShellExecute = false, CreateNoWindow = true }
                 : RunAs(runAsUser, "cmd /c " + GameInner(game));
+
+    public const string CompatLayersKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers";
+
+    public static string? WithRunAsInvoker(string? layers)
+    {
+        var old = (layers ?? "~").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var flags = old.Where(flag => flag != "RUNASADMIN").ToList();
+        if (!flags.Contains("RUNASINVOKER")) flags.Add("RUNASINVOKER");
+        return flags.SequenceEqual(old) ? null : string.Join(' ', flags);
+    }
+
+    public const string LauncherFlag = "~ RUNASINVOKER";
+
+    public static void RestoreElevation(GameInstall game, Action<string> log)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(CompatLayersKey, true);
+            if (key?.GetValue(game.Exe) as string != LauncherFlag) return;
+            key.DeleteValue(game.Exe);
+            log("game - removed the RunAsInvoker flag the launcher set for the Steam exe");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            log($"game - could not remove the RunAsInvoker flag ({ex.Message})");
+        }
+    }
+
+    public static bool NonElevatedApplied(GameInstall game)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(CompatLayersKey);
+            return (key?.GetValue(game.Exe) as string)?.Split(' ').Contains("RUNASINVOKER") == true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    public static void AllowNonElevated(GameInstall game, Action<string> log)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(CompatLayersKey);
+            if (WithRunAsInvoker(key.GetValue(game.Exe) as string) is not { } layers) return;
+            key.SetValue(game.Exe, layers, RegistryValueKind.String);
+            log("game - set RunAsInvoker for the Steam exe so the overlay can read it");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            log($"game - could not set RunAsInvoker for the Steam exe ({ex.Message})");
+        }
+    }
 
     public static ProcessStartInfo SavePassword(string runAsUser) => RunAs(runAsUser, "cmd /c exit");
 
@@ -52,7 +108,7 @@ public static class Launch
 
         if (!config.LaunchEmberHUD) log("EmberHUD - off");
         else if (isRunning("Ember.exe")) log("EmberHUD - already running");
-        else steps.Add(("EmberHUD", new ProcessStartInfo(Path.Combine(root, "Ember.exe")) { UseShellExecute = false, WorkingDirectory = root }));
+        else steps.Add(("EmberHUD", new ProcessStartInfo(Path.Combine(root, "Ember.exe")) { UseShellExecute = config.RunAsAdmin, Verb = config.RunAsAdmin ? "runas" : "", WorkingDirectory = root }));
 
         foreach (var program in config.Programs.Where(program => program.Enabled && program.Path.Length > 0))
         {

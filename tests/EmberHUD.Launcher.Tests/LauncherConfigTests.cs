@@ -72,6 +72,16 @@ public class LauncherConfigTests
     }
 
     [Fact]
+    public void RunAsAdminDefaultsToFalseAndRoundTrips()
+    {
+        using var temp = new TempDir();
+        Assert.False(LauncherConfig.Load(temp.File("old.json", """{ "RunAsUser": "POE" }"""), _ => { })!.RunAsAdmin);
+        var path = Path.Combine(temp.Path, "new.json");
+        new LauncherConfig { RunAsAdmin = true }.Save(path);
+        Assert.True(LauncherConfig.Load(path, _ => { })!.RunAsAdmin);
+    }
+
+    [Fact]
     public void SaveCreatesTheFolderAndRoundTrips()
     {
         using var temp = new TempDir();

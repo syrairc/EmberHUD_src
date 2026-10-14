@@ -138,4 +138,27 @@ public class LaunchTests
         temp.File("Logs", "not a folder");
         Assert.Same(TextWriter.Null, Launch.OpenLog(temp.Path, "launcher"));
     }
+
+    [Theory]
+    [InlineData(null, "~ RUNASINVOKER")]
+    [InlineData("~ HIGHDPIAWARE", "~ HIGHDPIAWARE RUNASINVOKER")]
+    [InlineData("~ RUNASINVOKER", null)]
+    [InlineData("~ HIGHDPIAWARE RUNASINVOKER", null)]
+    [InlineData("~ RUNASADMIN", "~ RUNASINVOKER")]
+    [InlineData("~ RUNASADMIN HIGHDPIAWARE", "~ HIGHDPIAWARE RUNASINVOKER")]
+    public void WithRunAsInvokerMergesTheCompatFlags(string? existing, string? expected) => Assert.Equal(expected, Launch.WithRunAsInvoker(existing));
+
+    [Fact]
+    public void RunAsAdminStartsEmberElevatedAndLeavesTheStandaloneGameAlone()
+    {
+        var admin = new LauncherConfig { RunAsAdmin = true };
+        var steam = Launch.Steps(admin, SteamGame, @"D:\dist", _ => false, _ => { });
+        Assert.Equal("runas", steam[1].Start.Verb);
+        Assert.True(steam[1].Start.UseShellExecute);
+        Assert.Equal(@"D:\dist", steam[1].Start.WorkingDirectory);
+        var standalone = Launch.Steps(admin, Game, @"D:\dist", _ => false, _ => { });
+        Assert.Equal("runas", standalone[1].Start.Verb);
+        Assert.Contains("RunAsInvoker", standalone[0].Start.Arguments);
+        Assert.NotEqual("runas", Launch.Steps(new LauncherConfig(), SteamGame, @"D:\dist", _ => false, _ => { })[1].Start.Verb);
+    }
 }
