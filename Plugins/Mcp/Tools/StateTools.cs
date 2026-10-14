@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using EmberHUD;
 
@@ -13,9 +14,6 @@ internal sealed record EntityFilter(EntityKind? Kind, Rarity? Rarity, int? CfgId
 {
     public static EntityFilter From(Args args) => new(Parse<EntityKind>(args, "kind"), Parse<Rarity>(args, "rarity"), args.OptInt("cfgId"), args.OptFloat("radius"));
 
-    public static float Distance(Player player, Entity entity) =>
-        Vector2.Distance(new Vector2(player.Position.X, player.Position.Y), new Vector2(entity.Position.X, entity.Position.Y));
-
     public IEnumerable<Entity> Apply(GameState state)
     {
         if (Radius is not null && state.Player is null) throw new ToolError("radius needs a player position and there is none yet");
@@ -23,7 +21,7 @@ internal sealed record EntityFilter(EntityKind? Kind, Rarity? Rarity, int? CfgId
             (Kind is null || entity.Kind == Kind) &&
             (Rarity is null || entity.Rarity == Rarity) &&
             (CfgId is null || entity.CfgId == CfgId) &&
-            (Radius is null || Distance(state.Player!, entity) <= Radius));
+            (Radius is null || state.Player!.FlatDistance(entity.Position) <= Radius));
     }
 
     static T? Parse<T>(Args args, string name) where T : struct, Enum
@@ -42,6 +40,8 @@ internal static class StateTools
         new("get_state", "Summary of Game.State: status, area id, player position and forward, entity counts by kind and rarity, terrain / map icon presence, minimap rotation, open game panels, camera, a map block when there is one (name, monster level, remaining enemies, XP gain, isTown, content rows with name / icon / state / done / total, leftover modifier lines), and the market trade page (page, cellsPerPage, priceIcon, first 10 listings) when open.", Schema.Of([]), _ => GetState()),
         new("get_entities", "Entities from Game.State, nearest to the player first. Filters combine: kind, rarity, cfgId, id, address (hex), radius (world units around the player). limit defaults to 100, max 1000.",
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
+        new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
+            Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
     ];
 
     internal static JsonObject Row(Entity entity, Player? player)
@@ -56,9 +56,23 @@ internal static class StateTools
             ["y"] = Num.F(entity.Position.Y),
             ["z"] = Num.F(entity.Position.Z),
         };
-        if (player is not null) row["distance"] = Num.F(EntityFilter.Distance(player, entity));
+        if (player is not null) row["distance"] = Num.F(player.FlatDistance(entity.Position));
         if (entity.Address != 0) row["address"] = Hex.Of(entity.Address);
         return row;
+    }
+
+    internal static void WriteRow(Utf8JsonWriter json, Entity entity)
+    {
+        json.WriteStartObject();
+        json.WriteNumber("id", entity.Id);
+        json.WriteNumber("cfgId", entity.CfgId);
+        json.WriteString("kind", entity.Kind.ToString());
+        json.WriteString("rarity", entity.Rarity.ToString());
+        Num.Write(json, "x", entity.Position.X);
+        Num.Write(json, "y", entity.Position.Y);
+        Num.Write(json, "z", entity.Position.Z);
+        if (entity.Address != 0) json.WriteString("address", Hex.Of(entity.Address));
+        json.WriteEndObject();
     }
 
     static JsonObject GetStatus(Status status)
@@ -143,15 +157,53 @@ internal static class StateTools
         var address = args.OptAddr("address");
         var limit = args.Int("limit", 100, 1, 1000);
         var matches = EntityFilter.From(args).Apply(state).Where(entity => (id is null || entity.Id == id) && (address is null || entity.Address == address));
-        var ordered = state.Player is { } player ? matches.OrderBy(entity => EntityFilter.Distance(player, entity)) : matches.OrderBy(entity => entity.Id);
-        var all = ordered.ToArray();
-        return new JsonObject
-        {
-            ["total"] = all.Length,
-            ["returned"] = Math.Min(limit, all.Length),
-            ["entities"] = new JsonArray(all.Take(limit).Select(entity => (JsonNode)Row(entity, state.Player)).ToArray()),
-        };
+        var ordered = state.Player is { } player ? matches.OrderBy(entity => player.FlatDistance(entity.Position)) : matches.OrderBy(entity => entity.Id);
+        return Page(ordered.ToArray(), limit, entity => Row(entity, state.Player));
     }
+
+    static JsonObject SceneEntities(Args args)
+    {
+        var cfgId = args.OptInt("cfgId");
+        var className = args.OptStr("class");
+        var radius = args.OptFloat("radius");
+        var limit = args.Int("limit", 200, 1, 1000);
+        var player = Game.State.Player;
+        var listed = Scene.Entities();
+        if (radius is not null && player is null && listed.Length > 0) throw new ToolError("radius needs a player position and there is none yet");
+
+        float? Distance(SceneEntity entity) => player is not null && entity.Position is { } at ? player.FlatDistance(at) : null;
+
+        var all = listed
+            .Where(entity => (cfgId is null || entity.CfgId == cfgId) &&
+                             (className is null || entity.Class.Contains(className, StringComparison.OrdinalIgnoreCase)) &&
+                             (radius is null || Distance(entity) <= radius))
+            .OrderBy(entity => Distance(entity) ?? float.MaxValue).ThenBy(entity => entity.Id)
+            .ToArray();
+        return Page(all, limit, entity =>
+        {
+            var at = entity.Position ?? new Vector3(float.NaN);
+            return new JsonObject
+            {
+                ["id"] = entity.Id,
+                ["cfgId"] = entity.CfgId,
+                ["kind"] = entity.Kind?.ToString(),
+                ["class"] = entity.Class,
+                ["alive"] = entity.Alive,
+                ["x"] = Num.F(at.X),
+                ["y"] = Num.F(at.Y),
+                ["z"] = Num.F(at.Z),
+                ["distance"] = Num.F(Distance(entity) ?? float.NaN),
+                ["address"] = entity.Address == 0 ? null : Hex.Of(entity.Address),
+            };
+        });
+    }
+
+    static JsonObject Page<T>(T[] rows, int limit, Func<T, JsonNode> row) => new()
+    {
+        ["total"] = rows.Length,
+        ["returned"] = Math.Min(limit, rows.Length),
+        ["entities"] = new JsonArray([.. rows.Take(limit).Select(row)]),
+    };
 
     static JsonObject Counts(IEnumerable<IGrouping<string, Entity>> groups) =>
         new(groups.OrderBy(group => group.Key).Select(group => KeyValuePair.Create(group.Key, (JsonNode?)group.Count())));

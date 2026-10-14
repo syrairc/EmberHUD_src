@@ -77,23 +77,40 @@ public sealed class Main : Plugin<Settings>
     readonly Overlay _panel = new();
     int _maxArea = -1;
     int _max;
-
-    internal int SeenMax => _max;
+    MapInfo? _laidMap;
+    int _laidMax;
+    float _laidWidth;
+    long _laidAt;
+    float _laidHeight;
+    List<Laid> _laid = [];
 
     public override void Tick() => EnemyMax(Game.State.AreaId, Game.State.Area?.Remaining);
 
-    internal int EnemyMax(int areaId, int? remaining)
+    internal void EnemyMax(int areaId, int? remaining)
     {
         if (areaId != _maxArea)
         {
             _maxArea = areaId;
             _max = 0;
         }
-        return _max = Math.Max(_max, remaining ?? 0);
+        _max = Math.Max(_max, remaining ?? 0);
     }
 
     public override void Initialize() =>
         RegisterHotkey("Toggle panel", "Shows or hides the map info panel", () => Settings.General.Show = !Settings.General.Show);
+
+    internal List<Laid> LaidFor(MapInfo map, long now)
+    {
+        var width = Settings.General.Width;
+        if (ReferenceEquals(map, _laidMap) && _max == _laidMax && width == _laidWidth && now - _laidAt < 250) return _laid;
+        _laidMap = map;
+        _laidMax = _max;
+        _laidWidth = width;
+        _laidAt = now;
+        _laid = Layout(Rows(map, Settings.Sections, _max), Settings.Look, width);
+        _laidHeight = _laid.Sum(l => l.Height);
+        return _laid;
+    }
 
     public override void Render()
     {
@@ -101,13 +118,13 @@ public sealed class Main : Plugin<Settings>
         if (Hidden(Settings, state)) return;
         var general = Settings.General;
         var look = Settings.Look;
-        var laid = Layout(Rows(state.Area!, Settings.Sections, _max), look, general.Width);
+        var laid = LaidFor(state.Area!, Environment.TickCount64);
         if (laid.Count == 0) return;
 
         _panel.Locked = general.Lock;
         _panel.MoveHeld = general.MoveKey.Key != Key.None && Input.IsDown(general.MoveKey.Key);
         var origin = new Vector2(general.X, general.Y);
-        var size = new Vector2(general.Width, laid.Sum(l => l.Height));
+        var size = new Vector2(general.Width, _laidHeight);
         var (hovered, edge, active) = _panel.Handle("mapinfo", ref origin, size, ref general.X, ref general.Y, ref general.Width, GeneralTab.MinWidth, GeneralTab.MaxWidth);
         if (hovered || active) Overlay.ClickBlocker("mapinfo", origin, size);
 

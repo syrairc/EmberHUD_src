@@ -68,7 +68,7 @@ public sealed class MainTests
         Check.That(double.IsPositiveInfinity(row.PerUnit), "per unit of qty 0");
         var settings = new Settings();
         settings.MaxPerUnit = 5;
-        Check.That(!Main.Passes(row, settings), "qty 0 never passes a per-unit filter");
+        Check.That(!Main.Passes(row.Listing, settings), "qty 0 never passes a per-unit filter");
     }
 
     [Test]
@@ -249,5 +249,26 @@ public sealed class MainTests
         TestGame.Set(GameState.Empty with { Trade = Shown(1, one) });
         main.Tick();
         Check.Equal("1:0", Keys(main.RowsFor(Game.State.Trade!, now)));
+    }
+
+    [Test]
+    public void ARowCarriesItsCellTextBuiltOnce()
+    {
+        var row = Row(3, 0, 1000, 129);
+
+        Check.Equal("3", row.PageText);
+        Check.Equal(1000L.ToString("N0"), row.QuantityText);
+        Check.Equal(129L.ToString("N0"), row.PriceText);
+        Check.Equal((129d / 1000).ToString("0.000"), row.PerUnitText);
+        Check.Equal("-", Row(3, 0, 0, 129).PerUnitText);
+    }
+
+    [Test]
+    public void StaleAndFreshCellsBothDrawAndKeepTheStyleStackBalanced()
+    {
+        var listing = Row(1, 0, 1000, 129).Listing;
+
+        Check.That(TestFrame.Vertices(() => Main.Cell(new Row(1, listing, false), "fresh"), inWindow: true) > 0, "fresh cell draws");
+        Check.That(TestFrame.Vertices(() => Main.Cell(new Row(1, listing, true), "stale"), inWindow: true) > 0, "stale cell draws");
     }
 }

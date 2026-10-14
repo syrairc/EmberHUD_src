@@ -8,9 +8,11 @@ public static class Launch
         $"set __COMPAT_LAYER=RunAsInvoker&& cd /d \"{game.Binaries}\" && start /high {GameInstall.ExeName} -SkipGameLauncher -UserDir=Torchlight{(game.Build is { } build ? $" -Version={build}" : "")}";
 
     public static ProcessStartInfo Game(GameInstall game, string runAsUser) =>
-        runAsUser.Length == 0
-            ? new ProcessStartInfo("cmd") { Arguments = "/c " + GameInner(game), UseShellExecute = false, CreateNoWindow = true }
-            : RunAs(runAsUser, "cmd /c " + GameInner(game));
+        game.Steam
+            ? new ProcessStartInfo($"steam://rungameid/{GameInstall.SteamAppId}") { UseShellExecute = true }
+            : runAsUser.Length == 0
+                ? new ProcessStartInfo("cmd") { Arguments = "/c " + GameInner(game), UseShellExecute = false, CreateNoWindow = true }
+                : RunAs(runAsUser, "cmd /c " + GameInner(game));
 
     public static ProcessStartInfo SavePassword(string runAsUser) => RunAs(runAsUser, "cmd /c exit");
 
@@ -43,7 +45,8 @@ public static class Launch
         else if (isRunning(GameInstall.ExeName)) log("game - already running");
         else
         {
-            if (game.Build is null) log("game - no CurrentBuild in live_patch_version.json, starting without -Version");
+            if (game.Steam && config.RunAsUser.Length > 0) log("game - RunAsUser is ignored for a Steam install, Steam starts it as the current user");
+            else if (!game.Steam && game.Build is null) log("game - no CurrentBuild in live_patch_version.json, starting without -Version");
             steps.Add(("game", Game(game, config.RunAsUser)));
         }
 

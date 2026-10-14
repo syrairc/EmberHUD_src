@@ -24,14 +24,9 @@ internal static class UeTools
         new("ue_name", "Resolve an FName index through FNamePool.", Schema.Of(["index"], ("index", "integer", "FName index")), Name),
     ];
 
-    static void RequireAttached()
-    {
-        if (!Memory.Attached) throw new ToolError("memory is not attached - run EmberHUD live with the game open");
-    }
-
     static JsonObject Find(Args args)
     {
-        RequireAttached();
+        Live.Require();
         var className = args.OptStr("class");
         var name = args.OptStr("name");
         var includeDefaults = args.Bool("includeDefaults", false);
@@ -71,7 +66,7 @@ internal static class UeTools
 
     static JsonObject Class(Args args)
     {
-        RequireAttached();
+        Live.Require();
         var text = args.Str("class");
         var info = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? Ue.Struct(args.Addr("class")) : ByName(text);
         if (info is null) throw new ToolError($"class {text} not found");
@@ -87,8 +82,16 @@ internal static class UeTools
         };
     }
 
-    static UStructInfo? ByName(string name) =>
-        Ue.Objects().Where(obj => obj.Name == name && (obj.IsA("Class") || obj.Class?.Name == "ScriptStruct")).Select(obj => Ue.Struct(obj.Address)).FirstOrDefault(info => info is not null);
+    static UStructInfo? ByName(string name)
+    {
+        var clock = Stopwatch.StartNew();
+        foreach (var obj in Ue.Objects())
+        {
+            if (clock.ElapsedMilliseconds > ScanBudgetMs) throw new ToolError($"class {name} not found within the {ScanBudgetMs} ms scan budget - pass its address");
+            if (obj.Name == name && (obj.IsA("Class") || obj.Class?.Name == "ScriptStruct") && Ue.Struct(obj.Address) is { } info) return info;
+        }
+        return null;
+    }
 
     static JsonObject Prop(UProp prop)
     {
@@ -101,7 +104,7 @@ internal static class UeTools
 
     static JsonObject Object(Args args)
     {
-        RequireAttached();
+        Live.Require();
         var at = args.Addr("address");
         var depth = args.Int("depth", 1, 1, 4);
         if (!Ue.TryObject(at, out var obj)) throw new ToolError($"{Hex.Of(at)} is not a UObject");
@@ -110,7 +113,7 @@ internal static class UeTools
 
     static JsonObject Name(Args args)
     {
-        RequireAttached();
+        Live.Require();
         var index = args.RequiredInt("index", 0, int.MaxValue);
         return new JsonObject { ["index"] = index, ["name"] = Ue.Name(index) ?? throw new ToolError($"no name at index {index}") };
     }

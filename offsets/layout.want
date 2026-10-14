@@ -1,16 +1,10 @@
-KnownExeSize = 123144120
 GameProcessName = "torchlight_infinite"
 TargetWindowClass = "UnrealWindow"
 TargetWindowTitle = "Torchlight: Infinite"
-LogicWorldGlobalRva = 0x69331B8
 WorldScene = 16
 
-FightMgrGlobalRva = 0x6931AD8
-PlayerMgrGlobalRva = 0x6933AA0
 PlayerMgrEntity = 0x58
-MiniMapMgrGlobalRva = 0x6933A78
 MiniMapMgrWidget = 0x30
-GObjectsGlobalRva = 0x7FD5D28
 GObjectsPerChunk = 65536
 GObjectsItemSize = 24
 GObjectsItemSerial = 16
@@ -46,11 +40,7 @@ TMapElementValue = 8
 MonsterRecord = 0x320
 MonsterRecordCfgId = 0x120
 
-MonsterCfgBucketsRva = 0x76FEBD0
-MonsterCfgBucketCountRva = 0x76FEBDC
 MonsterCfgRarity = 0x1C
-MapIconInfoBucketsRva = 0x6E25AB0
-MapIconInfoBucketCountRva = 0x6E25ABC
 MapIconInfoEnum = 0x10
 ConfigStringData = 0
 ConfigStringLength = 8
@@ -100,7 +90,6 @@ MaxEntities = 4096
 MaxTornReuseTicks = 3
 MaxMapElements = 20000
 
-FNamePoolRva = 0x7FBCC80
 FNameBlocks = 0x10
 FNameBlockSize = 65536
 FNameEntryStride = 2
@@ -181,9 +170,6 @@ VarNodeNext = 40
 VarNodeSize = 48
 MaxVarBuckets = 4096
 MaxVarNameLength = 256
-LanguageRva = 0x766E6EA
-LanguageBucketsRva = 0x76AE9D0
-LanguageBucketCountRva = 0x76AE9DC
 LanguageNodeMap = 8
 LanguageNodeNext = 32
 LocNodeKey = 0
@@ -280,7 +266,6 @@ PovRotation = 0x1C
 PovFov = 0x28
 CameraPovSize = 44
 
-GEngineGlobalRva = 0x811CCB0
 EngineGameViewport = 0x8C8
 ViewportOverlay = 0x108
 WeakPtrController = 8
@@ -327,7 +312,6 @@ TradePriceTexture = "UI_Item_chuhuoyuanzhiV3_Icon_128"
 MaxTradeCells = 512
 TradeRefreshMilliseconds = 250
 
-WoodStakeMgrGlobalRva = 0x69343B8
 WoodStakeRunning = 40
 WoodStakeStatistic = 240
 WoodStakeStatSeconds = 0
@@ -344,3 +328,37 @@ MaxWoodStakeSeconds = 86400
 
 UeClassClassName = "Class"
 GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"
+
+[build 123144120]
+LogicWorldGlobalRva = 0x69331B8
+FightMgrGlobalRva = 0x6931AD8
+PlayerMgrGlobalRva = 0x6933AA0
+MiniMapMgrGlobalRva = 0x6933A78
+WoodStakeMgrGlobalRva = 0x69343B8
+GObjectsGlobalRva = 0x7FD5D28
+FNamePoolRva = 0x7FBCC80
+GEngineGlobalRva = 0x811CCB0
+MonsterCfgBucketsRva = 0x76FEBD0
+MonsterCfgBucketCountRva = 0x76FEBDC
+LanguageRva = 0x766E6EA
+LanguageBucketsRva = 0x76AE9D0
+LanguageBucketCountRva = 0x76AE9DC
+MapIconInfoBucketsRva = 0x6E25AB0
+MapIconInfoBucketCountRva = 0x6E25ABC
+
+[build 124465080]
+LogicWorldGlobalRva = 0x6A5F388
+FightMgrGlobalRva = 0x6A5DCA8
+PlayerMgrGlobalRva = 0x6A5FC70
+MiniMapMgrGlobalRva = 0x6A5FC48
+WoodStakeMgrGlobalRva = 0x6A60588
+GObjectsGlobalRva = 0x8101AE8
+FNamePoolRva = 0x80E8E40
+GEngineGlobalRva = 0x8248A90
+MonsterCfgBucketsRva = 0x782ADA0
+MonsterCfgBucketCountRva = 0x782ADAC
+LanguageRva = 0x779A8BA
+LanguageBucketsRva = 0x77DABA0
+LanguageBucketCountRva = 0x77DABAC
+MapIconInfoBucketsRva = 0x6F51C80
+MapIconInfoBucketCountRva = 0x6F51C8C

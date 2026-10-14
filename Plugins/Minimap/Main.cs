@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
+using System.Threading;
 using Hexa.NET.ImGui;
 using EmberHUD;
 
@@ -17,6 +18,7 @@ public sealed class Main : Plugin<Settings>
     string _regionKey = "";
     long _regionAt;
     byte[]? _spare;
+    int _warnedArea = -1;
     Vector2[] _screen = [];
     readonly HashSet<int> _overridden = [];
     readonly HashSet<int> _iconEntities = [];
@@ -47,7 +49,7 @@ public sealed class Main : Plugin<Settings>
         {
             var area = state.AreaId;
             var terrain = state.Terrain;
-            WallJob.Start(() => Walls.Build(area, terrain));
+            WallJob.Start(() => Guarded(area, "walls", () => Walls.Build(area, terrain), () => Walls.Empty with { AreaId = area, Source = terrain }));
         }
         if (view.Show && !WallsStyle) UpdateRegion(state);
 
@@ -66,17 +68,32 @@ public sealed class Main : Plugin<Settings>
         var region = Settings.Map.Region;
         var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
         var now = Clock();
-        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill, region.ExploredFill))) return;
+        var current = _region.Matches(state.AreaId, terrain);
+        var builtRecently = now - _regionAt < 1000;
+        if (current && (builtRecently || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill, region.ExploredFill))) return;
 
         _regionAt = now;
         var area = state.AreaId;
         var trail = state.Explored;
         var regionFill = region.Fill;
         var exploredFill = region.ExploredFill;
-        var previous = _region.Matches(area, terrain) ? _region : null;
+        var previous = current ? _region : null;
         var reuse = _spare;
         _spare = null;
-        RegionJob.Start(() => Region.Build(area, terrain, trail, player, regionFill, exploredFill, previous, reuse));
+        RegionJob.Start(() => Guarded(area, "region", () => Region.Build(area, terrain, trail, player, regionFill, exploredFill, previous, reuse), () => Region.Blank(area, terrain, trail, player, regionFill, exploredFill)));
+    }
+
+    T Guarded<T>(int area, string what, Func<T> build, Func<T> fallback)
+    {
+        try
+        {
+            return build();
+        }
+        catch (Exception error)
+        {
+            if (Interlocked.Exchange(ref _warnedArea, area) != area) Log.Warn($"Minimap {what} build failed - {error.Message}");
+            return fallback();
+        }
     }
 
     void Show(Region built)
@@ -113,7 +130,7 @@ public sealed class Main : Plugin<Settings>
 
         using (Draw.Layer(DrawLayer.Back))
         {
-            if (WallsStyle) DrawWalls(map, viewport);
+            if (WallsStyle) DrawOutline(_walls.RegionOutline, map, viewport, Settings.Map.Walls.Colour, Settings.Map.Walls.Thickness);
             else DrawRegion(map, state, viewport);
         }
 
@@ -136,19 +153,7 @@ public sealed class Main : Plugin<Settings>
 
         foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport, zoomScale);
 
-        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(Map.Project(new Vector3(player.Forward, 0))), viewport, zoomScale);
-    }
-
-    void DrawWalls(MapView map, Vector2 viewport)
-    {
-        var colour = Settings.Map.Walls.Colour;
-        var thickness = Settings.Map.Walls.Thickness;
-        for (var i = 0; i + 1 < _walls.Lines.Length; i += 2)
-        {
-            var a = map.ToScreen(_walls.Lines[i]);
-            var b = map.ToScreen(_walls.Lines[i + 1]);
-            if (Visible(a, b, viewport)) Draw.Line(a, b, colour, thickness);
-        }
+        if (state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(player.Forward), viewport, zoomScale);
     }
 
     void DrawRegion(MapView map, GameState state, Vector2 viewport)
@@ -216,7 +221,7 @@ public sealed class Main : Plugin<Settings>
     void DrawIcon(MapIcon icon, MapView map, Vector2 viewport, float zoomScale)
     {
         if (icon.EntityId != 0 && _overridden.Contains(icon.EntityId)) return;
-        var at = map.ToScreen(new Vector3(icon.Position, 0));
+        var at = map.ToScreen(icon.Position);
         if (!Visible(at, at, viewport)) return;
         var icons = Settings.Icons;
         var row = icons.FoundFor(icon.Texture);
@@ -226,11 +231,10 @@ public sealed class Main : Plugin<Settings>
         var colour = row?.Colour ?? Color.White;
         if (name.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal))
         {
-            var defaultIcon = name.Length == Draw.GameIconPrefix.Length + icon.Texture.Length && name.EndsWith(icon.Texture, StringComparison.Ordinal);
-            if (icons.UseGameIcons && Draw.TryGameIcon(defaultIcon ? icon.Texture : name[Draw.GameIconPrefix.Length..], out var sprite)) Draw.Image(sprite, at - new Vector2(size / 2), at + new Vector2(size / 2), colour);
-            else Draw.Marker(at, size / 4, colour, Settings.FallbackShape(icon.Type));
+            if (icons.UseGameIcons && Draw.TryGameIcon(name.AsSpan(Draw.GameIconPrefix.Length), out var sprite)) Draw.Image(sprite, at - new Vector2(size / 2), at + new Vector2(size / 2), colour);
+            else Draw.Marker(at, size / 4, colour, FallbackShape(icon.Type));
         }
-        else if (name.Length == 0) Draw.Marker(at, size / 4, Color.FromArgb(0xF9, 0xDD, 0x75), Settings.FallbackShape(icon.Type));
+        else if (name.Length == 0) Draw.Marker(at, size / 4, GameColors.MinimapMarker, FallbackShape(icon.Type));
         else Draw.Icon(name, at, size / 2, colour);
     }
 
@@ -249,6 +253,17 @@ public sealed class Main : Plugin<Settings>
         if (Settings.Icons.UseGameIcons && Draw.TryGameIcon("UI_MiniMap_Player1", out var sprite)) Draw.ImageRotated(sprite, at, new Vector2(GameIconSize * Settings.Icons.GameIconScale * zoomScale), new Vector2(forward.Y, -forward.X), Color.White);
         else Draw.TriangleFilled(arrow.Tip, arrow.Left, arrow.Right, colour);
     }
+
+    internal static MarkerShape FallbackShape(int type) => type switch
+    {
+        2 or (>= 1040 and <= 1060) => MarkerShape.Star,
+        10 or 11 or 12 or 14 or 32 or 33 or 1000 or 1022 => MarkerShape.Diamond,
+        7 or 8 or 9 or 1010 or 2001 or 2002 => MarkerShape.Hexagon,
+        3 or 1006 or 1007 or 1009 or 1011 => MarkerShape.Square,
+        (>= 15 and <= 24) or 29 => MarkerShape.Triangle,
+        1003 or 1008 or 1023 or 1024 => MarkerShape.Sparkle,
+        _ => MarkerShape.Dot,
+    };
 
     internal static bool Visible(Vector2 a, Vector2 b, Vector2 viewport) =>
         float.IsFinite(a.X) && float.IsFinite(a.Y) && float.IsFinite(b.X) && float.IsFinite(b.Y)

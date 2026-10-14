@@ -26,7 +26,7 @@ public sealed class ObjectIndexTests
         var (index, actor, pawn, monster) = World();
 
         Check.Equal(4, index.Node(actor)!.Total);
-        Check.Equal(1, index.Node(actor)!.Own);
+        Check.Equal($"Actor  4###class{actor}", index.Node(actor)!.Label);
         Check.Equal(3, index.Node(pawn)!.Total);
         Check.Equal(2, index.Node(monster)!.Total);
         Check.Equal(monster, index.Children(pawn).Single());
@@ -65,40 +65,5 @@ public sealed class ObjectIndexTests
 
         Check.Equal(0, ObjectIndex.Scan().Rows.Length);
         Check.Equal(0, ObjectIndex.Empty.Roots.Count);
-    }
-
-    [Test]
-    public void HistoryWalksBackAndForwardAndDropsTheForwardTailOnPush()
-    {
-        var history = new History();
-        history.Push(1);
-        history.Push(2);
-        history.Push(3);
-        history.Push(3);
-
-        Check.Equal((nint)3, history.Current);
-        Check.Equal((nint)2, history.Back());
-        Check.That(history.CanForward, "can go forward");
-        history.Push(9);
-        Check.That(!history.CanForward, "forward tail dropped");
-        Check.Equal((nint)2, history.Back());
-        Check.Equal((nint)1, history.Back());
-        Check.That(!history.CanBack, "at the start");
-        Check.Equal((nint)1, history.Back());
-    }
-
-    [Test]
-    public void HistoryIsCapped()
-    {
-        var history = new History();
-        for (var i = 1; i <= 500; i++) history.Push(i);
-
-        var steps = 0;
-        while (history.CanBack)
-        {
-            history.Back();
-            steps++;
-        }
-        Check.That(steps < 250, $"history kept {steps} entries");
     }
 }

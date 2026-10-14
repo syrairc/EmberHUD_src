@@ -12,31 +12,47 @@ namespace Inspector;
 
 internal sealed record Section(string Name, Func<GameState, object?> Root);
 
+internal sealed record MemberSet(Type Type, string Filter, float FontSize, Member[] Members, float NameWidth);
+
 internal sealed class Row(object item)
 {
+    Dictionary<string, object?>? _values;
+    Dictionary<string, string>? _formatted;
     string? _text;
-    Dictionary<string, IComparable?>? _keys;
     Vector3? _distFrom;
     float? _dist;
+    string _distText = "null";
 
     public object Item => item;
 
-    public IComparable? Key(Type owner, Member member)
+    public object? Value(Type owner, Member member)
     {
-        _keys ??= [];
-        if (!_keys.TryGetValue(member.Name, out var key)) _keys[member.Name] = key = Walker.Read(owner, member, item) as IComparable;
-        return key;
+        _values ??= [];
+        if (!_values.TryGetValue(member.Name, out var value)) _values[member.Name] = value = Walker.Read(owner, member, item);
+        return value;
     }
 
-    public float? Dist(Vector3 from)
+    public IComparable? Key(Type owner, Member member) => Value(owner, member) as IComparable;
+
+    public string Formatted(Type owner, Member member)
     {
-        if (_distFrom != from)
+        _formatted ??= [];
+        if (!_formatted.TryGetValue(member.Name, out var text)) _formatted[member.Name] = text = Walker.Format(Value(owner, member));
+        return text;
+    }
+
+    public float? Dist(Player from)
+    {
+        if (_distFrom != from.Position)
         {
-            _dist = Walker.Distance(item, from);
-            _distFrom = from;
+            _dist = Walker.Position(item) is { } position ? from.FlatDistance(position) : null;
+            _distText = _dist is { } distance ? Walker.Format(distance) : "null";
+            _distFrom = from.Position;
         }
         return _dist;
     }
+
+    public string DistText => _distText;
 
     public string Text => _text ??= BuildText();
 
@@ -44,11 +60,11 @@ internal sealed class Row(object item)
     {
         var type = item.GetType();
         if (Walker.IsFlat(type)) return Walker.Format(item);
-        return string.Join(' ', Walker.Members(type).Where(m => Walker.IsScalar(m.Type)).Select(m => Walker.Format(Walker.Read(type, m, item))));
+        return string.Join(' ', Walker.Members(type).Where(m => Walker.IsScalar(m.Type)).Select(m => Formatted(type, m)));
     }
 }
 
-internal sealed class ApiTree
+internal sealed class ApiTree(Action<object> pin)
 {
     const int MaxDepth = 8;
     const int MaxRows = 20000;
@@ -67,16 +83,16 @@ internal sealed class ApiTree
     ];
 
     readonly Dictionary<uint, string> _filters = [];
-    readonly Dictionary<uint, (object Source, Row[] Rows)> _rows = [];
+    sealed record RowSet(object Source, Row[] Rows);
+
+    readonly ViewCache<RowSet> _rowSets = new();
     readonly Dictionary<Type, TableColumn<Row>[]> _columns = [];
     Section? _current;
-    Vector3? _origin;
+    readonly ViewCache<MemberSet> _memberSets = new();
+    Player? _player;
 
-    public bool OpenAll;
     public object? Selected;
     public object? Hover;
-    public bool ShowsPositions;
-    public object? PinRequest;
 
     public void BeginFrame() => Hover = null;
 
@@ -89,8 +105,7 @@ internal sealed class ApiTree
             if (_current is not null) Selected = null;
             _current = section;
         }
-        _origin = state.Player?.Position;
-        ShowsPositions = false;
+        _player = state.Player;
         Node(section.Name, section.Root(state), 0);
     }
 
@@ -104,8 +119,9 @@ internal sealed class ApiTree
     public void Clear()
     {
         _filters.Clear();
-        _rows.Clear();
+        _rowSets.Clear();
         _columns.Clear();
+        _memberSets.Clear();
         Selected = null;
         Hover = null;
     }
@@ -115,7 +131,7 @@ internal sealed class ApiTree
         if (depth > MaxDepth)
             ImGui.TextDisabled("...");
         else if (value is null || value is Failed || Walker.IsScalar(value.GetType()))
-            Scalar(value);
+            Scalar(value, Walker.Format(value));
         else if (value is IEnumerable big && Walker.Count(big) > MaxRows)
             ImGui.TextDisabled(Text.EscPct($"{Walker.Format(big)} - too many rows to list"));
         else if (value is IEnumerable items)
@@ -124,7 +140,7 @@ internal sealed class ApiTree
             Grid(id, value.GetType(), value, depth);
     }
 
-    static void Scalar(object? value)
+    static void Scalar(object? value, string text)
     {
         if (value is null)
         {
@@ -134,7 +150,7 @@ internal sealed class ApiTree
         if (value is Failed)
         {
             ImGui.PushStyleColor(ImGuiCol.Text, ErrorText);
-            ImGui.TextUnformatted(Walker.Format(value));
+            ImGui.TextUnformatted(text);
             ImGui.PopStyleColor();
             return;
         }
@@ -143,15 +159,32 @@ internal sealed class ApiTree
             ImGui.ColorButton("##swatch", EColor.ToVector4(color), ImGuiColorEditFlags.NoTooltip, new Vector2(12, 12));
             ImGui.SameLine();
         }
-        ImGui.TextUnformatted(Walker.Format(value));
+        ImGui.TextUnformatted(text);
     }
 
-    static void Cell(object? value)
+    static void Cell(object? value, string text)
     {
-        Scalar(value);
+        Scalar(value, text);
         if (!ImGui.BeginPopupContextItem("cell")) return;
-        if (ImGui.MenuItem("Copy value")) ImGui.SetClipboardText(Walker.Format(value));
+        if (ImGui.MenuItem("Copy value")) ImGui.SetClipboardText(text);
         ImGui.EndPopup();
+    }
+
+    void DistCell(Row row)
+    {
+        if (_player is { } player) Cell(row.Dist(player), row.DistText);
+        else Cell(null, "null");
+    }
+
+    internal MemberSet MembersFor(Type type, string filter)
+    {
+        var id = ImGui.GetID("members");
+        var fontSize = ImGui.GetFontSize();
+        if (_memberSets.Get(id) is { } cached && cached.Type == type && cached.Filter == filter && cached.FontSize == fontSize) return cached;
+        var members = Walker.Members(type).Where(m => Text.Matches(filter, m.Name)).ToArray();
+        var set = new MemberSet(type, filter, fontSize, members, members.Length == 0 ? 0f : members.Max(m => ImGui.CalcTextSize(m.Name).X) + 16f);
+        _memberSets.Set(id, set);
+        return set;
     }
 
     void Grid(string id, Type type, object value, int depth)
@@ -159,26 +192,23 @@ internal sealed class ApiTree
         ImGui.PushID(id);
         var key = ImGui.GetID("filter");
         var filter = _filters.GetValueOrDefault(key, "");
-        ImGui.SetNextItemWidth(-1f);
-        ImGui.InputTextWithHint("##filter", "Filter members...", ref filter, 64);
+        Controls.Filter(ref filter, "Filter members...");
         _filters[key] = filter;
 
-        var members = Walker.Members(type).Where(m => Text.Matches(filter, m.Name)).ToArray();
+        var set = MembersFor(type, filter);
         var start = ImGui.GetCursorPosX();
-        var nameWidth = members.Length == 0 ? 0f : members.Max(m => ImGui.CalcTextSize(m.Name).X) + 16f;
-        foreach (var member in members)
+        foreach (var member in set.Members)
         {
             ImGui.PushID(member.Name);
             var memberValue = Walker.Read(type, member, value);
             if (memberValue is null || memberValue is Failed || Walker.IsScalar(memberValue.GetType()))
             {
                 ImGui.TextDisabled(member.Name);
-                ImGui.SameLine(start + nameWidth);
-                Scalar(memberValue);
+                ImGui.SameLine(start + set.NameWidth);
+                Scalar(memberValue, Walker.Format(memberValue));
             }
             else
             {
-                if (OpenAll) ImGui.SetNextItemOpen(true);
                 var label = memberValue is IEnumerable sequence && Walker.Count(sequence) is { } count ? $"{member.Name} ({count})" : member.Name;
                 if (ImGui.TreeNode($"{label}###tree"))
                 {
@@ -195,9 +225,13 @@ internal sealed class ApiTree
     {
         var key = ImGui.GetID(id);
         var rows = RowsFor(key, items);
+        if (rows.Length > MaxRows)
+        {
+            ImGui.TextDisabled($"more than {MaxRows} rows - not listed");
+            return;
+        }
         var type = Walker.ElementType(items.GetType());
         if (type == typeof(object) && rows.Length > 0) type = rows[0].Item.GetType();
-        if (Walker.HasPosition(type)) ShowsPositions = true;
 
         ImGui.TextDisabled($"{rows.Length} rows");
         var filter = _filters.GetValueOrDefault(key, "");
@@ -207,9 +241,9 @@ internal sealed class ApiTree
 
     Row[] RowsFor(uint key, IEnumerable items)
     {
-        if (_rows.TryGetValue(key, out var cached) && ReferenceEquals(cached.Source, items)) return cached.Rows;
-        var rows = items.Cast<object>().Select(item => new Row(item)).ToArray();
-        _rows[key] = (items, rows);
+        if (_rowSets.Get(key) is { } cached && ReferenceEquals(cached.Source, items)) return cached.Rows;
+        var rows = items.Cast<object>().Take(MaxRows + 1).Select(item => new Row(item)).ToArray();
+        _rowSets.Set(key, new RowSet(items, rows));
         return rows;
     }
 
@@ -218,7 +252,7 @@ internal sealed class ApiTree
         if (_columns.TryGetValue(type, out var cached)) return cached;
         List<TableColumn<Row>> columns = [new TableColumn<Row> { Header = "#", Width = 44f, Draw = SelectCell }];
         if (Walker.IsFlat(type))
-            columns.Add(new TableColumn<Row> { Header = "Value", Draw = (row, _) => Cell(row.Item) });
+            columns.Add(new TableColumn<Row> { Header = "Value", Draw = (row, _) => Cell(row.Item, row.Text) });
         else
         {
             foreach (var member in Walker.Members(type))
@@ -226,15 +260,15 @@ internal sealed class ApiTree
                 {
                     Header = member.Name,
                     SortKey = typeof(IComparable).IsAssignableFrom(member.Type) ? row => row.Key(type, member) : null,
-                    Draw = (row, _) => Cell(Walker.Read(type, member, row.Item))
+                    Draw = (row, _) => Cell(row.Value(type, member), row.Formatted(type, member))
                 });
             if (Walker.HasPosition(type))
                 columns.Add(new TableColumn<Row>
                 {
                     Header = "Dist",
                     Width = 56f,
-                    SortKey = row => _origin is { } origin ? row.Dist(origin) : null,
-                    Draw = (row, _) => Cell(_origin is { } origin ? row.Dist(origin) : null)
+                    SortKey = row => _player is { } player ? row.Dist(player) : null,
+                    Draw = (row, _) => DistCell(row)
                 });
         }
         return _columns[type] = [.. columns];
@@ -248,7 +282,7 @@ internal sealed class ApiTree
         if (ImGui.IsItemHovered()) Hover = row.Item;
         if (!ImGui.BeginPopupContextItem("row")) return;
         if (ImGui.MenuItem("Copy row")) ImGui.SetClipboardText(Walker.Json(row.Item));
-        if (ImGui.MenuItem("Pin")) PinRequest = row.Item;
+        if (ImGui.MenuItem("Pin")) pin(row.Item);
         ImGui.EndPopup();
     }
 }

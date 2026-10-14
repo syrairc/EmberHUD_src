@@ -4,28 +4,18 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Net.Sockets;
 using System.Numerics;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Threading;
 using EmberHUD;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
 public sealed class MainTests
 {
-    static int FreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
-
-    static string Temp() => Path.Combine(Path.GetTempPath(), "mcp-test-" + Guid.NewGuid().ToString("N"));
-
     static void Clean(string directory)
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, true);
@@ -70,15 +60,42 @@ public sealed class MainTests
         using var client = new HttpClient();
         var request = new HttpRequestMessage(HttpMethod.Post, main.Server!.Url) { Content = new StringContent(Wire.Body("tools/list"), Encoding.UTF8, "application/json") };
         request.Headers.Add("X-Bridge-Token", token);
-        request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
+        request.Headers.Add("MCP-Protocol-Version", Rpc.Modern);
         request.Headers.Add("Mcp-Method", "tools/list");
         return client.Send(request).StatusCode;
     }
 
     [Test]
+    public void ARecordingKeepsWritingWithoutTicks()
+    {
+        var directory = TempPath();
+        var main = Plugin(directory);
+        main.Settings.Serve = true;
+        try
+        {
+            TestGame.Set(new GameState { Status = "playing", AreaId = 3, Player = new Player(Vector3.Zero, Vector2.UnitX), Entities = [Mob(1, 5, 1)] });
+            main.Tick();
+            main.Recorder.Start("loop", new EntityFilter(null, null, null, null));
+            for (var waited = 0; main.Recorder.Frames < 2 && waited < 3000; waited += 20) Thread.Sleep(20);
+            Check.That(main.Recorder.Frames >= 2, "the record loop samples on its own task");
+            main.Settings.Serve = false;
+            main.Tick();
+            Check.That(!main.Recorder.Active, "serve off closes the recording");
+            var frames = main.Recorder.Frames;
+            Thread.Sleep(300);
+            Check.Equal(frames, main.Recorder.Frames);
+        }
+        finally
+        {
+            main.Dispose();
+            Clean(directory);
+        }
+    }
+
+    [Test]
     public void ServesOnlyWhileToggledOn()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory);
         try
         {
@@ -104,7 +121,7 @@ public sealed class MainTests
     [Test]
     public void ReloadFreesThePort()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var first = Plugin(directory);
         var second = Plugin(directory);
         try
@@ -129,7 +146,7 @@ public sealed class MainTests
     [Test]
     public void AFailedStartIsNotRetriedEveryTick()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory);
         main.Settings.Serve = true;
         var blockers = BlockTwenty(main);
@@ -158,7 +175,7 @@ public sealed class MainTests
     public void StatusTracksWhenTheStateLastChanged()
     {
         var clock = new long[] { 1000 };
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory, clock);
         try
         {
@@ -182,7 +199,7 @@ public sealed class MainTests
     public void AFreshStateRecordWithTheSameContentDoesNotResetTheTimer()
     {
         var clock = new long[] { 1000 };
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory, clock);
         try
         {
@@ -211,7 +228,7 @@ public sealed class MainTests
     [Test]
     public void TurningServeOffStopsWatchesAndTheRecording()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory);
         main.Settings.Serve = true;
         try
@@ -238,7 +255,7 @@ public sealed class MainTests
     [Test]
     public void DotAndSettingsPageDrawInEveryState()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory);
         try
         {
@@ -274,7 +291,7 @@ public sealed class MainTests
     [Test]
     public void EveryRegisteredToolIsListedWithAValidName()
     {
-        var directory = Temp();
+        var directory = TempPath();
         var main = Plugin(directory);
         main.Settings.Serve = true;
         try
@@ -284,7 +301,7 @@ public sealed class MainTests
             using var client = new HttpClient();
             var request = new HttpRequestMessage(HttpMethod.Post, main.Server!.Url) { Content = new StringContent(Wire.Body("tools/list"), Encoding.UTF8, "application/json") };
             request.Headers.Add("X-Bridge-Token", token);
-            request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
+            request.Headers.Add("MCP-Protocol-Version", Rpc.Modern);
             request.Headers.Add("Mcp-Method", "tools/list");
             var tools = ((JsonObject)JsonNode.Parse(client.Send(request).Content.ReadAsStringAsync().GetAwaiter().GetResult())!)["result"]!["tools"]!.AsArray();
             Check.Equal(24, tools.Count);

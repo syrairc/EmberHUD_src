@@ -8,15 +8,26 @@ namespace Minimap;
 public sealed class WallsTests
 {
     [Test]
-    public void ALoneCellProjectsItsFourEdgesIntoMapSpaceWithTheirBounds()
+    public void ALoneCellProjectsItsOutlineIntoMapSpaceWithItsBounds()
     {
         var walls = Walls.Build(1, Scene.OneCell());
 
-        Check.Equal(8, walls.Lines.Length);
-        Check.That(walls.Lines.Contains(new Vector2(10, 10)));
-        Check.That(walls.Lines.Contains(new Vector2(20, 20)));
+        var loop = walls.RegionOutline.Single();
+        Check.That(loop.Closed, "closed");
+        Check.Equal(4, loop.Points.Length);
+        Check.That(loop.Points.Contains(new Vector2(10, 10)));
+        Check.That(loop.Points.Contains(new Vector2(20, 20)));
         Check.Equal(new Vector2(10, 10), walls.Min);
         Check.Equal(new Vector2(20, 20), walls.Max);
+    }
+
+    [Test]
+    public void AnLShapeKeepsItsBounds()
+    {
+        var walls = Walls.Build(1, Scene.Cells(4, 3, (1, 1), (2, 1), (1, 2)));
+
+        Check.Equal(new Vector2(10, 10), walls.Min);
+        Check.Equal(new Vector2(30, 30), walls.Max);
     }
 
     [Test]
@@ -25,7 +36,6 @@ public sealed class WallsTests
         var walls = Walls.Build(3, null);
 
         Check.Equal(3, walls.AreaId);
-        Check.Equal(0, walls.Lines.Length);
         Check.Equal(Vector2.Zero, walls.Min);
         Check.Equal(Vector2.Zero, walls.Max);
         Check.Equal(0, walls.RegionOutline.Length);
@@ -39,7 +49,7 @@ public sealed class WallsTests
 
         var walls = Walls.Build(1, new Terrain(1, 1, float.NaN, Vector2.Zero, bits));
 
-        Check.Equal(0, walls.Lines.Length);
+        Check.Equal(0, walls.RegionOutline.Length);
     }
 
     [Test]

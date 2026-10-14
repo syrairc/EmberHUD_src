@@ -3,8 +3,11 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
 using EmberHUD;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
@@ -12,7 +15,7 @@ public sealed class RecordTests
 {
     sealed class Rig : IDisposable
     {
-        public readonly string Directory = Path.Combine(Path.GetTempPath(), "mcp-test-" + Guid.NewGuid().ToString("N"));
+        public readonly string Directory = TempPath();
         public readonly long[] Clock = [0];
         public readonly Recorder Recorder;
         public readonly Recordings Recordings;
@@ -33,8 +36,6 @@ public sealed class RecordTests
     }
 
     static GameState State(float playerX, params Entity[] entities) => new() { Status = "playing", AreaId = 7, Player = new Player(new Vector3(playerX, 0, 0), Vector2.UnitX), Entities = entities };
-
-    static Entity Mob(int id, int cfgId, float x, EntityKind kind = EntityKind.Monster) => new(id, cfgId, new Vector3(x, 0, 0), kind, Rarity.Normal);
 
     static string Start(Rig rig, string label = "run", JsonObject? filter = null)
     {
@@ -123,6 +124,78 @@ public sealed class RecordTests
     }
 
     [Test]
+    public void RecordedRowsAreTheSameJsonAsTheGetEntitiesRows()
+    {
+        using var rig = new Rig();
+        var file = Start(rig);
+        Entity[] entities = [Mob(1, 5, 1.234f, address: 0x1F2E), Mob(2, 6, float.NaN, EntityKind.Portal, Rarity.Rare), Mob(3, 7, -40.005f, EntityKind.Npc)];
+        Frame(rig, 0, State(0, entities));
+        Wire.Run(rig.Tools, "record_stop");
+        var line = File.ReadAllLines(Path.Combine(rig.Directory, file))[0];
+        foreach (var entity in entities)
+        {
+            var row = StateTools.Row(entity, null).ToJsonString();
+            Check.That(line.Contains(row), row);
+        }
+    }
+
+    [Test]
+    public void TheStatusFlagsNeverWaitOnTheWriteLock()
+    {
+        using var rig = new Rig();
+        Start(rig);
+        Frame(rig, 0, State(0));
+        lock (rig.Recorder.Gate)
+        {
+            var read = Task.Run(() => (rig.Recorder.Active, rig.Recorder.Frames, rig.Recorder.CurrentFile));
+            Check.That(read.Wait(2000), "Active, Frames and CurrentFile do not wait for the recorder lock");
+            Check.That(read.Result.Active && read.Result.Frames == 1 && read.Result.CurrentFile is not null, "the values are live");
+        }
+    }
+
+    [Test]
+    public void FollowWritesFramesOffTheCallingThreadUntilCancelled()
+    {
+        var directory = TempPath();
+        var recorder = new Recorder(directory, () => Environment.TickCount64);
+        try
+        {
+            recorder.Start("follow", new EntityFilter(null, null, null, null));
+            using var stop = new CancellationTokenSource();
+            var running = Task.Run(() => recorder.Follow(() => State(1, Mob(1, 5, 1)), () => 30, stop.Token));
+            for (var waited = 0; recorder.Frames < 3 && waited < 3000; waited += 10) Thread.Sleep(10);
+            Check.That(recorder.Frames >= 3, "frames arrive without anyone calling Sample");
+            stop.Cancel();
+            Check.That(running.Wait(2000), "the loop ends when cancelled");
+        }
+        finally
+        {
+            recorder.Close();
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Test]
+    public void AFailingStateReadStopsTheFollowLoopAndTheRecording()
+    {
+        var directory = TempPath();
+        var recorder = new Recorder(directory, () => Environment.TickCount64);
+        try
+        {
+            recorder.Start("follow", new EntityFilter(null, null, null, null));
+            var running = Task.Run(() => recorder.Follow(() => throw new InvalidOperationException("state unreadable"), () => 30, CancellationToken.None));
+            var finished = Task.WhenAny(running, Task.Delay(2000)).Result == running;
+            Check.That(finished, "the loop ends when the state read throws");
+            Check.That(!recorder.Active, "the recording stops");
+        }
+        finally
+        {
+            recorder.Close();
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Test]
     public void RecorderStopsAtItsSizeCap()
     {
         using var rig = new Rig(maxBytes: 600);
@@ -147,11 +220,10 @@ public sealed class RecordTests
         var list = Wire.Run(rig.Tools, "recording_list")["recordings"]!.AsArray();
         Check.Equal(1, list.Count);
         Check.Equal(file, (string?)list[0]!["file"]);
-        Check.Equal(3, (int)list[0]!["frames"]!);
-        Check.Equal(200, (int)list[0]!["durationMs"]!);
 
         var summary = Wire.Run(rig.Tools, "recording_summary", new JsonObject { ["file"] = file });
         Check.Equal(3, (int)summary["frames"]!);
+        Check.Equal(200, (int)summary["durationMs"]!);
         Check.Equal("7", string.Join(',', summary["areas"]!.AsArray().Select(area => (int)area!)));
         Check.Equal(3d, (double)summary["playerPathLength"]!);
         var monster = summary["kinds"]!["Monster"]!;
@@ -183,7 +255,7 @@ public sealed class RecordTests
         {
             foreach (var bad in new[] { "..\\x.jsonl", "../x.jsonl", outside, "sub\\x.jsonl", "notes.txt", "", "x.jsonl\0" })
                 foreach (var tool in new[] { "recording_summary", "recording_range", "recording_search" })
-                    Check.That(Wire.Fails(rig.Tools, tool, new JsonObject { ["file"] = bad }).Contains("file"), $"{tool} {bad}");
+                    Check.That(Wire.Fails(rig.Tools, tool, new JsonObject { ["file"] = bad, ["from"] = 0, ["to"] = 1 }).Contains("file"), $"{tool} {bad}");
             Check.That(Wire.Fails(rig.Tools, "recording_summary", new JsonObject { ["file"] = "missing.jsonl" }).Contains("no recording"), "missing");
         }
         finally
@@ -234,27 +306,43 @@ public sealed class RecordTests
             "{\"t\":230,\"area\":7,\"status\":\"playing\",\"player\":{\"x\":\"a\",\"y\":0,\"z\":0},\"entities\":[]}",
             "{\"t\":240,\"area\":7,\"status\":\"playing\",\"player\":{\"x\":1e308,\"y\":-1e308,\"z\":0},\"entities\":[]}",
             "{\"t\":250,\"area\":7,\"status\":\"playing\",\"player\":{\"x\":-1e308,\"y\":1e308,\"z\":0},\"entities\":[]}",
+            "{\"t\":\"x\",\"area\":7,\"status\":\"playing\",\"player\":null,\"entities\":[]}",
+            "{\"t\":260,\"area\":\"a\",\"status\":\"playing\",\"player\":null,\"entities\":[]}",
         ]);
         var summary = Wire.Run(rig.Tools, "recording_summary", new JsonObject { ["file"] = file });
-        Check.That((int)summary["frames"]! >= 2, "good frames counted");
+        Check.Equal(4, (int)summary["frames"]!);
         Check.That(double.IsFinite((double)summary["playerPathLength"]!), "finite path");
         var good = (int)summary["frames"]!;
         Check.Equal(good, Wire.Run(rig.Tools, "recording_range", new JsonObject { ["file"] = file, ["from"] = 0, ["to"] = 50 })["frames"]!.AsArray().Count);
-        Check.Equal(good, (int)Wire.Run(rig.Tools, "recording_list")["recordings"]![0]!["frames"]!);
         Check.Equal(2, Wire.Run(rig.Tools, "recording_search", new JsonObject { ["file"] = file, ["cfgId"] = 5 })["frames"]!.AsArray().Count);
         Check.Equal(2, Wire.Run(rig.Tools, "recording_search", new JsonObject { ["file"] = file, ["kind"] = "Monster" })["frames"]!.AsArray().Count);
     }
 
     [Test]
-    public void ListReportsFramesAndDurationOfAMultiFrameFile()
+    public void SummaryReportsFramesAndDurationOfAMultiFrameFile()
     {
         using var rig = new Rig();
-        Start(rig);
+        var file = Start(rig);
         for (var i = 0; i < 5; i++) Frame(rig, i * 100, State(i, Mob(1, 5, i)));
         Wire.Run(rig.Tools, "record_stop");
+        var summary = Wire.Run(rig.Tools, "recording_summary", new JsonObject { ["file"] = file });
+        Check.Equal(5, (int)summary["frames"]!);
+        Check.Equal(400, (int)summary["durationMs"]!);
+    }
+
+    [Test]
+    public void ListingNeverOpensTheFiles()
+    {
+        using var rig = new Rig();
+        var file = Start(rig);
+        Frame(rig, 0, State(0, Mob(1, 5, 1)));
+        Wire.Run(rig.Tools, "record_stop");
+        using var held = new FileStream(Path.Combine(rig.Directory, file), FileMode.Open, FileAccess.Read, FileShare.None);
         var entry = Wire.Run(rig.Tools, "recording_list")["recordings"]![0]!;
-        Check.Equal(5, (int)entry["frames"]!);
-        Check.Equal(400, (int)entry["durationMs"]!);
+        Check.Equal(file, (string?)entry["file"]);
+        Check.That((long)entry["sizeBytes"]! > 0, "size comes from the directory entry");
+        Check.Equal(false, (bool)entry["active"]!);
+        Check.That(entry["frames"] is null && entry["durationMs"] is null, "no per-file parse");
     }
 
     [Test]

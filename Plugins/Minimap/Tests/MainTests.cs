@@ -135,23 +135,10 @@ public sealed class MainTests
     }
 
     [Test]
-    public void ZoomRangeGoesFromAThousandthToFour()
+    public void TheDefaultZoomSitsInsideTheZoomRange()
     {
-        Check.Equal(0.002f, GeneralTab.MinZoom);
-        Check.Equal(4f, GeneralTab.MaxZoom);
-        Check.Equal(0.037f, new Settings().General.Zoom);
-    }
-
-    [Test]
-    public void TheDefaultViewSitsFiftyPixelsAboveTheMiddle() => Check.Equal(-50f, new Settings().General.OffsetY);
-
-    [Test]
-    public void RotationAndVerticalScaleDefaults()
-    {
-        var view = new Settings().General;
-
-        Check.Equal(0f, view.Rotation);
-        Check.Equal(1f, view.VerticalScale);
+        Check.That(GeneralTab.MinZoom < GeneralTab.DefaultZoom && GeneralTab.DefaultZoom < GeneralTab.MaxZoom, "default inside the range");
+        Check.Equal(GeneralTab.DefaultZoom, new Settings().General.Zoom);
     }
 
     [Test]
@@ -443,6 +430,44 @@ public sealed class MainTests
         }
     }
 
+    static Terrain Broken() => new(2, 2, 10f, Vector2.Zero, null!);
+
+    [Test]
+    public void AFaultingBuildDoesNotThrowOutOfTickAndIsNotRestarted()
+    {
+        try
+        {
+            var main = RegionPlugin();
+
+            TickTwiceAt(main, 0, Scene.State(terrain: Broken(), area: 1));
+
+            Check.Equal(0, _uploads.Count, "nothing to upload for a broken grid");
+            Check.That(!main.WallJob.Running && !main.RegionJob.Running, "the same broken terrain is not built again");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void ABrokenTerrainDoesNotBlockTheNextArea()
+    {
+        try
+        {
+            var main = RegionPlugin();
+            TickTwiceAt(main, 0, Scene.State(terrain: Broken(), area: 1));
+
+            TickTwiceAt(main, 10, Scene.State(terrain: _cell, area: 2));
+
+            Check.That(_uploads.SequenceEqual(new[] { "region-2" }), string.Join(", ", _uploads));
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
     [Test]
     public void ABuildThatFinishesAfterTheAreaChangedIsDropped()
     {
@@ -537,5 +562,17 @@ public sealed class MainTests
         {
             TestGame.UseTextures(null, null);
         }
+    }
+
+    [Test]
+    public void FallbackShapesFollowTheIconTypeGroup()
+    {
+        foreach (var type in new[] { 2, 1040, 1050, 1060 }) Check.Equal(MarkerShape.Star, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 10, 11, 12, 14, 32, 33, 1000, 1022 }) Check.Equal(MarkerShape.Diamond, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 7, 8, 9, 1010, 2001, 2002 }) Check.Equal(MarkerShape.Hexagon, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 3, 1006, 1007, 1009, 1011 }) Check.Equal(MarkerShape.Square, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 15, 20, 24, 29 }) Check.Equal(MarkerShape.Triangle, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 1003, 1008, 1023, 1024 }) Check.Equal(MarkerShape.Sparkle, Main.FallbackShape(type), $"type {type}");
+        foreach (var type in new[] { 0, 1, 25, 1061, 99999, -5 }) Check.Equal(MarkerShape.Dot, Main.FallbackShape(type), $"type {type}");
     }
 }

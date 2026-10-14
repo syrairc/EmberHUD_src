@@ -7,9 +7,19 @@ namespace Market;
 
 internal readonly record struct Row(int Page, TradeListing Listing, bool Stale)
 {
-    public double PerUnit => Listing.Quantity > 0 ? (double)Listing.Price / Listing.Quantity : double.PositiveInfinity;
+    public static double PerUnitOf(TradeListing listing) => listing.Quantity > 0 ? (double)listing.Price / listing.Quantity : double.PositiveInfinity;
+
+    public double PerUnit => PerUnitOf(Listing);
 
     public bool Sold => Listing.Status is not null;
+
+    public string PageText { get; } = Page.ToString();
+
+    public string QuantityText { get; } = Listing.Quantity.ToString("N0");
+
+    public string PriceText { get; } = Listing.Price.ToString("N0");
+
+    public string PerUnitText { get; } = double.IsPositiveInfinity(PerUnitOf(Listing)) ? "-" : PerUnitOf(Listing).ToString("0.000");
 }
 
 internal sealed class Book
@@ -27,7 +37,7 @@ internal sealed class Book
     {
         long signature = 0;
         foreach (var (page, cached) in _pages)
-            if (now - cached.ReadAt > staleAfter) signature += (page + 1) * unchecked((long)0x9E3779B97F4A7C15);
+            if (now - cached.ReadAt > staleAfter) signature += HashCode.Combine(page);
         return signature;
     }
 
@@ -72,6 +82,12 @@ internal sealed class Book
     public List<Row> Rows(long now, long staleAfter) =>
         [.. _pages.SelectMany(page => page.Value.Listings.Select(listing => new Row(page.Key, listing, now - page.Value.ReadAt > staleAfter)))];
 
-    public Row? Find(int page, int slot) =>
-        _pages.TryGetValue(page, out var cached) && cached.Listings.FirstOrDefault(l => l.Slot == slot) is { Name: not null } listing ? new Row(page, listing, false) : null;
+    public static TradeListing? ListingAt(TradeListing[] listings, int slot)
+    {
+        foreach (var listing in listings)
+            if (listing.Slot == slot) return listing;
+        return null;
+    }
+
+    public TradeListing? Find(int page, int slot) => _pages.TryGetValue(page, out var cached) ? ListingAt(cached.Listings, slot) : null;
 }

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -114,8 +115,9 @@ internal sealed class Http : IDisposable
         if (request.HttpMethod == "POST")
         {
             using var reader = new StreamReader(request.InputStream, Encoding.UTF8);
-            var buffer = new char[MaxBodyChars + 1];
-            var read = reader.ReadBlock(buffer, 0, buffer.Length);
+            var size = request.ContentLength64 < 0 ? MaxBodyChars + 1 : (int)Math.Min(request.ContentLength64, MaxBodyChars + 1);
+            var buffer = new char[size];
+            var read = reader.ReadBlock(buffer, 0, size);
             if (read > MaxBodyChars) return new Reply(413, null);
             body = new string(buffer, 0, read);
         }
@@ -131,5 +133,28 @@ internal sealed class Http : IDisposable
         response.ContentLength64 = bytes.Length;
         response.OutputStream.Write(bytes);
         response.Close();
+    }
+}
+
+internal static class Auth
+{
+    public static string NewToken() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+
+    public static string LoadToken(string directory, string custom)
+    {
+        if (!string.IsNullOrWhiteSpace(custom)) return custom.Trim();
+        var path = Path.Combine(directory, "bridge-token.txt");
+        Directory.CreateDirectory(directory);
+        if (File.Exists(path) && File.ReadAllText(path).Trim() is { Length: >= 32 } saved) return saved;
+        var token = NewToken();
+        File.WriteAllText(path, token);
+        return token;
+    }
+
+    public static Reply? Reject(string? origin, string? host, string? token, int port, string expected)
+    {
+        if (!string.IsNullOrEmpty(origin) && !(Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback)) return new Reply(403, null);
+        if (!string.Equals(host, $"127.0.0.1:{port}", StringComparison.OrdinalIgnoreCase)) return new Reply(403, null);
+        return token is not null && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token), Encoding.UTF8.GetBytes(expected)) ? null : new Reply(401, null);
     }
 }

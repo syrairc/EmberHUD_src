@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using EmberHUD;
 using Hexa.NET.ImGui;
 
@@ -9,10 +11,9 @@ namespace Mcp;
 public sealed class Main : Plugin<Settings>
 {
     static readonly string HostVersion = typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "0";
-    readonly Watches _watches = new();
     Recorder? _recorder;
     Recordings? _recordings;
-    Http? _http;
+    CancellationTokenSource? _recordLoop;
     string _token = "";
     Entity[]? _lastEntities;
     string? _lastStatus;
@@ -24,9 +25,9 @@ public sealed class Main : Plugin<Settings>
 
     internal Func<long> Clock { get; set; } = () => Environment.TickCount64;
 
-    internal Http? Server => _http;
+    internal Http? Server { get; private set; }
 
-    internal Watches Watching => _watches;
+    internal Watches Watching { get; } = new();
 
     internal bool StartFailed { get; private set; }
 
@@ -46,25 +47,22 @@ public sealed class Main : Plugin<Settings>
             _lastAreaId = state.AreaId;
             _stateChangedAt = Clock();
         }
-        if (Settings.Serve)
+        if (!Settings.Serve)
         {
-            if (_http is null && !StartFailed) Start();
-        }
-        else
-        {
-            Stop();
+            if (Server is not null) Stop();
             StartFailed = false;
+            return;
         }
-        _watches.Sample();
-        Recorder.Sample(state, Settings.RecordHz);
+        if (Server is null && !StartFailed) Start();
+        Watching.Sample();
     }
 
     public override void Render()
     {
-        if (_http is null || !Settings.ShowStatusDot) return;
-        var colour = Clock() - _stateChangedAt > 2000 ? System.Drawing.Color.FromArgb(0xE0, 0x30, 0x30)
-            : _http.InFlight > 0 || _http.MsSinceRequest < 500 ? System.Drawing.Color.FromArgb(0xF2, 0xCC, 0x1A)
-            : System.Drawing.Color.FromArgb(0x33, 0xCC, 0x4D);
+        if (Server is not { } http || !Settings.ShowStatusDot) return;
+        var colour = Clock() - _stateChangedAt > 2000 ? GameColors.Negative
+            : http.InFlight > 0 || http.MsSinceRequest < 500 ? GameColors.Gold
+            : GameColors.Positive;
         Draw.CircleFilled(new Vector2(12, 12), 6, colour, 16, Draw.Foreground);
     }
 
@@ -73,16 +71,16 @@ public sealed class Main : Plugin<Settings>
         base.DrawSettings();
         ImGui.Separator();
         ImGui.TextDisabled("While on, anything holding the token can read this game's memory through EmberHUD. Read-only, 127.0.0.1 only.");
-        if (_http is null)
+        if (Server is not { } http)
         {
             ImGui.TextDisabled(StartFailed ? "Failed to start - see the log" : "Stopped");
             return;
         }
-        ImGui.Text($"Listening on {_http.Url}");
-        ImGui.Text($"Watches {_watches.Count}, recorder {(Recorder.Active ? $"{Recorder.CurrentFile}, {Recorder.Frames} frames" : "idle")}");
+        ImGui.TextUnformatted($"Listening on {http.Url}");
+        ImGui.TextUnformatted($"Watches {Watching.Count}, recorder {(Recorder.Active ? $"{Recorder.CurrentFile}, {Recorder.Frames} frames" : "idle")}");
         if (ImGui.SmallButton("Copy token")) ImGui.SetClipboardText(_token);
         ImGui.SameLine();
-        if (ImGui.SmallButton("Copy claude mcp add command")) ImGui.SetClipboardText($"claude mcp add --transport http emberhud {_http.Url} --header \"X-Bridge-Token: {_token}\"");
+        if (ImGui.SmallButton("Copy claude mcp add command")) ImGui.SetClipboardText($"claude mcp add --transport http emberhud {http.Url} --header \"X-Bridge-Token: {_token}\"");
     }
 
     public override void OnDisable() => Stop();
@@ -90,28 +88,38 @@ public sealed class Main : Plugin<Settings>
     public override void Dispose()
     {
         Stop();
-        _recorder?.Close();
         base.Dispose();
     }
 
-    internal Status CurrentStatus() => new(_http?.Url ?? "", _http?.InFlight ?? 0, Clock() - _startedAt, Clock() - _stateChangedAt, _watches.Count, Recorder.Active);
+    internal Status CurrentStatus() => new(Server?.Url ?? "", Server?.InFlight ?? 0, Clock() - _startedAt, Clock() - _stateChangedAt, Watching.Count, Recorder.Active);
 
     void Start()
     {
         try
         {
             _token = Auth.LoadToken(DataDirectory, Settings.CustomToken);
-            var rpc = new Rpc(Registry.Build(CurrentStatus, () => Settings.MaxReadBytes, _watches, Recorder, Recordings), HostVersion);
-            _http = Http.Start(rpc, _token, Settings.Port);
-            if (_http is null)
+            Tool[] tools =
+            [
+                .. StateTools.Create(CurrentStatus),
+                .. MemoryTools.Create(() => Settings.MaxReadBytes),
+                .. UeTools.Create(),
+                .. LocTools.Create(),
+                .. WatchTools.Create(Watching),
+                .. RecordTools.Create(Recorder, Recordings),
+            ];
+            Server = Http.Start(new Rpc(tools, HostVersion), _token, Settings.Port);
+            if (Server is null)
             {
                 StartFailed = true;
                 Log.Error($"MCP: no free port from {Settings.Port} to {Settings.Port + 19}");
                 return;
             }
-            File.WriteAllText(Path.Combine(DataDirectory, "bridge-port.txt"), _http.Port.ToString());
+            File.WriteAllText(Path.Combine(DataDirectory, "bridge-port.txt"), Server.Port.ToString());
             _startedAt = Clock();
-            Log.Info($"MCP listening on {_http.Url}");
+            Log.Info($"MCP listening on {Server.Url}");
+            _recordLoop = new CancellationTokenSource();
+            var stop = _recordLoop.Token;
+            _ = Task.Run(() => Recorder.Follow(() => Game.State, () => Settings.RecordHz, stop));
         }
         catch (Exception error)
         {
@@ -123,9 +131,12 @@ public sealed class Main : Plugin<Settings>
 
     void Stop()
     {
-        _http?.Dispose();
-        _http = null;
+        _recordLoop?.Cancel();
+        _recordLoop?.Dispose();
+        _recordLoop = null;
+        Server?.Dispose();
+        Server = null;
         _recorder?.Close();
-        _watches.StopAll();
+        Watching.StopAll();
     }
 }

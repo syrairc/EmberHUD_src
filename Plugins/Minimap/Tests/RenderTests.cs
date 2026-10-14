@@ -84,18 +84,14 @@ public sealed class RenderTests
     }
 
     [Test]
-    public void TheWallsStyleDrawsTheOldWallLinesAndNoRegion()
+    public void TheWallsStyleDrawsOnlyTheRegionOutlineInTheWallColour()
     {
-        void WallsStyle(Main main) { main.Settings.Map.DrawStyle = MapStyle.Walls; main.Settings.General.OffsetY = 0; }
-        var perLine = 0;
-        TestFrame.Run(() =>
-        {
-            var before = Draw.Background.VtxBuffer.Size;
-            Draw.Line(new Vector2(10, 10), new Vector2(100, 10), Color.White, new Settings().Map.Walls.Thickness);
-            perLine = Draw.Background.VtxBuffer.Size - before;
-        });
+        void WallsStyle(Main main) => main.Settings.Map.DrawStyle = MapStyle.Walls;
+        var look = new Settings().Map.Walls;
+        var oneLoop = TestFrame.Vertices(() => Draw.Polyline([new Vector2(10, 10), new Vector2(20, 10), new Vector2(20, 20), new Vector2(10, 20)], look.Colour, look.Thickness, true));
 
-        Check.Equal(4 * perLine, DrawnWithFill(OneCellScene(), WallsStyle) - DrawnWithFill(Scene.State(), WallsStyle));
+        Check.Equal(oneLoop, DrawnWithFill(OneCellScene(), WallsStyle), "one closed loop and no fill quad");
+        Check.That(Colours(OneCellScene(), WallsStyle).Contains(Packed(look.Colour)), "wall colour");
     }
 
     static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
@@ -106,17 +102,13 @@ public sealed class RenderTests
         Map.View = null;
         var main = Scene.Plugin();
         configure?.Invoke(main);
-        var drawn = 0;
-        TestFrame.Run(() =>
+        return TestFrame.Vertices(() =>
         {
             main.Tick();
             main.Tick();
             beforeRender?.Invoke(main);
-            var before = Draw.Background.VtxBuffer.Size;
             main.Render();
-            drawn = Draw.Background.VtxBuffer.Size - before;
         });
-        return drawn;
     }
 
     static Vector2 FarthestFromPlayer(Vector2 forward, Action<Main>? configure = null, float? gameRotation = null)
@@ -549,7 +541,7 @@ public sealed class RenderTests
     [Test]
     public void AnIconWithNoTextureStillDrawsTheFallbackShape()
     {
-        var gold = Packed(Color.FromArgb(0xF9, 0xDD, 0x75));
+        var gold = Packed(GameColors.MinimapMarker);
         var settings = default(Settings);
 
         Check.That(Colours(OneCellScene(Portal with { Texture = "" }), main => settings = main.Settings).Contains(gold), "gold fallback drawn");
@@ -624,35 +616,13 @@ public sealed class RenderTests
         var iconOnly = Drawn(Scene.State(terrain: terrain, icons: [Portal with { EntityId = monster.Id }]));
         var terrainOnly = Drawn(Scene.State(terrain: terrain));
         var main = Scene.Plugin();
-        int first = 0, second = 0, third = 0;
-
-        int RenderedVertices()
-        {
-            var before = Draw.Background.VtxBuffer.Size;
-            main.Render();
-            return Draw.Background.VtxBuffer.Size - before;
-        }
-
         Map.View = null;
         TestGame.Set(withIcon);
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            main.Tick();
-            first = RenderedVertices();
-        });
+        var first = TestFrame.Vertices(() => { main.Tick(); main.Tick(); main.Render(); });
         TestGame.Set(withoutIcon);
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            second = RenderedVertices();
-        });
+        var second = TestFrame.Vertices(() => { main.Tick(); main.Render(); });
         TestGame.Set(withIcon);
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            third = RenderedVertices();
-        });
+        var third = TestFrame.Vertices(() => { main.Tick(); main.Render(); });
 
         Check.Equal(iconOnly, first, "the game icon hides the entity marker");
         Check.That(second > terrainOnly, "the icon array is gone, so the entity draws its own marker");
@@ -807,5 +777,34 @@ public sealed class RenderTests
         var main = new Main();
 
         Check.That(TestFrame.Vertices(() => main.DrawOutline([new Polyline([new Vector2(-100, 100), new Vector2(3000, 100)], false)], Identity, Screen, Color.White, 2)) > 0, "crossing segment draws");
+    }
+
+    [Test]
+    public void ARowPointingAtAnotherGameIconDrawsThatSprite()
+    {
+        var walls = Drawn(OneCellScene());
+        void Retarget(Main main)
+        {
+            var row = FoundT();
+            row.Icon = "game:Other";
+            main.Settings.Icons.Found.Add(row);
+        }
+
+        Check.Equal(walls + 4, DrawnWith(name => name == "Other" ? Ready : null, OneCellScene(Portal with { Texture = "T" }), Retarget));
+        Check.That(DrawnWith(name => name == "T" ? Ready : null, OneCellScene(Portal with { Texture = "T" }), Retarget) > walls + 4, "the row's own texture is not asked for, a marker draws");
+    }
+
+    [Test]
+    public void ABareGameIconNameFallsBackToTheMarker()
+    {
+        var walls = Drawn(OneCellScene());
+        void Bare(Main main)
+        {
+            var row = FoundT();
+            row.Icon = Draw.GameIconPrefix;
+            main.Settings.Icons.Found.Add(row);
+        }
+
+        Check.That(DrawnWith(_ => Ready, OneCellScene(Portal with { Texture = "T" }), Bare) > walls + 4, "a marker, not a quad");
     }
 }

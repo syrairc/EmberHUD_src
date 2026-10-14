@@ -124,7 +124,7 @@ internal sealed class SetupPage
 
     void DrawGame()
     {
-        var status = _game is null ? $"{GameInstall.ExeName} not found" : $"build {_game.Build?.ToString() ?? "unknown"}";
+        var status = _game is null ? $"{GameInstall.ExeName} not found" : $"{(_game.Steam ? "Steam, " : "")}build {_game.Build?.ToString() ?? "unknown"}";
         var style = ImGui.GetStyle();
         var trailing = ImGui.CalcTextSize("Browse").X + ImGui.CalcTextSize("Detect").X + ImGui.CalcTextSize(status).X + style.FramePadding.X * 4 + style.ItemSpacing.X * 3;
         ImGui.SetNextItemWidth(Math.Max(120, ImGui.GetContentRegionAvail().X - trailing));

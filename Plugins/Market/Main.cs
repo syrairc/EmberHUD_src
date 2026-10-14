@@ -20,14 +20,12 @@ internal readonly record struct RowsKey(int Version, long StaleSignature, long S
 
 public sealed class Main : Plugin<Settings>
 {
-    static readonly Color Dim = Color.FromArgb(0xFF, 0x80, 0x80, 0x80);
-
     readonly Book _book = new();
     List<Row> _rows = [];
     RowsKey? _rowsKey;
     string _tableFilter = "";
     TableColumn<Row>[]? _columns;
-    string _priceIcon = "";
+    Sprite? _priceSprite;
     TradePage? _shown;
     readonly HashSet<Pick> _picks = [];
     Pick? _hovered;
@@ -42,22 +40,20 @@ public sealed class Main : Plugin<Settings>
     internal static PickState StateOf(Pick pick, TradePage shown, Book book)
     {
         if (pick.Page != shown.Page)
-            return book.Find(pick.Page, pick.Slot) is { } row && Matches(pick, row.Listing) ? PickState.OtherPage : PickState.Gone;
-        foreach (var listing in shown.Listings)
-            if (listing.Slot == pick.Slot) return Matches(pick, listing) ? PickState.Here : PickState.Gone;
-        return PickState.Gone;
+            return book.Find(pick.Page, pick.Slot) is { } cached && Matches(pick, cached) ? PickState.OtherPage : PickState.Gone;
+        return Book.ListingAt(shown.Listings, pick.Slot) is { } listing && Matches(pick, listing) ? PickState.Here : PickState.Gone;
     }
 
     static bool Matches(Pick pick, TradeListing listing) =>
         listing.Status is null && listing.Quantity == pick.Quantity && listing.Price == pick.Price;
 
-    internal static bool Passes(Row row, Settings settings) =>
-        (settings.MaxPrice <= 0 || row.Listing.Price <= settings.MaxPrice) &&
-        (settings.MaxPerUnit <= 0 || row.PerUnit <= settings.MaxPerUnit);
+    internal static bool Passes(TradeListing listing, Settings settings) =>
+        (settings.MaxPrice <= 0 || listing.Price <= settings.MaxPrice) &&
+        (settings.MaxPerUnit <= 0 || Row.PerUnitOf(listing) <= settings.MaxPerUnit);
 
     internal static List<Row> Shown(List<Row> rows, Settings settings, int currentPage)
     {
-        return [.. rows.Where(row => !row.Sold && (!settings.CurrentPageOnly || row.Page == currentPage) && Passes(row, settings))
+        return [.. rows.Where(row => !row.Sold && (!settings.CurrentPageOnly || row.Page == currentPage) && Passes(row.Listing, settings))
             .OrderBy(row => row.PerUnit)
             .ThenBy(row => row.Listing.Price)
             .ThenBy(row => row.Page)
@@ -87,7 +83,6 @@ public sealed class Main : Plugin<Settings>
     public override void Render()
     {
         if (Game.State.Trade is not { } shown || !Settings.Show) return;
-        _priceIcon = shown.PriceIcon;
         var rows = RowsFor(shown, Environment.TickCount64);
         _hovered = null;
         DrawWindow(rows, shown);
@@ -97,6 +92,8 @@ public sealed class Main : Plugin<Settings>
     void DrawWindow(List<Row> rows, TradePage shown)
     {
         _shown = shown;
+        var icon = shown.PriceIcon;
+        _priceSprite = icon.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal) && Draw.TryGameIcon(icon.AsSpan(Draw.GameIconPrefix.Length), out var sprite) ? sprite : null;
         var open = true;
         ImGui.SetNextWindowSize(new Vector2(340, 560), ImGuiCond.FirstUseEver);
         if (ImGui.Begin("Market###market", ref open))
@@ -128,20 +125,20 @@ public sealed class Main : Plugin<Settings>
         new() { Header = "", Width = 24, Draw = (row, _) => PickCell(row) },
         new() { Header = "Name", SortKey = row => row.Listing.Name, Draw = (row, _) => Cell(row, row.Listing.Name) },
         new() { Header = "Page", Width = 40, SortKey = row => row.Page * 100_000L + row.Listing.Slot, Draw = (row, _) => Cell(row, PageLabel(row)) },
-        new() { Header = "Qty", Width = 64, SortKey = row => row.Listing.Quantity, Draw = (row, _) => Cell(row, row.Listing.Quantity.ToString("N0")) },
+        new() { Header = "Qty", Width = 64, SortKey = row => row.Listing.Quantity, Draw = (row, _) => Cell(row, row.QuantityText) },
         new() { Header = "Price", Width = 84, SortKey = row => row.Listing.Price, Draw = (row, _) => PriceCell(row) },
-        new() { Header = "Per unit", Width = 64, SortKey = row => row.PerUnit, Draw = (row, _) => Cell(row, double.IsPositiveInfinity(row.PerUnit) ? "-" : row.PerUnit.ToString("0.000")) },
+        new() { Header = "Per unit", Width = 64, SortKey = row => row.PerUnit, Draw = (row, _) => Cell(row, row.PerUnitText) },
     ];
 
     string PageLabel(Row row) =>
-        _shown is { } shown && _picks.Contains(Pick.Of(row)) && StateOf(Pick.Of(row), shown, _book) == PickState.OtherPage ? $"{row.Page} >" : row.Page.ToString();
+        _shown is { } shown && _picks.Contains(Pick.Of(row)) && StateOf(Pick.Of(row), shown, _book) == PickState.OtherPage ? $"{row.Page} >" : row.PageText;
 
     void PickCell(Row row)
     {
         var pick = Pick.Of(row);
         var picked = _picks.Contains(pick);
         if (ImGuiP.TableGetHoveredRow() == ImGui.TableGetRowIndex()) _hovered = pick;
-        if (ImGui.Checkbox($"##{row.Page}-{row.Listing.Slot}", ref picked)) Toggle(pick);
+        if (ImGui.Checkbox("##pick", ref picked)) Toggle(pick);
     }
 
     void DrawGrid(TradePage shown)
@@ -150,44 +147,33 @@ public sealed class Main : Plugin<Settings>
         if (Settings.DimNonMatches)
             foreach (var listing in Dimmed(shown, Settings))
                 Draw.RectFilled(listing.Min, listing.Max, Color.FromArgb(128, 0, 0, 0));
-        if (_hovered is { } hovered && hovered.Page == shown.Page && Cell(shown, hovered.Slot) is { } hover)
+        if (_hovered is { } hovered && hovered.Page == shown.Page && Book.ListingAt(shown.Listings, hovered.Slot) is { } hover)
             Draw.Rect(hover.Min, hover.Max, Color.FromArgb(color.A * 7 / 10, color), 2);
         var pulse = 0.65f + 0.35f * MathF.Sin((float)ImGui.GetTime() * 1000f / 180f);
         var thickness = Settings.GlowThickness;
         foreach (var pick in _picks)
-            if (StateOf(pick, shown, _book) == PickState.Here && Cell(shown, pick.Slot) is { } picked)
+            if (StateOf(pick, shown, _book) == PickState.Here && Book.ListingAt(shown.Listings, pick.Slot) is { } picked)
                 Draw.GlowRect(picked.Min, picked.Max, Color.FromArgb((int)(color.A * pulse), color), thickness, thickness * 4);
     }
 
     internal static IEnumerable<TradeListing> Dimmed(TradePage shown, Settings settings) =>
-        shown.Listings.Where(listing =>
-        {
-            var row = new Row(shown.Page, listing, false);
-            return row.Sold || !Passes(row, settings);
-        });
+        shown.Listings.Where(listing => listing.Status is not null || !Passes(listing, settings));
 
-    static TradeListing? Cell(TradePage shown, int slot)
+    internal static void Cell(Row row, string text)
     {
-        foreach (var listing in shown.Listings)
-            if (listing.Slot == slot) return listing;
-        return null;
-    }
-
-    static void Cell(Row row, string text)
-    {
-        if (row.Stale) ImGui.TextColored(EColor.ToVector4(Dim), text);
-        else ImGui.TextUnformatted(text);
+        using var dim = Layout.Dim(row.Stale);
+        ImGui.TextUnformatted(text);
     }
 
     void PriceCell(Row row)
     {
-        var size = ImGui.GetTextLineHeight();
-        if (_priceIcon.StartsWith(Draw.GameIconPrefix, StringComparison.Ordinal) && Draw.TryGameIcon(_priceIcon.AsSpan(Draw.GameIconPrefix.Length), out var sprite))
+        using var dim = Layout.Dim(row.Stale);
+        if (_priceSprite is { } sprite)
         {
-            Controls.IconImage(sprite, size, row.Stale ? Dim : Color.White);
+            Controls.IconImage(sprite, ImGui.GetTextLineHeight(), Color.White);
             ImGui.SameLine();
-            Cell(row, row.Listing.Price.ToString("N0"));
+            ImGui.TextUnformatted(row.PriceText);
         }
-        else Cell(row, $"{row.Listing.Price:N0} FE");
+        else ImGui.TextUnformatted($"{row.PriceText} FE");
     }
 }

@@ -11,12 +11,6 @@ public class TerrainTests
         return new Terrain(cols, rows, 10f, Vector2.Zero, bits);
     }
 
-    private static void Has(List<WallSegment> walls, float ax, float ay, float bx, float by) =>
-        Assert.Contains(new WallSegment(ax, ay, bx, by), walls);
-
-    private static void Lacks(List<WallSegment> walls, float ax, float ay, float bx, float by) =>
-        Assert.DoesNotContain(new WallSegment(ax, ay, bx, by), walls);
-
     [Fact]
     public void IsWalkableReadsTheBitmapRowMajor()
     {
@@ -52,77 +46,34 @@ public class TerrainTests
         Assert.Equal(new Vector2(125, 215), new Terrain(4, 4, 10f, new Vector2(100, 200), new BitArray(16)).CellCenter(2, 1));
 
     [Fact]
-    public void IsWalkableAsThePredicateGivesTheSameWalls()
-    {
-        var terrain = Grid(4, 4, (1, 1), (2, 1), (1, 2), (0, 3), (3, 0));
-        Assert.Equal(terrain.Walls(), terrain.Walls(terrain.IsWalkable));
-    }
-
-    [Fact]
-    public void APredicateOutlinesOnlyTheCellsItKeeps()
-    {
-        var terrain = Grid(4, 3, (1, 1), (2, 1));
-        var walls = terrain.Walls((col, row) => terrain.IsWalkable(col, row) && col == 1);
-        Assert.Equal(4, walls.Count);
-        Has(walls, 20, 10, 20, 20);
-        Lacks(walls, 30, 10, 30, 20);
-    }
-
-    [Fact]
     public void ThePredicateIsOnlyAskedAboutCellsOnTheGrid()
     {
         var terrain = Grid(2, 2, (0, 0), (1, 0), (0, 1), (1, 1));
         var asked = new List<(int Col, int Row)>();
-        var walls = terrain.Walls((col, row) =>
+        var lines = terrain.Outline((col, row) =>
         {
             asked.Add((col, row));
             return true;
         });
-        Assert.NotEmpty(walls);
+        Assert.NotEmpty(lines);
         Assert.All(asked, cell => Assert.True(cell.Col is >= 0 and < 2 && cell.Row is >= 0 and < 2, $"asked about {cell}"));
     }
 
     [Fact]
-    public void NoWalkableCellsHaveNoWalls() => Assert.Empty(Grid(3, 3).Walls());
-
-    [Fact]
-    public void ALoneCellHasFourFullEdges()
+    public void IsWalkableAsThePredicateGivesTheSameOutline()
     {
-        var walls = Grid(3, 3, (1, 1)).Walls();
-
-        Assert.Equal(4, walls.Count);
-        Has(walls, 10, 10, 10, 20);
-        Has(walls, 20, 10, 20, 20);
-        Has(walls, 10, 10, 20, 10);
-        Has(walls, 10, 20, 20, 20);
+        var terrain = Grid(4, 4, (1, 1), (2, 1), (1, 2), (0, 3), (3, 0));
+        Assert.Equivalent(terrain.Outline(), terrain.Outline(terrain.IsWalkable));
     }
 
     [Fact]
-    public void TwoNeighboursShareNoWall()
-    {
-        var walls = Grid(4, 3, (1, 1), (2, 1)).Walls();
-
-        Assert.Equal(6, walls.Count);
-        Lacks(walls, 20, 10, 20, 20);
-    }
-
-    [Fact]
-    public void NeighboursAboveAndBelowShareNoWall()
-    {
-        var walls = Grid(3, 4, (1, 1), (1, 2)).Walls();
-
-        Assert.Equal(6, walls.Count);
-        Lacks(walls, 10, 20, 20, 20);
-    }
-
-    [Fact]
-    public void TheOriginMovesTheWalls()
+    public void TheOriginMovesTheOutline()
     {
         var bits = new BitArray(1);
         bits[0] = true;
-        var terrain = new Terrain(1, 1, 10f, new Vector2(100, 200), bits);
+        var line = new Terrain(1, 1, 10f, new Vector2(100, 200), bits).Outline().Single();
 
-        Has(terrain.Walls(), 100, 200, 100, 210);
+        Assert.True(SameLoop(line.Points, new(100, 200), new(110, 200), new(110, 210), new(100, 210)));
     }
 
     [Theory]
@@ -131,16 +82,16 @@ public class TerrainTests
     [InlineData(float.NaN)]
     [InlineData(float.PositiveInfinity)]
     [InlineData(float.NegativeInfinity)]
-    public void ACellSizeThatIsNotPositiveHasNoWalls(float size)
+    public void ACellSizeThatIsNotPositiveHasNoOutline(float size)
     {
         var bits = new BitArray(1);
         bits[0] = true;
 
-        Assert.Empty(new Terrain(1, 1, size, Vector2.Zero, bits).Walls());
+        Assert.Empty(new Terrain(1, 1, size, Vector2.Zero, bits).Outline());
     }
 
     [Fact]
-    public void ZeroSizedGridHasNoWalls() => Assert.Empty(new Terrain(0, 0, 10f, Vector2.Zero, new BitArray(0)).Walls());
+    public void ZeroSizedGridHasNoOutline() => Assert.Empty(new Terrain(0, 0, 10f, Vector2.Zero, new BitArray(0)).Outline());
 
     [Fact]
     public void BitmapShorterThanTheGridNeverThrowsAndTheMissingCellsAreBlocked()
@@ -149,8 +100,81 @@ public class TerrainTests
         bits[0] = true;
         bits[1] = true;
 
-        var walls = new Terrain(4, 4, 10f, Vector2.Zero, bits).Walls();
+        var line = new Terrain(4, 4, 10f, Vector2.Zero, bits).Outline().Single();
 
-        Assert.Equal(6, walls.Count);
+        Assert.True(SameLoop(line.Points, new(0, 0), new(20, 0), new(20, 10), new(0, 10)));
+    }
+
+    private static bool SameLoop(Vector2[] points, params Vector2[] corners) => points.Length == corners.Length && corners.All(points.Contains);
+
+    [Fact]
+    public void ALoneCellIsOneClosedSquareWalkedCornerToCorner()
+    {
+        var line = Grid(3, 3, (1, 1)).Outline().Single();
+
+        Assert.True(line.Closed);
+        Assert.True(SameLoop(line.Points, new(10, 10), new(20, 10), new(20, 20), new(10, 20)));
+        for (var i = 0; i < 4; i++) Assert.Equal(10f, Vector2.Distance(line.Points[i], line.Points[(i + 1) % 4]));
+    }
+
+    [Fact]
+    public void TwoLoopsTouchingAtACornerStayClosedAndKeepTheSharedCorner()
+    {
+        var lines = Grid(2, 2, (0, 0), (1, 1)).Outline();
+
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.True(line.Closed));
+        Assert.Equal(8, lines.Sum(line => line.Points.Length));
+        Assert.Equal(2, lines.SelectMany(line => line.Points).Count(point => point == new Vector2(10, 10)));
+    }
+
+    [Fact]
+    public void EndpointsThatDifferByRoundingStillJoin()
+    {
+        var bits = new BitArray(3);
+        bits.SetAll(true);
+        var line = new Terrain(3, 1, 10f, new Vector2(0.1f, 0.3f), bits).Outline().Single();
+
+        Assert.True(line.Closed);
+        Assert.Equal(4, line.Points.Length);
+    }
+
+    [Fact]
+    public void NoWalkableCellsGiveNoLines() => Assert.Empty(Grid(3, 3).Outline());
+
+    [Fact]
+    public void AStraightRunOfCellsIsOneLongSide()
+    {
+        var line = Grid(7, 3, (1, 1), (2, 1), (3, 1), (4, 1), (5, 1)).Outline().Single();
+
+        Assert.True(line.Closed);
+        Assert.True(SameLoop(line.Points, new(10, 10), new(60, 10), new(60, 20), new(10, 20)));
+    }
+
+    [Fact]
+    public void ACornerKeepsItsPointAndAnLShapeKeepsSix()
+    {
+        var line = Grid(4, 4, (1, 1), (2, 1), (1, 2)).Outline().Single();
+
+        Assert.True(SameLoop(line.Points, new(10, 10), new(30, 10), new(30, 20), new(20, 20), new(20, 30), new(10, 30)));
+    }
+
+    [Fact]
+    public void APredicateOutlineCoversOnlyTheCellsItKeeps()
+    {
+        var terrain = Grid(4, 3, (1, 1), (2, 1));
+        var line = terrain.Outline((col, row) => terrain.IsWalkable(col, row) && col == 1).Single();
+
+        Assert.True(SameLoop(line.Points, new(10, 10), new(20, 10), new(20, 20), new(10, 20)));
+    }
+
+    [Fact]
+    public void AHoleInsideComesOutAsItsOwnClosedLoop()
+    {
+        var all = Enumerable.Range(0, 9).Select(i => (i % 3, i / 3)).Where(cell => cell != (1, 1)).ToArray();
+        var lines = Grid(3, 3, all).Outline();
+
+        Assert.Equal(2, lines.Length);
+        Assert.All(lines, line => Assert.True(line.Closed));
     }
 }

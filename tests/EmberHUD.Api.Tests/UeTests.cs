@@ -338,6 +338,7 @@ public sealed class UeTests : IDisposable
         Assert.Equal(7, Ue.ArrayCount(bytes, items));
         Assert.Equal(-1, Ue.ArrayCount(bytes.AsSpan(0, 0x1B), items));
         Assert.Equal(-1, Ue.ArrayCount(bytes, items with { Offset = -4 }));
+        Assert.Equal(-1, Ue.ArrayCount(bytes, items with { Offset = int.MaxValue }));
     }
 
     static UProp IntMap(int stride = 0x18) => new("Map", "MapProperty", 0, 0x50, 1, 0, 0, null, Key: new UProp("Map", "IntProperty", 0, 4, 1, 0, 0, null), Value: new UProp("Map", "IntProperty", 8, 4, 1, 0, 0, null), Stride: stride);

@@ -65,20 +65,20 @@ public sealed class WalkerTests
     }
 
     [Test]
-    public void DistanceIsFlatAcrossTheMapPlane()
-    {
-        var entity = new Entity(1, 1, new Vector3(3, 4, 9), EntityKind.Monster, Rarity.Normal);
-        Check.That(Walker.Distance(entity, Vector3.Zero) == 5f, "expected 5 - X / Y, Z ignored");
-        Check.That(Walker.Distance(Samples.Camera, Vector3.Zero) is null, "no position, no distance");
-    }
-
-    [Test]
     public void JsonWritesColoursAsHexAndKeepsVectorFields()
     {
         var json = Walker.Json(new Tinted(new Vector3(1, 2, 3), Color.FromArgb(0x80, 255, 0, 0), 1.5f));
         Check.That(json.Contains("\"Tint\":\"#FF000080\""), json);
         Check.That(json.Contains("\"X\":1") && json.Contains("\"Z\":3"), json);
         Check.That(Walker.Json(new Tinted(Vector3.Zero, Color.Red, float.NaN)).Contains("NaN"), "NaN must serialise");
+    }
+
+    [Test]
+    public void TryHexTakesAnOptionalPrefixAndRejectsGarbage()
+    {
+        Check.That(Walker.TryHex("0x1A2b", out var prefixed) && prefixed == 0x1A2B, "prefixed");
+        Check.That(Walker.TryHex("  ff ", out var bare) && bare == 0xFF, "bare and padded");
+        Check.That(!Walker.TryHex("0x", out _) && !Walker.TryHex("", out _) && !Walker.TryHex("0xZZ", out _) && !Walker.TryHex("-1", out _), "garbage");
     }
 
     [Test]

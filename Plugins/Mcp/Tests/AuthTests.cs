@@ -2,14 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
 public sealed class AuthTests
 {
     const string Token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-    static string TempDirectory() => Path.Combine(Path.GetTempPath(), "mcp-test-" + Guid.NewGuid().ToString("N"));
 
     [Test]
     public void NewTokensAre64HexAndDifferent()
@@ -23,7 +22,7 @@ public sealed class AuthTests
     [Test]
     public void TokenFileIsCreatedThenReusedAndCustomWins()
     {
-        var directory = TempDirectory();
+        var directory = TempPath();
         try
         {
             var first = Auth.LoadToken(directory, "");
@@ -45,7 +44,7 @@ public sealed class AuthTests
         Check.That(Auth.Reject(null, "127.0.0.1:50902", Token, 50902, Token) is null, "no origin");
         Check.That(Auth.Reject("", "127.0.0.1:50902", Token, 50902, Token) is null, "empty origin");
         Check.That(Auth.Reject("http://localhost:5173", "127.0.0.1:50902", Token, 50902, Token) is null, "loopback origin");
-        Check.That(Auth.Reject("http://127.0.0.1:3000", "localhost:50902", Token, 50902, Token) is null, "localhost host");
+        Check.Equal(403, Auth.Reject("http://127.0.0.1:3000", "localhost:50902", Token, 50902, Token)!.Status);
         Check.Equal(403, Auth.Reject("http://evil.example", "127.0.0.1:50902", Token, 50902, Token)!.Status);
         Check.Equal(403, Auth.Reject("null", "127.0.0.1:50902", Token, 50902, Token)!.Status);
         Check.Equal(403, Auth.Reject(null, "evil.example:50902", Token, 50902, Token)!.Status);

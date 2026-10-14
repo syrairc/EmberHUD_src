@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
-using Hexa.NET.ImGui;
 
 namespace Inspector;
 
@@ -38,31 +38,25 @@ public sealed class ApiTreeTests
         }
     }
 
-    static void Draw(ApiTree tree, GameState state) => TestFrame.Run(() =>
+    static void Draw(ApiTree tree, GameState state) => Samples.Frame(() =>
     {
-        ImGui.SetNextWindowSize(new Vector2(900, 600));
-        ImGui.Begin("tree");
         tree.BeginFrame();
         foreach (var section in ApiTree.All) tree.Show(section, state);
-        ImGui.End();
     });
 
     [Test]
     public void EverySectionDrawsARichStateAndAnEmptyOne()
     {
-        var tree = new ApiTree();
+        var tree = new ApiTree(Samples.NoPin);
         Draw(tree, Samples.Rich);
         Draw(tree, GameState.Empty);
     }
 
     [Test]
-    public void NestedValuesDrawWhenEverythingIsOpen() => Draw(new ApiTree { OpenAll = true }, Samples.Rich);
-
-    [Test]
     public void TheMapSectionDrawsWithAMapView()
     {
         Map.View = new MapView(new Vector2(10, 20), 2f);
-        Draw(new ApiTree(), Samples.Rich);
+        Draw(new ApiTree(Samples.NoPin), Samples.Rich);
     }
 
     [Test]
@@ -72,7 +66,7 @@ public sealed class ApiTreeTests
     [Test]
     public void SelectedAndHoveredRowsHighlightAtTheirPosition()
     {
-        var tree = new ApiTree { Selected = Samples.Entities[0], Hover = Samples.Player };
+        var tree = new ApiTree(Samples.NoPin) { Selected = Samples.Entities[0], Hover = Samples.Player };
         var highlights = tree.Highlights().ToArray();
         Check.Equal(2, highlights.Length);
         Check.Equal(Samples.Entities[0].Position, highlights[0].Position);
@@ -87,37 +81,18 @@ public sealed class ApiTreeTests
     [Test]
     public void ChangingSectionDropsTheSelection()
     {
-        var tree = new ApiTree();
-        TestFrame.Run(() =>
+        var tree = new ApiTree(Samples.NoPin);
+        Samples.Frame(() =>
         {
-            ImGui.SetNextWindowSize(new Vector2(900, 600));
-            ImGui.Begin("selection");
             tree.Show(ApiTree.All[1], Samples.Rich);
             tree.Selected = Samples.Entities[0];
             tree.Show(ApiTree.All[2], Samples.Rich);
-            ImGui.End();
         });
         Check.That(tree.Selected is null, "selection survived a section change");
     }
 
     [Test]
-    public void ShowsPositionsFollowsTheTableThatDrew()
-    {
-        var tree = new ApiTree();
-        TestFrame.Run(() =>
-        {
-            ImGui.SetNextWindowSize(new Vector2(900, 600));
-            ImGui.Begin("positions");
-            tree.Show(ApiTree.All[1], Samples.Rich);
-            Check.That(tree.ShowsPositions, "Entities have positions");
-            tree.Show(ApiTree.All[2], Samples.Rich);
-            Check.That(!tree.ShowsPositions, "map icons are 2D");
-            ImGui.End();
-        });
-    }
-
-    [Test]
-    public void SortKeysAreCachedPerRowAndDistanceFollowsTheOrigin()
+    public void SortKeysAreCachedPerRowAndDistanceFollowsThePlayer()
     {
         var row = new Row(new Counted());
         var member = Walker.Members(typeof(Counted)).Single();
@@ -127,10 +102,39 @@ public sealed class ApiTreeTests
         Check.Equal(1, Counted.Reads);
 
         var entity = new Row(Samples.Entities[0]);
-        var near = entity.Dist(Samples.Entities[0].Position);
-        var far = entity.Dist(Vector3.Zero);
-        Check.That(near != far, "distance did not follow the origin");
-        Check.Equal(far, entity.Dist(Vector3.Zero));
+        var near = entity.Dist(new Player(Samples.Entities[0].Position, Vector2.UnitX));
+        var far = entity.Dist(new Player(Vector3.Zero, Vector2.UnitX));
+        Check.That(near != far, "distance did not follow the player");
+        Check.Equal(far, entity.Dist(new Player(Vector3.Zero, Vector2.UnitX)));
+        Check.Equal(Walker.Format(far!.Value), entity.DistText);
+        Check.Equal(5f, new Row(new Entity(1, 1, new Vector3(3, 4, 9), EntityKind.Monster, Rarity.Normal)).Dist(new Player(Vector3.Zero, Vector2.UnitX))!.Value);
+    }
+
+    [Test]
+    public void CellsAreReadAndFormattedOncePerRow()
+    {
+        var row = new Row(new Counted());
+        var member = Walker.Members(typeof(Counted)).Single();
+        Counted.Reads = 0;
+
+        Check.Equal("5", row.Formatted(typeof(Counted), member));
+        Check.Equal("5", row.Formatted(typeof(Counted), member));
+        Check.Equal(5, row.Value(typeof(Counted), member));
+        Check.Equal(1, Counted.Reads);
+    }
+
+    [Test]
+    public void MemberWidthsAreCachedPerTypeAndFilter()
+    {
+        var tree = new ApiTree(Samples.NoPin);
+        Samples.Frame(() =>
+        {
+            var all = tree.MembersFor(typeof(Entity), "");
+            Check.That(ReferenceEquals(all, tree.MembersFor(typeof(Entity), "")), "same type and filter, same set");
+            var one = tree.MembersFor(typeof(Entity), "cfg");
+            Check.Equal("CfgId", string.Join(",", one.Members.Select(m => m.Name)));
+            Check.That(one.NameWidth > 0f && one.NameWidth < all.NameWidth, "the width follows the filtered names");
+        });
     }
 
     [Test]
@@ -141,17 +145,14 @@ public sealed class ApiTreeTests
             Terrain = new Terrain(2000, 2000, 32, Vector2.Zero, new BitArray(4_000_000)),
             Explored = new ExploredTrail(new Vector2[30000], 250),
         };
-        Draw(new ApiTree { OpenAll = true }, huge);
+        Draw(new ApiTree(Samples.NoPin), huge);
 
         Unlistable.Enumerated = false;
-        var tree = new ApiTree { OpenAll = true };
-        TestFrame.Run(() =>
+        var tree = new ApiTree(Samples.NoPin);
+        Samples.Frame(() =>
         {
-            ImGui.SetNextWindowSize(new Vector2(900, 600));
-            ImGui.Begin("huge");
             tree.Show(new Section("huge", _ => new Unlistable()), Samples.Rich);
             tree.Show(new Section("nested", _ => new Tuple<Unlistable>(new Unlistable())), Samples.Rich);
-            ImGui.End();
         });
         Check.That(!Unlistable.Enumerated, "a huge collection was enumerated");
     }
@@ -160,14 +161,30 @@ public sealed class ApiTreeTests
     public void AThrowingGetterDrawsAsAMarkerAndLogsOnce()
     {
         Walker.Clear();
-        var tree = new ApiTree();
-        TestFrame.Run(() =>
-        {
-            ImGui.SetNextWindowSize(new Vector2(900, 600));
-            ImGui.Begin("thrower");
-            tree.Show(new Section("thrower", _ => new Thrower()), Samples.Rich);
-            ImGui.End();
-        });
+        var tree = new ApiTree(Samples.NoPin);
+        Samples.Frame(() => tree.Show(new Section("thrower", _ => new Thrower()), Samples.Rich));
         Check.Equal(1, Walker.ErrorsLogged);
+    }
+
+    static int _enumerated;
+
+    static IEnumerable<int> TwentyFiveThousand()
+    {
+        for (var i = 0; i < 25000; i++)
+        {
+            _enumerated++;
+            yield return i;
+        }
+    }
+
+    [Test]
+    public void ALazySequenceIsCappedNotEnumeratedToTheEnd()
+    {
+        _enumerated = 0;
+        var tree = new ApiTree(Samples.NoPin);
+
+        Samples.Frame(() => tree.Show(new Section("lazy", _ => TwentyFiveThousand()), Samples.Rich));
+
+        Check.That(_enumerated <= 20001, $"enumerated {_enumerated} items");
     }
 }

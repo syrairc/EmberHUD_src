@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using EmberHUD;
 
 namespace Mcp;
 
@@ -58,6 +60,12 @@ internal static class Hex
 internal static class Num
 {
     public static JsonNode? F(float value) => float.IsFinite(value) ? JsonValue.Create(Math.Round(value, 2)) : null;
+
+    public static void Write(Utf8JsonWriter json, string name, float value)
+    {
+        if (float.IsFinite(value)) json.WriteNumber(name, Math.Round(value, 2));
+        else json.WriteNull(name);
+    }
 }
 
 internal static class Schema
@@ -72,5 +80,13 @@ internal static class Schema
         };
         if (required.Length > 0) schema["required"] = new JsonArray(required.Select(name => (JsonNode)name).ToArray());
         return schema;
+    }
+}
+
+internal static class Live
+{
+    public static void Require()
+    {
+        if (!Memory.Attached) throw new ToolError("memory is not attached - run EmberHUD live with the game open");
     }
 }

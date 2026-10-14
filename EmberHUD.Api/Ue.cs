@@ -164,7 +164,7 @@ public static class Ue
 
     public static int ArrayCount(ReadOnlySpan<byte> container, UProp prop)
     {
-        if (Layout is not { } l || prop.Offset < 0 || prop.Offset + l.ArrayNum + sizeof(int) > container.Length) return -1;
+        if (Layout is not { } l || prop.Offset < 0 || prop.Offset > container.Length - l.ArrayNum - sizeof(int)) return -1;
         return BitConverter.ToInt32(container[(prop.Offset + l.ArrayNum)..]);
     }
 

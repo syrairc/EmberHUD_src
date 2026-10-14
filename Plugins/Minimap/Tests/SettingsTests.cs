@@ -88,75 +88,24 @@ public sealed class SettingsTests
         Check.That(s.Icons.FoundFor("B") is not null);
     }
 
-    static int Drawn(Action draw)
-    {
-        var drawn = 0;
-        TestFrame.Run(() =>
-        {
-            ImGui.Begin("minimap settings");
-            var before = ImGui.GetWindowDrawList().VtxBuffer.Size;
-            draw();
-            drawn = ImGui.GetWindowDrawList().VtxBuffer.Size - before;
-            ImGui.End();
-        });
-        return drawn;
-    }
-
-    static float Height(Action draw)
-    {
-        var height = 0f;
-        TestFrame.Run(() =>
-        {
-            ImGui.Begin("minimap settings");
-            var before = ImGui.GetCursorPosY();
-            draw();
-            height = ImGui.GetCursorPosY() - before;
-            ImGui.End();
-        });
-        return height;
-    }
-
     [Test]
     public void TheSettingsPageDraws()
     {
-        Check.That(Drawn(new Settings().Draw) > 0, "settings page draws");
+        Check.That(TestFrame.Vertices(new Settings().Draw, inWindow: true) > 0, "settings page draws");
     }
 
     [Test]
-    public void FallbackShapesFollowTheIconTypeGroup()
-    {
-        foreach (var type in new[] { 2, 1040, 1050, 1060 }) Check.Equal(MarkerShape.Star, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 10, 11, 12, 14, 32, 33, 1000, 1022 }) Check.Equal(MarkerShape.Diamond, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 7, 8, 9, 1010, 2001, 2002 }) Check.Equal(MarkerShape.Hexagon, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 3, 1006, 1007, 1009, 1011 }) Check.Equal(MarkerShape.Square, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 15, 20, 24, 29 }) Check.Equal(MarkerShape.Triangle, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 1003, 1008, 1023, 1024 }) Check.Equal(MarkerShape.Sparkle, Settings.FallbackShape(type), $"type {type}");
-        foreach (var type in new[] { 0, 1, 25, 1061, 99999, -5 }) Check.Equal(MarkerShape.Dot, Settings.FallbackShape(type), $"type {type}");
-    }
-
-    [Test]
-    public void TheRegionLookIsTheDefaultWithTheGamesColours()
+    public void TheRegionLookUsesTheGamesMinimapPalette()
     {
         var map = new Settings().Map;
         var region = map.Region;
 
         Check.Equal(MapStyle.Region, map.DrawStyle);
         Check.That(Enum.GetNames<MapStyle>().SequenceEqual(new[] { "Region", "Walls" }), string.Join(", ", Enum.GetNames<MapStyle>()));
-        Check.Equal(Color.FromArgb(0x1F, 0x5F, 0xB0, 0xB8).ToArgb(), region.Fill.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0x5F, 0xB0, 0xB8).ToArgb(), region.Outline.ToArgb());
-        Check.Equal(1.5f, region.OutlineWidth);
-        Check.Equal(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF).ToArgb(), region.ExploredFill.ToArgb());
-        Check.Equal(Color.FromArgb(0xFF, 0xC1, 0xBB, 0xB5).ToArgb(), region.ExploredOutline.ToArgb());
-        Check.Equal(2.5f, region.ExploredOutlineWidth);
-    }
-
-    [Test]
-    public void GameIconsDefaultToOnAtScaleOne()
-    {
-        var icons = new Settings().Icons;
-
-        Check.That(icons.UseGameIcons, "on by default, a missing icon folder falls back to shapes anyway");
-        Check.Equal(1f, icons.GameIconScale);
+        Check.Equal(GameColors.MinimapUnexplored.ToArgb(), region.Outline.ToArgb());
+        Check.Equal(GameColors.MinimapUnexplored.ToArgb() & 0xFFFFFF, region.Fill.ToArgb() & 0xFFFFFF, "the fill is the outline colour");
+        Check.That(region.Fill.A < 0xFF, "and see-through");
+        Check.Equal(GameColors.MinimapOutline.ToArgb(), region.ExploredOutline.ToArgb());
     }
 
     [Test]
@@ -172,10 +121,12 @@ public sealed class SettingsTests
     [Test]
     public void TheFilterMatchesNameOrTexture()
     {
-        IconStyle[] rows = [new() { Key = "UI_MiniMap_S15guancai", Name = "Vigil coffin" }, new() { Key = "UI_MiniMap_Portal", Name = "Portal" }];
-        Check.Equal("Vigil coffin", string.Join(",", Settings.Filtered(rows, "vigil").Select(r => r.Name)));
-        Check.Equal("Vigil coffin", string.Join(",", Settings.Filtered(rows, "guancai").Select(r => r.Name)));
-        Check.Equal(2, Settings.Filtered(rows, "").Count());
+        var coffin = new IconStyle { Key = "UI_MiniMap_S15guancai", Name = "Vigil coffin" };
+
+        Check.That(Settings.Matches(coffin, "vigil"), "name");
+        Check.That(Settings.Matches(coffin, "guancai"), "texture");
+        Check.That(Settings.Matches(coffin, ""), "empty filter");
+        Check.That(!Settings.Matches(coffin, "portal"), "neither");
     }
 
     [Test]

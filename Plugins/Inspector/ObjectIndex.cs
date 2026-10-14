@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using EmberHUD;
 
 namespace Inspector;
 
-internal sealed record ObjectRow(int Index, string Name, string Class, string Outer, nint Address, nint ClassAddress, bool IsDefault);
+internal sealed record ObjectRow(int Index, string Name, string Class, nint Address, nint ClassAddress, bool IsDefault);
 
-internal sealed record ClassNode(nint Address, string Name, nint Super, int Own, int Total);
+internal sealed record ClassNode(nint Address, string Name, nint Super, int Total, string Label);
 
 internal sealed class ObjectIndex
 {
@@ -52,12 +51,12 @@ internal sealed class ObjectIndex
         query = query.Trim();
         if (query.Length == 0) return [];
         if (query.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-            return long.TryParse(query[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var address) ? [.. Rows.Where(r => r.Address == (nint)address)] : [];
+            return Walker.TryHex(query, out var address) ? [.. Rows.Where(r => r.Address == address)] : [];
         return [.. Rows.Where(r => r.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || r.Class.Contains(query, StringComparison.OrdinalIgnoreCase))];
     }
 
     public static ObjectIndex Scan() =>
-        Build([.. Ue.Objects().Select(o => new ObjectRow(o.Index, o.Name, o.Class?.Name ?? "?", o.Outer?.Name ?? "", o.Address, o.ClassAddress, o.IsDefault))]);
+        Build([.. Ue.Objects().Select(o => new ObjectRow(o.Index, o.Name, o.Class?.Name ?? "?", o.Address, o.ClassAddress, o.IsDefault))]);
 
     public static ObjectIndex Build(ObjectRow[] rows)
     {
@@ -73,9 +72,15 @@ internal sealed class ObjectIndex
             for (var cls = Ue.Struct(classAt); cls is not null; cls = cls.Super)
                 totals[cls.Address] = (cls.Name, cls.Super?.Address ?? 0, (totals.TryGetValue(cls.Address, out var known) ? known.Total : 0) + list.Count);
 
-        var nodes = totals.ToDictionary(p => p.Key, p => new ClassNode(p.Key, p.Value.Name, p.Value.Super, byClass.TryGetValue(p.Key, out var own) ? own.Count : 0, p.Value.Total));
+        var nodes = totals.ToDictionary(p => p.Key, p => new ClassNode(p.Key, p.Value.Name, p.Value.Super, p.Value.Total, $"{p.Value.Name}  {p.Value.Total}###class{p.Key}"));
         var children = nodes.Values.Where(n => n.Super != 0).GroupBy(n => n.Super).ToDictionary(g => g.Key, g => g.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).Select(n => n.Address).ToList());
         var roots = nodes.Values.Where(n => n.Super == 0).OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).Select(n => n.Address).ToList();
         return new ObjectIndex(rows, nodes, children, byClass, roots);
+    }
+
+    internal static nint PositionAddress(nint actor, UStructInfo cls)
+    {
+        if (cls.Property("RootComponent") is not { } root || !Memory.TryRead(actor + root.Offset, out nint component) || !Ue.TryObject(component, out var comp) || comp.Class?.Property("RelativeLocation") is not { } location) return 0;
+        return component + location.Offset;
     }
 }

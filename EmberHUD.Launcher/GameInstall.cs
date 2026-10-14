@@ -3,9 +3,13 @@ using Microsoft.Win32;
 
 namespace EmberHUD.Launcher;
 
-public sealed record GameInstall(string Folder, int? Build)
+public sealed record GameInstall(string Folder, int? Build, bool Steam = false)
 {
-    public string Binaries => Path.Combine(Folder, "Game", "UE_game", "Binaries", "Win64");
+    public const int SteamAppId = 1974050;
+
+    string Root => Steam ? Folder : Path.Combine(Folder, "Game");
+
+    public string Binaries => Path.Combine(Root, "UE_game", "Binaries", "Win64");
 
     public const string ExeName = "torchlight_infinite.exe";
 
@@ -13,13 +17,15 @@ public sealed record GameInstall(string Folder, int? Build)
 
     public string Exe => Path.Combine(Binaries, ExeName);
 
-    string Saved => Path.Combine(Folder, "Game", "UE_game", "Torchlight", "Saved", "PersistentDownloadDir");
+    string Saved => Path.Combine(Root, "UE_game", "Torchlight", "Saved", "PersistentDownloadDir");
 
     public static GameInstall? At(string folder)
     {
         if (string.IsNullOrWhiteSpace(folder)) return null;
-        var install = new GameInstall(Path.GetFullPath(folder), null);
-        return File.Exists(install.Exe) ? install with { Build = install.ReadBuild() } : null;
+        var full = Path.GetFullPath(folder);
+        foreach (var install in new[] { new GameInstall(full, null), new GameInstall(full, null, true) })
+            if (File.Exists(install.Exe)) return install with { Build = install.ReadBuild() };
+        return null;
     }
 
     public static GameInstall? Find(string configured, string? registered) =>
@@ -33,8 +39,42 @@ public sealed record GameInstall(string Folder, int? Build)
             using var key = root.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Torchlight Infinite");
             if (key?.GetValue("UninstallString") is string uninstall && FolderOf(uninstall) is { } folder) return folder;
         }
+        return SteamFolder();
+    }
+
+    static string? SteamFolder()
+    {
+        using var user = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+        using var root = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32);
+        using var machine = root.OpenSubKey(@"SOFTWARE\Valve\Steam");
+        foreach (var steam in new[] { user?.GetValue("SteamPath"), machine?.GetValue("InstallPath") }.OfType<string>())
+        {
+            try
+            {
+                if (SteamInstall(steam) is { } install) return install;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
         return null;
     }
+
+    public static string? SteamInstall(string steamRoot)
+    {
+        var libraries = Path.Combine(steamRoot, "steamapps", "libraryfolders.vdf");
+        if (!File.Exists(libraries)) return null;
+        foreach (var library in VdfValues(File.ReadAllText(libraries), "path").Prepend(steamRoot))
+        {
+            var manifest = Path.Combine(library, "steamapps", $"appmanifest_{SteamAppId}.acf");
+            if (File.Exists(manifest) && VdfValues(File.ReadAllText(manifest), "installdir").FirstOrDefault() is { Length: > 0 } installDir)
+                return Path.Combine(library, "steamapps", "common", installDir);
+        }
+        return null;
+    }
+
+    static IEnumerable<string> VdfValues(string vdf, string key) =>
+        vdf.Split('\n').Select(line => line.Split('"')).Where(parts => parts is [_, var name, _, _, _] && name == key).Select(parts => parts[3].Replace(@"\\", @"\"));
 
     public static string? FolderOf(string uninstall)
     {
@@ -45,7 +85,7 @@ public sealed record GameInstall(string Folder, int? Build)
 
     public IReadOnlyList<string> Paks() =>
     [
-        .. LargestLastSoItWins(Files(Path.Combine(Folder, "Game", "UE_game", "Content", "Paks"), "*.pak")),
+        .. LargestLastSoItWins(Files(Path.Combine(Root, "UE_game", "Content", "Paks"), "*.pak")),
         .. Files(Path.Combine(Saved, "PreMountPak"), "UE_game_*_P.pak").OrderBy(PatchVersion).ThenBy(pak => pak, StringComparer.OrdinalIgnoreCase),
     ];
 

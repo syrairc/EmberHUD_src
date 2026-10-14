@@ -22,16 +22,22 @@ internal sealed partial class GameProcess : IDisposable
 
     private readonly SafeProcessHandle _handle;
 
-    private GameProcess(SafeProcessHandle handle, nint moduleBase, NativeReadBackend backend)
+    private GameProcess(SafeProcessHandle handle, nint moduleBase, NativeReadBackend backend, long exeSize, bool exactBuild)
     {
         _handle = handle;
         ModuleBase = moduleBase;
         Backend = backend;
+        ExeSize = exeSize;
+        ExactBuild = exactBuild;
     }
 
     public IReadBackend Backend { get; }
 
     public nint ModuleBase { get; }
+
+    public long ExeSize { get; }
+
+    public bool ExactBuild { get; }
 
     public bool IsAlive => !_handle.IsClosed && GetExitCodeProcess(_handle, out var code) && code == StillActive;
 
@@ -50,15 +56,9 @@ internal sealed partial class GameProcess : IDisposable
         return count == 1;
     }
 
-    public static bool TryAttach(int pid, ref (int Pid, string? Failure) rejectedBuild, out GameProcess? game, out string? failure)
+    public static bool TryAttach(int pid, out GameProcess? game, out string? failure)
     {
         game = null;
-        if (pid == rejectedBuild.Pid)
-        {
-            failure = rejectedBuild.Failure;
-            return false;
-        }
-
         var handle = OpenProcess(QueryLimitedAndVmRead, false, pid);
         var error = Marshal.GetLastWin32Error();
         if (handle.IsInvalid)
@@ -78,13 +78,6 @@ internal sealed partial class GameProcess : IDisposable
             }
 
             var size = new FileInfo(path).Length;
-            if (size != Offsets.KnownExeSize)
-            {
-                failure = $"unknown build - exe is {size} bytes, offsets are for {Offsets.KnownExeSize}";
-                rejectedBuild = (pid, failure);
-                return false;
-            }
-
             var backend = new NativeReadBackend(handle);
             if (!ProcessName.TryReadPebAddress(handle, out var peb) ||
                 !backend.TryReadPtr(peb + Offsets.PebImageBase, out var moduleBase))
@@ -93,7 +86,7 @@ internal sealed partial class GameProcess : IDisposable
                 return false;
             }
 
-            game = new GameProcess(handle, moduleBase, backend);
+            game = new GameProcess(handle, moduleBase, backend, size, Offsets.SelectBuild(size));
             attached = true;
             failure = null;
             return true;

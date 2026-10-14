@@ -23,26 +23,22 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
         return ((int)MathF.Floor((point.X - terrain.Origin.X) / terrain.CellSize), (int)MathF.Floor((point.Y - terrain.Origin.Y) / terrain.CellSize));
     }
 
+    public static Region Blank(int areaId, Terrain terrain, ExploredTrail? trail, Vector2? player, Color regionFill, Color exploredFill) =>
+        new(areaId, terrain, trail, new BitArray(0), CellOf(terrain, player), regionFill, exploredFill, [], 0, 0, [], []);
+
     public static Region Build(int areaId, Terrain terrain, ExploredTrail? trail, Vector2? player, Color regionFill, Color exploredFill, Region? previous, byte[]? reuse = null)
     {
         var size = terrain.CellSize;
-        var playerCell = CellOf(terrain, player);
-        if (!float.IsFinite(size) || size <= 0 || terrain.Cols <= 0 || terrain.Rows <= 0)
-            return new Region(areaId, terrain, trail, new BitArray(0), playerCell, regionFill, exploredFill, [], 0, 0, [], []);
+        if (!float.IsFinite(size) || size <= 0 || terrain.Cols <= 0 || terrain.Rows <= 0) return Blank(areaId, terrain, trail, player, regionFill, exploredFill);
 
+        var playerCell = CellOf(terrain, player);
         var everything = trail is null;
         var explored = Stamp(terrain, trail, player, previous);
         var pixels = Texels(terrain, explored, everything, regionFill, exploredFill, reuse, out var width);
         var right = terrain.Origin.X + terrain.Cols * size;
         var bottom = terrain.Origin.Y + terrain.Rows * size;
-        Vector2[] corners =
-        [
-            Map.Project(new Vector3(terrain.Origin.X, terrain.Origin.Y, 0)),
-            Map.Project(new Vector3(right, terrain.Origin.Y, 0)),
-            Map.Project(new Vector3(right, bottom, 0)),
-            Map.Project(new Vector3(terrain.Origin.X, bottom, 0)),
-        ];
-        Polyline[] outline = everything ? [] : Outline.Join(terrain.Walls((col, row) => terrain.IsWalkable(col, row) && explored[row * terrain.Cols + col]), terrain);
+        Vector2[] corners = [terrain.Origin, new(right, terrain.Origin.Y), new(right, bottom), new(terrain.Origin.X, bottom)];
+        Polyline[] outline = everything ? [] : terrain.Outline((col, row) => terrain.IsWalkable(col, row) && explored[row * terrain.Cols + col]);
         return new Region(areaId, terrain, trail, explored, playerCell, regionFill, exploredFill, pixels, width, terrain.Rows, corners, outline);
     }
 
@@ -100,5 +96,30 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
         pixels[at + 1] = colour.G;
         pixels[at + 2] = colour.B;
         pixels[at + 3] = colour.A;
+    }
+}
+
+public sealed record Walls(int AreaId, Terrain? Source, Vector2 Min, Vector2 Max, Polyline[] RegionOutline)
+{
+    public static readonly Walls Empty = new(-1, null, default, default, []);
+
+    public bool Matches(int areaId, Terrain? terrain) => AreaId == areaId && ReferenceEquals(Source, terrain);
+
+    public static Walls Build(int areaId, Terrain? terrain)
+    {
+        if (terrain is null) return new Walls(areaId, null, default, default, []);
+
+        var outline = terrain.Outline();
+        var any = false;
+        var min = default(Vector2);
+        var max = default(Vector2);
+        foreach (var line in outline)
+            foreach (var point in line.Points)
+            {
+                min = any ? Vector2.Min(min, point) : point;
+                max = any ? Vector2.Max(max, point) : point;
+                any = true;
+            }
+        return new Walls(areaId, terrain, min, max, outline);
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
 using System.Numerics;
 using Hexa.NET.ImGui;
 using EmberHUD;
@@ -99,7 +98,7 @@ public sealed class IconsTab
             ? Math.Clamp(MathF.Pow(mapScale / GeneralTab.DefaultZoom, ZoomScaleFactor), ZoomScaleMin, ZoomScaleMax)
             : 1;
 
-    public IEnumerable<IconStyle> Fixed => [NormalMonsters, MagicMonsters, RareMonsters, Bosses, Minions, Npcs, OtherPlayers, MapObjects, Destructibles];
+    public IconStyle[] Fixed => [NormalMonsters, MagicMonsters, RareMonsters, Bosses, Minions, Npcs, OtherPlayers, MapObjects, Destructibles];
 
     public IconStyle? FixedFor(Entity entity) => entity.Kind switch
     {
@@ -156,25 +155,13 @@ public sealed class Settings : PluginSettings
     public MapTab Map = new();
     public IconsTab Icons = new();
 
-    public static MarkerShape FallbackShape(int type) => type switch
-    {
-        2 or (>= 1040 and <= 1060) => MarkerShape.Star,
-        10 or 11 or 12 or 14 or 32 or 33 or 1000 or 1022 => MarkerShape.Diamond,
-        7 or 8 or 9 or 1010 or 2001 or 2002 => MarkerShape.Hexagon,
-        3 or 1006 or 1007 or 1009 or 1011 => MarkerShape.Square,
-        (>= 15 and <= 24) or 29 => MarkerShape.Triangle,
-        1003 or 1008 or 1023 or 1024 => MarkerShape.Sparkle,
-        _ => MarkerShape.Dot,
-    };
-
     static readonly IconsTab Defaults = new();
     string _filter = "";
     string? _editing;
     string _editText = "";
     bool _focusEdit;
 
-    internal static IEnumerable<IconStyle> Filtered(IEnumerable<IconStyle> rows, string filter) =>
-        rows.Where(r => Text.Matches(filter, r.Name) || Text.Matches(filter, r.Key));
+    internal static bool Matches(IconStyle row, string filter) => Text.Matches(filter, row.Name) || Text.Matches(filter, row.Key);
 
     internal static void Rename(IconStyle row, string typed)
     {
@@ -229,10 +216,9 @@ public sealed class Settings : PluginSettings
         changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
         changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
         Controls.Section("Icons");
-        ImGui.SetNextItemWidth(240);
-        ImGui.InputTextWithHint("##filter", "search", ref _filter, 64);
+        Controls.Filter(ref _filter, width: 240);
         ImGui.SameLine();
-        ImGui.TextDisabled($"{Icons.Fixed.Count()} fixed + {Icons.Found.Count} found");
+        ImGui.TextDisabled($"{Icons.Fixed.Length} fixed + {Icons.Found.Count} found");
         if (!ImGui.BeginTable("##icons", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingFixedFit, new Vector2(0, 360))) return changed;
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("Show", ImGuiTableColumnFlags.WidthFixed);
@@ -242,11 +228,13 @@ public sealed class Settings : PluginSettings
         ImGui.TableSetupColumn("Override game icon", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableHeadersRow();
         GroupRow("Fixed");
-        foreach (var (row, reset, i) in Icons.Fixed.Zip(Defaults.Fixed, (row, def) => (row, def)).Select((p, i) => (p.row, p.def, i)))
-            if (Text.Matches(_filter, row.Name) || Text.Matches(_filter, row.Key)) changed |= DrawRow(row, "f" + i, reset);
+        var fixedRows = Icons.Fixed;
+        var fixedDefaults = Defaults.Fixed;
+        for (var i = 0; i < fixedRows.Length; i++)
+            if (Matches(fixedRows[i], _filter)) changed |= DrawRow(fixedRows[i], "f" + i, fixedDefaults[i]);
         GroupRow("Found in game");
-        foreach (var row in Filtered(Icons.Found.Where(r => r?.Key is not null), _filter))
-            changed |= DrawRow(row, row.Key, null);
+        foreach (var row in Icons.Found)
+            if (row?.Key is not null && Matches(row, _filter)) changed |= DrawRow(row, row.Key, null);
         ImGui.EndTable();
         return changed;
     }

@@ -90,4 +90,67 @@ public class GameInstallTests
         using var temp = new TempDir();
         Assert.Empty(new GameInstall(temp.Path, null).Paks());
     }
+
+    const string SteamExe = @"UE_game\Binaries\Win64\torchlight_infinite.exe";
+    const string SteamPatchVersion = @"UE_game\TorchLight\Saved\PersistentDownloadDir\ReleaseGlobal\Config\live_patch_version.json";
+
+    [Fact]
+    public void AtAcceptsTheSteamLayoutWithoutTheGameFolder()
+    {
+        using var temp = new TempDir();
+        temp.File(SteamExe);
+        temp.File(SteamPatchVersion, """{ "CurrentBuild": 5975312 }""");
+        var game = GameInstall.At(temp.Path)!;
+        Assert.True(game.Steam);
+        Assert.Equal(5975312, game.Build);
+        Assert.Equal(Path.Combine(temp.Path, SteamExe), game.Exe);
+        Assert.Equal(Path.Combine(temp.Path, @"UE_game\Binaries\Win64"), game.Binaries);
+    }
+
+    [Fact]
+    public void AtPrefersTheStandaloneLayoutWhenBothExist()
+    {
+        using var temp = new TempDir();
+        temp.File(Exe);
+        temp.File(SteamExe);
+        Assert.False(GameInstall.At(temp.Path)!.Steam);
+    }
+
+    [Fact]
+    public void PaksFollowTheSteamLayout()
+    {
+        using var temp = new TempDir();
+        var big = temp.File(@"UE_game\Content\Paks\pakchunk0-WindowsNoEditor.pak", "aaa");
+        var small = temp.File(@"UE_game\Content\Paks\pakchunk1-WindowsNoEditor.pak", "a");
+        var nine = temp.File(@"UE_game\Torchlight\Saved\PersistentDownloadDir\PreMountPak\UE_game_9_P.pak", "aaaaa");
+        var ten = temp.File(@"UE_game\Torchlight\Saved\PersistentDownloadDir\PreMountPak\UE_game_10_P.pak", "a");
+        Assert.Equal([small, big, nine, ten], new GameInstall(temp.Path, null, true).Paks());
+    }
+
+    [Fact]
+    public void SteamInstallReadsEveryLibraryAndTheManifestInstallDir()
+    {
+        using var steam = new TempDir();
+        using var library = new TempDir();
+        steam.File(@"steamapps\libraryfolders.vdf", "\"libraryfolders\"\r\n{\r\n\t\"0\"\r\n\t{\r\n\t\t\"path\"\t\t\"" + steam.Path.Replace(@"\", @"\\") + "\"\r\n\t}\r\n\t\"1\"\r\n\t{\r\n\t\t\"path\"\t\t\"" + library.Path.Replace(@"\", @"\\") + "\"\r\n\t\t\"label\"\t\t\"\"\r\n\t}\r\n}\r\n");
+        Assert.Null(GameInstall.SteamInstall(steam.Path));
+        library.File(@"steamapps\appmanifest_1974050.acf", "\"AppState\"\n{\n\t\"appid\"\t\t\"1974050\"\n\t\"installdir\"\t\t\"Torchlight Infinite\"\n}\n");
+        Assert.Equal(Path.Combine(library.Path, @"steamapps\common\Torchlight Infinite"), GameInstall.SteamInstall(steam.Path));
+    }
+
+    [Fact]
+    public void SteamInstallFindsTheGameInTheSteamRootItself()
+    {
+        using var steam = new TempDir();
+        steam.File(@"steamapps\libraryfolders.vdf", "\"libraryfolders\"\n{\n}\n");
+        steam.File(@"steamapps\appmanifest_1974050.acf", "\"AppState\"\n{\n\t\"installdir\"\t\t\"Torchlight Infinite\"\n}\n");
+        Assert.Equal(Path.Combine(steam.Path, @"steamapps\common\Torchlight Infinite"), GameInstall.SteamInstall(steam.Path));
+    }
+
+    [Fact]
+    public void SteamInstallIsNullWithoutALibraryFile()
+    {
+        using var steam = new TempDir();
+        Assert.Null(GameInstall.SteamInstall(steam.Path));
+    }
 }

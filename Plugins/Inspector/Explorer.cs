@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Ui;
@@ -8,20 +9,23 @@ namespace Inspector;
 
 internal sealed class Explorer
 {
-    readonly RawTree _raw;
     readonly Snapshots _snapshots;
+    readonly Dictionary<nint, (nint PointerAt, nint Component, nint Location)> _locations = [];
     TableColumn<ObjectRow>[]? _columns;
     ObjectRow[] _rows = [];
     (ObjectIndex, nint, string) _rowsKey;
+    (nint, string, ObjectIndex) _crumbKey;
+    (string Name, string Label, nint Address)[] _crumb = [];
     string _filter = "";
     int _area = -1;
 
-    public Explorer(RawTree raw, Snapshots snapshots)
+    public Explorer(Snapshots snapshots, Action<object> pin)
     {
-        _raw = raw;
         _snapshots = snapshots;
-        raw.View.Navigate = History.Push;
+        View = new RawView(snapshots, pin) { Navigate = History.Push };
     }
+
+    public RawView View { get; }
 
     public ObjectIndex Index { get; private set; } = ObjectIndex.Empty;
 
@@ -33,25 +37,14 @@ internal sealed class Explorer
 
     public string Search = "";
 
-    public int RowsDrawn;
-
-    internal void Seed(ObjectIndex index, int areaId)
-    {
-        Index = index;
-        _area = areaId;
-    }
-
     public void Draw(int areaId)
     {
-        if (!Memory.Attached)
-        {
-            ImGui.TextDisabled("not attached (--fake or no game)");
-            return;
-        }
+        if (!RawView.Attached()) return;
         if (Job.TakeFinished() is { } done)
         {
             if (done.IsFaulted) Log.Warn($"Inspector objects read failed - {done.Exception?.GetBaseException().Message}");
             Index = done.IsCompletedSuccessfully ? done.Result : ObjectIndex.Empty;
+            _locations.Clear();
         }
         var refresh = ImGui.Button("Refresh");
         if (!Job.Running && (refresh || areaId != _area))
@@ -100,7 +93,7 @@ internal sealed class Explorer
         var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth;
         if (kids.Count == 0) flags |= ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
         if (classAt == SelectedClass) flags |= ImGuiTreeNodeFlags.Selected;
-        var open = ImGui.TreeNodeEx($"{node.Name}  {node.Total}###class{classAt}", flags);
+        var open = ImGui.TreeNodeEx(node.Label, flags);
         if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen())
         {
             SelectedClass = classAt;
@@ -113,7 +106,6 @@ internal sealed class Explorer
 
     void Instances(float height)
     {
-        RowsDrawn = 0;
         var key = (Index, Search.Length > 0 ? 0 : SelectedClass, Search);
         if (key != _rowsKey)
         {
@@ -139,35 +131,39 @@ internal sealed class Explorer
 
     void SelectCell(ObjectRow row)
     {
-        RowsDrawn++;
         if (ImGui.Selectable($"{row.Index}###row{row.Address}", row.Address == History.Current, ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowOverlap)) History.Push(row.Address);
         if (!ImGui.BeginPopupContextItem("row")) return;
-        if (ImGui.MenuItem("Pin")) _raw.PinRequest = new RawPin(row.Address, $"{row.Class} {row.Name}");
-        if (ImGui.MenuItem("Copy address")) ImGui.SetClipboardText($"0x{row.Address:X}");
+        View.AddressMenu(row.Address, $"{row.Class} {row.Name}");
         ImGui.EndPopup();
     }
 
     void Distance(ObjectRow row)
     {
-        if (Game.State.Player is { } player && ActorSpot(row) is { } at) ImGui.TextUnformatted($"{Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(player.Position.X, player.Position.Y)):0}");
+        if (Game.State.Player is { } player && ActorPosition(row) is { } at) ImGui.TextUnformatted($"{player.FlatDistance(at):0}");
         else ImGui.TextDisabled("-");
     }
 
-    Vector3? ActorSpot(ObjectRow row)
+    internal Vector3? ActorPosition(ObjectRow row)
     {
-        if (Ue.Struct(row.ClassAddress)?.Property("RootComponent") is not { } root || _snapshots.Get(row.Address + root.Offset, 8) is not { } pointer) return null;
-        var component = (nint)BitConverter.ToInt64(pointer);
-        if (component == 0 || !Ue.TryObject(component, out var comp) || comp.Class?.Property("RelativeLocation") is not { } location) return null;
-        return _snapshots.Get(component + location.Offset, 12) is { } xyz ? new Vector3(BitConverter.ToSingle(xyz, 0), BitConverter.ToSingle(xyz, 4), BitConverter.ToSingle(xyz, 8)) : null;
+        if (!_locations.TryGetValue(row.Address, out var known))
+        {
+            if (Ue.Struct(row.ClassAddress)?.Property("RootComponent") is not { } root) return null;
+            known = (row.Address + root.Offset, 0, 0);
+        }
+        var component = _snapshots.Get(known.PointerAt, 8) is { } pointer ? (nint)BitConverter.ToInt64(pointer, 0) : 0;
+        if (component != known.Component || known.Location == 0)
+            known = (known.PointerAt, component, component != 0 && Ue.TryObject(component, out var comp) && comp.Class?.Property("RelativeLocation") is { } location ? component + location.Offset : 0);
+        _locations[row.Address] = known;
+        return known.Location != 0 && _snapshots.Get(known.Location, 12) is { } xyz ? new Vector3(BitConverter.ToSingle(xyz, 0), BitConverter.ToSingle(xyz, 4), BitConverter.ToSingle(xyz, 8)) : null;
     }
 
     void ObjectPane()
     {
-        if (ImGui.Button("<") && History.CanBack) History.Back();
+        if (ImGui.Button("<")) History.Back();
         ImGui.SameLine();
-        if (ImGui.Button(">") && History.CanForward) History.Forward();
+        if (ImGui.Button(">")) History.Forward();
         ImGui.SameLine();
-        _raw.View.Toolbar();
+        View.Toolbar();
         var address = History.Current;
         if (address == 0)
         {
@@ -179,26 +175,74 @@ internal sealed class Explorer
             ImGui.TextDisabled($"gone 0x{address:X}");
             return;
         }
-        Breadcrumb(obj);
+        DrawCrumb(Crumb(obj));
         ImGui.Separator();
-        _raw.View.Object(address, obj, cls, 0, true);
+        View.Object(address, obj, cls, 0, true);
     }
 
-    void Breadcrumb(UObj obj)
+    internal (string Name, string Label, nint Address)[] Crumb(UObj obj)
     {
+        var key = (obj.Address, obj.Name, Index);
+        if (key == _crumbKey) return _crumb;
+        List<(string Name, string Label, nint Address)> trail = [];
         var current = obj;
         for (var depth = 0; depth < 8; depth++)
         {
-            if (depth > 0)
+            trail.Add((current.Name, $"{current.Name}###crumb{depth}", current.Address));
+            if (current.Outer is not { } outer || !Ue.TryObject(outer.Address, out _)) break;
+            current = outer;
+        }
+        _crumbKey = key;
+        return _crumb = [.. trail];
+    }
+
+    void DrawCrumb((string Name, string Label, nint Address)[] trail)
+    {
+        for (var i = 0; i < trail.Length; i++)
+        {
+            if (i > 0)
             {
                 ImGui.SameLine();
                 ImGui.TextDisabled("<");
                 ImGui.SameLine();
             }
-            if (depth == 0) ImGui.TextUnformatted(current.Name);
-            else if (ImGui.SmallButton($"{current.Name}###crumb{depth}")) History.Push(current.Address);
-            if (current.Outer is not { } outer || !Ue.TryObject(outer.Address, out _)) break;
-            current = outer;
+            if (i == 0) ImGui.TextUnformatted(trail[i].Name);
+            else if (ImGui.SmallButton(trail[i].Label)) History.Push(trail[i].Address);
         }
+    }
+}
+
+internal sealed class History
+{
+    const int Cap = 200;
+
+    readonly List<nint> _items = [];
+    int _at = -1;
+
+    public nint Current => _at >= 0 ? _items[_at] : 0;
+
+    public bool CanBack => _at > 0;
+
+    public bool CanForward => _at < _items.Count - 1;
+
+    public void Push(nint address)
+    {
+        if (address == Current) return;
+        _items.RemoveRange(_at + 1, _items.Count - _at - 1);
+        _items.Add(address);
+        _at++;
+        if (_items.Count <= Cap) return;
+        _items.RemoveAt(0);
+        _at--;
+    }
+
+    public void Back()
+    {
+        if (CanBack) _at--;
+    }
+
+    public void Forward()
+    {
+        if (CanForward) _at++;
     }
 }

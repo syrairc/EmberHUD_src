@@ -83,4 +83,69 @@ public class OffsetGenTests
         Assert.Equal(["MiniMap_C", "Rotate", "Default__"], OffsetTable.UnpackStrings(plain));
         Assert.Empty(OffsetTable.UnpackStrings(OffsetEmitter.Pack([1], [])));
     }
+
+    const string TwoBuilds = """
+        A = 1
+        B = 0x10
+        [build 100]
+        XRva = 0x1000
+        YRva = 0x2000
+        [build 250]
+        YRva = 0x2500
+        XRva = 0x1500
+        """;
+
+    [Fact]
+    public void BaseParsingStopsAtTheFirstBuildHeader()
+    {
+        Assert.Equal([("A", 1), ("B", 16)], LayoutParser.Parse(TwoBuilds));
+        Assert.Empty(LayoutParser.ParseStrings(TwoBuilds));
+    }
+
+    [Fact]
+    public void ParseBuildsOrdersEveryBlockByTheFirstBuildsKeys()
+    {
+        var table = LayoutParser.ParseBuilds(TwoBuilds, ["A", "B"]);
+        Assert.Equal(["XRva", "YRva"], table.Names);
+        Assert.Equal([100L, 250L], table.Sizes);
+        Assert.Equal([0x1000, 0x2000, 0x1500, 0x2500], table.Values);
+    }
+
+    [Theory]
+    [InlineData("A = 1")]
+    [InlineData("A = 1\n[build 100]")]
+    public void ABuildSectionIsRequiredAndMustHoldKeys(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
+
+    [Theory]
+    [InlineData("A = 1\n[build 100]\nXRva = 1\n[build 250]\nXRva = 2\nYRva = 3")]
+    [InlineData("A = 1\n[build 100]\nXRva = 1\nYRva = 3\n[build 250]\nXRva = 2")]
+    [InlineData("A = 1\n[build 100]\nXRva = 1\n[build 250]\nYRva = 2")]
+    public void BuildsMustDefineTheSameKeys(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
+
+    [Theory]
+    [InlineData("A = 1\n[build 100]\nXRva = 1\nB = 2")]
+    [InlineData("A = 1\n[build 100]\nA = 1\nXRva = 1")]
+    public void OnlyRvaKeysThatAreNotInTheBaseBelongInABuild(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
+
+    [Fact]
+    public void ARvaKeyInTheBaseIsRejected() =>
+        Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds("ZRva = 1\n[build 100]\nXRva = 1", ["ZRva"]));
+
+    [Theory]
+    [InlineData("A = 1\n[build x]\nXRva = 1")]
+    [InlineData("A = 1\n[build 0]\nXRva = 1")]
+    [InlineData("A = 1\n[build 100\nXRva = 1")]
+    [InlineData("A = 1\n[build 100]\nXRva = 1\n[build 100]\nXRva = 1")]
+    [InlineData("A = 1\n[build 100]\nXRva = \"text\"")]
+    public void RejectsBadBuildHeadersAndValues(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
+
+    [Fact]
+    public void EmitsRvaAccessorsIndexedByTheSelectedBuild()
+    {
+        var source = OffsetEmitter.Emit(["Alpha", "Beta"], [1], [], ["XRva", "YRva"], [100, 250]);
+        Assert.Contains("internal static int Alpha => T[0];", source);
+        Assert.Contains("internal static int XRva => T[2 + Build * 2];", source);
+        Assert.Contains("internal static int YRva => T[3 + Build * 2];", source);
+        Assert.Contains("internal static readonly long[] BuildSizes = [100, 250];", source);
+    }
 }

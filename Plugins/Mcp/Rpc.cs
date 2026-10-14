@@ -69,31 +69,29 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
         var name = Text(parameters?["name"]);
         if (name is null || !_byName.TryGetValue(name, out var tool)) return Fail(id, 200, -32602, $"Unknown tool: {name}");
         if (parameters!["arguments"] is not (null or JsonObject)) return Fail(id, 200, -32602, "arguments must be an object");
-        JsonObject value;
-        var isError = false;
+        JsonObject? value = null;
+        string? error = null;
         try
         {
             value = tool.Run(new Args(parameters["arguments"] as JsonObject));
         }
-        catch (ToolError error)
+        catch (ToolError failure)
         {
-            value = new JsonObject { ["error"] = error.Message };
-            isError = true;
+            error = failure.Message;
         }
-        catch (Exception error)
+        catch (Exception failure)
         {
-            Log.Error(error, tool.Name);
-            value = new JsonObject { ["error"] = $"{tool.Name} failed: {error.Message}" };
-            isError = true;
+            Log.Error(failure, tool.Name);
+            error = $"{tool.Name} failed: {failure.Message}";
         }
-        var text = isError ? (string)value["error"]! : value.ToJsonString();
-        if (!isError && text.Length > MaxResultChars)
+        var text = error ?? value!.ToJsonString();
+        if (error is null && text.Length > MaxResultChars)
         {
-            text = $"result too large ({text.Length} characters, the cap is {MaxResultChars}) - ask for less";
-            isError = true;
+            error = $"result too large ({text.Length} characters, the cap is {MaxResultChars}) - ask for less";
+            text = error;
         }
-        var result = new JsonObject { ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text }), ["isError"] = isError };
-        if (!isError) result["structuredContent"] = value;
+        var result = new JsonObject { ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text }), ["isError"] = error is not null };
+        if (error is null) result["structuredContent"] = value;
         return Ok(id, result, modern);
     }
 

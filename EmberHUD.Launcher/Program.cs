@@ -16,7 +16,7 @@ if (config is null || game is null)
 }
 else
 {
-    Log($"game {game.Folder}, build {game.Build?.ToString() ?? "unknown"}, run as {(config.RunAsUser.Length > 0 ? config.RunAsUser : "yourself")}");
+    Log($"game {game.Folder}, build {game.Build?.ToString() ?? "unknown"}, {(game.Steam ? "through Steam" : $"run as {(config.RunAsUser.Length > 0 ? config.RunAsUser : "yourself")}")}");
     foreach (var (name, start) in Launch.Steps(config, game, root, IsRunning, Log)) Start(name, start);
 }
 if (runas is not null)

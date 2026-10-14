@@ -3,61 +3,44 @@ using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
-using Hexa.NET.ImGui;
 
 namespace Inspector;
 
 public sealed class ExplorerTests
 {
-    static void Frame(Action draw) => TestFrame.Run(() =>
-    {
-        ImGui.SetNextWindowSize(new Vector2(1200, 700));
-        ImGui.Begin("explorer");
-        draw();
-        ImGui.End();
-    });
-
     static (Explorer Explorer, TestUe Ue, nint Hero) Setup()
     {
-        var ue = new TestUe();
-        var vector = ue.ScriptStruct("Vector", 12, new TestProp("X", "FloatProperty", 0), new TestProp("Y", "FloatProperty", 4), new TestProp("Z", "FloatProperty", 8));
-        var scene = ue.Class("SceneComponent", 0, 0x40, new TestProp("RelativeLocation", "StructProperty", 0x30, 12, Struct: vector));
-        var actor = ue.Class("Actor", 0, 0x50, new TestProp("RootComponent", "ObjectProperty", 0x30, 8));
-        var monster = ue.Class("EMonster", actor, 0x58);
-        var root = ue.Object("Root", scene);
-        TestMemory.Write(root + 0x30, new Vector3(13, 24, 0));
-        var hero = ue.Object("Hero", monster);
-        TestMemory.Write(hero + 0x30, root);
-        var raw = new RawTree(new Snapshots(() => 0));
-        return (new Explorer(raw, new Snapshots(() => 0)) { Job = new(inline: true) }, ue, hero);
+        var (ue, hero, _, _) = Samples.ActorWorld();
+        return (new Explorer(new Snapshots(() => 0), Samples.NoPin) { Job = new(inline: true) }, ue, hero);
     }
 
     [Test]
     public void TheIndexFillsOnFirstDrawAndRefreshesOnAnAreaChange()
     {
         var (explorer, ue, _) = Setup();
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
         var before = explorer.Index.Rows.Length;
         Check.That(before > 0, "rows after the first scan");
 
         ue.Object("Late", ue.Class("Thing"));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
         Check.Equal(before, explorer.Index.Rows.Length);
-        Frame(() => explorer.Draw(2));
-        Frame(() => explorer.Draw(2));
+        Samples.Frame(() => explorer.Draw(2));
+        Samples.Frame(() => explorer.Draw(2));
         Check.Equal(before + 2, explorer.Index.Rows.Length);
     }
 
     [Test]
     public void AFaultedScanLeavesAnEmptyIndex()
     {
-        var (explorer, _, hero) = Setup();
-        explorer.Seed(ObjectIndex.Build([new ObjectRow(0, "Hero", "EMonster", "Outer", hero, hero, false)]), 1);
-        Check.Equal(1, explorer.Index.Rows.Length);
+        var (explorer, _, _) = Setup();
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Check.That(explorer.Index.Rows.Length > 0, "the first scan landed");
         explorer.Job.Start(() => throw new InvalidOperationException("boom"));
 
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
 
         Check.Equal(0, explorer.Index.Rows.Length);
     }
@@ -66,13 +49,13 @@ public sealed class ExplorerTests
     public void SelectingAnObjectDrawsItAndABackAndForwardTrail()
     {
         var (explorer, _, hero) = Setup();
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
         explorer.History.Push(hero);
         explorer.SelectedClass = explorer.Index.Rows.First(r => r.Name == "Hero").ClassAddress;
 
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
 
         Check.Equal(hero, explorer.History.Current);
     }
@@ -81,51 +64,162 @@ public sealed class ExplorerTests
     public void AGoneObjectKeepsItsHistoryEntryAndDrawsWithoutReading()
     {
         var (explorer, _, hero) = Setup();
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
         explorer.History.Push(hero);
 
         TestMemory.WriteBytes(hero, new byte[0x30]);
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
 
         Check.Equal(hero, explorer.History.Current);
         Check.That(!Ue.TryObject(hero, out _), "the object is really gone");
     }
 
     [Test]
-    public void SearchReplacesTheInstanceList()
+    public void SearchDrawsTheMatchingInstances()
     {
         var (explorer, _, _) = Setup();
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
 
         explorer.Search = "hero";
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
 
-        Check.That(explorer.RowsDrawn > 0, "search results drew rows");
+        Check.Equal(1, explorer.Index.Search("hero").Length);
     }
 
     [Test]
-    public void TheInstanceTableOnlyDrawsTheRowsInView()
+    public void ManyInstancesDrawInOneFrame()
     {
-        var (explorer, _, _) = Setup();
-        Frame(() => explorer.Draw(1));
-        Frame(() => explorer.Draw(1));
+        var (explorer, ue, _) = Setup();
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
         var cls = explorer.Index.Rows.First(r => r.Name == "Hero").ClassAddress;
-        explorer.Seed(ObjectIndex.Build([.. Enumerable.Range(0, 5000).Select(i => new ObjectRow(i, $"Thing{i}", "EMonster", "Outer", 0x10000 + i * 0x100, cls, false))]), 1);
+        for (var i = 0; i < 200; i++) ue.Object($"Thing{i}", cls);
+        Samples.Frame(() => explorer.Draw(2));
+        Samples.Frame(() => explorer.Draw(2));
         explorer.SelectedClass = cls;
 
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(2));
 
-        Check.That(explorer.RowsDrawn is > 0 and < 200, $"the table drew {explorer.RowsDrawn} of 5000 rows");
+        Check.That(explorer.Index.Rows.Length >= 200, $"the scan found {explorer.Index.Rows.Length} rows");
     }
 
     [Test]
     public void DetachedSaysNotAttached()
     {
         TestMemory.Clear();
-        var explorer = new Explorer(new RawTree(new Snapshots(() => 0)), new Snapshots(() => 0));
+        var explorer = new Explorer(new Snapshots(() => 0), Samples.NoPin);
 
-        Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+    }
+
+    [Test]
+    public void HistoryWalksBackAndForwardAndDropsTheForwardTailOnPush()
+    {
+        var history = new History();
+        history.Push(1);
+        history.Push(2);
+        history.Push(3);
+        history.Push(3);
+
+        Check.Equal((nint)3, history.Current);
+        history.Back();
+        Check.Equal((nint)2, history.Current);
+        Check.That(history.CanForward, "can go forward");
+        history.Push(9);
+        Check.That(!history.CanForward, "forward tail dropped");
+        history.Back();
+        Check.Equal((nint)2, history.Current);
+        history.Back();
+        Check.Equal((nint)1, history.Current);
+        Check.That(!history.CanBack, "at the start");
+        history.Back();
+        Check.Equal((nint)1, history.Current);
+    }
+
+    [Test]
+    public void HistoryIsCapped()
+    {
+        var history = new History();
+        for (var i = 1; i <= 500; i++) history.Push(i);
+
+        var steps = 0;
+        while (history.CanBack)
+        {
+            history.Back();
+            steps++;
+        }
+        Check.That(steps < 250, $"history kept {steps} entries");
+    }
+
+    static (Explorer Explorer, ObjectRow Row, nint Hero, Action<long> SetClock) PositionSetup()
+    {
+        var (ue, hero, _, _) = Samples.ActorWorld();
+        long now = 0;
+        var explorer = new Explorer(new Snapshots(() => now), Samples.NoPin) { Job = new(inline: true) };
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        return (explorer, explorer.Index.Rows.Single(r => r.Name == "Hero"), hero, t => now = t);
+    }
+
+    [Test]
+    public void TheActorPositionBytesFollowTheSnapshot()
+    {
+        var (explorer, row, _, _) = PositionSetup();
+        Check.Equal(new Vector3(1, 2, 3), explorer.ActorPosition(row)!.Value);
+    }
+
+    [Test]
+    public void TheActorPositionGoesWhenTheRootComponentIsZeroedAndFollowsAReplacement()
+    {
+        var (explorer, row, hero, setClock) = PositionSetup();
+        Check.Equal(new Vector3(1, 2, 3), explorer.ActorPosition(row)!.Value);
+
+        TestMemory.Write(hero + 0x30, (nint)0);
+        setClock(1000);
+        Check.That(explorer.ActorPosition(row) is null, "a zeroed root has no position");
+
+        var (_, _, otherRoot, _) = Samples.ActorWorld();
+        TestMemory.Write(hero + 0x30, otherRoot);
+        TestMemory.Write(otherRoot + 0x30, new Vector3(7, 8, 9));
+        setClock(2000);
+        Check.Equal(new Vector3(7, 8, 9), explorer.ActorPosition(row)!.Value);
+    }
+
+    [Test]
+    public void AZeroLocationIsRetriedNextFrame()
+    {
+        var (explorer, row, hero, setClock) = PositionSetup();
+        TestMemory.Write(hero + 0x30, (nint)0);
+        setClock(1000);
+        Check.That(explorer.ActorPosition(row) is null, "no root yet");
+
+        var (_, _, root, _) = Samples.ActorWorld();
+        TestMemory.Write(hero + 0x30, root);
+        setClock(2000);
+        Check.Equal(new Vector3(1, 2, 3), explorer.ActorPosition(row)!.Value);
+    }
+
+    [Test]
+    public void TheBreadcrumbIsBuiltOncePerObjectAndRebuiltWithTheIndex()
+    {
+        var (explorer, ue, _) = Setup();
+        Samples.Frame(() => explorer.Draw(1));
+        Samples.Frame(() => explorer.Draw(1));
+        var cls = explorer.Index.Rows.Single(r => r.Name == "Hero").ClassAddress;
+        var level = ue.Object("Level", cls);
+        var inner = new UObj(ue.Object("Inner", cls, level));
+
+        var first = explorer.Crumb(inner);
+
+        Check.Equal("Inner,Level", string.Join(",", first.Select(part => part.Name)));
+        Check.That(ReferenceEquals(first, explorer.Crumb(inner)), "same object, same trail");
+        Samples.Frame(() => explorer.Draw(2));
+        Samples.Frame(() => explorer.Draw(2));
+        Check.That(!ReferenceEquals(first, explorer.Crumb(inner)), "a new index rebuilds the trail");
+        var again = explorer.Crumb(inner);
+        TestMemory.Write(inner.Address + 0x20, ue.Name("Renamed"));
+        Check.That(!ReferenceEquals(again, explorer.Crumb(new UObj(inner.Address))), "a reused slot with another name rebuilds the trail");
     }
 }

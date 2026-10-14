@@ -5,6 +5,17 @@ internal static partial class Offsets
     private static readonly int[] T;
     private static readonly string[] S;
 
+    internal static int Build;
+
+    internal static bool SelectBuild(long exeSize)
+    {
+        var best = 0;
+        for (var i = 1; i < BuildSizes.Length; i++)
+            if (Math.Abs(BuildSizes[i] - exeSize) <= Math.Abs(BuildSizes[best] - exeSize)) best = i;
+        Build = best;
+        return BuildSizes[best] == exeSize;
+    }
+
     static Offsets()
     {
         using var stream = typeof(Offsets).Assembly.GetManifestResourceStream("t") ?? throw new InvalidDataException("resource t missing");

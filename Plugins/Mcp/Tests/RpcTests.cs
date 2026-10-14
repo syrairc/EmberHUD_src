@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Nodes;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
 public sealed class RpcTests
 {
-    static readonly Tool Echo = new("echo", "Returns its text", Schema.Of(["text"], ("text", "string", "what to echo")), args => new JsonObject { ["text"] = args.Str("text") });
     static readonly Tool Boom = new("boom", "Always fails", Schema.Of([]), _ => throw new ToolError("nope"));
     static readonly Tool Crash = new("crash", "Throws", Schema.Of([]), _ => throw new InvalidOperationException("bad"));
     static readonly Tool Big = new("big", "Huge", Schema.Of([]), _ => new JsonObject { ["text"] = new string('x', Rpc.MaxResultChars + 1) });
@@ -21,7 +21,7 @@ public sealed class RpcTests
 
     static Reply Modern(string method, JsonObject? parameters = null, string? name = null)
     {
-        List<(string, string)> headers = [("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", method)];
+        List<(string, string)> headers = [("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", method)];
         if (name is not null) headers.Add(("Mcp-Name", name));
         return Send(Wire.Body(method, parameters), [.. headers]);
     }
@@ -114,14 +114,14 @@ public sealed class RpcTests
     public void MismatchedHeadersAreRejected()
     {
         var body = Wire.Body("tools/call", CallParams("echo", new JsonObject { ["text"] = "x" }));
-        var wrongMethod = Send(body, ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", "tools/list"), ("Mcp-Name", "echo"));
+        var wrongMethod = Send(body, ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", "tools/list"), ("Mcp-Name", "echo"));
         Check.Equal(400, wrongMethod.Status);
         Check.Equal(-32020, ErrorCode(wrongMethod));
-        var wrongName = Send(body, ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", "tools/call"), ("Mcp-Name", "boom"));
+        var wrongName = Send(body, ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", "tools/call"), ("Mcp-Name", "boom"));
         Check.Equal(-32020, ErrorCode(wrongName));
-        var noName = Send(body, ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", "tools/call"));
+        var noName = Send(body, ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", "tools/call"));
         Check.Equal(-32020, ErrorCode(noName));
-        var noMethod = Send(body, ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Name", "echo"));
+        var noMethod = Send(body, ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Name", "echo"));
         Check.Equal(-32020, ErrorCode(noMethod));
     }
 
@@ -141,10 +141,10 @@ public sealed class RpcTests
     public void Base64NamesAreDecoded()
     {
         var name = "=?base64?" + Convert.ToBase64String(Encoding.UTF8.GetBytes("echo")) + "?=";
-        var reply = Send(Wire.Body("tools/call", CallParams("echo", new JsonObject { ["text"] = "x" })), ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", "tools/call"), ("Mcp-Name", name));
+        var reply = Send(Wire.Body("tools/call", CallParams("echo", new JsonObject { ["text"] = "x" })), ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", "tools/call"), ("Mcp-Name", name));
         Check.Equal(200, reply.Status);
         Check.Equal(false, (bool)Wire.Json(reply)["result"]!["isError"]!);
-        var broken = Send(Wire.Body("tools/call", CallParams("echo")), ("MCP-Protocol-Version", "2026-07-28"), ("Mcp-Method", "tools/call"), ("Mcp-Name", "=?base64?!!!?="));
+        var broken = Send(Wire.Body("tools/call", CallParams("echo")), ("MCP-Protocol-Version", Rpc.Modern), ("Mcp-Method", "tools/call"), ("Mcp-Name", "=?base64?!!!?="));
         Check.Equal(-32020, ErrorCode(broken));
     }
 
@@ -180,7 +180,7 @@ public sealed class RpcTests
     [Test]
     public void BadJsonIsAParseError()
     {
-        var reply = Send("{", ("MCP-Protocol-Version", "2026-07-28"));
+        var reply = Send("{", ("MCP-Protocol-Version", Rpc.Modern));
         Check.Equal(400, reply.Status);
         Check.Equal(-32700, ErrorCode(reply));
         Check.Equal(-32700, ErrorCode(Send("[1,2]")));

@@ -3,6 +3,7 @@ namespace EmberHUD.Launcher.Tests;
 public class LaunchTests
 {
     static readonly GameInstall Game = new(@"C:\Program Files (x86)\Torchlight Infinite", 5975312);
+    static readonly GameInstall SteamGame = new(@"D:\SteamLibrary\steamapps\common\Torchlight Infinite", 5975312, true);
     const string Inner = @"set __COMPAT_LAYER=RunAsInvoker&& cd /d ""C:\Program Files (x86)\Torchlight Infinite\Game\UE_game\Binaries\Win64"" && start /high torchlight_infinite.exe -SkipGameLauncher -UserDir=Torchlight -Version=5975312";
 
     [Fact]
@@ -84,6 +85,42 @@ public class LaunchTests
         var steps = Launch.Steps(new LauncherConfig { LaunchEmberHUD = false }, Game with { Build = null }, @"D:\dist", _ => false, log.Add);
         Assert.Equal("game", Assert.Single(steps).Name);
         Assert.Contains(log, line => line.Contains("-Version"));
+    }
+
+    [Fact]
+    public void SteamInstallStartsThroughTheSteamUrl()
+    {
+        var start = Launch.Game(SteamGame, "");
+        Assert.Equal("steam://rungameid/1974050", start.FileName);
+        Assert.True(start.UseShellExecute);
+        Assert.Equal("", start.Arguments);
+    }
+
+    [Fact]
+    public void SteamInstallIgnoresRunAsUser()
+    {
+        var start = Launch.Game(SteamGame, "POE");
+        Assert.Equal("steam://rungameid/1974050", start.FileName);
+        Assert.Empty(start.ArgumentList);
+    }
+
+    [Fact]
+    public void StepsLogThatRunAsUserIsIgnoredOnSteamAndSkipTheVersionWarning()
+    {
+        var log = new List<string>();
+        var steps = Launch.Steps(new LauncherConfig { LaunchEmberHUD = false, RunAsUser = "POE" }, SteamGame with { Build = null }, @"D:\dist", _ => false, log.Add);
+        Assert.Equal("game", Assert.Single(steps).Name);
+        Assert.Single(log, line => line.Contains("RunAsUser is ignored"));
+        Assert.DoesNotContain(log, line => line.Contains("-Version"));
+    }
+
+    [Fact]
+    public void StepsStaySilentForASteamInstallWithoutRunAsUser()
+    {
+        var log = new List<string>();
+        Launch.Steps(new LauncherConfig { LaunchEmberHUD = false }, SteamGame, @"D:\dist", _ => false, log.Add);
+        Assert.DoesNotContain(log, line => line.Contains("RunAsUser"));
+        Assert.DoesNotContain(log, line => line.Contains("-Version"));
     }
 
     [Fact]

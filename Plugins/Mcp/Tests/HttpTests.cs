@@ -1,27 +1,17 @@
 using System;
 using System.Net;
 using System.Net.Http;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
 public sealed class HttpTests
 {
     const string Token = "tok-for-tests-tok-for-tests-tok-for-tests";
-    static readonly Tool Echo = new("echo", "Returns its text", Schema.Of(["text"], ("text", "string", "what to echo")), args => new JsonObject { ["text"] = args.Str("text") });
     static readonly Rpc Server = new([Echo], "1.0");
-
-    static int FreePort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
 
     static Http Open() => Http.Start(Server, Token, FreePort()) ?? throw new InvalidOperationException("no port");
 
@@ -30,7 +20,7 @@ public sealed class HttpTests
         using var client = new HttpClient();
         var request = new HttpRequestMessage(method ?? HttpMethod.Post, $"http://127.0.0.1:{http.Port}{path}") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         if (token is not null) request.Headers.Add("X-Bridge-Token", token);
-        request.Headers.Add("MCP-Protocol-Version", "2026-07-28");
+        request.Headers.Add("MCP-Protocol-Version", Rpc.Modern);
         request.Headers.Add("Mcp-Method", "tools/list");
         tweak?.Invoke(request);
         return client.Send(request);
@@ -75,6 +65,34 @@ public sealed class HttpTests
         Check.Equal(HttpStatusCode.MethodNotAllowed, get.StatusCode);
         Check.Equal("POST", string.Join(',', get.Content.Headers.Allow));
         Check.Equal(HttpStatusCode.RequestEntityTooLarge, Post(http, new string('x', Http.MaxBodyChars + 10)).StatusCode);
+    }
+
+    [Test]
+    public void ABodyAtTheCapIsServedAndOneOverIsRefused()
+    {
+        using var http = Open();
+        var body = Wire.Body("tools/list");
+        using var atCap = Post(http, body + new string(' ', Http.MaxBodyChars - body.Length));
+        Check.Equal(HttpStatusCode.OK, atCap.StatusCode);
+        using var over = Post(http, body + new string(' ', Http.MaxBodyChars - body.Length + 1));
+        Check.Equal(HttpStatusCode.RequestEntityTooLarge, over.StatusCode);
+    }
+
+    [Test]
+    public void AMultiByteBodyIsReadWhole()
+    {
+        using var http = Open();
+        var text = new string('\u00e9', 20000);
+        var call = Wire.Body("tools/call", new JsonObject { ["name"] = "echo", ["arguments"] = new JsonObject { ["text"] = text } }).Replace("\\u00E9", "\u00e9");
+        using var reply = Post(http, call, tweak: request =>
+        {
+            request.Headers.Remove("Mcp-Method");
+            request.Headers.Add("Mcp-Method", "tools/call");
+            request.Headers.Add("Mcp-Name", "echo");
+        });
+        Check.Equal(HttpStatusCode.OK, reply.StatusCode);
+        var result = (JsonObject)JsonNode.Parse(reply.Content.ReadAsStringAsync().GetAwaiter().GetResult())!;
+        Check.Equal(text, (string?)result["result"]!["structuredContent"]!["text"]);
     }
 
     [Test]

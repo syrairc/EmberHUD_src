@@ -64,10 +64,37 @@ public sealed class SnapshotsTests
         Check.That(snapshots.Get(at, 0) is null, "zero length");
         Check.That(snapshots.Get(at, int.MaxValue) is null, "huge length");
     }
+
+    [Test]
+    public void PruningRunsAtMostOncePerSecond()
+    {
+        _now = 0;
+        var at = TestMemory.Alloc(8);
+        TestMemory.Write(at, 1);
+        var snapshots = new Snapshots(() => _now);
+        ReadInt(snapshots, at);
+        _now = 1000;
+        snapshots.Prune();
+        TestMemory.Write(at, 2);
+        _now = 1500;
+        snapshots.Prune();
+        snapshots.Frozen = true;
+
+        Check.Equal(1, ReadInt(snapshots, at));
+    }
 }
 
 public sealed class ViewCacheTests
 {
+    [Test]
+    public void ClearDropsEverything() => TestFrame.Run(() =>
+    {
+        var cache = new ViewCache<string>();
+        cache.Set(1, "one");
+        cache.Clear();
+        Check.That(cache.Get(1) is null, "cleared");
+    });
+
     [Test]
     public void PruningDropsOnlyEntriesNotUsedInTheLastFrame()
     {

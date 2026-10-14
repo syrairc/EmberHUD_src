@@ -11,63 +11,102 @@ public sealed class PickTests
     static readonly Vector2 Screen = new(1920, 1080);
 
     [Test]
-    public void CandidatesFollowTheSourceTogglesAndDropIconsOfListedEntities()
+    public void ClickingWhilePickingPinsTheCandidateUnderTheCursor()
     {
-        var actors = new[] { new ActorSpot(0x5000, "BP_Chest_C", new Vector3(1, 1, 0)) };
+        var main = new Main { Pick = { Active = true } };
+        var position = new Vector2(13, 24);
+        TestGame.Set(Samples.Rich with { Player = null, Entities = [], MapIcons = [new MapIcon(9, "Free", position, 1, 0, 0)] });
+        var size = Vector2.Zero;
+        TestFrame.Run(() => size = ImGui.GetIO().DisplaySize);
+        var at = Samples.Camera.ToScreen(new Vector3(position, 0), size)!.Value;
+        var io = ImGui.GetIO();
+        try
+        {
+            io.AddMousePosEvent(at.X, at.Y);
+            TestFrame.Run(main.Render);
+            Check.Equal(0, main.Pins.Count);
+            io.AddMouseButtonEvent(0, true);
+            TestFrame.Run(main.Render);
+            io.AddMouseButtonEvent(0, false);
+            TestFrame.Run(main.Render);
+        }
+        finally
+        {
+            io.AddMouseButtonEvent(0, false);
+            io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
+            TestFrame.Run(() => { });
+        }
 
-        var all = Pick.Candidates(Samples.Rich, true, true, actors);
-        var none = Pick.Candidates(Samples.Rich, false, false, []);
+        Check.Equal("Icon Free", main.Pins.Single().Label);
+    }
 
-        Check.Equal("Player", all[0].Label);
-        Check.Equal(2, all.Count(c => c.Target is Entity));
-        Check.Equal(1, all.Count(c => c.Target is MapIcon));
-        Check.That(all.Any(c => c.Target is MapIcon { EntityId: 0 }), "the free icon is pickable");
-        Check.Equal("BP_Chest_C", all[^1].Label);
-        Check.Equal(1, none.Count);
+    static readonly Camera TopDown = new(new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90);
+
+    static PickMode NewPick() => new(() => 0, Samples.NoPin);
+
+    static Entity Monster(int id, float x, float y, float z) => new(id, 0, new Vector3(x, y, z), EntityKind.Monster, Rarity.Normal);
+
+    static GameState Stage(params Entity[] entities) => Samples.Rich with { Player = null, Entities = entities, MapIcons = [] };
+
+    [Test]
+    public void SourcesFollowTheTogglesAndFreeIconsArePickable()
+    {
+        var pick = NewPick();
+        pick.Actors = [new ActorSpot(0x5000, "BP_Chest_C", new Vector3(1, 1, 0))];
+        var mouse = Samples.Camera.ToScreen(Vector3.Zero, Screen)!.Value;
+
+        pick.Collect(Samples.Rich, Samples.Camera, Screen, mouse, new Settings { PickRadius = 100000 });
+        var targets = pick.Hits.Select(hit => hit.Target).ToArray();
+
+        Check.That(targets.Any(t => t is Player), "the player");
+        Check.Equal(2, targets.Count(t => t is Entity));
+        Check.Equal(1, targets.Count(t => t is MapIcon));
+        Check.That(targets.Any(t => t is MapIcon { EntityId: 0 }), "the free icon is pickable");
+        Check.That(targets.Any(t => t is ActorSpot), "the scanned actor");
+
+        pick.Actors = [];
+        pick.Collect(Samples.Rich, Samples.Camera, Screen, mouse, new Settings { PickRadius = 100000, PickEntities = false, PickIcons = false });
+        Check.Equal(1, pick.Hits.Count);
     }
 
     [Test]
-    public void UnderPicksTheNearestWithinTheRadiusFirst()
+    public void HitsAreTheNearestWithinTheRadiusClosestFirst()
     {
-        var camera = new Camera(new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90);
-        var centre = camera.ToScreen(Vector3.Zero, Screen)!.Value;
-        Candidate[] candidates = [new("far", new Vector3(500, 500, 0), 1), new("near", new Vector3(2, 0, 0), 2), new("exact", Vector3.Zero, 3), new("behind", new Vector3(-3000, 0, 2000), 4)];
+        var pick = NewPick();
+        var state = Stage(Monster(1, 500, 500, 0), Monster(2, 2, 0, 0), Monster(3, 0, 0, 0), Monster(4, -3000, 0, 2000));
+        var centre = TopDown.ToScreen(Vector3.Zero, Screen)!.Value;
+        var settings = new Settings { PickRadius = 24 };
 
-        var under = Pick.Under(candidates, camera, Screen, centre, 24);
+        pick.Collect(state, TopDown, Screen, centre, settings);
 
-        Check.That(under.Select(u => u.Candidate.Label).SequenceEqual(["exact", "near"]), string.Join(",", under.Select(u => u.Candidate.Label)));
-        Check.Equal(0, Pick.Under(candidates, camera, Screen, centre + new Vector2(300, 0), 24).Length);
+        Check.Equal("3,2", string.Join(",", pick.Hits.Select(hit => ((Entity)hit.Target).Id)));
+        pick.Collect(state, TopDown, Screen, centre + new Vector2(300, 0), settings);
+        Check.Equal(0, pick.Hits.Count);
     }
 
     [Test]
-    public void UnderListsAtMostFive()
+    public void AtMostFiveHits()
     {
-        var camera = new Camera(new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90);
-        var stacked = Enumerable.Range(0, 8).Select(i => new Candidate($"c{i}", Vector3.Zero, i));
+        var pick = NewPick();
+        var state = Stage([.. Enumerable.Range(0, 8).Select(i => Monster(i, 0, 0, 0))]);
 
-        Check.Equal(5, Pick.Under(stacked, camera, Screen, camera.ToScreen(Vector3.Zero, Screen)!.Value, 24).Length);
+        pick.Collect(state, TopDown, Screen, TopDown.ToScreen(Vector3.Zero, Screen)!.Value, new Settings { PickRadius = 24 });
+
+        Check.Equal(5, pick.Hits.Count);
     }
 
     [Test]
     public void ScanActorsFindsLiveActorsWithARootComponent()
     {
-        var ue = new TestUe();
-        var vector = ue.ScriptStruct("Vector", 12, new TestProp("X", "FloatProperty", 0), new TestProp("Y", "FloatProperty", 4), new TestProp("Z", "FloatProperty", 8));
-        var scene = ue.Class("SceneComponent", 0, 0x40, new TestProp("RelativeLocation", "StructProperty", 0x30, 12, Struct: vector));
-        var actor = ue.Class("Actor", 0, 0x40, new TestProp("RootComponent", "ObjectProperty", 0x30, 8));
-        var monster = ue.Class("Monster", actor, 0x40);
-        var root = ue.Object("Root", scene);
-        TestMemory.Write(root + 0x30, new Vector3(1, 2, 3));
-        var boss = ue.Object("Boss", monster);
-        TestMemory.Write(boss + 0x30, root);
-        var template = ue.Object("Default__Monster", monster);
+        var (ue, hero, root, monster) = Samples.ActorWorld();
+        var template = ue.Object("Default__EMonster", monster);
         TestMemory.Write(template + 0x30, root);
         ue.Object("Rootless", monster);
 
-        var spot = Pick.ScanActors().Single();
+        var spot = PickMode.ScanActors().Single();
 
-        Check.Equal(boss, spot.Address);
-        Check.Equal("Monster", spot.Class);
+        Check.Equal(hero, spot.Address);
+        Check.Equal("EMonster", spot.Class);
         Check.Equal(new Vector3(1, 2, 3), spot.Position);
     }
 
@@ -78,17 +117,17 @@ public sealed class PickTests
         main.Initialize();
         TestInput.Hold(Key.F7);
         TestInput.Dispatch(main);
-        Check.That(main.Picking, "F7 starts pick mode");
+        Check.That(main.Pick.Active, "F7 starts pick mode");
         TestInput.Hold();
         TestInput.Hold(Key.Escape);
         main.Tick();
-        Check.That(!main.Picking, "Esc leaves pick mode");
+        Check.That(!main.Pick.Active, "Esc leaves pick mode");
     }
 
     [Test]
     public void PickModeDrawsWithAndWithoutACamera()
     {
-        var main = new Main { Picking = true };
+        var main = new Main { Pick = { Active = true } };
         TestGame.Set(Samples.Rich with { Camera = null });
         TestFrame.Run(main.Render);
         TestGame.Set(Samples.Rich);
@@ -98,7 +137,7 @@ public sealed class PickTests
     [Test]
     public void TheTooltipSurvivesFormatSpecifiersInGameNames()
     {
-        var main = new Main { Picking = true };
+        var main = new Main { Pick = { Active = true } };
         var position = new Vector2(13, 24);
         TestGame.Set(Samples.Rich with { Entities = [], MapIcons = [new MapIcon(9, "Bad%s%n%d%s", position, 1, 0, 0)] });
         var size = Vector2.Zero;
@@ -113,38 +152,33 @@ public sealed class PickTests
     [Test]
     public void LeavingPickModeDropsTheScannedActors()
     {
-        var main = new Main { Picking = true };
-        main.Actors = [new ActorSpot(0x5000, "Actor", Vector3.Zero)];
+        var main = new Main { Pick = { Active = true } };
+        main.Pick.Actors = [new ActorSpot(0x5000, "Actor", Vector3.Zero)];
 
         TestInput.Hold(Key.Escape);
         main.Tick();
 
-        Check.That(!main.Picking, "Esc leaves pick mode");
-        Check.Equal(0, main.Actors.Length);
+        Check.That(!main.Pick.Active, "Esc leaves pick mode");
+        Check.Equal(0, main.Pick.Actors.Length);
     }
 
     [Test]
     public void PickModeScansActorsOnlyWhenAsked()
     {
-        var ue = new TestUe();
-        var vector = ue.ScriptStruct("Vector", 12);
-        var scene = ue.Class("SceneComponent", 0, 0x40, new TestProp("RelativeLocation", "StructProperty", 0x30, 12, Struct: vector));
-        var actor = ue.Class("Actor", 0, 0x40, new TestProp("RootComponent", "ObjectProperty", 0x30, 8));
-        var hero = ue.Object("Hero", actor);
-        TestMemory.Write(hero + 0x30, ue.Object("Root", scene));
-        var main = new Main { Picking = true, ActorsJob = new(inline: true) };
+        var (_, hero, _, _) = Samples.ActorWorld();
+        var main = new Main { Pick = { Active = true, ActorsJob = new(inline: true) } };
         TestGame.Set(Samples.Rich);
 
         TestFrame.Run(main.Render);
         TestFrame.Run(main.Render);
-        Check.Equal(0, main.Actors.Length);
+        Check.Equal(0, main.Pick.Actors.Length);
 
         main.Settings.PickActors = true;
         TestFrame.Run(main.Render);
         TestFrame.Run(main.Render);
-        Check.Equal(hero, main.Actors.Single().Address);
+        Check.Equal(hero, main.Pick.Actors.Single().Address);
 
-        main.PinThing(main.Actors[0]);
-        Check.Equal("Actor", main.Pins.Single().Label);
+        main.PinThing(main.Pick.Actors[0]);
+        Check.Equal("EMonster", main.Pins.Single().Label);
     }
 }

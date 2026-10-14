@@ -26,7 +26,7 @@ internal static class Walker
     {
         IncludeFields = true,
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
-        Converters = { new JsonStringEnumConverter(), new ColorJson(), new SpriteJson() }
+        Converters = { new JsonStringEnumConverter(), new FormatJson<Color>(), new FormatJson<Sprite>() }
     };
 
     internal static int ErrorsLogged => _logged.Count;
@@ -105,8 +105,14 @@ internal static class Walker
         return Members(type).FirstOrDefault(IsPosition) is { } member && Read(type, member, row) is Vector3 position ? position : null;
     }
 
-    public static float? Distance(object? row, Vector3 from) =>
-        Position(row) is { } p ? MathF.Sqrt((p.X - from.X) * (p.X - from.X) + (p.Y - from.Y) * (p.Y - from.Y)) : null;
+    public static bool TryHex(string text, out nint address)
+    {
+        text = text.Trim();
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) text = text[2..];
+        var ok = long.TryParse(text, NumberStyles.HexNumber, Invariant, out var parsed);
+        address = (nint)parsed;
+        return ok;
+    }
 
     public static string Json(object row)
     {
@@ -122,17 +128,10 @@ internal static class Walker
 
     static bool IsPosition(Member member) => member.Name == "Position" && member.Type == typeof(Vector3);
 
-    sealed class ColorJson : JsonConverter<Color>
+    sealed class FormatJson<T> : JsonConverter<T>
     {
-        public override Color Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => throw new NotSupportedException();
+        public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => throw new NotSupportedException();
 
-        public override void Write(Utf8JsonWriter writer, Color value, JsonSerializerOptions options) => writer.WriteStringValue(Format(value));
-    }
-
-    sealed class SpriteJson : JsonConverter<Sprite>
-    {
-        public override Sprite Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => throw new NotSupportedException();
-
-        public override void Write(Utf8JsonWriter writer, Sprite value, JsonSerializerOptions options) => writer.WriteStringValue(Format(value));
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) => writer.WriteStringValue(Format(value));
     }
 }

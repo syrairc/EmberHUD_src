@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests;
@@ -7,24 +9,32 @@ public class GameProcessTests
     private const int NoSuchPid = int.MaxValue;
 
     [Fact]
-    public void ARejectedBuildPidFailsWithTheSameTextWithoutOpeningTheProcess()
+    public void AnUnopenablePidFailsWithTheWin32Error()
     {
-        var rejected = (Pid: NoSuchPid, Failure: (string?)"unknown build - exe is 1 bytes, offsets are for 2");
-
-        Assert.False(GameProcess.TryAttach(NoSuchPid, ref rejected, out var game, out var failure));
+        Assert.False(GameProcess.TryAttach(NoSuchPid, out var game, out var failure));
 
         Assert.Null(game);
-        Assert.Equal("unknown build - exe is 1 bytes, offsets are for 2", failure);
+        Assert.StartsWith("OpenProcess failed", failure);
     }
 
     [Fact]
-    public void ADifferentPidIsAttemptedAgain()
+    public void AnExeOfUnknownSizeStillAttaches()
     {
-        var rejected = (Pid: 4, Failure: (string?)"unknown build - exe is 1 bytes, offsets are for 2");
-
-        Assert.False(GameProcess.TryAttach(NoSuchPid, ref rejected, out _, out var failure));
-
-        Assert.StartsWith("OpenProcess failed", failure);
-        Assert.Equal(4, rejected.Pid);
+        var original = Offsets.Build;
+        try
+        {
+            Assert.True(GameProcess.TryAttach(Environment.ProcessId, out var game, out var failure), failure);
+            using (game)
+            {
+                Assert.NotEqual(nint.Zero, game!.ModuleBase);
+                Assert.False(game.ExactBuild);
+                Assert.Equal(new FileInfo(Process.GetCurrentProcess().MainModule!.FileName).Length, game.ExeSize);
+                Assert.Contains(Offsets.BuildSizes[Offsets.Build], Offsets.BuildSizes);
+            }
+        }
+        finally
+        {
+            Offsets.Build = original;
+        }
     }
 }

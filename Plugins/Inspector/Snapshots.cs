@@ -18,6 +18,7 @@ internal sealed class Snapshots(Func<long> clock)
     const int MaxLength = 0x10000;
 
     readonly Dictionary<(nint, int), Entry> _entries = [];
+    long _nextPrune;
 
     public bool Frozen;
     public int RefreshRate = 10;
@@ -39,8 +40,9 @@ internal sealed class Snapshots(Func<long> clock)
 
     public void Prune()
     {
-        if (Frozen) return;
         var now = clock();
+        if (Frozen || now < _nextPrune) return;
+        _nextPrune = now + 1000;
         foreach (var key in _entries.Where(pair => now - pair.Value.UsedAt > 1000).Select(pair => pair.Key).ToArray()) _entries.Remove(key);
     }
 
@@ -57,6 +59,8 @@ internal sealed class ViewCache<T> where T : class
         _entries[id] = (entry.Value, ImGui.GetFrameCount());
         return entry.Value;
     }
+
+    public void Clear() => _entries.Clear();
 
     public void Set(uint id, T value)
     {

@@ -47,7 +47,7 @@ public sealed class BookTests
         book.Update(Page(1, Listing(0, 1000, 100)), 0);
         book.Update(Page(2, Listing(0, 1442, 115, "", "Sold"), Listing(1, 1000, 129)), 10);
         Check.Equal(2, book.Count);
-        Check.That(book.Find(2, 0)?.Sold == true, "sold row kept and marked");
+        Check.That(book.Find(2, 0)?.Status is not null, "sold row kept and marked");
     }
 
     [Test]
@@ -180,5 +180,29 @@ public sealed class BookTests
 
         Check.Equal(version, book.Version);
         Check.That(before != book.StaleSignature(1000, 500), "page 1 fresh and page 2 stale is not the same set");
+    }
+
+    [Test]
+    public void StaleSignatureTellsApartSetsWhosePageNumbersAddUpTheSame()
+    {
+        var book = new Book();
+        foreach (var page in new[] { 0, 3 }) book.Update(Page(page, Listing(0, 1, 1)), 0);
+        foreach (var page in new[] { 1, 2 }) book.Update(Page(page, Listing(0, 1, 1)), 400);
+        var zeroAndThree = book.StaleSignature(600, 500);
+
+        foreach (var page in new[] { 0, 3 }) book.Update(Page(page, Listing(0, 1, 1)), 1000);
+        var oneAndTwo = book.StaleSignature(1000, 500);
+
+        Check.That(zeroAndThree != oneAndTwo, "stale {0,3} and stale {1,2} are different sets");
+    }
+
+    [Test]
+    public void ListingAtFindsTheSlotOrNothing()
+    {
+        TradeListing[] listings = [Listing(0, 1, 1), Listing(4, 2, 2)];
+
+        Check.Equal(2L, Book.ListingAt(listings, 4)!.Value.Quantity);
+        Check.That(Book.ListingAt(listings, 1) is null, "no such slot");
+        Check.That(new Book().Find(1, 0) is null, "no such page");
     }
 }

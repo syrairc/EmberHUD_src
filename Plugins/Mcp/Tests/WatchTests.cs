@@ -1,18 +1,11 @@
 using System.Text.Json.Nodes;
 using EmberHUD.Testing;
+using static Mcp.Fixture;
 
 namespace Mcp;
 
 public sealed class WatchTests
 {
-    static nint Block(int size = 64)
-    {
-        TestMemory.Clear();
-        var at = TestMemory.Alloc(size);
-        TestMemory.Write(at, 0);
-        return at;
-    }
-
     static JsonObject StartArgs(nint at, int length) => new() { ["address"] = Hex.Of(at), ["length"] = length, ["label"] = "test" };
 
     [Test]

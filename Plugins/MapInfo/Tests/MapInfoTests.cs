@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -9,6 +10,8 @@ public sealed class MapInfoTests
 {
     static readonly MapInfo Rainforest = new("Rainforest", 78, 272, "1%", false,
         [new MapContent("Vigil", "svg:quest", ContentState.Active)], ["+15% Drop Quantity", "1 additional Rare monsters"]);
+
+    static string BarText(Main plugin, MapInfo map) => plugin.LaidFor(map, 0).Single(l => l.Row.Kind == RowKind.Bar).Row.Text;
 
     [Test]
     public void AllSectionsGiveTitleLevelXpContentAndModifiers()
@@ -44,10 +47,21 @@ public sealed class MapInfoTests
     public void TheMaxIsTheHighestSeenInTheArea()
     {
         var plugin = new Main();
-        Check.Equal(421, plugin.EnemyMax(1, 421));
-        Check.Equal(421, plugin.EnemyMax(1, 300));
-        Check.Equal(50, plugin.EnemyMax(2, 50));
-        Check.Equal(50, plugin.EnemyMax(2, null));
+        plugin.Settings.Sections.EnemiesBar = true;
+        string inArea1 = "", inArea2 = "", afterGap = "";
+        TestFrame.Run(() =>
+        {
+            plugin.EnemyMax(1, 421);
+            plugin.EnemyMax(1, 300);
+            inArea1 = BarText(plugin, Rainforest with { Remaining = 300 });
+            plugin.EnemyMax(2, 50);
+            inArea2 = BarText(plugin, Rainforest with { Remaining = 50 });
+            plugin.EnemyMax(2, null);
+            afterGap = BarText(plugin, Rainforest with { Remaining = 20 });
+        });
+        Check.Equal("300 / 421", inArea1);
+        Check.Equal("50 / 50", inArea2);
+        Check.Equal("20 / 50", afterGap);
     }
 
     [Test]
@@ -82,8 +96,9 @@ public sealed class MapInfoTests
             plugin.Tick();
             plugin.Settings.General.Show = true;
             plugin.Tick();
-            var rows = Main.Rows(Rainforest with { Remaining = 300 }, plugin.Settings.Sections, plugin.SeenMax);
-            Check.Equal("300 / 421", rows.Single(r => r.Kind == RowKind.Bar).Text);
+            var text = "";
+            TestFrame.Run(() => text = BarText(plugin, Rainforest with { Remaining = 300 }));
+            Check.Equal("300 / 421", text);
         }
         finally { TestGame.Set(GameState.Empty); }
     }
@@ -183,26 +198,14 @@ public sealed class MapInfoTests
         });
     }
 
-    static int Drawn(Action draw)
-    {
-        var drawn = 0;
-        TestFrame.Run(() =>
-        {
-            var before = Hexa.NET.ImGui.ImGui.GetBackgroundDrawList().VtxBuffer.Size;
-            draw();
-            drawn = Hexa.NET.ImGui.ImGui.GetBackgroundDrawList().VtxBuffer.Size - before;
-        });
-        return drawn;
-    }
-
     [Test]
     public void RenderDrawsInAMapAndNothingWithoutOne()
     {
         var plugin = new Main();
         TestGame.Set(GameState.Empty);
-        Check.That(Drawn(plugin.Render) == 0, "no map, nothing drawn");
+        Check.That(TestFrame.Vertices(plugin.Render) == 0, "no map, nothing drawn");
         TestGame.Set(GameState.Empty with { Area = Rainforest });
-        Check.That(Drawn(plugin.Render) > 0, "map drawn");
+        Check.That(TestFrame.Vertices(plugin.Render) > 0, "map drawn");
         TestGame.Set(GameState.Empty);
     }
 
@@ -211,7 +214,7 @@ public sealed class MapInfoTests
     {
         var look = new LookTab();
         foreach (var state in Enum.GetValues<ContentState>())
-            Check.That(Drawn(() => Main.DrawMark(new System.Numerics.Vector2(50, 50), 8, state, look)) > 0, $"{state} draws");
+            Check.That(TestFrame.Vertices(() => Main.DrawMark(new System.Numerics.Vector2(50, 50), 8, state, look)) > 0, $"{state} draws");
     }
 
     [Test]
@@ -230,9 +233,47 @@ public sealed class MapInfoTests
         var plugin = new Main();
         TestGame.Set(GameState.Empty with { Area = Rainforest });
         TestInput.Hold();
-        Drawn(plugin.Render);
+        TestFrame.Vertices(plugin.Render);
         Check.Equal(40, plugin.Settings.General.X);
         Check.Equal(360, plugin.Settings.General.Width);
         TestGame.Set(GameState.Empty);
+    }
+
+    [Test]
+    public void TheLayoutIsKeptUntilTheMapTheWidthOrTheRefreshChanges()
+    {
+        var plugin = new Main();
+        List<Laid> first = [], again = [], later = [], widened = [], other = [];
+        TestFrame.Run(() =>
+        {
+            first = plugin.LaidFor(Rainforest, 1000);
+            again = plugin.LaidFor(Rainforest, 1100);
+            later = plugin.LaidFor(Rainforest, 1250);
+            plugin.Settings.General.Width = 500;
+            widened = plugin.LaidFor(Rainforest, 1251);
+            other = plugin.LaidFor(Rainforest with { Remaining = 5 }, 1252);
+        });
+
+        Check.That(ReferenceEquals(first, again), "same map 100 ms later");
+        Check.That(!ReferenceEquals(again, later), "250 ms later");
+        Check.That(!ReferenceEquals(later, widened), "the width changed");
+        Check.That(!ReferenceEquals(widened, other), "a new map snapshot");
+    }
+
+    [Test]
+    public void TheLayoutPicksUpAStyleEditWithinTheRefresh()
+    {
+        var plugin = new Main();
+        float before = 0, held = 0, after = 0;
+        TestFrame.Run(() =>
+        {
+            before = plugin.LaidFor(Rainforest, 1000).Sum(l => l.Height);
+            plugin.Settings.Look.Title.Scale = 3;
+            held = plugin.LaidFor(Rainforest, 1100).Sum(l => l.Height);
+            after = plugin.LaidFor(Rainforest, 1250).Sum(l => l.Height);
+        });
+
+        Check.Equal(before, held);
+        Check.That(after > before, "a bigger title makes a taller panel after the refresh");
     }
 }
