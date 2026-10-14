@@ -25,21 +25,15 @@ public class ChipsTests
         public void Idle() => UiFrame.Run(Window, Body);
     }
 
-    static float FrameHeight() => UiFrame.Measure(() => ImGui.GetFrameHeight());
+    static float PlusX() => Chips.InputWidth + UiFrame.Style.Spacing.X + UiFrame.ButtonWidth("+") / 2;
 
-    static float ItemSpacingX() => UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.X);
-
-    static float ButtonWidth(string label) => UiFrame.Measure(() => ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2);
-
-    static float PlusX() => Chips.InputWidth + ItemSpacingX() + ButtonWidth("+") / 2;
-
-    static float ChipEnd(string label) => ButtonWidth(label) + Chips.RemoveGap + ButtonWidth("x");
+    static float ChipEnd(string label) => UiFrame.ButtonWidth(label) + Chips.RemoveGap + UiFrame.ButtonWidth("x");
 
     static void Focus(Rig rig)
     {
         rig.Idle();
-        var rowBelowChips = rig.Tags.Count > 0 ? FrameHeight() + UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y) * 2 : 0f;
-        UiFrame.Click(Window, rig.Origin + new Vector2(20f, rowBelowChips + FrameHeight() / 2), rig.Body);
+        var rowBelowChips = rig.Tags.Count > 0 ? UiFrame.Style.FrameHeight + UiFrame.Style.Spacing.Y * 2 : 0f;
+        UiFrame.Click(Window, rig.Origin + new Vector2(20f, rowBelowChips + UiFrame.Style.FrameHeight / 2), rig.Body);
     }
 
     static void Type(Rig rig, string text)
@@ -97,7 +91,7 @@ public class ChipsTests
     {
         var rig = new Rig("remove", "Fire", "Cold");
         rig.Idle();
-        var at = rig.Origin + new Vector2(ButtonWidth("Fire") + 2f + 1f, FrameHeight() / 2);
+        var at = rig.Origin + new Vector2(UiFrame.ButtonWidth("Fire") + 2f + 1f, UiFrame.Style.FrameHeight / 2);
 
         UiFrame.Click(Window, at, rig.Body);
 
@@ -110,7 +104,7 @@ public class ChipsTests
     {
         var rig = new Rig("removeSecond", "Fire", "Cold");
         rig.Idle();
-        var at = rig.Origin + new Vector2(ChipEnd("Fire") + ItemSpacingX() + ButtonWidth("Cold") + 2f + ButtonWidth("x") / 2, FrameHeight() / 2);
+        var at = rig.Origin + new Vector2(ChipEnd("Fire") + UiFrame.Style.Spacing.X + UiFrame.ButtonWidth("Cold") + 2f + UiFrame.ButtonWidth("x") / 2, UiFrame.Style.FrameHeight / 2);
 
         UiFrame.Click(Window, at, rig.Body);
 
@@ -207,8 +201,8 @@ public class ChipsTests
     {
         var rig = new Rig("dupLabels", "A", "B", "A") { CaseInsensitiveDedup = false };
         rig.Idle();
-        var gap = ItemSpacingX();
-        var at = rig.Origin + new Vector2(ChipEnd("A") + gap + ChipEnd("B") + gap + ButtonWidth("A") + 2f + 1f, FrameHeight() / 2);
+        var gap = UiFrame.Style.Spacing.X;
+        var at = rig.Origin + new Vector2(ChipEnd("A") + gap + ChipEnd("B") + gap + UiFrame.ButtonWidth("A") + 2f + 1f, UiFrame.Style.FrameHeight / 2);
 
         UiFrame.Click(Window, at, rig.Body);
 
@@ -232,8 +226,8 @@ public class ChipsTests
         try
         {
             UiFrame.Run(Window, Body);
-            var frame = FrameHeight();
-            var spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
+            var frame = UiFrame.Style.FrameHeight;
+            var spacing = UiFrame.Style.Spacing.Y;
             var inputY = frame + spacing * 2 + frame / 2;
             UiFrame.Click(Window, secondOrigin + new Vector2(20f, inputY), Body);
             io.AddInputCharactersUTF8("Chaos");
@@ -245,7 +239,7 @@ public class ChipsTests
             Assert.Equal(["Fire"], first);
             Assert.Equal(["Fire", "Chaos"], second);
 
-            UiFrame.Click(Window, secondOrigin + new Vector2(ButtonWidth("Fire") + 2f + 1f, frame / 2), Body);
+            UiFrame.Click(Window, secondOrigin + new Vector2(UiFrame.ButtonWidth("Fire") + 2f + 1f, frame / 2), Body);
             Assert.Equal(["Fire"], first);
             Assert.Equal(["Chaos"], second);
         }
@@ -305,7 +299,7 @@ public class ChipsTests
         try
         {
             Type(rig, "Chaos");
-            UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), FrameHeight() / 2), rig.Body);
+            UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), UiFrame.Style.FrameHeight / 2), rig.Body);
             Assert.True(rig.Changed);
             Assert.Equal(["Chaos"], rig.Tags);
         }
@@ -320,7 +314,7 @@ public class ChipsTests
     {
         var rig = new Rig("emptyPlus");
         rig.Idle();
-        UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), FrameHeight() / 2), rig.Body);
+        UiFrame.Click(Window, rig.Origin + new Vector2(PlusX(), UiFrame.Style.FrameHeight / 2), rig.Body);
         Assert.False(rig.Changed);
         Assert.Empty(rig.Tags);
     }
@@ -394,7 +388,7 @@ public class ChipsTests
         try
         {
             UiFrame.Run(Window, Body);
-            var middle = FrameHeight() / 2;
+            var middle = UiFrame.Style.FrameHeight / 2;
             UiFrame.Click(Window, origin + new Vector2(20f, middle), Body);
             io.AddInputCharactersUTF8("A");
             UiFrame.Run(Window, Body);
@@ -446,9 +440,9 @@ public class ChipsTests
 
         var oneRow = Height("fits", 1f);
         var twoRows = Height("wraps", -1f);
-        var rowStep = UiFrame.Measure(() => ImGui.GetFrameHeight() + ImGui.GetStyle().ItemSpacing.Y);
-        var frame = FrameHeight();
-        var spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
+        var rowStep = UiFrame.Style.FrameHeight + UiFrame.Style.Spacing.Y;
+        var frame = UiFrame.Style.FrameHeight;
+        var spacing = UiFrame.Style.Spacing.Y;
         Assert.Equal(rowStep, twoRows - oneRow, 1e-3f);
         Assert.Equal(frame * 2 + spacing * 3, oneRow, 1e-3f);
     }

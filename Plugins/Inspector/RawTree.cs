@@ -9,6 +9,8 @@ namespace Inspector;
 
 internal sealed record RawPin(nint Address, string Label);
 
+internal readonly record struct HexRow(string Offset, string Text, string? Target, nint Pointer);
+
 internal sealed class RawTree(Snapshots snapshots)
 {
     const int MaxDepth = 8;
@@ -19,6 +21,9 @@ internal sealed class RawTree(Snapshots snapshots)
 
     readonly Dictionary<uint, int> _hexLength = [];
     readonly HashSet<nint> _path = [];
+    sealed record HexRows(byte[] Bytes, HexRow[] Rows);
+
+    readonly ViewCache<HexRows> _hexRows = new();
     PropertyView? _view;
     string _address = "";
     nint _goto;
@@ -88,6 +93,23 @@ internal sealed class RawTree(Snapshots snapshots)
         return false;
     }
 
+    internal HexRow[] RowsOf(byte[] bytes)
+    {
+        var id = ImGui.GetID("hex");
+        if (_hexRows.Get(id) is { } cached && ReferenceEquals(cached.Bytes, bytes)) return cached.Rows;
+        var rows = new HexRow[bytes.Length / 8];
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var offset = i * 8;
+            var row = bytes.AsSpan(offset, 8);
+            var pointer = (nint)BitConverter.ToInt64(row);
+            var text = $"{BitConverter.ToString(bytes, offset, 8).Replace('-', ' ')}   {BitConverter.ToInt32(row)} {BitConverter.ToInt32(row[4..])}   {BitConverter.ToSingle(row).ToString("0.###", Invariant)} {BitConverter.ToSingle(row[4..]).ToString("0.###", Invariant)}   {BitConverter.ToDouble(row).ToString("G6", Invariant)}";
+            rows[i] = new HexRow($"+{offset:X}", text, PointerLabel(pointer), pointer);
+        }
+        _hexRows.Set(id, new HexRows(bytes, rows));
+        return rows;
+    }
+
     internal void Hex(nint address, int length, int depth)
     {
         var bytes = snapshots.Get(address, length);
@@ -96,23 +118,20 @@ internal sealed class RawTree(Snapshots snapshots)
             ImGui.TextDisabled("??");
             return;
         }
-        for (var offset = 0; offset + 8 <= bytes.Length; offset += 8)
+        var rows = RowsOf(bytes);
+        for (var i = 0; i < rows.Length; i++)
         {
-            ImGui.PushID(offset);
-            var row = bytes.AsSpan(offset, 8);
-            var pointer = (nint)BitConverter.ToInt64(row);
-            var target = PointerLabel(pointer);
-            var text = $"{BitConverter.ToString(bytes, offset, 8).Replace('-', ' ')}   {BitConverter.ToInt32(row)} {BitConverter.ToInt32(row[4..])}   {BitConverter.ToSingle(row).ToString("0.###", Invariant)} {BitConverter.ToSingle(row[4..]).ToString("0.###", Invariant)}   {BitConverter.ToDouble(row).ToString("G6", Invariant)}";
-            if (View.Line($"+{offset:X}", target is not null, target ?? "", "", text, target is null ? 0 : pointer, depth))
+            ImGui.PushID(i * 8);
+            var row = rows[i];
+            if (View.Line(row.Offset, row.Target is not null, row.Target ?? "", "", row.Text, row.Target is null ? 0 : row.Pointer, depth))
             {
-                Node("target", pointer, depth + 1);
+                Node("target", row.Pointer, depth + 1);
                 ImGui.TreePop();
             }
             ImGui.PopID();
         }
     }
 
-    // ponytail: PointerLabel and the object-property values call Ue.TryObject live every frame instead of going through Snapshots - a few hundred reads per open hex block, cache labels per refresh if it shows up
     string? PointerLabel(nint pointer)
     {
         if (pointer < 0x10000 || pointer > 0x7FFF_FFFF_0000) return null;

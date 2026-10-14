@@ -328,6 +328,22 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
+    public void AMissedLookupWalksTheTreeAgainWithoutReadingNamesAgain()
+    {
+        var (world, _, page, _, _) = OpenNamedPanel();
+        var reader = Reader(world);
+        var blockPointer = FakeWorld.Module + Offsets.FNamePoolRva + Offsets.FNameBlocks;
+
+        Assert.Null(reader.FindRect((nint)page, "Nope"));
+        Assert.Contains(world.Memory.Reads, r => r.Address == blockPointer);
+        world.Memory.Reads.Clear();
+        Assert.Null(reader.FindRect((nint)page, "Nope"));
+
+        Assert.NotEmpty(world.Memory.Reads);
+        Assert.DoesNotContain(world.Memory.Reads, r => r.Address == blockPointer);
+    }
+
+    [Fact]
     public void FindRectFindsAgainWhenTheCachedChildSlateDied()
     {
         var (world, ui, page, root, child) = OpenNamedPanel();

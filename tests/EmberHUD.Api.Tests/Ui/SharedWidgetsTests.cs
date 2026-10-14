@@ -20,19 +20,18 @@ public class SharedWidgetsTests
         return colours;
     }
 
-    static HashSet<uint> TableColours(IconAtlas? atlas, IReadOnlySet<string> highlight, string[] sprites)
+    static HashSet<uint> TableColours(IReadOnlySet<string> highlight, string[] sprites)
     {
         var filter = "";
         var colours = new HashSet<uint>();
         UiFrame.Run(Window, () =>
         {
             ImDrawListPtr list = default;
-            Controls.SpriteTable("sprites", sprites, atlas, highlight, ref filter, new SpriteColumn("Probe", _ =>
+            Controls.SpriteTable("sprites", sprites, highlight, ref filter, new SpriteColumn("Probe", _ =>
             {
                 list = ImGui.GetWindowDrawList();
                 return false;
             }));
-            AssertTableClosed();
             colours = VertexColoursSince(list, 0);
         });
         return colours;
@@ -43,13 +42,6 @@ public class SharedWidgetsTests
         var colours = new HashSet<uint>();
         for (var i = start; i < list.VtxBuffer.Size; i++) colours.Add(list.VtxBuffer[i].Col);
         return colours;
-    }
-
-    static void AssertTableClosed()
-    {
-        if (ImGuiP.GetCurrentTable().IsNull) return;
-        ImGui.EndTable();
-        throw new InvalidOperationException("SpriteTable returned with its table still open");
     }
 
     static Vector2 Origin()
@@ -327,7 +319,7 @@ public class SharedWidgetsTests
         Assert.Equal("door", Assert.Single(on));
     }
 
-    sealed class TableRig(IEnumerable<string> sprites, IconAtlas? atlas, IReadOnlySet<string> highlight, string filter, HashSet<string> on)
+    sealed class TableRig(IEnumerable<string> sprites, IReadOnlySet<string> highlight, string filter, HashSet<string> on)
     {
         public string Filter = filter;
         public readonly List<(string Sprite, string Header, int Column, uint Id, Vector2 Centre)> Cells = [];
@@ -336,10 +328,9 @@ public class SharedWidgetsTests
 
         public void Body()
         {
-            Changed |= Controls.SpriteTable(Scope, sprites, atlas, highlight, ref Filter,
+            Changed |= Controls.SpriteTable(Scope, sprites, highlight, ref Filter,
                 new SpriteColumn("On", sprite => Cell(sprite, Controls.SetCheckbox("##on", on, sprite))),
                 new SpriteColumn("Off", sprite => Cell(sprite, Controls.SetCheckbox("##off", on, sprite, inverted: true))));
-            AssertTableClosed();
         }
 
         bool Cell(string sprite, bool changed)
@@ -357,24 +348,21 @@ public class SharedWidgetsTests
         public Vector2 CentreOf(string sprite, string header) => Cells.Last(cell => cell.Sprite == sprite && cell.Header == header).Centre;
     }
 
-    static TableRig Rig(string[] sprites, string filter = "", HashSet<string>? on = null, IconAtlas? atlas = null, IReadOnlySet<string>? highlight = null) =>
-        new(sprites, atlas, highlight ?? new HashSet<string>(), filter, on ?? []);
+    static TableRig Rig(string[] sprites, string filter = "", HashSet<string>? on = null, IReadOnlySet<string>? highlight = null) =>
+        new(sprites, highlight ?? new HashSet<string>(), filter, on ?? []);
 
     [Fact]
     public void ATableWithCheckboxColumnsDrawsOneBalancedFrameAndChangesNothingUntouched()
     {
         var filter = "";
         List<string> on = ["b"];
-        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
-        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["a"] = new(texture, Vector2.Zero, Vector2.One) });
         var changed = true;
 
         UiFrame.Run(Window, () =>
         {
-            changed = Controls.SpriteTable("sprites", ["b", "a", "b", "c"], atlas, new HashSet<string> { "a" }, ref filter,
+            changed = Controls.SpriteTable("sprites", ["b", "a", "b", "c"], new HashSet<string> { "a" }, ref filter,
                 new SpriteColumn("On", sprite => Controls.SetCheckbox("##on", on, sprite)),
                 new SpriteColumn("Off", sprite => Controls.SetCheckbox("##off", on, sprite, inverted: true)));
-            AssertTableClosed();
         });
 
         Assert.False(changed);
@@ -409,29 +397,6 @@ public class SharedWidgetsTests
     }
 
     [Fact]
-    public void BothWidgetsLeaveTheIdStackAsTheyFoundIt()
-    {
-        var filter = "";
-        var show = true;
-        var colour = Color.Red;
-        var size = 3f;
-        uint before = 0, afterTable = 0, afterRow = 0;
-
-        UiFrame.Run(Window, () =>
-        {
-            before = ImGui.GetID("probe");
-            Controls.SpriteTable("sprites", ["a"], null, new HashSet<string>(), ref filter, new SpriteColumn("On", _ => false));
-            AssertTableClosed();
-            afterTable = ImGui.GetID("probe");
-            Controls.MarkerRow("Bosses", ref show, ref colour, ref size);
-            afterRow = ImGui.GetID("probe");
-        });
-
-        Assert.Equal(before, afterTable);
-        Assert.Equal(before, afterRow);
-    }
-
-    [Fact]
     public void ATableCallsEachColumnOncePerDistinctSortedSpriteUnderItsOwnHeader()
     {
         var rig = Rig(["b", "a", "b", "c"]);
@@ -440,7 +405,7 @@ public class SharedWidgetsTests
 
         Assert.Equal(["a", "a", "b", "b", "c", "c"], rig.Cells.Select(cell => cell.Sprite));
         Assert.Equal(["On", "Off", "On", "Off", "On", "Off"], rig.Cells.Select(cell => cell.Header));
-        Assert.Equal([2, 3, 2, 3, 2, 3], rig.Cells.Select(cell => cell.Column));
+        Assert.Equal([1, 2, 1, 2, 1, 2], rig.Cells.Select(cell => cell.Column));
     }
 
     [Fact]
@@ -532,41 +497,8 @@ public class SharedWidgetsTests
         uint accent = 0;
         UiFrame.Run(Window, () => accent = ImGui.GetColorU32(ImGuiCol.CheckMark));
 
-        Assert.Contains(accent, TableColours(null, new HashSet<string> { "a" }, ["a"]));
-        Assert.DoesNotContain(accent, TableColours(null, new HashSet<string>(), ["a"]));
-        Assert.DoesNotContain(accent, TableColours(null, new HashSet<string> { "other" }, ["a"]));
-    }
-
-    [Fact]
-    public void ASpriteInTheAtlasDrawsItsThumbnailWithItsUvs()
-    {
-        var texture = new ImTextureRef { TexID = new ImTextureID(1ul) };
-        var uv0 = new Vector2(0.25f, 0.5f);
-        var uv1 = new Vector2(0.75f, 1f);
-        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["a"] = new(texture, uv0, uv1) });
-        var filter = "";
-        List<(Vector2 Uv, Vector2 Pos)> corners = [];
-
-        UiFrame.Run(Window, () =>
-        {
-            ImDrawListPtr list = default;
-            Controls.SpriteTable("sprites", ["a", "b"], atlas, new HashSet<string>(), ref filter, new SpriteColumn("Probe", _ =>
-            {
-                list = ImGui.GetWindowDrawList();
-                return false;
-            }));
-            AssertTableClosed();
-            var verts = list.VtxBuffer;
-            Vector2[] uvs = [uv0, uv1, new(uv1.X, uv0.Y), new(uv0.X, uv1.Y)];
-            for (var i = 0; i < verts.Size; i++)
-                if (uvs.Contains(verts[i].Uv)) corners.Add((verts[i].Uv, verts[i].Pos));
-        });
-
-        Assert.Equal(4, corners.Count);
-        var min = corners.Single(corner => corner.Uv == uv0).Pos;
-        var max = corners.Single(corner => corner.Uv == uv1).Pos;
-        Assert.True(max.X > min.X);
-        Assert.True(max.Y > min.Y);
-        Assert.Equal(max.X - min.X, max.Y - min.Y);
+        Assert.Contains(accent, TableColours(new HashSet<string> { "a" }, ["a"]));
+        Assert.DoesNotContain(accent, TableColours(new HashSet<string>(), ["a"]));
+        Assert.DoesNotContain(accent, TableColours(new HashSet<string> { "other" }, ["a"]));
     }
 }

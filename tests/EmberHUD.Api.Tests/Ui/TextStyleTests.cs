@@ -1105,33 +1105,31 @@ public class TextStyleTests
     }
 
     [Fact]
-    public void EditorsLeaveTheIdAndClipStacksBalancedWithThePopupOpenAndClosed()
+    public void EditorsLeaveTheClipStackBalancedWithThePopupOpenAndClosed()
     {
         var style = Distinct();
         var ov = new TextStyleOverride();
         var start = Vector2.Zero;
         var height = 0f;
-        int ids = -1, clips = -1, idsBefore = -2, clipsBefore = -2;
+        int clips = -1, clipsBefore = -2;
         void Body()
         {
             start = ImGui.GetCursorScreenPos();
             height = ImGui.GetFrameHeight();
             var list = ImGui.GetWindowDrawList();
-            idsBefore = ImGui.GetCurrentContext().CurrentWindow.IDStack.Size;
             clipsBefore = list.ClipRectStack.Size;
             TextStyle.Edit("A", style);
             TextStyle.EditOverride("B", ov, style);
-            ids = ImGui.GetCurrentContext().CurrentWindow.IDStack.Size;
             clips = list.ClipRectStack.Size;
         }
 
         UiFrame.Run("stacks", Body);
-        Assert.Equal((idsBefore, clipsBefore), (ids, clips));
+        Assert.Equal(clipsBefore, clips);
         try
         {
             UiFrame.Click("stacks", start + new Vector2(10f, height / 2), Body);
             UiFrame.Run("stacks", Body);
-            Assert.Equal((idsBefore, clipsBefore), (ids, clips));
+            Assert.Equal(clipsBefore, clips);
         }
         finally
         {
@@ -1142,7 +1140,7 @@ public class TextStyleTests
     [Fact]
     public void WrapWithAStyleBreaksAtTheStyledWidth()
     {
-        List<string> small = [], big = [];
+        string[] small = [], big = [];
         TestFrame.Run(() =>
         {
             var width = Draw.MeasureText("one two three", new TextStyle()).X + 1;
@@ -1150,13 +1148,13 @@ public class TextStyleTests
             big = Text.Wrap("one two three four five six", width, new TextStyle { Scale = 2f });
         });
         Assert.Equal(["one two three", "four five six"], small);
-        Assert.True(big.Count > small.Count);
+        Assert.True(big.Length > small.Length);
     }
 
     [Fact]
     public void WrapWithAStyleKeepsALongWordWhole()
     {
-        List<string> lines = [];
+        string[] lines = [];
         TestFrame.Run(() => lines = Text.Wrap("Supercalifragilistic", 5, new TextStyle()));
         Assert.Equal(["Supercalifragilistic"], lines);
     }

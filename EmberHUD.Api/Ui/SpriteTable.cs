@@ -1,4 +1,3 @@
-using System.Numerics;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD.Ui;
@@ -7,17 +6,16 @@ public readonly record struct SpriteColumn(string Header, Func<string, bool> Cel
 
 public static partial class Controls
 {
-    public static bool SpriteTable(string id, IEnumerable<string> sprites, IconAtlas? atlas, IReadOnlySet<string> highlight, ref string filter, params ReadOnlySpan<SpriteColumn> columns)
+    public static bool SpriteTable(string id, IEnumerable<string> sprites, IReadOnlySet<string> highlight, ref string filter, params ReadOnlySpan<SpriteColumn> columns)
     {
         ImGui.PushID(id);
         ImGui.SetNextItemWidth(-1);
         ImGui.InputTextWithHint("##filter", "Filter", ref filter, 128);
         var changed = false;
 
-        if (ImGui.BeginTable("##sprites", columns.Length + 2, ImGuiTableFlags.ScrollY | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))
+        if (ImGui.BeginTable("##sprites", columns.Length + 1, ImGuiTableFlags.ScrollY | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV))
         {
             ImGui.TableSetupScrollFreeze(0, 1);
-            ImGui.TableSetupColumn("##sprite", ImGuiTableColumnFlags.WidthFixed, 24);
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
             foreach (var column in columns) ImGui.TableSetupColumn(column.Header, ImGuiTableColumnFlags.WidthFixed);
             ImGui.TableHeadersRow();
@@ -32,9 +30,6 @@ public static partial class Controls
                     var sprite = rows[k];
                     ImGui.PushID(sprite);
                     ImGui.TableNextRow();
-
-                    ImGui.TableNextColumn();
-                    if (atlas is not null && atlas.Sprites.TryGetValue(sprite, out var image)) ImGui.Image(image.Texture, new Vector2(20), image.Uv0, image.Uv1);
 
                     ImGui.TableNextColumn();
                     var lit = highlight.Contains(sprite);

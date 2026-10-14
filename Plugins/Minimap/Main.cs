@@ -16,8 +16,11 @@ public sealed class Main : Plugin<Settings>
     Region _region = Region.Empty;
     string _regionKey = "";
     long _regionAt;
+    byte[]? _spare;
     Vector2[] _screen = [];
     readonly HashSet<int> _overridden = [];
+    readonly HashSet<int> _iconEntities = [];
+    MapIcon[]? _indexedIcons;
     internal const float MarkerRadius = 4;
     const float GameIconSize = 24;
 
@@ -63,7 +66,7 @@ public sealed class Main : Plugin<Settings>
         var region = Settings.Map.Region;
         var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
         var now = Clock();
-        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 250 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill.Value, region.ExploredFill.Value))) return;
+        if (_region.Matches(state.AreaId, terrain) && (now - _regionAt < 1000 || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill.Value, region.ExploredFill.Value))) return;
 
         _regionAt = now;
         var area = state.AreaId;
@@ -71,14 +74,20 @@ public sealed class Main : Plugin<Settings>
         var regionFill = region.Fill.Value;
         var exploredFill = region.ExploredFill.Value;
         var previous = _region.Matches(area, terrain) ? _region : null;
-        RegionJob.Start(() => Region.Build(area, terrain, trail, player, regionFill, exploredFill, previous));
+        var reuse = _spare;
+        _spare = null;
+        RegionJob.Start(() => Region.Build(area, terrain, trail, player, regionFill, exploredFill, previous, reuse));
     }
 
     void Show(Region built)
     {
         var key = $"region-{built.AreaId}";
-        if (_regionKey.Length > 0 && _regionKey != key) Textures.Release(_regionKey);
-        if (built.Pixels.Length > 0) Textures.Upload(key, built.Pixels, built.Width, built.Height);
+        var newArea = _regionKey != key;
+        if (_regionKey.Length > 0 && newArea) Textures.Release(_regionKey);
+        var uploaded = built.Pixels.Length > 0;
+        if (uploaded) Textures.Upload(key, built.Pixels, built.Width, built.Height);
+        if (newArea) _spare = null;
+        else if (uploaded && _region.Pixels.Length > 0) _spare = _region.Pixels;
         _regionKey = key;
         _region = built;
     }
@@ -105,15 +114,16 @@ public sealed class Main : Plugin<Settings>
         using (Draw.Layer(DrawLayer.Back))
         {
             if (WallsStyle) DrawWalls(map, viewport);
-            else DrawRegion(map, state);
+            else DrawRegion(map, state, viewport);
         }
 
         _overridden.Clear();
+        IndexIcons(state.MapIcons);
         var zoomScale = Settings.Icons.ZoomScale(map.Scale);
         foreach (var entity in state.Entities)
         {
             var row = Settings.Icons.FixedFor(entity);
-            if (HasIcon(state.MapIcons, entity.Id))
+            if (_iconEntities.Contains(entity.Id))
             {
                 if (row is not { OverrideGameIcon: true }) continue;
                 _overridden.Add(entity.Id);
@@ -121,7 +131,7 @@ public sealed class Main : Plugin<Settings>
             if (row is not { Show: true }) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
-            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, row.Colour, null);
+            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, row.Colour);
         }
 
         foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport, zoomScale);
@@ -141,32 +151,66 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    void DrawRegion(MapView map, GameState state)
+    void DrawRegion(MapView map, GameState state, Vector2 viewport)
     {
         var view = Settings.Map.Region;
         var current = _region.Matches(state.AreaId, state.Terrain);
         if (current && _region.Corners.Length == 4 && Textures.TryGet(_regionKey, out var fill))
             Draw.ImageQuad(fill, map.ToScreen(_region.Corners[0]), map.ToScreen(_region.Corners[1]), map.ToScreen(_region.Corners[2]), map.ToScreen(_region.Corners[3]));
-        DrawOutline(_walls.RegionOutline, map, view.Outline.Value, view.OutlineWidth.Value);
-        if (current) DrawOutline(_region.ExploredOutline, map, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
+        if (current && _region.Trail is null)
+        {
+            DrawOutline(_walls.RegionOutline, map, viewport, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
+            return;
+        }
+        DrawOutline(_walls.RegionOutline, map, viewport, view.Outline.Value, view.OutlineWidth.Value);
+        if (current) DrawOutline(_region.ExploredOutline, map, viewport, view.ExploredOutline.Value, view.ExploredOutlineWidth.Value);
     }
 
-    void DrawOutline(Polyline[] lines, MapView map, Color colour, float width)
+    internal void DrawOutline(Polyline[] lines, MapView map, Vector2 viewport, Color colour, float width)
     {
         foreach (var line in lines)
         {
-            if (_screen.Length < line.Points.Length) _screen = new Vector2[line.Points.Length];
-            for (var i = 0; i < line.Points.Length; i++) _screen[i] = map.ToScreen(line.Points[i]);
-            Draw.Polyline(_screen.AsSpan(0, line.Points.Length), colour, width, line.Closed);
+            var count = line.Points.Length;
+            if (_screen.Length <= count) _screen = new Vector2[count + 1];
+            for (var i = 0; i < count; i++) _screen[i] = map.ToScreen(line.Points[i]);
+            var last = line.Closed ? count : count - 1;
+            if (line.Closed && count > 0)
+            {
+                _screen[count] = _screen[0];
+                var hidden = 0;
+                while (hidden < count && Visible(_screen[hidden], _screen[hidden + 1], viewport)) hidden++;
+                if (hidden < count)
+                {
+                    var shift = (hidden + 1) % count;
+                    _screen.AsSpan(0, shift).Reverse();
+                    _screen.AsSpan(shift, count - shift).Reverse();
+                    _screen.AsSpan(0, count).Reverse();
+                    _screen[count] = _screen[0];
+                }
+            }
+            var start = -1;
+            for (var i = 0; i <= last; i++)
+            {
+                if (i < last && Visible(_screen[i], _screen[i + 1], viewport))
+                {
+                    if (start < 0) start = i;
+                    continue;
+                }
+                if (start < 0) continue;
+                var wholeLoop = line.Closed && start == 0 && i == last;
+                Draw.Polyline(_screen.AsSpan(start, wholeLoop ? count : i - start + 1), colour, width, wholeLoop);
+                start = -1;
+            }
         }
     }
 
-    internal static bool HasIcon(MapIcon[] icons, int entityId)
+    void IndexIcons(MapIcon[] icons)
     {
-        if (entityId == 0) return false;
+        if (ReferenceEquals(icons, _indexedIcons)) return;
+        _indexedIcons = icons;
+        _iconEntities.Clear();
         foreach (var icon in icons)
-            if (icon.EntityId == entityId && float.IsFinite(icon.Position.X) && float.IsFinite(icon.Position.Y)) return true;
-        return false;
+            if (icon.EntityId != 0 && float.IsFinite(icon.Position.X) && float.IsFinite(icon.Position.Y)) _iconEntities.Add(icon.EntityId);
     }
 
     void DrawIcon(MapIcon icon, MapView map, Vector2 viewport, float zoomScale)
@@ -187,7 +231,7 @@ public sealed class Main : Plugin<Settings>
             else Draw.Marker(at, size / 4, colour, Settings.FallbackShape(icon.Type));
         }
         else if (name.Length == 0) Draw.Marker(at, size / 4, Color.FromArgb(0xF9, 0xDD, 0x75), Settings.FallbackShape(icon.Type));
-        else Draw.Icon(name, at, size / 2, colour, null);
+        else Draw.Icon(name, at, size / 2, colour);
     }
 
     void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport, float zoomScale)

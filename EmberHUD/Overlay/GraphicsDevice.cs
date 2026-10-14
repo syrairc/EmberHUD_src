@@ -121,15 +121,7 @@ internal sealed partial class GraphicsDevice : IDisposable
         _backBuffer.Dispose();
         _backBufferView = null!;
         _backBuffer = null!;
-        try
-        {
-            _swapChain.ResizeBuffers(2, (uint)width, (uint)height, Format.B8G8R8A8_UNorm, SwapChainFlags.None).CheckError();
-        }
-        catch
-        {
-            Dispose();
-            throw;
-        }
+        _swapChain.ResizeBuffers(2, (uint)width, (uint)height, Format.B8G8R8A8_UNorm, SwapChainFlags.None).CheckError();
         Width = width;
         Height = height;
         BindBackBuffer();

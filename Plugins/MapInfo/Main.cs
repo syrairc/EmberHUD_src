@@ -61,7 +61,7 @@ public sealed class Main : Plugin<Settings>
             var style = StyleOf(row.Kind, look);
             var lineHeight = Draw.MeasureText("Ag", style).Y;
             var textWidth = row.Kind == RowKind.Content ? width - 2 * (look.IconSize.Value + Gap) : width;
-            string[] lines = row.Kind is RowKind.Title or RowKind.Bar ? [row.Text] : Text.Wrap(row.Text, Math.Max(1, textWidth), style).ToArray();
+            string[] lines = row.Kind is RowKind.Title or RowKind.Bar ? [row.Text] : Text.Wrap(row.Text, Math.Max(1, textWidth), style);
             var height = row.Kind switch
             {
                 RowKind.Title => lineHeight + UnderlineGap + 2,
@@ -127,7 +127,7 @@ public sealed class Main : Plugin<Settings>
         {
             var icon = look.IconSize.Value;
             var middle = at.Y + Math.Max(icon, laid.LineHeight * laid.Lines.Length) / 2;
-            Draw.Icon(laid.Row.Content.Icon, new Vector2(at.X + icon / 2, middle), icon / 2, Color.White, null);
+            Draw.Icon(laid.Row.Content.Icon, new Vector2(at.X + icon / 2, middle), icon / 2, Color.White);
             var textAt = new Vector2(at.X + icon + Gap, middle - laid.LineHeight * laid.Lines.Length / 2);
             foreach (var line in laid.Lines)
             {

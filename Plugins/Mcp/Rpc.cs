@@ -14,7 +14,6 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
 {
     public const string Modern = "2026-07-28";
     public const string Legacy = "2025-11-25";
-    static readonly string[] LegacyVersions = [Legacy, "2025-06-18", "2025-03-26"];
     public const int MaxResultChars = 1048576;
     const string VersionKey = "io.modelcontextprotocol/protocolVersion";
     const string ServerInfoKey = "io.modelcontextprotocol/serverInfo";
@@ -39,7 +38,7 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
         var method = Text(request["method"]);
         if (method is null) return Fail(id, 400, -32600, "Invalid Request");
         var parameters = request["params"] as JsonObject;
-        if (method == "initialize") return Ok(id, Initialize(Text(parameters?["protocolVersion"])), false);
+        if (method == "initialize") return Ok(id, Initialize(), false);
 
         var headerVersion = header("MCP-Protocol-Version");
         var bodyVersion = Text((parameters?["_meta"] as JsonObject)?[VersionKey]);
@@ -106,9 +105,9 @@ internal sealed class Rpc(IReadOnlyList<Tool> tools, string serverVersion)
         ["instructions"] = Instructions,
     };
 
-    JsonObject Initialize(string? requested) => new()
+    JsonObject Initialize() => new()
     {
-        ["protocolVersion"] = requested is not null && LegacyVersions.Contains(requested) ? requested : Legacy,
+        ["protocolVersion"] = Legacy,
         ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
         ["serverInfo"] = Info(),
         ["instructions"] = Instructions,

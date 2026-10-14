@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
@@ -198,5 +199,55 @@ public sealed class MainTests
         TestGame.Set(GameState.Empty);
         main.Tick();
         Check.Equal(0, main.Picks.Count);
+    }
+
+    [Test]
+    public void RowsAreRebuiltOnlyWhenTheBookTheFiltersOrTheStalenessChange()
+    {
+        var main = new Main();
+        var cheap = Row(1, 0, 1000, 129);
+        var dear = Row(1, 1, 3712, 297);
+        TestGame.Set(GameState.Empty with { Trade = Shown(1, cheap, dear) });
+        main.Tick();
+        var now = Environment.TickCount64;
+        var rows = main.RowsFor(Game.State.Trade!, now);
+        Check.Equal(2, rows.Count);
+
+        TestGame.Set(GameState.Empty with { Trade = Shown(1, cheap, dear) });
+        main.Tick();
+        Check.That(ReferenceEquals(rows, main.RowsFor(Game.State.Trade!, now)), "the same listings read again");
+
+        main.Settings.MaxPrice.Value = 200;
+        var filtered = main.RowsFor(Game.State.Trade!, now);
+        Check.Equal(1, filtered.Count);
+        Check.That(ReferenceEquals(filtered, main.RowsFor(Game.State.Trade!, now)), "nothing changed since the filter");
+
+        TestGame.Set(GameState.Empty with { Trade = Shown(1, cheap, Row(1, 1, 3712, 150)) });
+        main.Tick();
+        var repriced = main.RowsFor(Game.State.Trade!, now);
+        Check.Equal(2, repriced.Count);
+
+        var later = main.RowsFor(Game.State.Trade!, now + 6 * 60_000);
+        Check.That(!ReferenceEquals(repriced, later) && later.All(row => row.Stale), "past the stale limit");
+    }
+
+    [Test]
+    public void CurrentPageOnlyRebuildsWhenAnAlreadyCachedPageComesBack()
+    {
+        var main = new Main();
+        main.Settings.CurrentPageOnly.Value = true;
+        var one = Row(1, 0, 1000, 129);
+        var two = Row(2, 0, 95, 9999);
+        var now = Environment.TickCount64;
+
+        TestGame.Set(GameState.Empty with { Trade = Shown(1, one) });
+        main.Tick();
+        TestGame.Set(GameState.Empty with { Trade = Shown(2, two) });
+        main.Tick();
+        Check.Equal("2:0", Keys(main.RowsFor(Game.State.Trade!, now)));
+
+        TestGame.Set(GameState.Empty with { Trade = Shown(1, one) });
+        main.Tick();
+        Check.Equal("1:0", Keys(main.RowsFor(Game.State.Trade!, now)));
     }
 }

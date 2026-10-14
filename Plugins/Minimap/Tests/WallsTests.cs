@@ -60,6 +60,6 @@ public sealed class WallsTests
         var loop = Walls.Build(1, Scene.Cells(4, 3, (1, 1), (2, 1))).RegionOutline.Single();
 
         Check.That(loop.Closed, "closed");
-        Check.Equal(6, loop.Points.Length);
+        Check.Equal(4, loop.Points.Length);
     }
 }

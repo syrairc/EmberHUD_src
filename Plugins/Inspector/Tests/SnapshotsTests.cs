@@ -65,3 +65,33 @@ public sealed class SnapshotsTests
         Check.That(snapshots.Get(at, int.MaxValue) is null, "huge length");
     }
 }
+
+public sealed class ViewCacheTests
+{
+    [Test]
+    public void PruningDropsOnlyEntriesNotUsedInTheLastFrame()
+    {
+        var cache = new ViewCache<string>();
+        TestFrame.Run(() =>
+        {
+            cache.Set(1, "stale");
+            cache.Set(2, "live");
+        });
+        TestFrame.Run(() => cache.Get(2));
+        TestFrame.Run(() => cache.Get(2));
+        TestFrame.Run(() =>
+        {
+            for (uint id = 100; id < 170; id++) cache.Set(id, "new");
+        });
+
+        TestFrame.Run(() =>
+        {
+            Check.That(cache.Get(1) is null, "unused for three frames");
+            Check.Equal("live", cache.Get(2));
+            Check.Equal("new", cache.Get(169));
+        });
+    }
+
+    [Test]
+    public void AMissIsNull() => TestFrame.Run(() => Check.That(new ViewCache<string>().Get(7) is null, "nothing stored"));
+}

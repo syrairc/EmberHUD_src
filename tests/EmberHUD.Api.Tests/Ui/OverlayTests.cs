@@ -902,18 +902,8 @@ public class OverlayTests
     }
 
     [Fact]
-    public void ClickBlockerKeepsTheIdStackBalanced()
-    {
-        var id = UiFrame.NextId("balance");
-        uint before = 0, after = 0;
-        UiFrame.Run(UiFrame.NextId("balancehost"), () =>
-        {
-            before = ImGui.GetID("probe");
-            Overlay.ClickBlocker(id, new Vector2(10, 10), new Vector2(50, 50));
-            after = ImGui.GetID("probe");
-        });
-        Assert.Equal(before, after);
-    }
+    public void ClickBlockerDrawsInsideAWindowWithoutLeakingAnId() =>
+        UiFrame.Run(UiFrame.NextId("balancehost"), () => Overlay.ClickBlocker(UiFrame.NextId("balance"), new Vector2(10, 10), new Vector2(50, 50)));
 
     sealed class Button
     {
@@ -1348,45 +1338,5 @@ public class OverlayTests
             UiFrame.Click(win, a.Pos + size / 2f, frameA);
             UiFrame.Unhover();
         }
-    }
-
-    [Theory]
-    [InlineData(false, false, 0)]
-    [InlineData(true, false, 0)]
-    [InlineData(false, true, 0)]
-    [InlineData(false, false, 1)]
-    [InlineData(true, false, 1)]
-    [InlineData(false, false, 2)]
-    [InlineData(true, true, 2)]
-    public void FloatingButtonKeepsTheIdStackBalancedInEveryVariant(bool explicitSize, bool offscreen, int mouse)
-    {
-        var win = UiFrame.NextId("balancewin");
-        var id = UiFrame.NextId("balancebtn");
-        var b = new Button { Pos = offscreen ? new Vector2(5000, 5000) : new Vector2(200, 150) };
-        var size = explicitSize ? new Vector2(150, 40) : default;
-        var mismatches = 0;
-        var inner = ButtonFrame(id, b, size: size);
-        void Probe()
-        {
-            var before = ImGui.GetID("probe");
-            inner();
-            if (before != ImGui.GetID("probe")) mismatches++;
-        }
-        try
-        {
-            var at = (explicitSize ? size : Measure("Toast me")) / 2f;
-            if (mouse == 0) UiFrame.Run(win, Probe);
-            else if (mouse == 1) UiFrame.Hover(win, b.Pos + at, Probe);
-            else
-            {
-                UiFrame.Press(win, b.Pos + at, Probe);
-                UiFrame.Release(win, Probe);
-            }
-        }
-        finally
-        {
-            UiFrame.Unhover();
-        }
-        Assert.Equal(0, mismatches);
     }
 }

@@ -1,4 +1,5 @@
 using EmberHUD.Host;
+using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -343,5 +344,39 @@ public class MinimapReaderTests
         var reader = ReaderFor(world);
 
         Assert.Equal(-180f, reader.ReadRotationDegrees(1));
+    }
+
+    [Fact]
+    public void AKnownNameIsNotReadAgain()
+    {
+        var world = new FakeWorld();
+        var index = world.AddName("Fight_C");
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadName(index, out var first));
+        var reads = world.Memory.Reads.Count;
+
+        reader.Reset();
+        Assert.True(reader.TryReadName(index, out var second));
+
+        Assert.Equal("Fight_C", first);
+        Assert.Same(first, second);
+        Assert.Equal(reads, world.Memory.Reads.Count);
+    }
+
+    [Fact]
+    public void AFailedNameIsReadAgainNextTime()
+    {
+        var world = new FakeWorld();
+        var index = world.AddName("Fight_C");
+        var blockPointer = FakeWorld.Module + Offsets.FNamePoolRva + Offsets.FNameBlocks;
+        Assert.True(world.Memory.TryReadPtr(blockPointer, out var block));
+        var reader = ReaderFor(world);
+
+        world.Memory.Write(blockPointer, 0L);
+        Assert.False(reader.TryReadName(index, out _));
+        world.Memory.Write(blockPointer, (long)block);
+
+        Assert.True(reader.TryReadName(index, out var name));
+        Assert.Equal("Fight_C", name);
     }
 }

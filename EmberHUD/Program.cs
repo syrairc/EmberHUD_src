@@ -84,13 +84,13 @@ using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetT
 reader.Start();
 using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
 var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
-var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.TryUpload, overlay.Resolve);
+var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.Textures.TryUpload, overlay.Textures.Resolve);
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
 Draw.GameIconNames = gameIcons?.Names ?? [];
-var svgIcons = new SvgIconStore(LoadSvgSources(), overlay.TryUpload, overlay.Resolve, overlay.ReleaseTexture);
+var svgIcons = new SvgIconStore(LoadSvgSources(), overlay.Textures.TryUpload, overlay.Textures.Resolve, overlay.Textures.Release);
 Draw.SvgIcons = svgIcons.Resolve;
 Draw.SvgIconNames = svgIcons.Names;
-var textures = new PluginTextures(overlay.BeforeFrame, overlay.TryUpload, overlay.Resolve, overlay.ReleaseTexture);
+var textures = new PluginTextures(overlay.BeforeFrame, overlay.Textures.TryUpload, overlay.Textures.Resolve, overlay.Textures.Release);
 Textures.Uploader = textures.Upload;
 Textures.Resolver = textures.Resolve;
 Textures.Releaser = textures.Release;

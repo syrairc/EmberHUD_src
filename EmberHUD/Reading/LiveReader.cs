@@ -41,7 +41,7 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
             return false;
 
         var terrain = _terrain.Read(scene);
-        var (playerPosition, entities) = _world.ReadWorld(scene);
+        var (playerPosition, entities) = _world.ReadWorld(scene, _terrain.Generation);
         if (_terrain.Generation != _generation)
         {
             _generation = _terrain.Generation;

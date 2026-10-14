@@ -39,11 +39,23 @@ public static class Outline
             return null;
         }
 
+        Polyline Line(List<(long X, long Y)> keys, bool closed)
+        {
+            var points = new List<Vector2>(keys.Count);
+            for (var i = 0; i < keys.Count; i++)
+            {
+                var openEnd = !closed && (i == 0 || i == keys.Count - 1);
+                if (!openEnd && Straight(keys[(i + keys.Count - 1) % keys.Count], keys[i], keys[(i + 1) % keys.Count])) continue;
+                points.Add(Point(keys[i]));
+            }
+            return new Polyline([.. points], closed);
+        }
+
         void Walk((long X, long Y) start)
         {
             while (Unused(start) is { } first)
             {
-                var points = new List<Vector2> { Point(start) };
+                var keys = new List<(long X, long Y)> { start };
                 var at = start;
                 var edge = first;
                 while (true)
@@ -52,13 +64,13 @@ public static class Outline
                     at = ends[2 * edge] == at ? ends[2 * edge + 1] : ends[2 * edge];
                     if (at == start)
                     {
-                        lines.Add(new Polyline([.. points], true));
+                        lines.Add(Line(keys, true));
                         break;
                     }
-                    points.Add(Point(at));
+                    keys.Add(at);
                     if (Unused(at) is not { } next)
                     {
-                        lines.Add(new Polyline([.. points], false));
+                        lines.Add(Line(keys, false));
                         break;
                     }
                     edge = next;
@@ -70,5 +82,12 @@ public static class Outline
             if (list.Count % 2 == 1) Walk(at);
         foreach (var at in touching.Keys) Walk(at);
         return [.. lines];
+    }
+
+    static bool Straight((long X, long Y) a, (long X, long Y) b, (long X, long Y) c)
+    {
+        var (ux, uy) = (b.X - a.X, b.Y - a.Y);
+        var (vx, vy) = (c.X - b.X, c.Y - b.Y);
+        return ux * vy - uy * vx == 0 && ux * vx + uy * vy > 0;
     }
 }

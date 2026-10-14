@@ -32,7 +32,7 @@ public sealed class OutlineTests
         var line = Outline.Join(edges, Grid).Single();
 
         Check.That(!line.Closed, "open");
-        Check.That(SameRun(line.Points, new(0, 0), new(10, 0), new(20, 0), new(20, 10)), string.Join(" ", line.Points));
+        Check.That(SameRun(line.Points, new(0, 0), new(20, 0), new(20, 10)), string.Join(" ", line.Points));
     }
 
     [Test]
@@ -54,9 +54,55 @@ public sealed class OutlineTests
         var terrain = new Terrain(4, 4, 10f, new Vector2(0.1f, 0.3f), new BitArray(16));
         List<WallSegment> edges = [new(0.1f, 0.3f, 10.1f, 0.3f), new(10.100001f, 0.3f, 20.1f, 0.3f)];
 
-        Check.Equal(3, Outline.Join(edges, terrain).Single().Points.Length);
+        Check.Equal(2, Outline.Join(edges, terrain).Single().Points.Length);
     }
 
     [Test]
     public void NoEdgesGiveNoLines() => Check.Equal(0, Outline.Join([], Grid).Length);
+
+    [Test]
+    public void AStraightRunOfCellsIsOneLongSide()
+    {
+        var terrain = Scene.Cells(7, 3, (1, 1), (2, 1), (3, 1), (4, 1), (5, 1));
+        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
+
+        Check.That(line.Closed, "closed");
+        Check.Equal(4, line.Points.Length);
+        foreach (var corner in new[] { new Vector2(10, 10), new Vector2(60, 10), new Vector2(60, 20), new Vector2(10, 20) }) Check.That(line.Points.Contains(corner), $"has {corner}");
+    }
+
+    [Test]
+    public void ACornerKeepsItsPointAndAnLShapeKeepsSix()
+    {
+        var terrain = Scene.Cells(4, 4, (1, 1), (2, 1), (1, 2));
+        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
+
+        Check.Equal(6, line.Points.Length);
+        foreach (var corner in new[] { new Vector2(10, 10), new Vector2(30, 10), new Vector2(30, 20), new Vector2(20, 20), new Vector2(20, 30), new Vector2(10, 30) }) Check.That(line.Points.Contains(corner), $"has {corner}");
+    }
+
+    [Test]
+    public void AClosedLoopThatStartsMidSideStillComesOutAsFourCorners()
+    {
+        List<WallSegment> edges =
+        [
+            new(10, 0, 20, 0), new(20, 0, 30, 0), new(30, 0, 30, 10), new(30, 10, 20, 10),
+            new(20, 10, 10, 10), new(10, 10, 0, 10), new(0, 10, 0, 0), new(0, 0, 10, 0),
+        ];
+        var line = Outline.Join(edges, Grid).Single();
+
+        Check.That(line.Closed, "closed");
+        Check.Equal(4, line.Points.Length);
+        foreach (var corner in new[] { new Vector2(0, 0), new Vector2(30, 0), new Vector2(30, 10), new Vector2(0, 10) }) Check.That(line.Points.Contains(corner), $"has {corner}");
+    }
+
+    [Test]
+    public void ARunThatDoublesBackOnItselfKeepsTheSpikeTip()
+    {
+        List<WallSegment> edges = [new(0, 10, 0, 0), new(0, 0, 10, 0), new(10, 0, 0, 0)];
+        var line = Outline.Join(edges, Grid).Single();
+
+        Check.That(!line.Closed, "open");
+        Check.That(SameRun(line.Points, new(0, 10), new(0, 0), new(10, 0), new(0, 0)), string.Join(" ", line.Points));
+    }
 }

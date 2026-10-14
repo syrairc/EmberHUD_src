@@ -252,7 +252,7 @@ public static class Draw
 
     internal static IReadOnlyList<string> SvgIconNames { get; set; } = [];
 
-    public static void Icon(string? icon, Vector2 centre, float radius, Color color, IconAtlas? atlas, float glow = 0, Color? accent = null, Vector2? facing = null, ImDrawListPtr? list = null)
+    public static void Icon(string? icon, Vector2 centre, float radius, Color color, float glow = 0, Color? accent = null, Vector2? facing = null, ImDrawListPtr? list = null)
     {
         var sprite = default(Sprite);
         var tint = color;
@@ -270,7 +270,6 @@ public static class Draw
                     found = true;
                 }
             }
-            else found = atlas is not null && atlas.Sprites.TryGetValue(icon, out sprite);
         }
 
         if (!found)

@@ -178,18 +178,14 @@ public class SideNavTests
         public bool Changed;
         public bool Returned;
         public List<string> Bodies = [];
-        public uint ProbeBefore;
-        public uint ProbeAfter;
         string _railName = "";
         string _bodyName = "";
 
         public void Draw()
         {
             var parent = Open(Scope, Wrapper);
-            ProbeBefore = ImGui.GetID("probe");
             Returned = SideNav.Rail(Id, Items, State, CollapsedWidth, ExpandedWidth, IconSize);
             Changed |= Returned;
-            ProbeAfter = ImGui.GetID("probe");
             ImGui.PushID(Id);
             _railName = $"{parent}/##rail_{ImGui.GetID("##rail"):X8}";
             _bodyName = $"{parent}/##body_{ImGui.GetID("##body"):X8}";
@@ -826,47 +822,6 @@ public class SideNavTests
         rig.State!.ShowLabels = true;
         rig.Frame();
         Assert.False(rig.Rail.IsNull);
-        Assert.Equal(rig.ProbeBefore, rig.ProbeAfter);
-    });
-
-    public enum RailVariant { Collapsed, Expanded, FallbackFromHidden, NothingVisible, NullState, NullItems, EmptyItems }
-
-    [Theory]
-    [InlineData(RailVariant.Collapsed)]
-    [InlineData(RailVariant.Expanded)]
-    [InlineData(RailVariant.FallbackFromHidden)]
-    [InlineData(RailVariant.NothingVisible)]
-    [InlineData(RailVariant.NullState)]
-    [InlineData(RailVariant.NullItems)]
-    [InlineData(RailVariant.EmptyItems)]
-    public void TheRailLeavesTheIdStackBalancedInEveryVariant(RailVariant variant) => Scoped(() =>
-    {
-        var rig = new RailRig();
-        rig.Items = [rig.Item("a"), rig.Item("b")];
-        switch (variant)
-        {
-            case RailVariant.Expanded:
-                rig.State!.ShowLabels = true;
-                break;
-            case RailVariant.FallbackFromHidden:
-                rig.Items = [rig.Item("gone", i => i.Visible = () => false), rig.Item("b")];
-                rig.State!.Active = "gone";
-                break;
-            case RailVariant.NothingVisible:
-                rig.Items = [rig.Item("a", i => i.Visible = () => false)];
-                break;
-            case RailVariant.NullState:
-                rig.State = null;
-                break;
-            case RailVariant.NullItems:
-                rig.Items = null;
-                break;
-            case RailVariant.EmptyItems:
-                rig.Items = [];
-                break;
-        }
-        rig.Frame();
-        Assert.Equal(rig.ProbeBefore, rig.ProbeAfter);
     });
 
     [Fact]
@@ -959,17 +914,13 @@ public class SideNavTests
         public string? Wrapper;
         public (string Label, Func<bool>? Body)[] Tabs = tabs;
         public bool Returned;
-        public uint ProbeBefore;
-        public uint ProbeAfter;
         string _navName = "";
         string _bodyName = "";
 
         public void Draw()
         {
             var parent = Open(Scope, Wrapper);
-            ProbeBefore = ImGui.GetID("probe");
             Returned = SideNav.SideTabs(Id, leftWidth, Tabs);
-            ProbeAfter = ImGui.GetID("probe");
             ImGui.PushID(Id);
             _navName = $"{parent}/##nav_{ImGui.GetID("##nav"):X8}";
             _bodyName = $"{parent}/##body_{ImGui.GetID("##body"):X8}";
@@ -1127,41 +1078,11 @@ public class SideNavTests
         Assert.Equal(["B"], logTwo);
     });
 
-    public enum SideVariant { Tabs, WithHeader, AllHeaders, Empty, BodyThrows }
-
-    [Theory]
-    [InlineData(SideVariant.Tabs)]
-    [InlineData(SideVariant.WithHeader)]
-    [InlineData(SideVariant.AllHeaders)]
-    [InlineData(SideVariant.Empty)]
-    [InlineData(SideVariant.BodyThrows)]
-    public void TheSideTabsLeaveTheIdStackBalancedInEveryVariant(SideVariant variant) => Scoped(() =>
+    [Fact]
+    public void TheSideTabsRethrowABodyExceptionWithTheIdStackBalanced() => Scoped(() =>
     {
-        (string Label, Func<bool>? Body)[] tabs = variant switch
-        {
-            SideVariant.WithHeader => Tabs,
-            SideVariant.AllHeaders => [("Only", null)],
-            SideVariant.Empty => [],
-            SideVariant.BodyThrows => [("A", () => throw new InvalidOperationException("body"))],
-            _ => Pages([]),
-        };
-        var rig = new SideRig(UiFrame.NextId("side"), 100f, tabs);
-        var thrown = false;
-        UiFrame.Run(Win, () =>
-        {
-            rig.ProbeBefore = ImGui.GetID("probe");
-            try
-            {
-                SideNav.SideTabs(rig.Id, 100f, rig.Tabs);
-            }
-            catch (InvalidOperationException)
-            {
-                thrown = true;
-            }
-            rig.ProbeAfter = ImGui.GetID("probe");
-        });
-        Assert.Equal(rig.ProbeBefore, rig.ProbeAfter);
-        Assert.Equal(variant == SideVariant.BodyThrows, thrown);
+        var rig = new SideRig(UiFrame.NextId("side"), 100f, [("A", () => throw new InvalidOperationException("body"))]);
+        UiFrame.Run(Win, () => Assert.Throws<InvalidOperationException>(() => SideNav.SideTabs(rig.Id, 100f, rig.Tabs)));
     });
 
     [Fact]

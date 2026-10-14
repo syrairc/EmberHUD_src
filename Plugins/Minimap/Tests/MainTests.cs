@@ -334,7 +334,7 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TheRegionRebuildsAtMostFourTimesASecondAndOnlyWhenTheTrailGrew()
+    public void TheRegionRebuildsAtMostOnceASecondAndOnlyWhenTheTrailGrew()
     {
         try
         {
@@ -345,12 +345,61 @@ public sealed class MainTests
             TickTwiceAt(main, 0, Scene.State(terrain: _cell, explored: one));
             Check.Equal(1, _uploads.Count, "the first build is at once");
             TickTwiceAt(main, 125, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(1, _uploads.Count, "grew, but not a quarter second yet");
-            TickTwiceAt(main, 250, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(2, _uploads.Count, "a quarter second later");
-            TickTwiceAt(main, 2500, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "grew, but not a second yet");
+            TickTwiceAt(main, 999, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "still inside the second");
+            TickTwiceAt(main, 1000, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(2, _uploads.Count, "a second later");
+            TickTwiceAt(main, 5000, Scene.State(terrain: _cell, explored: two));
             Check.Equal(2, _uploads.Count, "nothing grew, no rebuild");
-            Check.Equal("region-1", _uploads[^1]);
+            Check.That(_uploads.All(key => key == "region-1"), "every rebuild reuses the one texture key so the host can refresh it in place");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void TheRegionPixelsAlternateBetweenTwoBuffers()
+    {
+        List<byte[]> built = [];
+        try
+        {
+            TestGame.UseTextures((_, rgba, _, _) => built.Add(rgba), null);
+            var main = Scene.Plugin();
+            main.Clock = () => _now;
+
+            for (var i = 0; i < 4; i++)
+                TickTwiceAt(main, i * 1000, Scene.State(terrain: _cell, explored: new([.. Enumerable.Repeat(new Vector2(15, 15), i + 1)], 4)));
+
+            Check.Equal(4, built.Count);
+            Check.That(!ReferenceEquals(built[0], built[1]), "two different buffers");
+            Check.That(ReferenceEquals(built[0], built[2]) && ReferenceEquals(built[1], built[3]), "and they take turns");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void ANewAreaDoesNotCarryTheOldAreasBufferForward()
+    {
+        List<byte[]> built = [];
+        try
+        {
+            TestGame.UseTextures((_, rgba, _, _) => built.Add(rgba), null);
+            var main = Scene.Plugin();
+            main.Clock = () => _now;
+
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell, area: 1));
+            TickTwiceAt(main, 1000, Scene.State(terrain: _cell, area: 1, explored: new([new Vector2(15, 15)], 4)));
+            TickTwiceAt(main, 2000, Scene.State(terrain: _cell, area: 2));
+            TickTwiceAt(main, 3000, Scene.State(terrain: _cell, area: 2, explored: new([new Vector2(15, 15)], 4)));
+
+            Check.Equal(4, built.Count);
+            Check.That(!ReferenceEquals(built[1], built[3]), "the last area-1 buffer is not recycled into area 2");
         }
         finally
         {
@@ -488,7 +537,7 @@ public sealed class MainTests
 
             var view = main.Settings.Map.Region;
             Check.Equal(view.Fill.Value.A, last![3], "the old area's explored cell is not carried over");
-            Check.Equal(view.ExploredFill.Value.A, last[6 * 4 + 3], "the new area's trail is stamped");
+            Check.Equal(view.ExploredFill.Value.A, last[3 * 4 + 3], "the new area's trail is stamped");
         }
         finally
         {

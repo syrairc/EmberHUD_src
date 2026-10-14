@@ -40,24 +40,8 @@ public static partial class Controls
             Name = name,
             Count = icons.Length,
             Label = i => icons[i],
-            DrawCell = (i, list, min, size, tint) => EmberHUD.Draw.Icon(icons[i], min + new Vector2(size / 2), size / 2, tint, null, list: list),
+            DrawCell = (i, list, min, size, tint) => EmberHUD.Draw.Icon(icons[i], min + new Vector2(size / 2), size / 2, tint, list: list),
         };
-
-        public static IconSheet Atlas(string name, IconAtlas? atlas)
-        {
-            if (atlas is null || atlas.Sprites.Count == 0) return new() { Name = name };
-            var texture = atlas.Sprites.Values.GroupBy(s => s.Texture).MaxBy(g => g.Count())!.Key;
-            var names = atlas.Sprites.Where(pair => pair.Value.Texture.Equals(texture)).Select(pair => pair.Key).Order(StringComparer.Ordinal).ToArray();
-            var sprites = Array.ConvertAll(names, n => atlas.Sprites[n]);
-            return new()
-            {
-                Name = name,
-                Texture = texture,
-                Count = names.Length,
-                Uv = i => (sprites[i].Uv0, sprites[i].Uv1),
-                Label = i => names[i],
-            };
-        }
     }
 
     public static void IconImage(ImTextureRef? texture, Vector2 uv0, Vector2 uv1, float size, SColor tint)
@@ -254,7 +238,7 @@ public static partial class Controls
         using (new EColor.StyleColorScope((ImGuiCol.Button, 0u)))
             clicked = ImGui.Button("##pick", new Vector2(size) + padding * 2);
         var min = ImGui.GetItemRectMin() + padding;
-        EmberHUD.Draw.Icon(icon, min + new Vector2(size / 2), size / 2, colour, null, list: ImGui.GetWindowDrawList());
+        EmberHUD.Draw.Icon(icon, min + new Vector2(size / 2), size / 2, colour, list: ImGui.GetWindowDrawList());
         if (clicked)
         {
             _pickerSheet[key] = SheetIndex(sheets, FindIcon(sheets, icon).Sheet);
@@ -270,7 +254,7 @@ public static partial class Controls
             var list = ImGui.GetWindowDrawList();
             Checker(list, org, box);
             var px = Math.Clamp(baseSize * scale, 4f, box - 4f);
-            EmberHUD.Draw.Icon(icon, org + new Vector2(box / 2), px / 2, colour, null, list: list);
+            EmberHUD.Draw.Icon(icon, org + new Vector2(box / 2), px / 2, colour, list: list);
 
             ImGui.SameLine();
             ImGui.BeginGroup();

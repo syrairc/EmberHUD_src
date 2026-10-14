@@ -23,7 +23,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
         return ((int)MathF.Floor((point.X - terrain.Origin.X) / terrain.CellSize), (int)MathF.Floor((point.Y - terrain.Origin.Y) / terrain.CellSize));
     }
 
-    public static Region Build(int areaId, Terrain terrain, ExploredTrail? trail, Vector2? player, Color regionFill, Color exploredFill, Region? previous)
+    public static Region Build(int areaId, Terrain terrain, ExploredTrail? trail, Vector2? player, Color regionFill, Color exploredFill, Region? previous, byte[]? reuse = null)
     {
         var size = terrain.CellSize;
         var playerCell = CellOf(terrain, player);
@@ -32,8 +32,8 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
 
         var everything = trail is null;
         var explored = Stamp(terrain, trail, player, previous);
-        var pixels = Texels(terrain, explored, everything, regionFill, exploredFill, out var width);
-        var right = terrain.Origin.X + width * size / 2;
+        var pixels = Texels(terrain, explored, everything, regionFill, exploredFill, reuse, out var width);
+        var right = terrain.Origin.X + terrain.Cols * size;
         var bottom = terrain.Origin.Y + terrain.Rows * size;
         Vector2[] corners =
         [
@@ -42,7 +42,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
             Map.Project(new Vector3(right, bottom, 0)),
             Map.Project(new Vector3(terrain.Origin.X, bottom, 0)),
         ];
-        var outline = Outline.Join(WallExtractor.Extract(terrain, (col, row) => terrain.IsWalkable(col, row) && (everything || explored[row * terrain.Cols + col])), terrain);
+        Polyline[] outline = everything ? [] : Outline.Join(WallExtractor.Extract(terrain, (col, row) => terrain.IsWalkable(col, row) && explored[row * terrain.Cols + col]), terrain);
         return new Region(areaId, terrain, trail, explored, playerCell, regionFill, exploredFill, pixels, width, terrain.Rows, corners, outline);
     }
 
@@ -74,10 +74,11 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
 
     static int Clamp(float cell, int count) => (int)Math.Clamp(MathF.Floor(cell), 0, count - 1);
 
-    static byte[] Texels(Terrain terrain, BitArray explored, bool everything, Color regionFill, Color exploredFill, out int width)
+    static byte[] Texels(Terrain terrain, BitArray explored, bool everything, Color regionFill, Color exploredFill, byte[]? reuse, out int width)
     {
-        width = terrain.Cols * 2;
-        var pixels = new byte[width * terrain.Rows * 4];
+        width = terrain.Cols;
+        var length = width * terrain.Rows * 4;
+        var pixels = reuse is not null && reuse.Length == length ? reuse : new byte[length];
         var clear = Color.FromArgb(0, regionFill);
         for (var row = 0; row < terrain.Rows; row++)
         {
@@ -87,8 +88,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
             {
                 if (!terrain.IsWalkable(col, row)) continue;
                 var colour = everything || explored[row * terrain.Cols + col] ? exploredFill : regionFill;
-                Put(pixels, line + col * 8, colour);
-                Put(pixels, line + col * 8 + 4, colour);
+                Put(pixels, line + col * 4, colour);
             }
         }
         return pixels;

@@ -10,7 +10,9 @@ static class UiFrame
     public static ImGuiIOPtr Io()
     {
         if (ImGui.GetCurrentContext().IsNull) Run("ensure context", () => { });
-        return ImGui.GetIO();
+        var io = ImGui.GetIO();
+        io.MouseDoubleClickTime = 0f;
+        return io;
     }
 
     static int _ids;
@@ -23,6 +25,26 @@ static class UiFrame
         Run("measure", () => value = read());
         return value;
     }
+
+    public sealed record StyleMetrics(float FrameHeight, float FontSize, Vector2 Spacing, Vector2 FramePadding, Vector2 WindowPadding, float Alpha, float ChildRounding, Vector4 ChildBg, Vector4 WindowBg, Vector4 FrameBg);
+
+    static StyleMetrics? _style;
+
+    public static StyleMetrics Style => _style ??= Measure(() =>
+    {
+        var style = ImGui.GetStyle();
+        return new StyleMetrics(ImGui.GetFrameHeight(), ImGui.GetFontSize(), style.ItemSpacing, style.FramePadding, style.WindowPadding, style.Alpha, style.ChildRounding, style.Colors[(int)ImGuiCol.ChildBg], style.Colors[(int)ImGuiCol.WindowBg], style.Colors[(int)ImGuiCol.FrameBg]);
+    });
+
+    static readonly Dictionary<string, float> _textWidths = [];
+
+    public static float TextWidth(string text)
+    {
+        if (!_textWidths.TryGetValue(text, out var width)) _textWidths[text] = width = Measure(() => ImGui.CalcTextSize(text).X);
+        return width;
+    }
+
+    public static float ButtonWidth(string label) => TextWidth(label) + Style.FramePadding.X * 2;
 
     public static void Settle(string window, Action body)
     {
@@ -78,14 +100,18 @@ static class UiFrame
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.SetNextWindowSize(WindowSize);
         ImGui.Begin(window, ImGuiWindowFlags.NoSavedSettings);
+        var host = ImGuiP.GetCurrentWindow();
+        var ids = host.IDStack.Size;
         body();
+        if (host.IDStack.Size != ids) throw new InvalidOperationException($"the body left the ID stack at {host.IDStack.Size} instead of {ids}");
+        if (!ImGuiP.GetCurrentTable().IsNull) throw new InvalidOperationException("the body left a table open");
         ImGui.End();
     });
 
     public static void Click(string window, Vector2 at, Action body, int button = 0)
     {
         var io = Io();
-        for (var i = 0; i < io.MouseDoubleClickTime * 60 + 1; i++) Run(window, body);
+        Run(window, body);
         io.AddMousePosEvent(at.X, at.Y);
         Run(window, body);
         io.AddMouseButtonEvent(button, true);
@@ -131,22 +157,7 @@ static class UiFrame
 
     public readonly record struct ModalMetrics(float ConfirmWidth, float CancelWidth, float FrameHeight, float FontSize, Vector2 Spacing, Vector2 WindowPadding);
 
-    public static ModalMetrics ReadModalMetrics()
-    {
-        var metrics = default(ModalMetrics);
-        Run("modal metrics", () =>
-        {
-            var style = ImGui.GetStyle();
-            metrics = new ModalMetrics(
-                ImGui.CalcTextSize("Confirm").X + style.FramePadding.X * 2,
-                ImGui.CalcTextSize("Cancel").X + style.FramePadding.X * 2,
-                ImGui.GetFrameHeight(),
-                ImGui.GetFontSize(),
-                style.ItemSpacing,
-                style.WindowPadding);
-        });
-        return metrics;
-    }
+    public static ModalMetrics ReadModalMetrics() => new(ButtonWidth("Confirm"), ButtonWidth("Cancel"), Style.FrameHeight, Style.FontSize, Style.Spacing, Style.WindowPadding);
 
     public static Vector2 ConfirmModalButton(Vector2 modalPos, bool confirm, ModalMetrics m)
     {

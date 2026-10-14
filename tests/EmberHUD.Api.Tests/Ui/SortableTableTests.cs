@@ -69,6 +69,8 @@ public class SortableTableTests
         public string Filter = "";
         public bool WithFilterBox = true;
         public float MaxHeight;
+        public int LabelCalls;
+        public int WeightKeyCalls;
 
         public string Window => "probe" + id;
 
@@ -82,11 +84,11 @@ public class SortableTableTests
             TableColumn<(string n, float w)>[] columns =
             [
                 new() { Header = "Name", SortKey = r => r.n, Draw = (r, i) => { Drawn.Add(i); ImGui.TextUnformatted(r.n); } },
-                new() { Header = "Weight", Width = 80f, SortKey = r => r.w, Draw = (r, _) => { if (WeightHeader == default) { var style = ImGui.GetStyle(); var at = ImGui.GetCursorScreenPos(); WeightHeader = new Vector2(at.X + 4f, at.Y - style.CellPadding.Y - (ImGui.GetTextLineHeight() / 2 + style.CellPadding.Y)); } WeightCellWidth = ImGui.GetContentRegionAvail().X; ImGui.TextUnformatted(r.w.ToString(CultureInfo.InvariantCulture)); } },
+                new() { Header = "Weight", Width = 80f, SortKey = r => { WeightKeyCalls++; return r.w; }, Draw = (r, _) => { if (WeightHeader == default) { var style = ImGui.GetStyle(); var at = ImGui.GetCursorScreenPos(); WeightHeader = new Vector2(at.X + 4f, at.Y - style.CellPadding.Y - (ImGui.GetTextLineHeight() / 2 + style.CellPadding.Y)); } WeightCellWidth = ImGui.GetContentRegionAvail().X; ImGui.TextUnformatted(r.w.ToString(CultureInfo.InvariantCulture)); } },
                 new() { Header = "Row", Draw = (_, i) => { if (RowHeader == default) { var style = ImGui.GetStyle(); var at = ImGui.GetCursorScreenPos(); RowHeader = new Vector2(at.X + 4f, at.Y - style.CellPadding.Y - (ImGui.GetTextLineHeight() / 2 + style.CellPadding.Y)); } ImGui.TextUnformatted("row " + i); } },
             ];
             var depth = ImGuiP.GetCurrentWindow().IDStack.Size;
-            SortableTable.Draw(id, Rows, columns, ref Filter, WithFilterBox ? r => r.n : null, MaxHeight);
+            SortableTable.Draw(id, Rows, columns, ref Filter, WithFilterBox ? r => { LabelCalls++; return r.n; } : null, MaxHeight);
             Balanced &= ImGuiP.GetCurrentTable().IsNull && ImGuiP.GetCurrentWindow().IDStack.Size == depth;
         }
     }
@@ -260,44 +262,135 @@ public class SortableTableTests
     }
 
     [Fact]
-    public void TheVisibleListIsOnlyRebuiltWhenItsInputsChange()
+    public void TheVisibleListIsOnlyRebuiltWhenTheListInstanceOrTheFilterChanges()
     {
-        var probe = new Probe { WithFilterBox = false };
+        var probe = new Probe { Filter = "a" };
         try
         {
             probe.Frame();
-            var builds = SortableTable.FilterBuilds;
+            Assert.Equal(3, probe.LabelCalls);
             probe.Frame();
             probe.Frame();
-            Assert.Equal(builds, SortableTable.FilterBuilds);
+            Assert.Equal(3, probe.LabelCalls);
 
             probe.Rows = [.. Weights];
             probe.Frame();
-            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
+            Assert.Equal(6, probe.LabelCalls);
             probe.Frame();
-            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
+            Assert.Equal(6, probe.LabelCalls);
 
-            probe.Rows.Add(("delta", 4f));
+            probe.Filter = "al";
             probe.Frame();
-            Assert.Equal(builds + 2, SortableTable.FilterBuilds);
+            probe.Frame();
+            Assert.Equal(9, probe.LabelCalls);
+            Assert.Equal(new[] { 1 }, probe.Drawn);
         }
         finally { ResetIo(); }
     }
 
     [Fact]
-    public void ChangingTheFilterRebuildsTheVisibleListOnce()
+    public void AnInPlaceEditOfTheSameListIsNotNoticed()
     {
-        var probe = new Probe();
+        var probe = new Probe { Rows = [.. Weights], Filter = "a" };
+        try
+        {
+            probe.Frame();
+            probe.Rows.Add(("delta", 4f));
+            probe.Frame();
+            Assert.Equal(3, probe.LabelCalls);
+            Assert.Equal(new[] { 0, 1, 2 }, probe.Drawn);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ABlankFilterNeverCallsTheLabelFunc()
+    {
+        var probe = new Probe { Filter = "  " };
         try
         {
             probe.Frame();
             probe.Frame();
-            var builds = SortableTable.FilterBuilds;
-            probe.Filter = "al";
+            Assert.Equal(0, probe.LabelCalls);
+            Assert.Equal(new[] { 0, 1, 2 }, probe.Drawn);
+            Assert.True(probe.Balanced);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ShrinkingTheSameListInPlaceNeverThrows()
+    {
+        var probe = new Probe { Rows = [.. Weights], WithFilterBox = false };
+        try
+        {
             probe.Frame();
             probe.Frame();
-            Assert.Equal(builds + 1, SortableTable.FilterBuilds);
-            Assert.Equal(new[] { 1 }, probe.Drawn);
+            UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
+            Assert.Equal(new[] { 2, 0, 1 }, probe.Drawn);
+
+            probe.Rows.RemoveAt(2);
+            probe.Frame();
+
+            Assert.Equal(new[] { 0, 1 }, probe.Drawn);
+            Assert.True(probe.Balanced);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ShrinkingTheSameListInPlaceWithAHeightCapNeverAbortsWhenSorted()
+    {
+        var probe = new Probe { Rows = [.. Weights], WithFilterBox = false, MaxHeight = 300f };
+        try
+        {
+            probe.Frame();
+            probe.Frame();
+            UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
+            Assert.Equal(new[] { 2, 0, 1 }, probe.Drawn);
+
+            probe.Rows.RemoveAt(2);
+            probe.Frame();
+
+            Assert.Equal(new[] { 0, 1 }, probe.Drawn);
+            Assert.True(probe.Balanced);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ShrinkingTheSameListInPlaceWithAHeightCapNeverAbortsWhenFiltered()
+    {
+        var probe = new Probe { Rows = [.. Weights], Filter = "gam", MaxHeight = 300f };
+        try
+        {
+            probe.Frame();
+            probe.Frame();
+            Assert.Equal(new[] { 2 }, probe.Drawn);
+
+            probe.Rows.RemoveAt(2);
+            probe.Frame();
+
+            Assert.Empty(probe.Drawn);
+            Assert.True(probe.Balanced);
+        }
+        finally { ResetIo(); }
+    }
+
+    [Fact]
+    public void ASortBuiltAfterAShrinkSkipsTheMissingRows()
+    {
+        var probe = new Probe { Rows = [.. Weights], Filter = "a" };
+        try
+        {
+            probe.Frame();
+            probe.Frame();
+            probe.Rows.RemoveAt(2);
+
+            UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
+
+            Assert.Equal(new[] { 0, 1 }, probe.Drawn);
+            Assert.True(probe.Balanced);
         }
         finally { ResetIo(); }
     }
@@ -310,15 +403,14 @@ public class SortableTableTests
         {
             probe.Frame();
             probe.Frame();
-            var sorts = SortableTable.SortBuilds;
+            Assert.Equal(0, probe.WeightKeyCalls);
             UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
-            var ascending = SortableTable.SortBuilds;
-            Assert.Equal(sorts + 1, ascending);
+            Assert.Equal(3, probe.WeightKeyCalls);
             probe.Frame();
             probe.Frame();
-            Assert.Equal(ascending, SortableTable.SortBuilds);
+            Assert.Equal(3, probe.WeightKeyCalls);
             UiFrame.Click(probe.Window, probe.WeightHeader, probe.Body);
-            Assert.Equal(ascending + 1, SortableTable.SortBuilds);
+            Assert.Equal(6, probe.WeightKeyCalls);
             Assert.Equal(new[] { 1, 0, 2 }, probe.Drawn);
         }
         finally { ResetIo(); }

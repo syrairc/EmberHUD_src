@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -105,5 +107,58 @@ public sealed class PropertyViewTests
         Frame(() => Draw(raw.View, hero, true));
         Check.Equal((nint)0, went);
         Check.That(Ue.TryObject(child, out _), "Owner points at a live object, so the row drew as a link");
+    }
+
+    [Test]
+    public void GroupsAreBuiltOncePerSnapshotAndRebuiltWhenTheInputsChange()
+    {
+        var (hero, _) = World();
+        Ue.TryObject(hero, out var obj);
+        var cls = obj.Class!;
+        var bytes = new byte[cls.Size];
+        Memory.Read(hero, bytes);
+        var view = new RawTree(new Snapshots(() => 0)).View;
+
+        Frame(() =>
+        {
+            var first = view.Groups(cls, bytes, null);
+            Check.That(ReferenceEquals(first, view.Groups(cls, bytes, null)), "same inputs, same groups");
+
+            view.Search = "rare";
+            var searched = view.Groups(cls, bytes, null);
+            Check.That(!ReferenceEquals(first, searched), "search changed");
+
+            view.Search = "";
+            view.HideDefaults = true;
+            var hiding = view.Groups(cls, bytes, null);
+            Check.That(!ReferenceEquals(searched, hiding), "hide defaults changed");
+
+            view.HideDefaults = false;
+            Check.That(!ReferenceEquals(hiding, view.Groups(cls, (byte[])bytes.Clone(), null)), "a new snapshot");
+        });
+    }
+
+    [Test]
+    public void FormattedValuesComeFromTheCacheEvenWhenMemoryChanges()
+    {
+        var (hero, _) = World();
+        Ue.TryObject(hero, out var obj);
+        var cls = obj.Class!;
+        var bytes = new byte[cls.Size];
+        Memory.Read(hero, bytes);
+        var view = new RawTree(new Snapshots(() => 0)).View;
+        List<(string Owner, List<PropRow> Rows)> first = [];
+
+        Frame(() => first = view.Groups(cls, bytes, null));
+        var owner = first.SelectMany(group => group.Rows).Single(row => row.Prop.Name == "Owner").Value;
+        Check.That(owner != "??", owner);
+
+        TestMemory.Clear();
+        Frame(() =>
+        {
+            var again = view.Groups(cls, bytes, null);
+            Check.That(ReferenceEquals(first, again), "no rebuild");
+            Check.Equal(owner, again.SelectMany(group => group.Rows).Single(row => row.Prop.Name == "Owner").Value);
+        });
     }
 }

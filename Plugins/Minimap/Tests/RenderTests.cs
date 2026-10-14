@@ -619,6 +619,51 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void TheIconIndexFollowsTheMapIconsArrayFromFrameToFrame()
+    {
+        var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var terrain = Scene.OneCell();
+        var withIcon = Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = monster.Id }]);
+        var withoutIcon = Scene.State(entities: [monster], terrain: terrain);
+        var iconOnly = Drawn(Scene.State(terrain: terrain, icons: [Portal with { EntityId = monster.Id }]));
+        var terrainOnly = Drawn(Scene.State(terrain: terrain));
+        var main = Scene.Plugin();
+        int first = 0, second = 0, third = 0;
+
+        int RenderedVertices()
+        {
+            var before = Draw.Background.VtxBuffer.Size;
+            main.Render();
+            return Draw.Background.VtxBuffer.Size - before;
+        }
+
+        Map.View = null;
+        TestGame.Set(withIcon);
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            main.Tick();
+            first = RenderedVertices();
+        });
+        TestGame.Set(withoutIcon);
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            second = RenderedVertices();
+        });
+        TestGame.Set(withIcon);
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            third = RenderedVertices();
+        });
+
+        Check.Equal(iconOnly, first, "the game icon hides the entity marker");
+        Check.That(second > terrainOnly, "the icon array is gone, so the entity draws its own marker");
+        Check.Equal(iconOnly, third, "and the next icon array hides it again");
+    }
+
+    [Test]
     public void FoundRowsAreRecordedWhileTicking()
     {
         TestGame.Set(OneCellScene(Portal with { Texture = "T" }));
@@ -626,5 +671,145 @@ public sealed class RenderTests
         TestFrame.Run(() => main.Tick());
 
         Check.That(main.Settings.Icons.FoundFor("T") is not null, "T discovered");
+    }
+
+    [Test]
+    public void WithoutATrailTheRegionOutlineIsDrawnOnce()
+    {
+        var oneLoop = TestFrame.Vertices(() => Draw.Polyline([new Vector2(10, 10), new Vector2(20, 10), new Vector2(20, 20), new Vector2(10, 20)], Color.White, 2.5f, true));
+
+        Check.That(oneLoop > 0, "the probe loop draws");
+        Check.Equal(oneLoop, Drawn(OneCellScene()));
+    }
+
+    [Test]
+    public void WithoutATrailTheOutlineUsesTheExploredColourNotTheRegionOne()
+    {
+        var region = new Settings().Map.Region;
+
+        var colours = Colours(OneCellScene(), _ => { });
+
+        Check.That(colours.Contains(Packed(region.ExploredOutline.Value)), "explored colour");
+        Check.That(!colours.Contains(Packed(region.Outline.Value)), "region colour");
+    }
+
+    [Test]
+    public void WithATrailBothOutlinesStillDraw()
+    {
+        var withTrail = Scene.State(terrain: Scene.OneCell(), explored: new ExploredTrail([new Vector2(15, 15)], 50));
+
+        Check.Equal(2 * Drawn(OneCellScene()), Drawn(withTrail));
+    }
+
+    static readonly MapView Identity = new(Vector2.Zero, 1);
+
+    static int Indices(Action draw)
+    {
+        var indices = 0;
+        TestFrame.Run(() =>
+        {
+            var list = ImGui.GetBackgroundDrawList();
+            var before = list.IdxBuffer.Size;
+            draw();
+            indices = list.IdxBuffer.Size - before;
+        });
+        return indices;
+    }
+
+    [Test]
+    public void OnlyTheVisibleRunOfALongOutlineIsSubmitted()
+    {
+        Vector2[] points = [new(-9000, 100), new(-8000, 100), new(-7000, 100), new(10, 100), new(20, 100)];
+        var main = new Main();
+
+        var drawn = TestFrame.Vertices(() => main.DrawOutline([new Polyline(points, false)], Identity, Screen, Color.White, 2));
+        var visibleRun = TestFrame.Vertices(() => Draw.Polyline(points.AsSpan(2), Color.White, 2));
+
+        Check.That(drawn > 0, "something draws");
+        Check.Equal(visibleRun, drawn);
+    }
+
+    [Test]
+    public void AnOutlineEntirelyOffScreenDrawsNothing()
+    {
+        Vector2[] points = [new(-9000, 100), new(-8000, 100), new(-7000, 100)];
+        var main = new Main();
+
+        Check.Equal(0, TestFrame.Vertices(() => main.DrawOutline([new Polyline(points, false), new Polyline(points, true)], Identity, Screen, Color.White, 2)));
+    }
+
+    [Test]
+    public void AClosedOutlineThatIsFullyVisibleStaysOneClosedLoop()
+    {
+        Vector2[] points = [new(100, 100), new(200, 100), new(200, 200), new(100, 200)];
+        var main = new Main();
+
+        var drawn = Indices(() => main.DrawOutline([new Polyline(points, true)], Identity, Screen, Color.White, 2));
+        var closed = Indices(() => Draw.Polyline(points, Color.White, 2, true));
+        var open = Indices(() => Draw.Polyline(points, Color.White, 2));
+
+        Check.That(closed != open, "the probe can tell closed from open");
+        Check.Equal(closed, drawn);
+    }
+
+    [Test]
+    public void AClosedOutlineWithAnOffScreenSideDrawsTheRestAsOneOpenRun()
+    {
+        Vector2[] points = [new(-9000, 100), new(-8000, 100), new(100, 100), new(100, 200), new(-9000, 200)];
+        var main = new Main();
+
+        var drawn = Indices(() => main.DrawOutline([new Polyline(points, true)], Identity, Screen, Color.White, 2));
+        var run = Indices(() => Draw.Polyline(points.AsSpan(1), Color.White, 2));
+
+        Check.Equal(run, drawn);
+    }
+
+    [Test]
+    public void ANonFinitePointBreaksTheRunInsteadOfDrawingGarbage()
+    {
+        Vector2[] points = [new(float.NaN, 0), new(10, 10), new(20, 10)];
+        var main = new Main();
+
+        var drawn = TestFrame.Vertices(() => main.DrawOutline([new Polyline(points, false)], Identity, Screen, Color.White, 2));
+        var run = TestFrame.Vertices(() => Draw.Polyline(points.AsSpan(1), Color.White, 2));
+
+        Check.Equal(run, drawn);
+    }
+
+    [Test]
+    public void AnEmptyOrSinglePointOutlineDrawsNothing()
+    {
+        var main = new Main();
+
+        Check.Equal(0, TestFrame.Vertices(() => main.DrawOutline([new Polyline([], true), new Polyline([], false), new Polyline([new Vector2(10, 10)], true)], Identity, Screen, Color.White, 2)));
+    }
+
+    [Test]
+    public void AClosedOutlineVisibleAcrossItsStartPointDrawsOneJoinedRun()
+    {
+        Vector2[] points = [new(100, 100), new(-9000, 100), new(-9000, 200), new(100, 200)];
+        Vector2[] joined = [points[2], points[3], points[0], points[1]];
+        var main = new Main();
+
+        var drawn = TestFrame.Vertices(() => main.DrawOutline([new Polyline(points, true)], Identity, Screen, Color.White, 2));
+        var oneRun = TestFrame.Vertices(() => Draw.Polyline(joined, Color.White, 2));
+        var twoRuns = TestFrame.Vertices(() => { Draw.Polyline(joined.AsSpan(0, 3), Color.White, 2); Draw.Polyline(joined.AsSpan(2), Color.White, 2); });
+
+        var drawnIndices = Indices(() => main.DrawOutline([new Polyline(points, true)], Identity, Screen, Color.White, 2));
+        var openIndices = Indices(() => Draw.Polyline(joined, Color.White, 2));
+        var closedIndices = Indices(() => Draw.Polyline(joined, Color.White, 2, true));
+
+        Check.That(oneRun != twoRuns, "the probe can tell one run from two");
+        Check.That(openIndices != closedIndices, "the probe can tell open from closed");
+        Check.Equal(oneRun, drawn);
+        Check.Equal(openIndices, drawnIndices);
+    }
+
+    [Test]
+    public void ASegmentCrossingTheWholeViewportWithBothEndsOutsideStillDraws()
+    {
+        var main = new Main();
+
+        Check.That(TestFrame.Vertices(() => main.DrawOutline([new Polyline([new Vector2(-100, 100), new Vector2(3000, 100)], false)], Identity, Screen, Color.White, 2)) > 0, "crossing segment draws");
     }
 }

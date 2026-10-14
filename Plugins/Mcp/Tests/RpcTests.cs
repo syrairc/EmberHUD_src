@@ -188,15 +188,24 @@ public sealed class RpcTests
     }
 
     [Test]
-    public void LegacyInitializeEchoesAKnownVersionAndFallsBack()
+    public void LegacyInitializeAlwaysAnswersTheOneLegacyVersionTheServerAccepts()
     {
         static string Version(string requested) => (string)Wire.Json(Send($$$"""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"{{{requested}}}"}}"""))["result"]!["protocolVersion"]!;
-        Check.Equal("2025-11-25", Version("2025-11-25"));
-        Check.Equal("2025-06-18", Version("2025-06-18"));
-        Check.Equal("2025-03-26", Version("2025-03-26"));
-        Check.Equal("2025-11-25", Version("2024-11-05"));
+        foreach (var requested in new[] { "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05" }) Check.Equal("2025-11-25", Version(requested), requested);
         var discovered = Wire.Json(Modern("server/discover"))["result"]!["supportedVersions"]!.AsArray();
         Check.Equal(2, discovered.Count);
+    }
+
+    [Test]
+    public void EveryVersionInitializeAnswersIsAcceptedOnTheNextCall()
+    {
+        foreach (var requested in new[] { "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05" })
+        {
+            var init = Send($$$"""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"{{{requested}}}"}}""");
+            var answered = (string)Wire.Json(init)["result"]!["protocolVersion"]!;
+            var next = Send("""{"jsonrpc":"2.0","id":2,"method":"tools/list"}""", ("MCP-Protocol-Version", answered));
+            Check.Equal(200, next.Status, $"asked {requested}, answered {answered}");
+        }
     }
 
     [Test]

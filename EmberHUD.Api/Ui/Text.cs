@@ -13,26 +13,32 @@ public static class Text
         if (!string.IsNullOrEmpty(text) && ImGui.IsItemHovered()) ImGui.SetTooltip(EscPct(text));
     }
 
-    public static List<string> Wrap(string? text, float maxWidth, float scale) => Wrap(text, maxWidth, s => ImGui.CalcTextSize(s).X * scale);
+    public static string[] Wrap(string? text, float maxWidth, float scale) => Wrap(text, maxWidth, s => ImGui.CalcTextSize(s).X * scale);
 
-    public static List<string> Wrap(string? text, float maxWidth, TextStyle style) => Wrap(text, maxWidth, s => Draw.MeasureText(s, style).X);
+    public static string[] Wrap(string? text, float maxWidth, TextStyle style) => Wrap(text, maxWidth, s => Draw.MeasureText(s, style).X);
 
-    static List<string> Wrap(string? text, float maxWidth, Func<string, float> width)
+    internal static string[] Wrap(string? text, float maxWidth, Func<string, float> width)
     {
-        var lines = new List<string>();
-        var current = "";
-        foreach (var word in (text ?? "").Split(' '))
+        text ??= "";
+        if (width(text) <= maxWidth) return [text];
+
+        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var space = width(" ");
+        List<string> lines = [];
+        var start = 0;
+        var lineWidth = 0f;
+        for (var i = 0; i < words.Length; i++)
         {
-            var trial = current.Length == 0 ? word : current + " " + word;
-            if (current.Length > 0 && width(trial) > maxWidth)
+            var wordWidth = width(words[i]);
+            if (i > start && lineWidth + space + wordWidth > maxWidth)
             {
-                lines.Add(current);
-                current = word;
+                lines.Add(string.Join(' ', words, start, i - start));
+                start = i;
+                lineWidth = wordWidth;
             }
-            else current = trial;
+            else lineWidth += (i > start ? space : 0f) + wordWidth;
         }
-        if (current.Length > 0) lines.Add(current);
-        if (lines.Count == 0) lines.Add(text ?? "");
-        return lines;
+        lines.Add(string.Join(' ', words, start, words.Length - start));
+        return [.. lines];
     }
 }

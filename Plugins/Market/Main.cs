@@ -16,11 +16,15 @@ internal readonly record struct Pick(int Page, int Slot, long Quantity, long Pri
 
 internal enum PickState { Here, OtherPage, Gone }
 
+internal readonly record struct RowsKey(int Version, long StaleSignature, long StaleAfter, int? Page, int MaxPrice, float MaxPerUnit);
+
 public sealed class Main : Plugin<Settings>
 {
     static readonly Color Dim = Color.FromArgb(0xFF, 0x80, 0x80, 0x80);
 
     readonly Book _book = new();
+    List<Row> _rows = [];
+    RowsKey? _rowsKey;
     string _tableFilter = "";
     TableColumn<Row>[]? _columns;
     string _priceIcon = "";
@@ -60,6 +64,15 @@ public sealed class Main : Plugin<Settings>
             .ThenBy(row => row.Listing.Slot)];
     }
 
+    internal List<Row> RowsFor(TradePage shown, long now)
+    {
+        var staleAfter = Settings.StaleMinutes.Value * 60_000L;
+        var key = new RowsKey(_book.Version, _book.StaleSignature(now, staleAfter), staleAfter, Settings.CurrentPageOnly.Value ? shown.Page : null, Settings.MaxPrice.Value, Settings.MaxPerUnit.Value);
+        if (key == _rowsKey) return _rows;
+        _rowsKey = key;
+        return _rows = Shown(_book.Rows(now, staleAfter), Settings, shown.Page);
+    }
+
     public override void Initialize() =>
         RegisterHotkey("Toggle window", "Shows or hides the market listing window", () => Settings.Show.Value = !Settings.Show.Value);
 
@@ -75,7 +88,7 @@ public sealed class Main : Plugin<Settings>
     {
         if (Game.State.Trade is not { } shown || !Settings.Show.Value) return;
         _priceIcon = shown.PriceIcon;
-        var rows = Shown(_book.Rows(Environment.TickCount64, Settings.StaleMinutes.Value * 60_000L), Settings, shown.Page);
+        var rows = RowsFor(shown, Environment.TickCount64);
         _hovered = null;
         DrawWindow(rows, shown);
         DrawGrid(shown);

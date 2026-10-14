@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using EmberHUD;
@@ -20,6 +21,16 @@ internal sealed class Book
 
     public int Count => _pages.Count;
 
+    public int Version { get; private set; }
+
+    public long StaleSignature(long now, long staleAfter)
+    {
+        long signature = 0;
+        foreach (var (page, cached) in _pages)
+            if (now - cached.ReadAt > staleAfter) signature += (page + 1) * unchecked((long)0x9E3779B97F4A7C15);
+        return signature;
+    }
+
     public string PagesText => _lastPage is { } last ? $"{_pages.Count} / {last}" : $"{_pages.Count} / {(_pages.Count == 0 ? 0 : _pages.Keys.Last())}+";
 
     public void Update(TradePage? shown, long now)
@@ -36,14 +47,22 @@ internal sealed class Book
         if (shown.LastPage)
         {
             _lastPage = shown.Page;
-            foreach (var page in _pages.Keys.Where(page => page > shown.Page).ToList()) _pages.Remove(page);
+            foreach (var page in _pages.Keys.Where(page => page > shown.Page).ToList())
+            {
+                _pages.Remove(page);
+                Version++;
+            }
         }
         else if (shown.Page >= _lastPage) _lastPage = null;
+        if (!_pages.TryGetValue(shown.Page, out var cached) || !SameListings(cached.Listings, shown.Listings)) Version++;
         _pages[shown.Page] = (shown.Listings, now);
     }
 
+    static bool SameListings(TradeListing[] a, TradeListing[] b) => ReferenceEquals(a, b) || a.AsSpan().SequenceEqual(b);
+
     public void Clear()
     {
+        if (_pages.Count > 0) Version++;
         _pages.Clear();
         _item = "";
         _cellsPerPage = 0;

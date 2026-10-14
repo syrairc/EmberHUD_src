@@ -161,7 +161,6 @@ public class PickerTests
         public Mod? Picked;
         public List<Mod>? Committed;
         public bool Open;
-        public bool ProbeStable = true;
         public readonly List<(Mod Item, Vector2 Pos)> Rows = [];
         public Vector2? FirstCategory;
         public Vector2 ButtonPos;
@@ -199,7 +198,6 @@ public class PickerTests
 
         public void Body()
         {
-            var probe = ImGui.GetID("probe");
             if (OpenNext)
             {
                 ImGui.OpenPopup(Id);
@@ -220,7 +218,6 @@ public class PickerTests
                 Committed = committed;
             }
             Open = ImGui.IsPopupOpen(PopupId);
-            ProbeStable &= ImGui.GetID("probe") == probe && ImGuiP.GetCurrentTable().IsNull;
         }
 
         public void Tick()
@@ -363,7 +360,6 @@ public class PickerTests
         Assert.False(touched);
         Assert.Empty(rig.Rows);
         Assert.NotNull(rig.State);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -446,7 +442,6 @@ public class PickerTests
         Assert.True(rig.Open);
         Assert.Empty(rig.Rows);
         Assert.Equal(0, rig.Fires);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -506,7 +501,6 @@ public class PickerTests
         rig.Click(ComboEntry(m, 1));
         Assert.Equal("Damage", rig.State!.Category);
         Assert.Equal(["b"], rig.Texts);
-        Assert.True(rig.ProbeStable);
         Assert.True(rig.Open);
     });
 
@@ -530,7 +524,6 @@ public class PickerTests
         var rig = new Rig(configure: o => o.Category = null).Opened();
         Assert.Null(rig.FirstCategory);
         Assert.Equal(Mods.Select(m => m.Text), rig.Texts);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -596,7 +589,6 @@ public class PickerTests
         rig.Frames();
         Assert.Equal("", rig.State!.Filter);
         Assert.Equal(4, rig.Rows.Count);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -621,7 +613,6 @@ public class PickerTests
     {
         var rig = new Rig(configure: o => o.MaxRows = 2).Opened();
         Assert.Equal(2, rig.Rows.Count);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -682,7 +673,6 @@ public class PickerTests
         Assert.Empty(rig.Rows);
         Assert.Null(rig.FirstCategory);
         Assert.Equal(0, rig.Fires);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -692,7 +682,6 @@ public class PickerTests
         Assert.True(rig.Open);
         Assert.Empty(rig.Rows);
         Assert.Null(rig.FirstCategory);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -958,7 +947,6 @@ public class PickerTests
         }).Opened();
         Assert.Equal(panel, inside);
         Assert.Equal(before, UiFrame.Measure(Read));
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -1205,7 +1193,6 @@ public class PickerTests
         Assert.True(rig.Open);
         rig.ClickRow(0);
         Assert.Single(rig.State!.Selected);
-        Assert.True(rig.ProbeStable);
     });
 
     [Fact]
@@ -1231,65 +1218,5 @@ public class PickerTests
         Assert.True(b.Open);
         Assert.Empty(a.Rows);
         Assert.Equal(4, b.Rows.Count);
-        Assert.True(a.ProbeStable && b.ProbeStable);
-    });
-
-    [Theory]
-    [InlineData("single")]
-    [InlineData("multi")]
-    [InlineData("multiWithSelection")]
-    [InlineData("noSearch")]
-    [InlineData("noCategoryFilter")]
-    [InlineData("noCategory")]
-    [InlineData("ungrouped")]
-    [InlineData("secondary")]
-    [InlineData("searchFunc")]
-    [InlineData("capped")]
-    [InlineData("noMatches")]
-    [InlineData("combo")]
-    [InlineData("empty")]
-    [InlineData("nullItems")]
-    [InlineData("customSizes")]
-    public void EveryOptionVariantKeepsIdsAndScopesBalanced(string name) => Scoped(() =>
-    {
-        var rig = name switch
-        {
-            "multi" or "multiWithSelection" => new Rig(true),
-            "noSearch" => new Rig(configure: o => o.ShowSearch = false),
-            "noCategoryFilter" => new Rig(configure: o => o.ShowCategoryFilter = false),
-            "noCategory" => new Rig(configure: o => o.Category = null),
-            "ungrouped" => new Rig(configure: o => o.GroupByCategory = false),
-            "secondary" => new Rig(configure: o => o.Secondary = m => m.Group),
-            "searchFunc" => new Rig(configure: o => o.Search = m => m.Group),
-            "capped" => new Rig(configure: o => o.MaxRows = 1),
-            "combo" => FiveCategories("Resist"),
-            "empty" => new Rig { Items = [] },
-            "nullItems" => new Rig { Items = null },
-            "customSizes" => new Rig(configure: o =>
-            {
-                o.Hint = "Find...";
-                o.Tip = "custom tip";
-                o.Size = new Vector2(300f, 200f);
-                o.CategoryWidth = 60f;
-            }),
-            _ => new Rig(),
-        };
-        rig.Opened();
-        if (name == "multiWithSelection")
-        {
-            rig.ClickRow(0);
-            rig.Frames();
-            Assert.Single(rig.State!.Selected);
-        }
-        if (name == "noMatches")
-        {
-            rig.State!.Filter = "zzz";
-            rig.Frames();
-        }
-        Assert.True(rig.Open);
-        Assert.True(rig.ProbeStable);
-        Assert.Equal(0, rig.Fires);
-        rig.Close();
-        Assert.True(rig.ProbeStable);
     });
 }

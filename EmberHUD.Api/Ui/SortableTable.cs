@@ -16,19 +16,16 @@ public static class SortableTable
     sealed class Cache
     {
         public object? Items;
-        public int Count = -1;
         public string Filter = "";
-        public List<int> Visible = [];
+        public List<int>? Visible;
         public List<int>? Sorted;
         public int Column = -1;
         public bool Ascending;
+        public int Count;
         public int Frame;
     }
 
     static readonly Dictionary<uint, Cache> Caches = [];
-
-    internal static int FilterBuilds;
-    internal static int SortBuilds;
 
     public static void Draw<T>(string id, IList<T>? items, TableColumn<T>[]? columns, ref string filter, Func<T, string?>? filterText = null, float maxHeight = 0f)
     {
@@ -52,13 +49,12 @@ public static class SortableTable
         if (!Caches.TryGetValue(key, out var cache)) Caches[key] = cache = new Cache();
         cache.Frame = frame;
         if (Caches.Count > 8) foreach (var stale in Caches.Where(pair => pair.Value.Frame < frame - 1).Select(pair => pair.Key).ToList()) Caches.Remove(stale);
-        if (!ReferenceEquals(cache.Items, items) || cache.Count != items.Count || cache.Filter != filter)
+        if (!ReferenceEquals(cache.Items, items) || cache.Filter != filter || items.Count < cache.Count)
         {
-            FilterBuilds++;
             cache.Items = items;
             cache.Count = items.Count;
             cache.Filter = filter;
-            cache.Visible = VisibleIndices(items, filterText, filter);
+            cache.Visible = filterText is null || string.IsNullOrWhiteSpace(filter) ? null : VisibleIndices(items, filterText, filter);
             cache.Sorted = null;
         }
         var visible = cache.Visible;
@@ -84,27 +80,27 @@ public static class SortableTable
             var ascending = s.SortDirection == ImGuiSortDirection.Ascending;
             if (cache.Sorted is null || cache.Column != s.ColumnIndex || cache.Ascending != ascending)
             {
-                SortBuilds++;
                 cache.Column = s.ColumnIndex;
                 cache.Ascending = ascending;
-                cache.Sorted = [.. cache.Visible];
+                cache.Sorted = [.. (cache.Visible ?? Enumerable.Range(0, items.Count)).Where(i => i < items.Count)];
                 SortIndices(cache.Sorted, items, columns[s.ColumnIndex].SortKey, ascending);
             }
             visible = cache.Sorted;
         }
 
+        var count = visible?.Count ?? items.Count;
         if (maxHeight > 0f)
         {
             var clipper = ImGui.ImGuiListClipper();
-            clipper.Begin(visible.Count);
+            clipper.Begin(count);
             while (clipper.Step())
                 for (var k = clipper.DisplayStart; k < clipper.DisplayEnd; k++)
-                    DrawRow(items, columns, visible[k]);
+                    DrawRow(items, columns, visible is null ? k : visible[k]);
             clipper.End();
             clipper.Destroy();
         }
         else
-            foreach (var i in visible) DrawRow(items, columns, i);
+            for (var k = 0; k < count; k++) DrawRow(items, columns, visible is null ? k : visible[k]);
 
         ImGui.EndTable();
         ImGui.PopID();
@@ -112,6 +108,7 @@ public static class SortableTable
 
     static void DrawRow<T>(IList<T> items, TableColumn<T>[] columns, int i)
     {
+        if (i >= items.Count) return;
         ImGui.PushID(i);
         ImGui.TableNextRow();
         for (var c = 0; c < columns.Length; c++)

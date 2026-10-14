@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -134,5 +135,42 @@ public sealed class RawTreeTests
         var raw = new RawTree(new Snapshots(() => 0)) { OpenAll = true };
 
         Frame(() => raw.Node("odd", obj, 0));
+    }
+
+    [Test]
+    public void HexRowsFormatEightBytesAndAreBuiltOncePerSnapshot()
+    {
+        var at = TestMemory.Alloc(0x20);
+        TestMemory.Write(at, 0x0000000200000001L);
+        var raw = new RawTree(new Snapshots(() => 0));
+        var bytes = new byte[0x20];
+        Memory.Read(at, bytes);
+
+        Frame(() =>
+        {
+            var rows = raw.RowsOf(bytes);
+            Check.Equal("+0,+8,+10,+18", string.Join(",", rows.Select(row => row.Offset)));
+            Check.That(rows[0].Text.StartsWith("01 00 00 00 02 00 00 00   1 2   0 0   "), rows[0].Text);
+            Check.That(ReferenceEquals(rows, raw.RowsOf(bytes)), "same snapshot, same rows");
+            Check.That(!ReferenceEquals(rows, raw.RowsOf((byte[])bytes.Clone())), "a new snapshot rebuilds");
+        });
+    }
+
+    [Test]
+    public void PointerLabelsComeFromTheCacheNotFromMemoryOnTheNextFrame()
+    {
+        var (_, hero) = World();
+        var block = TestMemory.Alloc(0x10);
+        TestMemory.Write(block, hero);
+        var bytes = new byte[0x10];
+        Memory.Read(block, bytes);
+        var raw = new RawTree(new Snapshots(() => 0));
+        HexRow[] first = [];
+
+        Frame(() => first = raw.RowsOf(bytes));
+        Check.That(first[0].Target is { } label && label.StartsWith("->") && label.Contains("Hero"), first[0].Target);
+
+        TestMemory.Clear();
+        Frame(() => Check.That(ReferenceEquals(first, raw.RowsOf(bytes)), "no rebuild, so no memory read"));
     }
 }

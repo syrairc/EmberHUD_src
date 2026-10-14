@@ -181,34 +181,6 @@ public class ControlsButtonsTests
     }
 
     [Fact]
-    public void EveryButtonWidgetPopsTheIdItPushes()
-    {
-        var sheets = Sheets(Texture);
-        var speed = Speed.Slow;
-        var selected = 0;
-        Action[] widgets =
-        [
-            () => Controls.ButtonGroup("a", Plain),
-            () => Controls.ButtonGroup("b", ref selected, Plain, sheets),
-            () => Controls.ButtonGroup("c", ref speed, ("Slow", Speed.Slow), ("Fast", Speed.Fast)),
-            () => Controls.MenuButton("Save", ["a", null, "b"]),
-            () => Controls.SplitButton("Run", ["a"], out _),
-            () => Controls.CompoundButton(new Controls.GroupButton("Import", Sheet: "Demo"), "pull in", sheets),
-            () => Controls.OverflowRow("tools", Tools, 200f),
-        ];
-
-        UiFrame.Run("test", () =>
-        {
-            var depth = ImGuiP.GetCurrentWindow().IDStack.Size;
-            foreach (var widget in widgets)
-            {
-                widget();
-                Assert.Equal(depth, ImGuiP.GetCurrentWindow().IDStack.Size);
-            }
-        });
-    }
-
-    [Fact]
     public void AGroupReturnsTheIndexOfTheButtonClicked()
     {
         var hit = -1;

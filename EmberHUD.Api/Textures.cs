@@ -1,4 +1,9 @@
+using System.Numerics;
+using Hexa.NET.ImGui;
+
 namespace EmberHUD;
+
+public readonly record struct Sprite(ImTextureRef Texture, Vector2 Uv0, Vector2 Uv1);
 
 public static class Textures
 {

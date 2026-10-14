@@ -246,21 +246,6 @@ public class ControlsGridsTests
     }
 
     [Fact]
-    public void GridLeavesTheCallerIdStackBalanced()
-    {
-        uint before = 0, after = 0;
-
-        UiFrame.Run("test", () =>
-        {
-            before = ImGui.GetID("x");
-            Controls.Grid("g", 4, 50, _ => false);
-            after = ImGui.GetID("x");
-        });
-
-        Assert.Equal(before, after);
-    }
-
-    [Fact]
     public void ToggleGridItemsLayOnStrideOfWidestLabelAndReadTheirGetters()
     {
         List<float> xs = [];

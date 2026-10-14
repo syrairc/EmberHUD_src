@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using EmberHUD;
+using Hexa.NET.ImGui;
 
 namespace Inspector;
 
@@ -44,4 +45,24 @@ internal sealed class Snapshots(Func<long> clock)
     }
 
     public void Clear() => _entries.Clear();
+}
+
+internal sealed class ViewCache<T> where T : class
+{
+    readonly Dictionary<uint, (T Value, int Frame)> _entries = [];
+
+    public T? Get(uint id)
+    {
+        if (!_entries.TryGetValue(id, out var entry)) return null;
+        _entries[id] = (entry.Value, ImGui.GetFrameCount());
+        return entry.Value;
+    }
+
+    public void Set(uint id, T value)
+    {
+        var frame = ImGui.GetFrameCount();
+        _entries[id] = (value, frame);
+        if (_entries.Count > 64)
+            foreach (var key in _entries.Where(pair => pair.Value.Frame < frame - 1).Select(pair => pair.Key).ToArray()) _entries.Remove(key);
+    }
 }

@@ -100,4 +100,85 @@ public sealed class BookTests
         book.Update(Page(1, Listing(0, 5, 9, "Flame Sand")), 10);
         Check.Equal("1 / 1+", book.PagesText);
     }
+
+    [Test]
+    public void TheVersionHoldsWhenTheSameListingsAreReadAgain()
+    {
+        var book = new Book();
+        book.Update(Page(1, Listing(0, 1000, 100), Listing(1, 2000, 150)), 0);
+        var first = book.Version;
+
+        book.Update(Page(1, Listing(0, 1000, 100), Listing(1, 2000, 150)), 50);
+        book.Update(Page(1, Listing(0, 1000, 100), Listing(1, 2000, 150)), 100);
+
+        Check.Equal(first, book.Version);
+    }
+
+    [Test]
+    public void TheVersionMovesWhenAPageIsAddedChangedPrunedOrCleared()
+    {
+        var book = new Book();
+        book.Update(Page(1, Listing(0, 1000, 100)), 0);
+        var seen = book.Version;
+
+        book.Update(Page(1, Listing(0, 1000, 101)), 10);
+        Check.That(book.Version != seen, "a price changed");
+        seen = book.Version;
+
+        book.Update(Page(1, Listing(0, 1000, 101), Listing(1, 5, 5)), 20);
+        Check.That(book.Version != seen, "a listing was added to the page");
+        seen = book.Version;
+
+        book.Update(Page(2, Listing(0, 1, 1)), 30);
+        Check.That(book.Version != seen, "a new page");
+        seen = book.Version;
+
+        book.Update(Page(1, Listing(0, 1000, 101), Listing(1, 5, 5)) with { LastPage = true }, 40);
+        Check.That(book.Version != seen, "page 2 is past the new last page and was dropped");
+        seen = book.Version;
+
+        book.Clear();
+        Check.That(book.Version != seen, "cleared");
+    }
+
+    [Test]
+    public void ClearingAnEmptyBookKeepsTheVersion()
+    {
+        var book = new Book();
+        var start = book.Version;
+
+        book.Clear();
+        book.Update(null, 0);
+
+        Check.Equal(start, book.Version);
+    }
+
+    [Test]
+    public void StaleSignatureNamesTheStalePages()
+    {
+        var book = new Book();
+        book.Update(Page(1, Listing(0, 1, 1)), 0);
+        book.Update(Page(2, Listing(0, 1, 1)), 400);
+        var none = book.StaleSignature(400, 500);
+        var first = book.StaleSignature(600, 500);
+        var both = book.StaleSignature(1000, 500);
+
+        Check.That(none != first && first != both && none != both, "stale sets differ");
+        Check.Equal(first, book.StaleSignature(600, 500));
+    }
+
+    [Test]
+    public void StaleSignatureMovesWhenOnePageGoesStaleAsAnotherIsReread()
+    {
+        var book = new Book();
+        book.Update(Page(1, Listing(0, 1, 1)), 0);
+        book.Update(Page(2, Listing(0, 1, 1)), 400);
+        var before = book.StaleSignature(600, 500);
+        var version = book.Version;
+
+        book.Update(Page(1, Listing(0, 1, 1)), 1000);
+
+        Check.Equal(version, book.Version);
+        Check.That(before != book.StaleSignature(1000, 500), "page 1 fresh and page 2 stale is not the same set");
+    }
 }

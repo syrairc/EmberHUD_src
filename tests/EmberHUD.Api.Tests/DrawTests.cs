@@ -75,7 +75,7 @@ public sealed class DrawTests
         Draw.Marker(Centre, 5, Color.Red, MarkerShape.Dot, 1);
         Draw.Marker(Centre, 6, Color.Red, MarkerShape.Star, 1);
         foreach (var shape in Enum.GetValues<MarkerShape>()) Draw.Marker(Centre, 6, Color.Red, shape, 1);
-        Draw.Icon("marker:Hexagon", Centre, 6, Color.Red, null, 1);
+        Draw.Icon("marker:Hexagon", Centre, 6, Color.Red, 1);
         Draw.Image(sprite, Vector2.Zero, new Vector2(16), list: Draw.Foreground);
         Draw.ImageRotated(sprite, Centre, new Vector2(16), new Vector2(0, -1), Color.Gold);
         Draw.ImageRotated(sprite, Centre, new Vector2(16), Vector2.Zero);
@@ -409,35 +409,24 @@ public sealed class DrawTests
     }
 
     [Fact]
-    public void AnIconDrawsTheAtlasSpriteTintedAndFallsBackToADotWhenItIsMissing() => TestFrame.Run(() =>
+    public void AnIconWithoutAKnownPrefixFallsBackToADot() => TestFrame.Run(() =>
     {
         var list = Draw.Background;
-        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.25f), new Vector2(0.5f)) });
-        var start = list.VtxBuffer.Size;
-        Draw.Icon("door", Centre, 8, Color.Gold, atlas);
-        Assert.Equal(4, list.VtxBuffer.Size - start);
-        Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
-        Assert.Equal(new Vector2(0.25f), list.VtxBuffer[start].Uv);
-        Assert.Equal(EColor.U32(Color.Gold), list.VtxBuffer[start].Col);
-
-        var glowing = list.VtxBuffer.Size;
-        Draw.Icon("door", Centre, 8, Color.Gold, atlas, 1);
-        Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
-
         var marker = list.VtxBuffer.Size;
         Draw.Marker(Centre, 8, Color.Gold, MarkerShape.Star);
         var star = list.VtxBuffer.Size - marker;
         var named = list.VtxBuffer.Size;
-        Draw.Icon("marker:Star", Centre, 8, Color.Gold, atlas);
+        Draw.Icon("marker:Star", Centre, 8, Color.Gold);
         Assert.Equal(star, list.VtxBuffer.Size - named);
 
         var dot = list.VtxBuffer.Size;
         Draw.Marker(Centre, 8, Color.Gold);
         var dotCount = list.VtxBuffer.Size - dot;
         var missing = list.VtxBuffer.Size;
-        Draw.Icon("not-loaded", Centre, 8, Color.Gold, atlas);
-        Draw.Icon("door", Centre, 8, Color.Gold, null);
-        Assert.Equal(dotCount * 2, list.VtxBuffer.Size - missing);
+        Draw.Icon("not-loaded", Centre, 8, Color.Gold);
+        Draw.Icon("door", Centre, 8, Color.Gold);
+        Draw.Icon(null, Centre, 8, Color.Gold);
+        Assert.Equal(dotCount * 3, list.VtxBuffer.Size - missing);
     });
 
     [Fact]
@@ -504,24 +493,24 @@ public sealed class DrawTests
             var list = Draw.Background;
             TestGame.UseGameIcons(name => name == "UI_MiniMap_Portal" ? Ready : null);
             var start = list.VtxBuffer.Size;
-            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null);
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold);
             Assert.Equal(4, list.VtxBuffer.Size - start);
             Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
             Assert.Equal(new Vector2(0.25f), list.VtxBuffer[start].Uv);
             Assert.Equal(EColor.U32(Color.Gold), list.VtxBuffer[start].Col);
 
             var glowing = list.VtxBuffer.Size;
-            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null, 1);
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, 1);
             Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
 
             var dot = list.VtxBuffer.Size;
             Draw.Marker(Centre, 8, Color.Gold);
             var dotCount = list.VtxBuffer.Size - dot;
             var missing = list.VtxBuffer.Size;
-            Draw.Icon("game:UI_MiniMap_NotLoaded", Centre, 8, Color.Gold, null);
-            Draw.Icon("game:", Centre, 8, Color.Gold, null);
+            Draw.Icon("game:UI_MiniMap_NotLoaded", Centre, 8, Color.Gold);
+            Draw.Icon("game:", Centre, 8, Color.Gold);
             TestGame.UseGameIcons(null);
-            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null);
+            Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold);
             Assert.Equal(dotCount * 3, list.VtxBuffer.Size - missing);
         }
         finally
@@ -531,18 +520,20 @@ public sealed class DrawTests
     });
 
     [Fact]
-    public void GameIconsDoNotDisturbMarkerAndAtlasKeys() => TestFrame.Run(() =>
+    public void GameIconsDoNotDisturbMarkerKeysOrPlainNames() => TestFrame.Run(() =>
     {
         try
         {
             var list = Draw.Background;
-            var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = Ready });
             TestGame.UseGameIcons(_ => Ready);
-            var start = list.VtxBuffer.Size;
-            Draw.Icon("door", Centre, 8, Color.Gold, atlas);
-            Assert.Equal(4, list.VtxBuffer.Size - start);
+            var dot = list.VtxBuffer.Size;
+            Draw.Marker(Centre, 8, Color.Gold);
+            var dotCount = list.VtxBuffer.Size - dot;
+            var plain = list.VtxBuffer.Size;
+            Draw.Icon("door", Centre, 8, Color.Gold);
+            Assert.Equal(dotCount, list.VtxBuffer.Size - plain);
             var marker = list.VtxBuffer.Size;
-            Draw.Icon("marker:Star", Centre, 8, Color.Gold, atlas);
+            Draw.Icon("marker:Star", Centre, 8, Color.Gold);
             var star = list.VtxBuffer.Size - marker;
             var expected = list.VtxBuffer.Size;
             Draw.Marker(Centre, 8, Color.Gold, MarkerShape.Star);
@@ -569,8 +560,8 @@ public sealed class DrawTests
                 asked.Add((icon, pixels, colour, accent));
                 return null;
             });
-            Draw.Icon("svg:quest", Centre, 7.2f, Color.Gold, null, accent: Color.Navy);
-            Draw.Icon("svg:Plugin/ring", Centre, 8, Color.Gold, null);
+            Draw.Icon("svg:quest", Centre, 7.2f, Color.Gold, accent: Color.Navy);
+            Draw.Icon("svg:Plugin/ring", Centre, 8, Color.Gold);
 
             Assert.Equal(("svg:quest", 15, Color.Gold, Color.Navy), asked[0]);
             Assert.Equal("svg:Plugin/ring", asked[1].Icon);
@@ -591,13 +582,13 @@ public sealed class DrawTests
             var list = Draw.Background;
             TestGame.UseSvgIcons((_, _, _, _) => Whole);
             var start = list.VtxBuffer.Size;
-            Draw.Icon("svg:quest", Centre, 8, Color.FromArgb(128, Color.Gold), null);
+            Draw.Icon("svg:quest", Centre, 8, Color.FromArgb(128, Color.Gold));
             Assert.Equal(4, list.VtxBuffer.Size - start);
             Assert.Equal(new Vector2(92, 42), list.VtxBuffer[start].Pos);
             Assert.Equal(EColor.U32(Color.FromArgb(128, Color.White)), list.VtxBuffer[start].Col);
 
             var glowing = list.VtxBuffer.Size;
-            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null, 1);
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold, 1);
             Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
 
             var dot = list.VtxBuffer.Size;
@@ -605,9 +596,9 @@ public sealed class DrawTests
             var dotCount = list.VtxBuffer.Size - dot;
             var missing = list.VtxBuffer.Size;
             TestGame.UseSvgIcons((_, _, _, _) => null);
-            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null);
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold);
             TestGame.UseSvgIcons(null);
-            Draw.Icon("svg:quest", Centre, 8, Color.Gold, null);
+            Draw.Icon("svg:quest", Centre, 8, Color.Gold);
             Assert.Equal(dotCount * 2, list.VtxBuffer.Size - missing);
         }
         finally
@@ -627,7 +618,7 @@ public sealed class DrawTests
                 calls++;
                 return Whole;
             });
-            foreach (var radius in new[] { 0f, -3f, float.NaN, float.PositiveInfinity }) Draw.Icon("svg:quest", Centre, radius, Color.Gold, null);
+            foreach (var radius in new[] { 0f, -3f, float.NaN, float.PositiveInfinity }) Draw.Icon("svg:quest", Centre, radius, Color.Gold);
             Assert.Equal(0, calls);
         }
         finally
@@ -667,12 +658,12 @@ public sealed class DrawTests
         {
             TestGame.UseSvgIcons((_, _, _, _) => Whole);
 
-            var right = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: new Vector2(1, 0)));
+            var right = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, facing: new Vector2(1, 0)));
             Assert.Equal(4, right.Count);
             Assert.True(right.Up.X > 9 && MathF.Abs(right.Up.Y) < 0.01f, $"top edge on the right {right.Up}");
             Assert.True(right.TopLeft.Y < right.TopRight.Y, "turned clockwise, not mirrored");
 
-            var up = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: new Vector2(0, -3)));
+            var up = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, facing: new Vector2(0, -3)));
             Assert.True(up.Up.Y < -9 && MathF.Abs(up.Up.X) < 0.01f, $"top edge above {up.Up}");
             Assert.True(up.TopLeft.X < up.TopRight.X, "upright, not mirrored");
         }
@@ -683,17 +674,13 @@ public sealed class DrawTests
     }
 
     [Fact]
-    public void FacingWorksForGameAndAtlasSpritesToo()
+    public void FacingWorksForGameSpritesToo()
     {
         try
         {
             TestGame.UseGameIcons(_ => Whole);
-            var game = DrawnFacing(() => Draw.Icon("game:UI_MiniMap_Player1", Centre, 10, Color.White, null, facing: new Vector2(1, 0)));
+            var game = DrawnFacing(() => Draw.Icon("game:UI_MiniMap_Player1", Centre, 10, Color.White, facing: new Vector2(1, 0)));
             Assert.True(game.Up.X > 9, $"game sprite {game.Up}");
-
-            var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = Whole });
-            var door = DrawnFacing(() => Draw.Icon("door", Centre, 10, Color.White, atlas, facing: new Vector2(0, 1)));
-            Assert.True(door.Up.Y > 9, $"atlas sprite {door.Up}");
         }
         finally
         {
@@ -709,7 +696,7 @@ public sealed class DrawTests
             TestGame.UseSvgIcons((_, _, _, _) => Whole);
             foreach (var facing in new[] { Vector2.Zero, new Vector2(float.NaN, 1), new Vector2(1, float.PositiveInfinity), new Vector2(1e-4f, 0) })
             {
-                var drawn = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, null, facing: facing));
+                var drawn = DrawnFacing(() => Draw.Icon("svg:quest", Centre, 10, Color.White, facing: facing));
                 Assert.Equal(4, drawn.Count);
                 Assert.True(drawn.Up.Y < -9, $"facing {facing} -> {drawn.Up}");
                 Assert.Equal(new Vector2(90, 40), drawn.TopLeft);

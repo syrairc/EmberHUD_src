@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Drawing;
 using System.Linq;
@@ -121,7 +122,7 @@ public sealed class RegionTests
     {
         var region = Build(new Terrain(4, 4, 10, Vector2.Zero, new BitArray(2, true)), Trail(4, new Vector2(5, 5)));
 
-        Check.Equal(8 * 4 * 4, region.Pixels.Length);
+        Check.Equal(4 * 4 * 4, region.Pixels.Length);
         Check.Equal(White.ToArgb(), Texel(region, 0, 0).ToArgb());
         Check.Equal(0, (int)Texel(region, 0, 1).A);
     }
@@ -131,19 +132,16 @@ public sealed class RegionTests
     {
         var region = Build(Scene.Cells(3, 1, (0, 0), (1, 0)), Trail(4, new Vector2(15, 5)));
 
-        Check.Equal(6, region.Width);
+        Check.Equal(3, region.Width);
         Check.Equal(1, region.Height);
         Check.Equal(Blue.ToArgb(), Texel(region, 0, 0).ToArgb());
-        Check.Equal(Blue.ToArgb(), Texel(region, 1, 0).ToArgb());
-        Check.Equal(White.ToArgb(), Texel(region, 2, 0).ToArgb());
-        Check.Equal(White.ToArgb(), Texel(region, 3, 0).ToArgb());
-        Check.Equal(0, (int)Texel(region, 4, 0).A);
-        Check.Equal(0, (int)Texel(region, 5, 0).A);
+        Check.Equal(White.ToArgb(), Texel(region, 1, 0).ToArgb());
+        Check.Equal(0, (int)Texel(region, 2, 0).A);
     }
 
     [Test]
     public void ClearTexelsKeepTheFillColourSoTheEdgeDoesNotDarken() =>
-        Check.Equal(Color.FromArgb(0, Blue).ToArgb(), Texel(Build(Scene.Cells(2, 1, (0, 0)), Trail(4, new Vector2(5, 5))), 3, 0).ToArgb());
+        Check.Equal(Color.FromArgb(0, Blue).ToArgb(), Texel(Build(Scene.Cells(2, 1, (0, 0)), Trail(4, new Vector2(5, 5))), 1, 0).ToArgb());
 
     [Test]
     public void TheQuadCoversTheGrid()
@@ -154,13 +152,13 @@ public sealed class RegionTests
     }
 
     [Test]
-    public void NoTrailExploresEveryWalkableCellAndOutlinesTheWholeRegion()
+    public void NoTrailExploresEveryWalkableCellAndLeavesTheOutlineToTheRegion()
     {
         var region = Build(Scene.Cells(4, 3, (1, 1), (2, 1)), null);
 
+        Check.Equal(White.ToArgb(), Texel(region, 1, 1).ToArgb());
         Check.Equal(White.ToArgb(), Texel(region, 2, 1).ToArgb());
-        Check.Equal(White.ToArgb(), Texel(region, 5, 1).ToArgb());
-        Check.Equal(6, region.ExploredOutline.Single().Points.Length);
+        Check.Equal(0, region.ExploredOutline.Length);
     }
 
     [Test]
@@ -214,5 +212,22 @@ public sealed class RegionTests
         Check.Equal(2, region.ExploredOutline.Length);
         Check.That(region.ExploredOutline.All(line => line.Closed), "both closed");
         Check.That(region.ExploredOutline.Any(line => line.Points.Length == 4 && line.Points.Contains(new Vector2(10, 10))), "inner loop around the hole");
+    }
+
+    [Test]
+    public void AReusedBufferIsFullyRewrittenAndAWrongSizedOneIsIgnored()
+    {
+        var terrain = Scene.Cells(3, 1, (0, 0), (1, 0));
+        var trail = Trail(4, new Vector2(15, 5));
+        var fresh = Region.Build(1, terrain, trail, null, Blue, White, null);
+        var dirty = new byte[fresh.Pixels.Length];
+        Array.Fill(dirty, (byte)0xAB);
+
+        var reused = Region.Build(1, terrain, trail, null, Blue, White, null, dirty);
+        Check.That(ReferenceEquals(dirty, reused.Pixels), "the buffer is used");
+        Check.That(fresh.Pixels.AsSpan().SequenceEqual(reused.Pixels), "and no stale texel is left");
+
+        var wrong = new byte[5];
+        Check.That(!ReferenceEquals(wrong, Region.Build(1, terrain, trail, null, Blue, White, null, wrong).Pixels), "a wrong-sized buffer is ignored");
     }
 }

@@ -21,6 +21,19 @@ internal sealed class PropertyView(Snapshots snapshots, RawTree raw)
     public bool OpenAll;
     public Action<nint>? Navigate;
 
+    sealed record Grouped(byte[] Bytes, byte[]? Defaults, bool HideDefaults, string Search, List<(string Owner, List<PropRow> Rows)> Groups);
+
+    readonly ViewCache<Grouped> _groups = new();
+
+    internal List<(string Owner, List<PropRow> Rows)> Groups(UStructInfo cls, byte[] bytes, byte[]? defaults)
+    {
+        var id = ImGui.GetID("groups");
+        if (_groups.Get(id) is { } cached && ReferenceEquals(cached.Bytes, bytes) && ReferenceEquals(cached.Defaults, defaults) && cached.HideDefaults == HideDefaults && cached.Search == Search) return cached.Groups;
+        var groups = PropertyRows.Group(cls, bytes, defaults, HideDefaults, Search);
+        _groups.Set(id, new Grouped(bytes, defaults, HideDefaults, Search, groups));
+        return groups;
+    }
+
     public void Toolbar()
     {
         ImGui.Checkbox("Hide defaults", ref HideDefaults);
@@ -43,7 +56,7 @@ internal sealed class PropertyView(Snapshots snapshots, RawTree raw)
         if (HideDefaults && Ue.DefaultObject(cls) is var cdo && cdo != 0) defaults = snapshots.Get(cdo, size);
         var searching = Search.Length > 0;
         var first = true;
-        foreach (var (owner, rows) in PropertyRows.Group(cls, bytes, defaults, HideDefaults, Search))
+        foreach (var (owner, rows) in Groups(cls, bytes, defaults))
         {
             ImGui.SetNextItemOpen(searching || OpenAll || first || !EngineBases.Contains(owner), searching ? ImGuiCond.Always : ImGuiCond.FirstUseEver);
             first = false;

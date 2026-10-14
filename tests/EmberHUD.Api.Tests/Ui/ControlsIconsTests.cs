@@ -89,45 +89,9 @@ public class ControlsIconsTests
     public void ANullUvMapperIsSafe() => Assert.Equal(1f, Controls.CellUv(new Controls.IconSheet { Count = 4 }, 1).uv1.X);
 
     [Fact]
-    public void AnAtlasSheetListsSpritesByName()
-    {
-        var atlas = new IconAtlas(new Dictionary<string, Sprite>
-        {
-            ["b"] = new(Texture, new Vector2(0.5f, 0f), Vector2.One),
-            ["a"] = new(Texture, Vector2.Zero, new Vector2(0.5f, 1f)),
-        });
-
-        var sheet = Controls.IconSheet.Atlas("Game", atlas);
-
-        Assert.Equal(2, sheet.Count);
-        Assert.Equal("a", sheet.Label!(0));
-        Assert.Equal(new Vector2(0.5f, 0f), Controls.CellUv(sheet, 1).uv0);
-        Assert.NotNull(sheet.Texture);
-    }
-
-    [Fact]
-    public void ABundleSpriteOnItsOwnTextureStaysOutOfTheSheet()
-    {
-        var atlas = new IconAtlas(new Dictionary<string, Sprite>
-        {
-            ["a"] = new(Texture, Vector2.Zero, Vector2.One),
-            ["b"] = new(Texture, Vector2.Zero, Vector2.One),
-            ["extra"] = new(new ImTextureRef { TexID = new ImTextureID(2ul) }, Vector2.Zero, Vector2.One),
-        });
-
-        var sheet = Controls.IconSheet.Atlas("Game", atlas);
-
-        Assert.Equal(2, sheet.Count);
-        Assert.Equal(Texture, sheet.Texture);
-    }
-
-    [Fact]
-    public void NoAtlasGivesAnUnloadedSheet() => Assert.Null(Controls.IconSheet.Atlas("Game", null).Texture);
-
-    [Fact]
     public void IconsDrawOneBalancedFrameAndChangeNothingUntouched()
     {
-        Controls.IconSheet[] sheets = [Controls.IconSheet.Grid("Demo", Texture, new GridAtlas(64, 64, 32, 2), 4, i => "cell " + i), Controls.IconSheet.Atlas("Game", null)];
+        Controls.IconSheet[] sheets = [Controls.IconSheet.Grid("Demo", Texture, new GridAtlas(64, 64, 32, 2), 4, i => "cell " + i), new Controls.IconSheet { Name = "Game" }];
         var sprite = new Sprite(Texture, Vector2.Zero, Vector2.One);
         var sheet = "Demo";
         var index = 1;
@@ -153,7 +117,7 @@ public class ControlsIconsTests
     [Fact]
     public void AnOpenPickerDrawsBalancedFrames()
     {
-        Controls.IconSheet[] sheets = [Controls.IconSheet.Grid("Demo", Texture, new GridAtlas(64, 64, 32, 2), 4, i => "cell " + i), Controls.IconSheet.Atlas("Game", null)];
+        Controls.IconSheet[] sheets = [Controls.IconSheet.Grid("Demo", Texture, new GridAtlas(64, 64, 32, 2), 4, i => "cell " + i), new Controls.IconSheet { Name = "Game" }];
         var sheet = "Demo";
         var index = 1;
         for (var frame = 0; frame < 2; frame++)
@@ -183,8 +147,7 @@ public class ControlsIconsTests
     [Fact]
     public void FindIconLooksThroughEverySheetAndFallsBackToTheFirstCell()
     {
-        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = new(Texture, Vector2.Zero, Vector2.One), ["chest"] = new(Texture, Vector2.Zero, Vector2.One) });
-        Controls.IconSheet[] sheets = [Controls.IconSheet.Markers(), Controls.IconSheet.Atlas("In-game", atlas)];
+        Controls.IconSheet[] sheets = [Controls.IconSheet.Markers(), Controls.IconSheet.Grid("In-game", Texture, new GridAtlas(64, 64, 32, 2), 2, i => i == 0 ? "chest" : "door")];
         Assert.Equal(("Custom", 5), Controls.FindIcon(sheets, "marker:Star"));
         Assert.Equal(("In-game", 1), Controls.FindIcon(sheets, "door"));
         Assert.Equal(("Custom", 0), Controls.FindIcon(sheets, "gone"));
@@ -193,8 +156,7 @@ public class ControlsIconsTests
     [Fact]
     public void ANamedPickerOverMixedSheetsDrawsOpenAndClosedWithoutChangingTheIcon()
     {
-        var atlas = new IconAtlas(new Dictionary<string, Sprite> { ["door"] = new(Texture, Vector2.Zero, Vector2.One) });
-        Controls.IconSheet[] sheets = [Controls.IconSheet.Markers(), Controls.IconSheet.Atlas("In-game", atlas)];
+        Controls.IconSheet[] sheets = [Controls.IconSheet.Markers(), Controls.IconSheet.Grid("In-game", Texture, new GridAtlas(64, 64, 32, 2), 1, _ => "door")];
         var icon = "door";
         var changed = false;
         for (var frame = 0; frame < 2; frame++)
@@ -454,7 +416,7 @@ public class ControlsIconsTests
     [Fact]
     public void ASheetWithoutATextureShowsAQuestionButtonThatStillOpens()
     {
-        Controls.IconSheet[] sheets = [Controls.IconSheet.Atlas("Game", null)];
+        Controls.IconSheet[] sheets = [new Controls.IconSheet { Name = "Game" }];
         using var rig = new Rig("p-unloaded", sheets);
         var drawn = Capture(rig.Body);
 

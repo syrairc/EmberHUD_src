@@ -9,13 +9,13 @@ public class ComboTests
 
     enum Speed { Slow, Medium, Fast }
 
-    static float FrameHeight => UiFrame.Measure(() => ImGui.GetFrameHeight());
+    static float FrameHeight => UiFrame.Style.FrameHeight;
 
-    static float FontSize => UiFrame.Measure(() => ImGui.GetFontSize());
+    static float FontSize => UiFrame.Style.FontSize;
 
-    static float SpacingY => UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
+    static float SpacingY => UiFrame.Style.Spacing.Y;
 
-    static float PaddingY => UiFrame.Measure(() => ImGui.GetStyle().WindowPadding.Y);
+    static float PaddingY => UiFrame.Style.WindowPadding.Y;
 
     static void Cleanup(Rig rig)
     {

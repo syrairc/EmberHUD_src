@@ -1,4 +1,5 @@
 using EmberHUD.Host;
+using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -106,7 +107,11 @@ public class MonsterRarityReaderTests
         Assert.Equal(Rarity.Rare, reader.Read(2200080, 0));
     }
 
-    private static nint EntityWithRole(FakeWorld world, int? role) => unchecked((nint)world.AddEntity(1, 48, true, 0, 0, 0, role: role).Address);
+    private static nint RoleBlockWith(FakeWorld world, int? role)
+    {
+        var entity = unchecked((nint)world.AddEntity(1, 48, true, 0, 0, 0, role: role).Address);
+        return world.Memory.TryReadPtr(entity + Offsets.EntityRole, out var block) ? block : 0;
+    }
 
     [Theory]
     [InlineData(1, Rarity.Normal)]
@@ -118,7 +123,7 @@ public class MonsterRarityReaderTests
     {
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (1170006, 1));
-        Assert.Equal(expected, ReaderFor(world).Read(1170006, EntityWithRole(world, role)));
+        Assert.Equal(expected, ReaderFor(world).Read(1170006, RoleBlockWith(world, role)));
     }
 
     [Fact]
@@ -127,9 +132,9 @@ public class MonsterRarityReaderTests
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (1171010, 2), (1170001, 1));
         var reader = ReaderFor(world);
-        Assert.Equal(Rarity.Rare, reader.Read(1171010, EntityWithRole(world, 3)));
-        Assert.Equal(Rarity.Normal, reader.Read(1171010, EntityWithRole(world, 1)));
-        Assert.Equal(Rarity.Magic, reader.Read(1171010, EntityWithRole(world, 2)));
+        Assert.Equal(Rarity.Rare, reader.Read(1171010, RoleBlockWith(world, 3)));
+        Assert.Equal(Rarity.Normal, reader.Read(1171010, RoleBlockWith(world, 1)));
+        Assert.Equal(Rarity.Magic, reader.Read(1171010, RoleBlockWith(world, 2)));
     }
 
     [Fact]
@@ -137,7 +142,7 @@ public class MonsterRarityReaderTests
     {
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (190200, 4));
-        Assert.Equal(Rarity.Boss, ReaderFor(world).Read(190200, EntityWithRole(world, 2)));
+        Assert.Equal(Rarity.Boss, ReaderFor(world).Read(190200, RoleBlockWith(world, 2)));
     }
 
     [Fact]
@@ -145,7 +150,7 @@ public class MonsterRarityReaderTests
     {
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (555, 5));
-        Assert.Equal(Rarity.Boss, ReaderFor(world).Read(555, EntityWithRole(world, 1)));
+        Assert.Equal(Rarity.Boss, ReaderFor(world).Read(555, RoleBlockWith(world, 1)));
     }
 
     [Fact]
@@ -154,9 +159,9 @@ public class MonsterRarityReaderTests
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (333, 3));
         var reader = ReaderFor(world);
-        Assert.Equal(Rarity.Rare, reader.Read(333, EntityWithRole(world, null)));
-        Assert.Equal(Rarity.Magic, reader.Read(333, EntityWithRole(world, 2)));
-        Assert.Equal(Rarity.Normal, reader.Read(333, EntityWithRole(world, 1)));
+        Assert.Equal(Rarity.Rare, reader.Read(333, RoleBlockWith(world, null)));
+        Assert.Equal(Rarity.Magic, reader.Read(333, RoleBlockWith(world, 2)));
+        Assert.Equal(Rarity.Normal, reader.Read(333, RoleBlockWith(world, 1)));
     }
 
     [Theory]
@@ -167,9 +172,9 @@ public class MonsterRarityReaderTests
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (2200080, 2), (1180001, 1), (333, 3));
         var reader = ReaderFor(world);
-        Assert.Equal(Rarity.Rare, reader.Read(2200080, EntityWithRole(world, role)));
-        Assert.Equal(Rarity.Normal, reader.Read(1180001, EntityWithRole(world, role)));
-        Assert.Equal(Rarity.Rare, reader.Read(333, EntityWithRole(world, role)));
+        Assert.Equal(Rarity.Rare, reader.Read(2200080, RoleBlockWith(world, role)));
+        Assert.Equal(Rarity.Normal, reader.Read(1180001, RoleBlockWith(world, role)));
+        Assert.Equal(Rarity.Rare, reader.Read(333, RoleBlockWith(world, role)));
     }
 
     [Fact]
@@ -177,10 +182,8 @@ public class MonsterRarityReaderTests
     {
         var world = new FakeWorld();
         world.SetMonsterConfigTable(7, (2200080, 2));
-        var entity = EntityWithRole(world, 1);
-        world.Memory.Write(entity + Offsets.EntityRole, 0x7777_0000_0000L);
-        Assert.Equal(Rarity.Rare, ReaderFor(world).Read(2200080, entity));
-        Assert.Equal(Rarity.Rare, ReaderFor(world).Read(2200080, EntityWithRole(world, null)));
+        Assert.Equal(Rarity.Rare, ReaderFor(world).Read(2200080, unchecked((nint)0x7777_0000_0000L)));
+        Assert.Equal(Rarity.Rare, ReaderFor(world).Read(2200080, RoleBlockWith(world, null)));
     }
 
     [Fact]
@@ -188,10 +191,19 @@ public class MonsterRarityReaderTests
     {
         var world = new FakeWorld();
         var reader = ReaderFor(world);
-        Assert.Equal(Rarity.Magic, reader.Read(55, EntityWithRole(world, 2)));
+        Assert.Equal(Rarity.Magic, reader.Read(55, RoleBlockWith(world, 2)));
         world.SetMonsterConfigTable(7, (55, 4));
-        Assert.Equal(Rarity.Boss, reader.Read(55, EntityWithRole(world, 2)));
+        Assert.Equal(Rarity.Boss, reader.Read(55, RoleBlockWith(world, 2)));
         world.BreakMonsterConfigTable();
-        Assert.Equal(Rarity.Boss, reader.Read(55, EntityWithRole(world, 2)));
+        Assert.Equal(Rarity.Boss, reader.Read(55, RoleBlockWith(world, 2)));
+    }
+}
+
+file static class MonsterRarityReaderExtensions
+{
+    public static Rarity Read(this MonsterRarityReader reader, uint configId, nint roleBlock)
+    {
+        reader.TryGetTier(configId, out var tier);
+        return reader.Resolve(tier, roleBlock);
     }
 }

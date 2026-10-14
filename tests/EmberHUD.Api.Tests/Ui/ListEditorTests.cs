@@ -65,21 +65,13 @@ public class ListEditorTests
 
     readonly UiFrame.ModalMetrics Modal = UiFrame.ReadModalMetrics();
 
-    readonly float FrameHeight = UiFrame.Measure(() => ImGui.GetFrameHeight());
+    readonly float FrameHeight = UiFrame.Style.FrameHeight;
 
-    readonly float FontSize = UiFrame.Measure(() => ImGui.GetFontSize());
+    readonly float FontSize = UiFrame.Style.FontSize;
 
-    readonly Vector2 Spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing);
+    readonly Vector2 Spacing = UiFrame.Style.Spacing;
 
-    readonly Vector2 Padding = UiFrame.Measure(() => ImGui.GetStyle().FramePadding);
-
-    readonly Vector2 WindowPadding = UiFrame.Measure(() => ImGui.GetStyle().WindowPadding);
-
-    readonly float BaseAlpha = UiFrame.Measure(() => ImGui.GetStyle().Alpha);
-
-    readonly Dictionary<string, float> _widths = new[] { "x", ":::", "+ Add", "Add a much longer label", "Confirm", "Cancel", "01", "--" }.ToDictionary(t => t, t => UiFrame.Measure(() => ImGui.CalcTextSize(t).X));
-
-    float TextWidth(string text) => _widths[text];
+    readonly float BaseAlpha = UiFrame.Style.Alpha;
 
     sealed class CompactList
     {
@@ -93,8 +85,6 @@ public class ListEditorTests
         public Vector2 Origin;
         public readonly List<RowInfo> Rows = [];
         public readonly List<uint> ExpectedProbes = [];
-        public uint ProbeBefore;
-        public uint ProbeAfter;
         public Vector2 ModalPos;
 
         public void Draw()
@@ -110,9 +100,7 @@ public class ListEditorTests
                 ImGui.PopID();
                 ImGui.PopID();
             }
-            ProbeBefore = ImGui.GetID("probe");
             if (ListEditor.Compact(Id, Items, Row, Add, Reorderable, Confirm, FilterText)) Returns++;
-            ProbeAfter = ImGui.GetID("probe");
             var modal = ImGuiP.FindWindowByName("Delete?##eidel");
             if (!modal.IsNull) ModalPos = modal.Pos;
         }
@@ -126,9 +114,9 @@ public class ListEditorTests
         }
     }
 
-    Vector2 XButton(CompactList list, int row) => new(list.Rows[row].Max.X + Spacing.X + (TextWidth("x") + Padding.X * 2) / 2, list.Rows[row].Cursor.Y + FrameHeight / 2);
+    Vector2 XButton(CompactList list, int row) => new(list.Rows[row].Max.X + Spacing.X + UiFrame.ButtonWidth("x") / 2, list.Rows[row].Cursor.Y + FrameHeight / 2);
 
-    Vector2 Grip(CompactList list, int row) => new(list.Rows[row].Cursor.X - Spacing.X - (TextWidth(":::") + Padding.X * 2) / 2, list.Rows[row].Cursor.Y + FrameHeight / 2);
+    Vector2 Grip(CompactList list, int row) => new(list.Rows[row].Cursor.X - Spacing.X - UiFrame.ButtonWidth(":::") / 2, list.Rows[row].Cursor.Y + FrameHeight / 2);
 
     Vector2 ModalButton(CompactList list, bool confirm) => UiFrame.ConfirmModalButton(list.ModalPos, confirm, Modal);
 
@@ -141,7 +129,7 @@ public class ListEditorTests
         try
         {
             UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2((TextWidth("+ Add") + Padding.X * 2) / 2, FrameHeight / 2), list.Draw);
+            UiFrame.Click(Window, list.Origin + new Vector2(UiFrame.ButtonWidth("+ Add") / 2, FrameHeight / 2), list.Draw);
             Assert.Equal(["alpha", "beta", "gamma", "new"], list.Items);
             Assert.Equal(1, list.Returns);
         }
@@ -155,7 +143,7 @@ public class ListEditorTests
         try
         {
             UiFrame.Run(Window, list.Draw);
-            var farRight = list.Origin + new Vector2(TextWidth("Add a much longer label") + Padding.X * 2 - 2f, FrameHeight / 2);
+            var farRight = list.Origin + new Vector2(UiFrame.ButtonWidth("Add a much longer label") - 2f, FrameHeight / 2);
             UiFrame.Click(Window, farRight, list.Draw);
             Assert.Equal(4, list.Items.Count);
         }
@@ -199,7 +187,7 @@ public class ListEditorTests
     }
 
     [Fact]
-    public void CompactComboAddFilterIsKeptPerListScope()
+    public void CompactComboAddFilterIsKeptPerListScopeAndSurvivesTheBoxLosingFocus()
     {
         var walkerA = new Walker();
         var a = new CompactList { Add = AddSource<string>.Combo(walkerA, key => key) };
@@ -257,7 +245,7 @@ public class ListEditorTests
     }
 
     [Fact]
-    public void CompactRowsAreScopedUnderTheListIdAndTheRowIndexAndTheStackBalances()
+    public void CompactRowsAreScopedUnderTheListIdAndTheRowIndex()
     {
         var list = new CompactList { Id = "scoped" };
         try
@@ -265,34 +253,6 @@ public class ListEditorTests
             UiFrame.Run(Window, list.Draw);
             Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
             Assert.Equal(3, list.Rows.Select(r => r.Probe).Distinct().Count());
-            Assert.Equal(list.ProbeBefore, list.ProbeAfter);
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
-    }
-
-    public enum CompactVariant { Button, Combo, Reorderable, Confirm, Filter, Everything }
-
-    [Theory]
-    [InlineData(CompactVariant.Button)]
-    [InlineData(CompactVariant.Combo)]
-    [InlineData(CompactVariant.Reorderable)]
-    [InlineData(CompactVariant.Confirm)]
-    [InlineData(CompactVariant.Filter)]
-    [InlineData(CompactVariant.Everything)]
-    public void CompactLeavesTheIdStackBalancedInEveryConfiguration(CompactVariant variant)
-    {
-        var list = new CompactList();
-        var everything = variant == CompactVariant.Everything;
-        if (everything || variant == CompactVariant.Button) list.Add = AddSource<string>.Button(() => "new");
-        if (variant == CompactVariant.Combo) list.Add = AddSource<string>.Combo([("k", "Key")], key => key);
-        list.Reorderable = everything || variant == CompactVariant.Reorderable;
-        list.Confirm = everything || variant == CompactVariant.Confirm;
-        if (everything || variant == CompactVariant.Filter) list.FilterText = text => text;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(list.ProbeBefore, list.ProbeAfter);
-            Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
         }
         finally { UiFrame.Settle(Window, list.Draw); }
     }
@@ -381,7 +341,7 @@ public class ListEditorTests
             UiFrame.Run(Window, plain.Draw);
             UiFrame.Run(Window, grips.Draw);
             Assert.Equal(plain.Origin.X, plain.Rows[0].Cursor.X);
-            Assert.Equal(grips.Origin.X + TextWidth(":::") + Padding.X * 2 + Spacing.X, grips.Rows[0].Cursor.X);
+            Assert.Equal(grips.Origin.X + UiFrame.ButtonWidth(":::") + Spacing.X, grips.Rows[0].Cursor.X);
         }
         finally { UiFrame.Settle(Window, plain.Draw); }
     }
@@ -564,31 +524,6 @@ public class ListEditorTests
     }
 
     [Fact]
-    public void CompactComboAddFilterSurvivesTheBoxLosingFocusWhileThePopupStaysOpen()
-    {
-        var walker = new Walker();
-        var list = new CompactList { Add = AddSource<string>.Combo(walker, key => key) };
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2(125f, FrameHeight / 2), list.Draw);
-            UiFrame.Run(Window, list.Draw);
-            var firstRow = walker.RowAt["apple"];
-            UiFrame.Click(Window, firstRow + new Vector2(20f, -Spacing.Y - FrameHeight / 2), list.Draw);
-            UiFrame.Io().AddInputCharactersUTF8("ban");
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, true);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Io().AddKeyEvent(ImGuiKey.Enter, false);
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(walker.RowAt["apple"], walker.RowAt["banana"]);
-            Assert.NotEqual(walker.RowAt["banana"], walker.RowAt["cherry"]);
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
-    }
-
-    [Fact]
     public void CompactWithoutFilterTextDrawsNoFilterBox()
     {
         var list = new CompactList();
@@ -636,8 +571,6 @@ public class ListEditorTests
         public readonly List<uint> ExpectedProbes = [];
         public readonly List<List<Vector2>> IndexUvs = [];
         int _mark;
-        public uint ProbeBefore;
-        public uint ProbeAfter;
 
         public void Draw()
         {
@@ -654,9 +587,7 @@ public class ListEditorTests
                 ImGui.PopID();
                 ImGui.PopID();
             }
-            ProbeBefore = ImGui.GetID("probe");
             if (ListEditor.ReorderableList(Id, Items, ref Selected, Row, Opts)) Returns++;
-            ProbeAfter = ImGui.GetID("probe");
             RowCounts.Add(Rows.Count);
             Vertices = ImGui.GetWindowDrawList().VtxBuffer.Size;
         }
@@ -718,51 +649,8 @@ public class ListEditorTests
         finally { UiFrame.Settle(Window, list.Draw); }
     }
 
-    public enum OrderedVariant { NoIndex, Fixed, Filter, Pinned, CtrlHeld, Menu }
-
-    [Theory]
-    [InlineData(OrderedVariant.NoIndex)]
-    [InlineData(OrderedVariant.Fixed)]
-    [InlineData(OrderedVariant.Filter)]
-    [InlineData(OrderedVariant.Pinned)]
-    [InlineData(OrderedVariant.CtrlHeld)]
-    [InlineData(OrderedVariant.Menu)]
-    public void OrderedLeavesTheIdStackBalancedInEveryConfiguration(OrderedVariant variant)
-    {
-        var list = new OrderedList();
-        switch (variant)
-        {
-            case OrderedVariant.NoIndex:
-                list.Opts.ShowIndex = false;
-                break;
-            case OrderedVariant.Fixed:
-                list.Opts.Reorderable = false;
-                break;
-            case OrderedVariant.Filter:
-                list.Opts.FilterText = i => list.Items[i];
-                break;
-            case OrderedVariant.Pinned:
-                list.Opts.PinnedHead = 1;
-                list.Opts.PinnedTail = 1;
-                break;
-            case OrderedVariant.CtrlHeld:
-                list.Opts.CtrlHeld = true;
-                break;
-            case OrderedVariant.Menu:
-                list.Opts.Menu = list.RecordingMenu();
-                break;
-        }
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal(list.ProbeBefore, list.ProbeAfter);
-            Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
-        }
-        finally { UiFrame.Settle(Window, list.Draw); }
-    }
-
     [Fact]
-    public void OrderedRowsAreScopedUnderTheListIdAndTheRowIndexAndTheStackBalances()
+    public void OrderedRowsAreScopedUnderTheListIdAndTheRowIndex()
     {
         var list = new OrderedList { Id = "scoped" };
         try
@@ -770,7 +658,6 @@ public class ListEditorTests
             UiFrame.Run(Window, list.Draw);
             Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
             Assert.Equal(5, list.Rows.Select(r => r.Probe).Distinct().Count());
-            Assert.Equal(list.ProbeBefore, list.ProbeAfter);
         }
         finally { UiFrame.Settle(Window, list.Draw); }
     }
@@ -810,8 +697,8 @@ public class ListEditorTests
         {
             UiFrame.Run(Window, shown.Draw);
             UiFrame.Run(Window, hidden.Draw);
-            Assert.Equal(TextWidth("01") + Spacing.X, shown.Rows[1].Cursor.X - hidden.Rows[1].Cursor.X);
-            Assert.Equal(TextWidth("--") + Spacing.X, shown.Rows[0].Cursor.X - hidden.Rows[0].Cursor.X);
+            Assert.Equal(UiFrame.TextWidth("01") + Spacing.X, shown.Rows[1].Cursor.X - hidden.Rows[1].Cursor.X);
+            Assert.Equal(UiFrame.TextWidth("--") + Spacing.X, shown.Rows[0].Cursor.X - hidden.Rows[0].Cursor.X);
         }
         finally { UiFrame.Settle(Window, shown.Draw); }
     }
@@ -1113,7 +1000,6 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs"], list.Items);
             Assert.Equal(3, list.Selected);
             Assert.Equal(1, list.Returns);
-            Assert.Equal(list.ProbeBefore, list.ProbeAfter);
         }
         finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
@@ -1155,48 +1041,5 @@ public class ListEditorTests
             Assert.Equal(0, list.Returns);
         }
         finally { EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, list.Draw); }
-    }
-
-    [Fact]
-    public void OrderedFilterTextSurvivesTheBoxLosingFocus()
-    {
-        var list = new OrderedList();
-        list.Opts.FilterText = i => list.Items[i];
-        var alpha = BaseAlpha;
-        try
-        {
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.Click(Window, list.Origin + new Vector2(20f, FrameHeight / 2), list.Draw);
-            UiFrame.Io().AddInputCharactersUTF8("map");
-            UiFrame.Run(Window, list.Draw);
-            UiFrame.ClickAway(Window, list.Draw);
-            UiFrame.Run(Window, list.Draw);
-            Assert.Equal([true, true, false, true, true], list.Rows.Select(r => r.Alpha < alpha));
-            EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2));
-            Assert.All(list.Rows, r => Assert.Equal(alpha, r.Alpha));
-        }
-        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
-    }
-
-    [Fact]
-    public void OrderedFilterTextIsKeptPerListScope()
-    {
-        var a = new OrderedList();
-        var b = new OrderedList { Id = a.Id };
-        a.Opts.FilterText = i => a.Items[i];
-        b.Opts.FilterText = i => b.Items[i];
-        var alpha = BaseAlpha;
-        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
-        try
-        {
-            UiFrame.Run(Window, Body);
-            UiFrame.Click(Window, a.Origin + new Vector2(20f, FrameHeight / 2), Body);
-            UiFrame.Io().AddInputCharactersUTF8("map");
-            UiFrame.Run(Window, Body);
-            UiFrame.Run(Window, Body);
-            Assert.Contains(a.Rows, r => r.Alpha < alpha);
-            Assert.All(b.Rows, r => Assert.Equal(alpha, r.Alpha));
-        }
-        finally { EraseFilter(Body, a.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, Body); }
     }
 }

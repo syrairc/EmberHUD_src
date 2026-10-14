@@ -82,12 +82,12 @@ public sealed class ToastHost
         var lineH = MathF.Ceiling(size) + 4f;
         const float gap = 6f;
 
-        (Vector2 size, List<string> rows) Measure(string text)
+        (Vector2 size, string[] rows) Measure(string text)
         {
             var maxTextW = st.MaxWidth > 0 ? Math.Max(10f, st.MaxWidth - pad * 2 - st.AccentWidth) : float.MaxValue;
-            List<string> rows = st.MaxWidth > 0 && ImGui.CalcTextSize(text).X * scale > maxTextW ? Text.Wrap(text, maxTextW, scale) : [text];
+            var rows = Text.Wrap(text, maxTextW, scale);
             var contentW = rows.Max(r => ImGui.CalcTextSize(r).X * scale);
-            return (new Vector2(contentW + pad * 2 + st.AccentWidth, rows.Count * lineH + pad * 2), rows);
+            return (new Vector2(contentW + pad * 2 + st.AccentWidth, rows.Length * lineH + pad * 2), rows);
         }
 
         var boxes = _toasts.Select(t => Measure(t.Text)).ToArray();

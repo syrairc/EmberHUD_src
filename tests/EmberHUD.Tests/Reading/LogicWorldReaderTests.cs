@@ -1,4 +1,5 @@
 using EmberHUD.Host;
+using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -10,7 +11,7 @@ public class LogicWorldReaderTests
     {
         var reader = ReaderFor(world);
         Assert.True(reader.TryReadScene(out var scene, out _));
-        return reader.ReadWorld(scene);
+        return reader.ReadWorld(scene, 0);
     }
 
     private static Entity[] Read(FakeWorld world) => ReadWorld(world).Entities;
@@ -465,6 +466,232 @@ public class LogicWorldReaderTests
         world.PublishEntities(1, world.AddEntity(1, 1, true, 1, 1, 0), world.AddEntity(2, 2, true, 2, 2, 0));
         world.Memory.Write(world.Nodes[1] + Offsets.NodeNext, 0x7777_0000_0000L);
         Assert.Empty(Read(world));
+    }
+
+    [Fact]
+    public void EachSceneNodeIsOneReadOfTheNodeSize()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(1, 5, true, 1, 1, 0), world.AddEntity(2, 6, true, 2, 2, 0), world.AddEntity(3, 7, true, 3, 3, 0));
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        world.Memory.Reads.Clear();
+
+        Assert.Equal(3, reader.ReadWorld(scene, 0).Entities.Length);
+
+        Assert.Equal(3, world.Nodes.Count);
+        foreach (var node in world.Nodes)
+        {
+            var at = unchecked((nint)node);
+            var read = Assert.Single(world.Memory.Reads, r => r.Address >= at && r.Address < at + Offsets.NodeSize);
+            Assert.Equal((at, Offsets.NodeSize), read);
+        }
+    }
+
+    [Fact]
+    public void AnEntityIsOneHeaderReadAndOnePositionRead()
+    {
+        var world = new FakeWorld();
+        var npc = world.AddEntity(1, 5, true, 1, 2, 3, mapOffset: Offsets.FightMapNpc);
+        world.PublishEntities(npc);
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        world.Memory.Reads.Clear();
+
+        Assert.Equal(new Vector3(1, 2, 3), Assert.Single(reader.ReadWorld(scene, 0).Entities).Position);
+
+        var entity = unchecked((nint)npc.Address);
+        Assert.Equal([(entity, Offsets.EntityHeaderSize)], world.Memory.Reads.Where(r => r.Address >= entity && r.Address < entity + 0x400).ToArray());
+        Assert.True(world.Memory.TryReadPtr(entity + Offsets.EntityPosition, out var block));
+        Assert.Single(world.Memory.Reads, r => r.Address == block + Offsets.PositionX && r.Length == 3 * sizeof(double));
+    }
+
+    [Fact]
+    public void AnEntityWhoseHeaderRunsOffItsMappedMemoryIsSkippedAndTheRestStillRead()
+    {
+        var world = new FakeWorld();
+        var truncated = world.Alloc(Offsets.EntityHeaderSize - 1);
+        world.PublishEntities(new FakeEntity(1, truncated, Offsets.FightMapMonster, 0x1111), world.AddEntity(2, 5, true, 1, 2, 3));
+        Assert.Equal([2], Read(world).Select(e => e.Id));
+    }
+
+    private static Entity[] Tick(LogicWorldReader reader, int generation = 1)
+    {
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        return reader.ReadWorld(scene, generation).Entities;
+    }
+
+    private static void SetRecordCfg(FakeWorld world, FakeEntity monster, uint cfgId)
+    {
+        Assert.True(world.Memory.TryReadPtr((nint)(monster.Value + Offsets.MonsterRecord), out var record));
+        world.Memory.Write(record + Offsets.MonsterRecordCfgId, cfgId);
+    }
+
+    private static (FakeWorld World, FakeEntity Monster, LogicWorldReader Reader) KnownMonster()
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1180001, 1), (2200080, 1));
+        var monster = world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1180001, role: 1);
+        world.PublishEntities(monster);
+        var reader = ReaderFor(world);
+        Assert.Equal(1180001, Assert.Single(Tick(reader)).CfgId);
+        return (world, monster, reader);
+    }
+
+    private static int SecondTickReads(int monsters)
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1180001, 1));
+        world.PublishEntities(Enumerable.Range(1, monsters).Select(i => world.AddEntity((uint)i, 48, true, i, i, 0, monsterCfgId: 1180001, role: 1)).ToArray());
+        var reader = ReaderFor(world);
+        Assert.Equal(monsters, Tick(reader).Length);
+        world.Memory.Reads.Clear();
+        Assert.Equal(monsters, Tick(reader).Length);
+        return world.Memory.Reads.Count;
+    }
+
+    [Fact]
+    public void AKnownMonsterCostsItsNodeHeaderPositionAndRole()
+    {
+        Assert.Equal(4 * 10, SecondTickReads(11) - SecondTickReads(1));
+    }
+
+    [Fact]
+    public void AKnownMonsterReadsTheSameOnTheSecondTick()
+    {
+        var (_, monster, reader) = KnownMonster();
+        Assert.Equal(new Entity(1, 1180001, new Vector3(1, 1, 0), EntityKind.Monster, Rarity.Normal) { Address = (nint)monster.Address }, Assert.Single(Tick(reader)));
+    }
+
+    [Fact]
+    public void AGenerationChangeForgetsKnownMonsters()
+    {
+        var (world, monster, reader) = KnownMonster();
+        SetRecordCfg(world, monster, 2200080);
+        Assert.Equal(1180001, Assert.Single(Tick(reader)).CfgId);
+        Assert.Equal(2200080, Assert.Single(Tick(reader, 2)).CfgId);
+    }
+
+    [Fact]
+    public void AMonsterAtAnotherEntityAddressIsReadAgain()
+    {
+        var (world, monster, reader) = KnownMonster();
+        var replacement = world.AddEntity(1, 48, true, 1, 1, 0);
+        Assert.True(world.Memory.TryReadPtr((nint)(monster.Address + Offsets.EntityRole), out var role));
+        world.Memory.Write(replacement.Address + Offsets.EntityRole, (long)role);
+        SetRecordCfg(world, monster, 2200080);
+        world.PublishEntities(new FakeEntity(1, replacement.Address, Offsets.FightMapMonster, monster.Value));
+        Assert.Equal(2200080, Assert.Single(Tick(reader)).CfgId);
+    }
+
+    [Fact]
+    public void AMonsterWithAnotherLogicObjectIsReadAgain()
+    {
+        var (world, monster, reader) = KnownMonster();
+        var other = world.AddEntity(2, 48, true, 1, 1, 0, monsterCfgId: 2200080);
+        world.PublishEntities(new FakeEntity(1, monster.Address, Offsets.FightMapMonster, other.Value));
+        Assert.Equal(2200080, Assert.Single(Tick(reader)).CfgId);
+    }
+
+    [Fact]
+    public void ASwappedRoleBlockIsReadAgain()
+    {
+        var (world, monster, reader) = KnownMonster();
+        var swapped = world.Alloc(0x80);
+        world.Memory.Write(swapped + Offsets.RoleRarity, 3);
+        world.Memory.Write(monster.Address + Offsets.EntityRole, swapped);
+        Assert.Equal(Rarity.Rare, Assert.Single(Tick(reader)).Rarity);
+    }
+
+    [Fact]
+    public void AnAddressTakenByAnotherIdIsReadAgain()
+    {
+        var (world, monster, reader) = KnownMonster();
+        var other = world.AddEntity(2, 48, true, 1, 1, 0, monsterCfgId: 2200080, role: 1);
+        world.PublishEntities(new FakeEntity(2, monster.Address, Offsets.FightMapMonster, other.Value));
+        var entity = Assert.Single(Tick(reader));
+        Assert.Equal((2, 2200080), (entity.Id, entity.CfgId));
+    }
+
+    [Fact]
+    public void AMonsterThatLeftTheSceneIsForgotten()
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1180001, 1), (2200080, 1));
+        var monster = world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1180001, role: 1);
+        var other = world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 1180001, role: 1);
+        world.PublishEntities(monster, other);
+        var reader = ReaderFor(world);
+        Tick(reader);
+        world.PublishEntities(other);
+        Tick(reader);
+
+        SetRecordCfg(world, monster, 2200080);
+        world.PublishEntities(monster, other);
+
+        Assert.Equal(2200080, Tick(reader).Single(e => e.Id == 1).CfgId);
+    }
+
+    [Fact]
+    public void AKnownMonsterWhoseRoleWasEmptyShowsTheRoleOnceItIsWritten()
+    {
+        var world = new FakeWorld();
+        world.SetMonsterConfigTable(7, (1170006, 2));
+        var monster = world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1170006, role: 0);
+        world.PublishEntities(monster);
+        var reader = ReaderFor(world);
+        Assert.Equal(Rarity.Rare, Assert.Single(Tick(reader)).Rarity);
+
+        Assert.True(world.Memory.TryReadPtr((nint)(monster.Address + Offsets.EntityRole), out var role));
+        world.Memory.Write(role + Offsets.RoleRarity, 2);
+
+        Assert.Equal(Rarity.Magic, Assert.Single(Tick(reader)).Rarity);
+    }
+
+    [Fact]
+    public void AMonsterWhoseConfigRowIsMissingIsNotCached()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 190200, role: 1);
+        world.PublishEntities(monster);
+        var reader = ReaderFor(world);
+        Assert.Equal(Rarity.Normal, Assert.Single(Tick(reader)).Rarity);
+
+        world.SetMonsterConfigTable(7, (190200, 4));
+
+        Assert.Equal(Rarity.Boss, Assert.Single(Tick(reader)).Rarity);
+    }
+
+    [Fact]
+    public void AnUnmappedNodeWhoseCfgIdIsNotWrittenYetIsNotCached()
+    {
+        var world = new FakeWorld();
+        var node = world.AddEntity(9, 0, true, 1, 2, 5000, mapOffset: FakeWorld.Unregistered);
+        world.PublishEntities(node);
+        var reader = ReaderFor(world);
+        Assert.Empty(Tick(reader));
+
+        world.Memory.Write(node.Address + Offsets.EntityCfgId, (uint)Offsets.VigilCoffinCfg);
+
+        Assert.Equal(9, Assert.Single(Tick(reader)).Id);
+    }
+
+    [Fact]
+    public void AnUnmappedNonCoffinIsNotReadAgainButTheCoffinStaysLive()
+    {
+        var world = new FakeWorld();
+        var junk = Enumerable.Range(1, 5).Select(i => world.AddEntity((uint)i, 66, true, i, i, 0, mapOffset: FakeWorld.Unregistered)).ToArray();
+        var coffin = world.AddEntity(9, (uint)Offsets.VigilCoffinCfg, true, 1, 2, 5000, mapOffset: FakeWorld.Unregistered);
+        world.PublishEntities(junk.Append(coffin).ToArray());
+        var reader = ReaderFor(world);
+        Assert.Equal(new Vector3(1, 2, 5000), Assert.Single(Tick(reader)).Position);
+
+        world.MoveEntity(coffin, 7, 8, 5000);
+        world.Memory.Reads.Clear();
+
+        Assert.Equal(new Vector3(7, 8, 5000), Assert.Single(Tick(reader)).Position);
+        foreach (var node in junk)
+            Assert.DoesNotContain(world.Memory.Reads, r => r.Address >= (nint)node.Address && r.Address < (nint)node.Address + 0x400);
     }
 
     [Fact]

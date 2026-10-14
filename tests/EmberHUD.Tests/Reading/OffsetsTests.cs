@@ -50,4 +50,22 @@ public class OffsetsTests
         foreach (var (name, value) in want)
             Assert.Equal(value, properties[name]);
     }
+
+    [Fact]
+    public void TheNodeSizeCoversItsFields()
+    {
+        Assert.True(Offsets.NodeSize >= Offsets.NodeKey + sizeof(uint));
+        Assert.True(Offsets.NodeSize >= Offsets.NodeEntity + nint.Size);
+        Assert.True(Offsets.NodeSize >= Offsets.NodeNext + nint.Size);
+    }
+
+    [Fact]
+    public void TheEntityHeaderSizeCoversItsFields()
+    {
+        Assert.True(Offsets.EntityHeaderSize >= Offsets.EntityCfgId + sizeof(uint));
+        Assert.True(Offsets.EntityHeaderSize >= Offsets.EntityAlive + sizeof(byte));
+        Assert.True(Offsets.EntityHeaderSize >= Offsets.EntityHasPosition + sizeof(byte));
+        Assert.True(Offsets.EntityHeaderSize >= Offsets.EntityRole + nint.Size);
+        Assert.True(Offsets.EntityHeaderSize >= Offsets.EntityPosition + nint.Size);
+    }
 }

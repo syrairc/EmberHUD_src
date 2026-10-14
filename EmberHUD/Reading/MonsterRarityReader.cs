@@ -6,10 +6,11 @@ internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
 {
     private readonly Dictionary<uint, uint> _tiers = [];
 
-    public Rarity Read(uint configId, nint entity)
+    public Rarity Resolve(uint tier, nint roleBlock)
     {
-        var tier = ReadTier(configId);
-        var role = memory.TryReadPtr(entity + Offsets.EntityRole, out var block) && memory.TryRead(block + Offsets.RoleRarity, out int value) ? value : 0;
+        var role = 0;
+        if (roleBlock != 0)
+            memory.TryRead(roleBlock + Offsets.RoleRarity, out role);
         return (tier, role) switch
         {
             (4 or 5, _) => Rarity.Boss,
@@ -22,15 +23,15 @@ internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
         };
     }
 
-    private uint ReadTier(uint configId)
+    public bool TryGetTier(uint configId, out uint tier)
     {
-        if (_tiers.TryGetValue(configId, out var cached))
-            return cached;
-        if (!TryReadTier(configId, out var tier))
-            return 0;
+        if (_tiers.TryGetValue(configId, out tier))
+            return true;
+        if (!TryReadTier(configId, out tier))
+            return false;
 
         _tiers[configId] = tier;
-        return tier;
+        return true;
     }
 
     private bool TryReadTier(uint configId, out uint tier)
