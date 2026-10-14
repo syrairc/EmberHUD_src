@@ -30,17 +30,20 @@ internal static class CheckRunner
                 report.WriteLine($"PASS {name} compile");
                 using var stream = new MemoryStream(compiled.Assembly);
                 var types = context.LoadFromStream(stream).GetTypes();
-                var main = types.Where(type => type.IsSubclassOf(typeof(Plugin)) && !type.IsAbstract).ToList();
-                if (main.Count != 1)
+                Type main;
+                try
+                {
+                    main = PluginHost.FindPluginType(types);
+                }
+                catch (InvalidOperationException ex)
                 {
                     failed++;
-                    report.WriteLine($"FAIL {name} load - found {main.Count} Plugin subclasses, expected one");
+                    report.WriteLine($"FAIL {name} load - {ex.Message}");
                     continue;
                 }
-                if (((Plugin)Activator.CreateInstance(main[0])!).SettingsType is { } settingsType)
+                if (((Plugin)Activator.CreateInstance(main)!).SettingsType is { } settingsType)
                 {
-                    var defaults = Path.Combine(directory, "defaults.json");
-                    SettingsJson.Load(settingsType, File.Exists(defaults) ? File.ReadAllText(defaults) : null, null, problem =>
+                    SettingsJson.Load(settingsType, PluginHost.ReadDefaults(directory), null, problem =>
                     {
                         failed++;
                         report.WriteLine($"FAIL {name} defaults - {problem}");
@@ -64,7 +67,7 @@ internal static class CheckRunner
                     catch (Exception ex)
                     {
                         failed++;
-                        report.WriteLine($"FAIL {label} - {(ex is TargetInvocationException { InnerException: { } inner } ? inner : ex)}");
+                        report.WriteLine($"FAIL {label} - {PluginHost.Unwrap(ex)}");
                     }
                     finally
                     {

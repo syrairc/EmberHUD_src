@@ -3,7 +3,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Func<long>? clockMilliseconds = null)
+internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Func<long>? clockMilliseconds = null)
 {
     private static readonly HashSet<int> NoTaskTypes = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
@@ -14,7 +14,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
     private nint _widget;
     private long _nextIconMapRead;
 
-    public MapIcon[] Read(MinimapReader minimap, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?>? findPosition = null)
+    public MapIcon[] Read(MinimapReader minimap, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?> findPosition)
     {
         var widget = minimap.Widget;
         if (widget != _widget)
@@ -96,7 +96,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
         return types;
     }
 
-    private void AddFollowIcons(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?>? findPosition, List<MapIcon> icons)
+    private void AddFollowIcons(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?> findPosition, List<MapIcon> icons)
     {
         if (!TryReadIdMap(widget + Offsets.MinimapFollowTypes, out var types) || types.Count == 0 ||
             !TryReadIdMap(widget + Offsets.MinimapFollowAreas, out var areas))
@@ -106,7 +106,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
         {
             if (id <= 0 || type is 0 or > int.MaxValue || !areas.TryGetValue(id, out var serial) || serial != area)
                 continue;
-            if ((positions.TryGetValue(id, out var live) ? live : findPosition?.Invoke(id)) is not { } position || !Plausible(position))
+            if ((positions.TryGetValue(id, out var live) ? live : findPosition(id)) is not { } position || !Plausible(position))
                 continue;
             icons.RemoveAll(icon => icon.EntityId == id);
             icons.Add(new MapIcon((int)type, "", position, 1, 0, id));
@@ -116,12 +116,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
     private bool TryReadIdMap(nint map, out Dictionary<int, uint> values)
     {
         values = [];
-        if (!memory.TryRead(map + Offsets.FollowMapBucketCount, out uint bucketCount))
-            return false;
-        if (bucketCount == 0)
-            return true;
-        if (bucketCount > Offsets.MaxBuckets || !memory.TryReadPtr(map, out var bucketArray) ||
-            !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
+        if (!memory.TryReadBuckets(map + Offsets.HashBucketCount, map, Offsets.MaxBuckets, out var buckets))
             return false;
 
         var nodes = 0;
@@ -164,7 +159,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
     private bool TryReadName(int type, out string name)
     {
         name = "";
-        if (type <= 0 || !ConfigTable.TryFindRow(memory, moduleBase, Offsets.MapIconInfoBucketsRva, Offsets.MapIconInfoBucketCountRva, (uint)type, out var row) ||
+        if (type <= 0 || !memory.TryFindHashValue(moduleBase + Offsets.MapIconInfoBucketCountRva, moduleBase + Offsets.MapIconInfoBucketsRva, (uint)type, out var row) ||
             !memory.TryReadPtr(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, out var data) ||
             !memory.TryRead(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, out long length) ||
             data == 0 || length <= 0 || length > Offsets.MaxIconNameLength ||
@@ -178,17 +173,14 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase = 0, Fu
     private void ResolveTextures(MinimapReader minimap, nint widget, List<MapIcon> icons)
     {
         if (!memory.TryReadPtr(widget + Offsets.MinimapActiveIconMap, out var map) ||
-            !memory.TryReadPtr(map, out var data) ||
-            !memory.TryRead(map + Offsets.TMapNum, out int count) ||
-            count <= 0 || count > Offsets.MaxIconMapElements ||
-            !memory.TryReadArray(data, count * Offsets.IconMapElementStride, out byte[] bytes))
+            !memory.TryReadTMapElements(map, Offsets.IconMapElementStride, Offsets.MaxIconMapElements, out _, out var bytes, out var bits))
             return;
 
-        for (var i = 0; i < count; i++)
+        for (var i = 0; i < bytes.Length / Offsets.IconMapElementStride; i++)
         {
             var at = i * Offsets.IconMapElementStride;
             var type = BitConverter.ToInt32(bytes, at + Offsets.IconMapElementKey);
-            if (_textures.ContainsKey(type) || !icons.Exists(icon => icon.Type == type))
+            if (!ReadExtensions.IsAllocated(bits, i) || _textures.ContainsKey(type) || !icons.Exists(icon => icon.Type == type))
                 continue;
             if (TryTextureName(minimap, (nint)BitConverter.ToInt64(bytes, at + Offsets.IconMapElementTexture), out var name))
                 _textures[type] = name;

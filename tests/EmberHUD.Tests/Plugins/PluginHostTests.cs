@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Testing;
+using static EmberHUD.Tests.PluginFixture;
 
 namespace EmberHUD.Tests;
 
@@ -14,16 +15,6 @@ public sealed class PluginHostTests : IDisposable
         _log.Dispose();
         _fixture.Dispose();
     }
-
-    PluginHost Start()
-    {
-        var host = _fixture.Host();
-        host.Discover(_fixture.Plugins);
-        PluginFixture.Settle(host);
-        return host;
-    }
-
-    static PluginSlot Slot(PluginHost host, string name) => host.Slots.Single(slot => slot.Name == name);
 
     [Fact]
     public void DiscoveredPluginsStartDisabledAndCompiling()
@@ -45,7 +36,7 @@ public sealed class PluginHostTests : IDisposable
     public void LifecycleRunsInOrderUnderThePluginsName()
     {
         _fixture.Write("Life", "Main.cs", PluginFixture.Source("Life", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Life");
         host.SetEnabled(slot, true);
         host.TickAll();
@@ -60,7 +51,7 @@ public sealed class PluginHostTests : IDisposable
     public void DisposeDisablesAndDisposesEnabledPlugins()
     {
         _fixture.Write("Life", "Main.cs", PluginFixture.Source("Life", PluginFixture.Lifecycle));
-        using (var host = Start()) host.SetEnabled(Slot(host, "Life"), true);
+        using (var host = _fixture.Start()) host.SetEnabled(Slot(host, "Life"), true);
         Assert.Equal(["init", "enable", "disable", "dispose"], _log.Messages("Life"));
     }
 
@@ -69,7 +60,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("Broken", "Main.cs", "namespace Broken; public sealed class Main : EmberHUD.Plugin { int X = \"no\"; }");
         _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         var broken = Slot(host, "Broken");
         Assert.Equal(PluginStage.Compile, broken.ErrorStage);
         Assert.Null(broken.Instance);
@@ -91,7 +82,7 @@ public sealed class PluginHostTests : IDisposable
             }
             """));
         _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "Thrower"), true);
         host.SetEnabled(Slot(host, "Good"), true);
         for (var i = 0; i < 3; i++) host.TickAll();
@@ -114,7 +105,7 @@ public sealed class PluginHostTests : IDisposable
                 throw new InvalidOperationException("mid-frame");
             }
             """));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Leaky");
         host.SetEnabled(slot, true);
         TestFrame.Run(host.RenderAll);
@@ -127,7 +118,7 @@ public sealed class PluginHostTests : IDisposable
     public void ARenderThatLeaksABeginWithoutThrowingIsCleanedUpAndKeepsRunning()
     {
         _fixture.Write("Forgetful", "Main.cs", PluginFixture.Source("Forgetful", """public override void Render() => ImGui.Begin("forgot to end");"""));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Forgetful");
         host.SetEnabled(slot, true);
         TestFrame.Run(host.RenderAll);
@@ -144,7 +135,7 @@ public sealed class PluginHostTests : IDisposable
             public override void Render() => Log.Info("render B");
             """));
         _fixture.Write("C", "Main.cs", PluginFixture.Source("C", """public override void Render() => Log.Info("render C");"""));
-        using var host = Start();
+        using var host = _fixture.Start();
         foreach (var slot in host.Slots) host.SetEnabled(slot, true);
         host.RenderAll();
         Assert.Equal(["render B", "render A", "render C"], _log.Messages().Where(message => message.StartsWith("render")));
@@ -158,7 +149,7 @@ public sealed class PluginHostTests : IDisposable
             public override void Render() => _ = Draw.Layer(DrawLayer.Back);
             """));
         _fixture.Write("Next", "Main.cs", PluginFixture.Source("Next", """public override void Render() => Log.Info($"layer {Draw.Background.Splitter.Current}");"""));
-        using var host = Start();
+        using var host = _fixture.Start();
         foreach (var slot in host.Slots) host.SetEnabled(slot, true);
         TestFrame.Run(host.RenderAll);
         Assert.Equal(["layer 1"], _log.Messages("Next"));
@@ -172,7 +163,7 @@ public sealed class PluginHostTests : IDisposable
             public sealed class One : EmberHUD.Plugin;
             public sealed class Two : EmberHUD.Plugin;
             """);
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Twins");
         Assert.Equal(PluginStage.Initialize, slot.ErrorStage);
         Assert.Contains("found 2", slot.Error);
@@ -183,7 +174,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("Tested", "Main.cs", PluginFixture.Source("Tested", ""));
         _fixture.Write("Tested", "Tests/MainTests.cs", "this is not C#");
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Tested");
         Assert.Null(slot.ErrorStage);
         Assert.NotNull(slot.Instance);
@@ -193,7 +184,7 @@ public sealed class PluginHostTests : IDisposable
     public void EnableStateLivesInSdkJson()
     {
         _fixture.Write("Alpha", "Main.cs", PluginFixture.Source("Alpha", ""));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "Alpha"), true);
         host.SaveAll();
         var sdk = JsonNode.Parse(File.ReadAllText(Path.Combine(_fixture.Root, "Config", "sdk.json")))!;
@@ -218,7 +209,7 @@ public sealed class PluginHostTests : IDisposable
     public void AHotkeyPressFiresItsCallbackBeforeTheTickOfAnEnabledPlugin()
     {
         _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "Hk"), true);
         try
         {
@@ -236,7 +227,7 @@ public sealed class PluginHostTests : IDisposable
     public void ADisabledPluginsHotkeysDoNotFire()
     {
         _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
-        using var host = Start();
+        using var host = _fixture.Start();
         try
         {
             TestInput.Hold(Key.F2);
@@ -256,7 +247,7 @@ public sealed class PluginHostTests : IDisposable
             public override void Initialize() => RegisterHotkey("Boom", "Throws", () => throw new InvalidOperationException("boom"), new Hotkey(Key.F3));
             """));
         _fixture.Write("Good", "Main.cs", PluginFixture.Source("Good", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "Thrower"), true);
         host.SetEnabled(Slot(host, "Good"), true);
         try
@@ -278,7 +269,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
         _fixture.Sdk.PluginHotkeys["Hk"] = new() { ["View/Zoom"] = new Hotkey(Key.F5) };
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Hk");
         host.SetEnabled(slot, true);
         Assert.Equal(new Hotkey(Key.F5), slot.Instance!.Hotkeys[1].Value);
@@ -296,7 +287,7 @@ public sealed class PluginHostTests : IDisposable
     public void ARebindSurvivesAReload()
     {
         _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Hk");
         host.SetEnabled(slot, true);
         slot.Instance!.Hotkeys[0].Value = new Hotkey(Key.F7);
@@ -310,7 +301,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("Hk", "Main.cs", PluginFixture.Source("Hk", TwoHotkeys));
         _fixture.Sdk.PluginHotkeys["Hk"] = new() { ["Gone"] = new Hotkey(Key.F9) };
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "Hk"), true);
         host.SaveAll();
         Assert.Equal("F9", ReadSdk()["PluginHotkeys"]!["Hk"]!["Gone"]!.GetValue<string>());
@@ -321,7 +312,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("A", "Main.cs", PluginFixture.Source("A", TwoHotkeys));
         _fixture.Write("B", "Main.cs", PluginFixture.Source("B", TwoHotkeys));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(Slot(host, "A"), true);
         host.SetEnabled(Slot(host, "B"), true);
         Assert.Equal("B / Fire", host.ConflictFor(new Hotkey(Key.F1), Slot(host, "A").Instance!.Hotkeys[0]));
@@ -342,7 +333,7 @@ public sealed class PluginHostTests : IDisposable
         _fixture.Write("Layered", "defaults.json", """{ "X": 60, "Y": 50 }""");
         Directory.CreateDirectory(Path.Combine(_fixture.Root, "Config", "Plugins"));
         File.WriteAllText(Path.Combine(_fixture.Root, "Config", "Plugins", "Layered.json"), """{ "Y": 70, "Z": "big" }""");
-        using var host = Start();
+        using var host = _fixture.Start();
         var settings = JsonNode.Parse(SettingsJson.Serialize(Slot(host, "Layered").Instance!.SettingsObject!))!;
         Assert.Equal(60f, settings["X"]!.GetValue<float>());
         Assert.Equal(70f, settings["Y"]!.GetValue<float>());
@@ -354,7 +345,7 @@ public sealed class PluginHostTests : IDisposable
     public void AutosaveWritesOnlyWhenTheTextChanged()
     {
         _fixture.Write("Saver", "Main.cs", PluginFixture.Source("Saver", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var plugin = Slot(host, "Saver").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Saver.json");
 
@@ -375,7 +366,7 @@ public sealed class PluginHostTests : IDisposable
     public void AConstructorThatThrowsIsUnwrappedToItsRealException()
     {
         _fixture.Write("Ctor", "Main.cs", PluginFixture.Source("Ctor", """public Main() => throw new InvalidOperationException("ctor");"""));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Ctor");
         Assert.Equal(PluginStage.Initialize, slot.ErrorStage);
         Assert.Equal("InvalidOperationException: ctor", slot.Error);
@@ -386,7 +377,7 @@ public sealed class PluginHostTests : IDisposable
     {
         _fixture.Write("Early", "Main.cs", PluginFixture.Source("Early", PluginFixture.Lifecycle));
         _fixture.Sdk.Plugins["Early"] = new() { Enabled = true };
-        using var host = Start();
+        using var host = _fixture.Start();
         Assert.Equal(["init", "enable"], _log.Messages("Early").Take(2));
     }
 
@@ -394,14 +385,14 @@ public sealed class PluginHostTests : IDisposable
     public void AutosaveRunsFromTickAllAfterTwoSeconds()
     {
         _fixture.Write("Ticker", "Main.cs", PluginFixture.Source("Ticker", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var plugin = Slot(host, "Ticker").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Ticker.json");
         host.SaveAll();
         plugin.SettingsObject = SettingsJson.Load(plugin.SettingsType!, null, """{ "X": 42 }""", _ => { });
         host.TickAll();
         Assert.False(File.Exists(path));
-        Thread.Sleep(2100);
+        host.SavedAt = Environment.TickCount64 - 2001;
         host.TickAll();
         Assert.Contains("42", File.ReadAllText(path));
     }
@@ -410,7 +401,7 @@ public sealed class PluginHostTests : IDisposable
     public void AFailedWriteWarnsOnceUntilTheTextChanges()
     {
         _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var plugin = Slot(host, "Locked").Instance!;
         var path = Path.Combine(_fixture.Root, "Config", "Plugins", "Locked.json");
         Directory.CreateDirectory(path + ".tmp");
@@ -432,7 +423,7 @@ public sealed class PluginHostTests : IDisposable
     {
         foreach (var name in new[] { "One", "Two" })
             _fixture.Write(name, "Main.cs", PluginFixture.Source(name, """public override void Render() => Log.Info($"id {ImGui.GetID("same")}");"""));
-        using var host = Start();
+        using var host = _fixture.Start();
         foreach (var slot in host.Slots) host.SetEnabled(slot, true);
         TestFrame.Run(host.RenderAll);
         var ids = host.Slots.Select(slot => Assert.Single(_log.Messages(slot.Name))).ToList();
@@ -466,7 +457,7 @@ public sealed class PluginHostTests : IDisposable
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     (System.Runtime.Loader.AssemblyLoadContext Context, WeakReference Assembly) LoadAndDispose()
     {
-        var host = Start();
+        var host = _fixture.Start();
         var slot = Slot(host, "Gone");
         host.SetEnabled(slot, true);
         host.SaveAll();
@@ -503,7 +494,7 @@ public sealed class PluginHostTests : IDisposable
     public void DisposeSkipsPluginsThatNeverInitialized()
     {
         _fixture.Write("Idle", "Main.cs", PluginFixture.Source("Idle", PluginFixture.Lifecycle));
-        using (Start()) { }
+        using (_fixture.Start()) { }
         Assert.Empty(_log.Messages("Idle"));
     }
 
@@ -511,7 +502,7 @@ public sealed class PluginHostTests : IDisposable
     public void AGuardedCallPutsTheOuterPluginNameBack()
     {
         _fixture.Write("Inner", "Main.cs", PluginFixture.Source("Inner", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.Slots[0].Instance!.SettingsObject = SettingsJson.Load(host.Slots[0].Instance!.SettingsType!, null, """{ "X": 1 }""", _ => { });
         Log.CurrentPlugin.Value = "Outer";
         try
@@ -532,7 +523,7 @@ public sealed class PluginHostTests : IDisposable
             public Bomb B = new();
             public sealed class Bomb { public int X => Environment.GetEnvironmentVariable("EMBERHUD_TEST_BOMB") is null ? 1 : throw new NotSupportedException("bomb"); }
             """));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = Slot(host, "Twice");
         host.SetEnabled(slot, true);
         host.TickAll();

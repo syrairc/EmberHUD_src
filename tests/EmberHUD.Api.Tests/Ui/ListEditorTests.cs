@@ -63,71 +63,28 @@ public class ListEditorTests
 
     readonly record struct RowInfo(Vector2 Cursor, Vector2 Min, Vector2 Max, float Alpha, uint Probe);
 
-    static int _ids;
-
-    static string NextId(string prefix) => prefix + Interlocked.Increment(ref _ids);
-
-    static T Metric<T>(Func<T> read)
-    {
-        T value = default!;
-        UiFrame.Run(Window, () => value = read());
-        return value;
-    }
-
     readonly UiFrame.ModalMetrics Modal = UiFrame.ReadModalMetrics();
 
-    readonly float FrameHeight = Metric(() => ImGui.GetFrameHeight());
+    readonly float FrameHeight = UiFrame.Measure(() => ImGui.GetFrameHeight());
 
-    readonly float FontSize = Metric(() => ImGui.GetFontSize());
+    readonly float FontSize = UiFrame.Measure(() => ImGui.GetFontSize());
 
-    readonly Vector2 Spacing = Metric(() => ImGui.GetStyle().ItemSpacing);
+    readonly Vector2 Spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing);
 
-    readonly Vector2 Padding = Metric(() => ImGui.GetStyle().FramePadding);
+    readonly Vector2 Padding = UiFrame.Measure(() => ImGui.GetStyle().FramePadding);
 
-    readonly Vector2 WindowPadding = Metric(() => ImGui.GetStyle().WindowPadding);
+    readonly Vector2 WindowPadding = UiFrame.Measure(() => ImGui.GetStyle().WindowPadding);
 
-    readonly float BaseAlpha = Metric(() => ImGui.GetStyle().Alpha);
+    readonly float BaseAlpha = UiFrame.Measure(() => ImGui.GetStyle().Alpha);
 
-    readonly Dictionary<string, float> _widths = new[] { "x", ":::", "+ Add", "Add a much longer label", "Confirm", "Cancel", "01", "--" }.ToDictionary(t => t, t => Metric(() => ImGui.CalcTextSize(t).X));
+    readonly Dictionary<string, float> _widths = new[] { "x", ":::", "+ Add", "Add a much longer label", "Confirm", "Cancel", "01", "--" }.ToDictionary(t => t, t => UiFrame.Measure(() => ImGui.CalcTextSize(t).X));
 
     float TextWidth(string text) => _widths[text];
-
-    static void Settle(Action body)
-    {
-        var io = UiFrame.Io();
-        io.AddMouseButtonEvent(0, false);
-        io.AddMouseButtonEvent(1, false);
-        io.AddKeyEvent(ImGuiKey.DownArrow, false);
-        io.AddKeyEvent(ImGuiKey.UpArrow, false);
-        io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
-        UiFrame.Run(Window, body);
-        UiFrame.Run(Window, body);
-    }
-
-    static void TwoScopes(CompactList a, CompactList b)
-    {
-        ImGui.PushID("A");
-        a.Draw();
-        ImGui.PopID();
-        ImGui.PushID("B");
-        b.Draw();
-        ImGui.PopID();
-    }
-
-    static void TwoScopes(OrderedList a, OrderedList b)
-    {
-        ImGui.PushID("A");
-        a.Draw();
-        ImGui.PopID();
-        ImGui.PushID("B");
-        b.Draw();
-        ImGui.PopID();
-    }
 
     sealed class CompactList
     {
         public readonly List<string> Items = ["alpha", "beta", "gamma"];
-        public string Id = NextId("list");
+        public string Id = UiFrame.NextId("list");
         public AddSource<string>? Add;
         public bool Reorderable;
         public bool Confirm;
@@ -173,25 +130,9 @@ public class ListEditorTests
 
     Vector2 Grip(CompactList list, int row) => new(list.Rows[row].Cursor.X - Spacing.X - (TextWidth(":::") + Padding.X * 2) / 2, list.Rows[row].Cursor.Y + FrameHeight / 2);
 
-    static bool PopupOpen(Action body)
-    {
-        var open = false;
-        UiFrame.Run(Window, () =>
-        {
-            body();
-            open = ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId);
-        });
-        return open;
-    }
-
     Vector2 ModalButton(CompactList list, bool confirm) => UiFrame.ConfirmModalButton(list.ModalPos, confirm, Modal);
 
     void EraseFilter(Action body, Vector2 box) => UiFrame.EraseText(Window, body, box);
-
-    void CloseModal(CompactList list)
-    {
-        for (var i = 0; i < 2 && PopupOpen(list.Draw); i++) UiFrame.Click(Window, ModalButton(list, false), list.Draw);
-    }
 
     [Fact]
     public void CompactButtonAddAppendsTheFactoryItemOnce()
@@ -204,7 +145,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma", "new"], list.Items);
             Assert.Equal(1, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -218,7 +159,7 @@ public class ListEditorTests
             UiFrame.Click(Window, farRight, list.Draw);
             Assert.Equal(4, list.Items.Count);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     sealed class Walker : IEnumerable<(string key, string label)>
@@ -254,7 +195,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma", "made:banana"], list.Items);
             Assert.Equal(1, list.Returns);
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -263,7 +204,7 @@ public class ListEditorTests
         var walkerA = new Walker();
         var a = new CompactList { Add = AddSource<string>.Combo(walkerA, key => key) };
         var b = new CompactList { Id = a.Id, Add = AddSource<string>.Combo(new Walker(), key => key) };
-        void Body() => TwoScopes(a, b);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -281,7 +222,7 @@ public class ListEditorTests
             Assert.Equal(walkerA.RowAt["apple"], walkerA.RowAt["banana"]);
             Assert.NotEqual(walkerA.RowAt["banana"], walkerA.RowAt["cherry"]);
         }
-        finally { UiFrame.ClickAway(Window, Body); Settle(Body); }
+        finally { UiFrame.ClickAway(Window, Body); UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -291,10 +232,10 @@ public class ListEditorTests
         var returned = false;
         try
         {
-            UiFrame.Run(Window, () => returned = ListEditor.Compact(NextId("edit"), items, (_, _) => true));
+            UiFrame.Run(Window, () => returned = ListEditor.Compact(UiFrame.NextId("edit"), items, (_, _) => true));
             Assert.True(returned);
         }
-        finally { Settle(() => { }); }
+        finally { UiFrame.Settle(Window, () => { }); }
     }
 
     [Theory]
@@ -312,7 +253,7 @@ public class ListEditorTests
             Assert.Equal(expected, list.Items);
             Assert.Equal(1, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -326,7 +267,7 @@ public class ListEditorTests
             Assert.Equal(3, list.Rows.Select(r => r.Probe).Distinct().Count());
             Assert.Equal(list.ProbeBefore, list.ProbeAfter);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     public enum CompactVariant { Button, Combo, Reorderable, Confirm, Filter, Everything }
@@ -353,7 +294,7 @@ public class ListEditorTests
             Assert.Equal(list.ProbeBefore, list.ProbeAfter);
             Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -361,13 +302,13 @@ public class ListEditorTests
     {
         var a = new CompactList();
         var b = new CompactList { Id = a.Id };
-        void Body() => TwoScopes(a, b);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
             Assert.Empty(a.Rows.Select(r => r.Probe).Intersect(b.Rows.Select(r => r.Probe)));
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -378,15 +319,15 @@ public class ListEditorTests
         {
             UiFrame.Run(Window, list.Draw);
             UiFrame.Click(Window, XButton(list, 1), list.Draw);
-            Assert.True(PopupOpen(list.Draw));
+            Assert.True(UiFrame.PopupOpen(Window, list.Draw));
             Assert.Equal(3, list.Items.Count);
             Assert.Equal(0, list.Returns);
             UiFrame.Click(Window, ModalButton(list, true), list.Draw);
             Assert.Equal(["alpha", "gamma"], list.Items);
             Assert.Equal(1, list.Returns);
-            Assert.False(PopupOpen(list.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, list.Draw));
         }
-        finally { CloseModal(list); Settle(list.Draw); }
+        finally { UiFrame.CloseModal(Window, list.Draw, () => ModalButton(list, false)); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -397,13 +338,13 @@ public class ListEditorTests
         {
             UiFrame.Run(Window, list.Draw);
             UiFrame.Click(Window, XButton(list, 0), list.Draw);
-            Assert.True(PopupOpen(list.Draw));
+            Assert.True(UiFrame.PopupOpen(Window, list.Draw));
             UiFrame.Click(Window, ModalButton(list, false), list.Draw);
             Assert.Equal(3, list.Items.Count);
             Assert.Equal(0, list.Returns);
-            Assert.False(PopupOpen(list.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, list.Draw));
         }
-        finally { CloseModal(list); Settle(list.Draw); }
+        finally { UiFrame.CloseModal(Window, list.Draw, () => ModalButton(list, false)); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -420,14 +361,14 @@ public class ListEditorTests
         {
             UiFrame.Run(Window, Body);
             UiFrame.Click(Window, XButton(owner, 1), Body);
-            Assert.True(PopupOpen(Body));
+            Assert.True(UiFrame.PopupOpen(Window, Body));
             UiFrame.Click(Window, ModalButton(owner, true), Body);
             Assert.Equal(["alpha", "gamma"], owner.Items);
             Assert.Equal(["alpha", "beta", "gamma"], other.Items);
             Assert.Equal(1, owner.Returns);
             Assert.Equal(0, other.Returns);
         }
-        finally { CloseModal(owner); Settle(Body); }
+        finally { UiFrame.CloseModal(Window, owner.Draw, () => ModalButton(owner, false)); UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -442,7 +383,7 @@ public class ListEditorTests
             Assert.Equal(plain.Origin.X, plain.Rows[0].Cursor.X);
             Assert.Equal(grips.Origin.X + TextWidth(":::") + Padding.X * 2 + Spacing.X, grips.Rows[0].Cursor.X);
         }
-        finally { Settle(plain.Draw); }
+        finally { UiFrame.Settle(Window, plain.Draw); }
     }
 
     [Fact]
@@ -460,7 +401,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], list.Items);
             Assert.Equal(2, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -477,7 +418,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -500,7 +441,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -520,7 +461,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -553,7 +494,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], b.Items);
             Assert.Equal(0, a.Returns + b.Returns);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -578,7 +519,7 @@ public class ListEditorTests
             Assert.Equal(["alpha", "beta", "gamma"], other.Items);
             Assert.Equal(0, other.Returns);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -599,7 +540,7 @@ public class ListEditorTests
             Assert.Equal(alpha, list.Rows[1].Alpha);
             Assert.True(list.Rows[2].Alpha < alpha);
         }
-        finally { EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2)); Settle(list.Draw); }
+        finally { EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -619,7 +560,7 @@ public class ListEditorTests
             EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2));
             Assert.All(list.Rows, r => Assert.Equal(alpha, r.Alpha));
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -644,7 +585,7 @@ public class ListEditorTests
             Assert.Equal(walker.RowAt["apple"], walker.RowAt["banana"]);
             Assert.NotEqual(walker.RowAt["banana"], walker.RowAt["cherry"]);
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -656,7 +597,7 @@ public class ListEditorTests
             UiFrame.Run(Window, list.Draw);
             Assert.Equal(list.Origin.Y, list.Rows[0].Cursor.Y);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -665,7 +606,7 @@ public class ListEditorTests
         var a = new CompactList { FilterText = s => s };
         var b = new CompactList { Id = a.Id, FilterText = s => s };
         var alpha = BaseAlpha;
-        void Body() => TwoScopes(a, b);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -676,13 +617,13 @@ public class ListEditorTests
             Assert.Contains(a.Rows, r => r.Alpha < alpha);
             Assert.All(b.Rows, r => Assert.Equal(alpha, r.Alpha));
         }
-        finally { EraseFilter(Body, a.Origin + new Vector2(20f, FrameHeight / 2)); Settle(Body); }
+        finally { EraseFilter(Body, a.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, Body); }
     }
 
     sealed class OrderedList
     {
         public readonly List<string> Items = ["Priority", "Currency", "Maps", "Scarabs", "Everything else"];
-        public string Id = NextId("ordered");
+        public string Id = UiFrame.NextId("ordered");
         public int Selected;
         public ListOpts Opts = new();
         public int Returns;
@@ -745,19 +686,6 @@ public class ListEditorTests
         return uvs;
     }
 
-    static List<Vector2> GlyphUvs(string text)
-    {
-        List<Vector2> uvs = [];
-        UiFrame.Run(Window, () =>
-        {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            ImGui.TextDisabled(text);
-            uvs = UvsBetween(list, from, list.VtxBuffer.Size);
-        });
-        return uvs;
-    }
-
     Vector2 RowAt(OrderedList list, int row) => new(list.Rows[row].Cursor.X + 1f, list.Rows[row].Cursor.Y + FontSize / 2);
 
     [Fact]
@@ -772,7 +700,7 @@ public class ListEditorTests
             Assert.Equal(0, list.Returns);
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -787,7 +715,7 @@ public class ListEditorTests
             Assert.Equal(0, list.Selected);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     public enum OrderedVariant { NoIndex, Fixed, Filter, Pinned, CtrlHeld, Menu }
@@ -830,7 +758,7 @@ public class ListEditorTests
             Assert.Equal(list.ProbeBefore, list.ProbeAfter);
             Assert.Equal(list.ExpectedProbes, list.Rows.Select(r => r.Probe));
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -844,7 +772,7 @@ public class ListEditorTests
             Assert.Equal(5, list.Rows.Select(r => r.Probe).Distinct().Count());
             Assert.Equal(list.ProbeBefore, list.ProbeAfter);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -868,7 +796,7 @@ public class ListEditorTests
             UiFrame.Click(Window, new Vector2(plain.Rows[0].Cursor.X + 1f, plain.Origin.Y + FrameHeight * 1.5f), plain.Draw);
             Assert.Equal(1, plain.Selected);
         }
-        finally { Settle(plain.Draw); }
+        finally { UiFrame.Settle(Window, plain.Draw); }
     }
 
     [Fact]
@@ -885,7 +813,7 @@ public class ListEditorTests
             Assert.Equal(TextWidth("01") + Spacing.X, shown.Rows[1].Cursor.X - hidden.Rows[1].Cursor.X);
             Assert.Equal(TextWidth("--") + Spacing.X, shown.Rows[0].Cursor.X - hidden.Rows[0].Cursor.X);
         }
-        finally { Settle(shown.Draw); }
+        finally { UiFrame.Settle(Window, shown.Draw); }
     }
 
     [Fact]
@@ -897,15 +825,15 @@ public class ListEditorTests
         try
         {
             UiFrame.Unhover();
-            var dashes = GlyphUvs("--");
-            var two = GlyphUvs("02");
-            var three = GlyphUvs("03");
-            var four = GlyphUvs("04");
+            var dashes = UiFrame.GlyphUvs(Window, "--");
+            var two = UiFrame.GlyphUvs(Window, "02");
+            var three = UiFrame.GlyphUvs(Window, "03");
+            var four = UiFrame.GlyphUvs(Window, "04");
             Assert.NotEqual(two, three);
             UiFrame.Run(Window, list.Draw);
             Assert.Equal([dashes, two, three, four, dashes], list.IndexUvs);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -929,7 +857,7 @@ public class ListEditorTests
             UiFrame.Run(Window, list.Draw);
             Assert.Equal(["Priority", "Maps", "Scarabs", "Currency", "Everything else"], list.Items);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -942,13 +870,13 @@ public class ListEditorTests
             UiFrame.Press(Window, RowAt(list, 1), list.Draw);
             UiFrame.MoveTo(Window, RowAt(list, 1) + new Vector2(0, 1f), list.Draw);
             var held = list.Vertices;
-            Settle(list.Draw);
+            UiFrame.Settle(Window, list.Draw);
             UiFrame.Run(Window, list.Draw);
             UiFrame.MoveTo(Window, RowAt(list, 1) + new Vector2(0, 1f), list.Draw);
             var hovered = list.Vertices;
             Assert.True(held > hovered);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -959,10 +887,11 @@ public class ListEditorTests
         try
         {
             UiFrame.Run(Window, picked.Draw);
+            UiFrame.Run(Window, picked.Draw);
             UiFrame.Run(Window, none.Draw);
             Assert.True(picked.Vertices > none.Vertices);
         }
-        finally { Settle(picked.Draw); }
+        finally { UiFrame.Settle(Window, picked.Draw); }
     }
 
     [Fact]
@@ -982,7 +911,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Maps", "Currency", "Scarabs", "Everything else"], list.Items);
             UiFrame.Release(Window, list.Draw);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1002,7 +931,7 @@ public class ListEditorTests
             UiFrame.Drag(Window, RowAt(list, 3), above, list.Draw);
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1019,7 +948,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
             UiFrame.Release(Window, list.Draw);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1037,7 +966,7 @@ public class ListEditorTests
             Assert.Equal(2, list.Selected);
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1055,7 +984,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1070,7 +999,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1078,7 +1007,7 @@ public class ListEditorTests
     {
         var a = new OrderedList();
         var b = new OrderedList { Id = a.Id };
-        void Body() => TwoScopes(a, b);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1087,7 +1016,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], b.Items);
             Assert.Equal(0, b.Returns);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     static void PressKey(OrderedList list, ImGuiKey key)
@@ -1116,7 +1045,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
             Assert.Equal(2, list.Selected);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1133,7 +1062,7 @@ public class ListEditorTests
             Assert.Equal(3, list.Selected);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1150,7 +1079,7 @@ public class ListEditorTests
             Assert.Equal(1, list.Selected);
             Assert.Equal(0, list.Returns);
         }
-        finally { Settle(list.Draw); }
+        finally { UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1167,7 +1096,7 @@ public class ListEditorTests
             Assert.NotEmpty(list.MenuRows);
             Assert.All(list.MenuRows, row => Assert.Equal(3, row));
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1186,7 +1115,7 @@ public class ListEditorTests
             Assert.Equal(1, list.Returns);
             Assert.Equal(list.ProbeBefore, list.ProbeAfter);
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1204,7 +1133,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Maps", "Scarabs", "Everything else"], list.Items);
             Assert.Contains(1, list.RowCounts);
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1225,7 +1154,7 @@ public class ListEditorTests
             Assert.Equal(["Priority", "Currency", "Maps", "Scarabs", "Everything else"], list.Items);
             Assert.Equal(0, list.Returns);
         }
-        finally { EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2)); Settle(list.Draw); }
+        finally { EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1246,7 +1175,7 @@ public class ListEditorTests
             EraseFilter(list.Draw, list.Origin + new Vector2(20f, FrameHeight / 2));
             Assert.All(list.Rows, r => Assert.Equal(alpha, r.Alpha));
         }
-        finally { UiFrame.ClickAway(Window, list.Draw); Settle(list.Draw); }
+        finally { UiFrame.ClickAway(Window, list.Draw); UiFrame.Settle(Window, list.Draw); }
     }
 
     [Fact]
@@ -1257,7 +1186,7 @@ public class ListEditorTests
         a.Opts.FilterText = i => a.Items[i];
         b.Opts.FilterText = i => b.Items[i];
         var alpha = BaseAlpha;
-        void Body() => TwoScopes(a, b);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1268,6 +1197,6 @@ public class ListEditorTests
             Assert.Contains(a.Rows, r => r.Alpha < alpha);
             Assert.All(b.Rows, r => Assert.Equal(alpha, r.Alpha));
         }
-        finally { EraseFilter(Body, a.Origin + new Vector2(20f, FrameHeight / 2)); Settle(Body); }
+        finally { EraseFilter(Body, a.Origin + new Vector2(20f, FrameHeight / 2)); UiFrame.Settle(Window, Body); }
     }
 }

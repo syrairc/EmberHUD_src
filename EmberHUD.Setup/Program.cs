@@ -12,8 +12,7 @@ internal static class Program
     static unsafe int Main()
     {
         var root = AppContext.BaseDirectory;
-        Directory.CreateDirectory(Path.Combine(root, "Logs"));
-        using var logFile = new StreamWriter(new FileStream(Path.Combine(root, "Logs", "setup.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+        using var logFile = OpenLog(root);
         var logGate = new Lock();
         Log.Sink = (level, plugin, message) =>
         {
@@ -27,7 +26,7 @@ internal static class Program
             var io = ImGui.GetIO();
             io.IniFilename = null;
             io.ConfigErrorRecoveryEnableAssert = false;
-            var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), "Torchlight", action => action());
+            var themes = new ThemeStore(Path.Combine(root, "Themes"), Path.Combine(root, "Fonts"), ThemeStore.DefaultTheme, action => action());
             themes.Apply();
             var page = new SetupPage(root, LocalUsers.List(), start => FileDialog.PickFolder(window.Handle, start), start => FileDialog.PickProgram(window.Handle, start), Process.Start);
             while (window.PumpMessages() && !page.CloseRequested)
@@ -54,6 +53,18 @@ internal static class Program
             Log.Error(ex, "setup");
             Win32.MessageBox(0, $"{ex.Message}{Environment.NewLine}see Logs\\setup.log", "EmberHUD Setup", 0x10);
             return 1;
+        }
+    }
+    internal static TextWriter OpenLog(string root)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "Logs"));
+            return new StreamWriter(new FileStream(Path.Combine(root, "Logs", "setup.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return TextWriter.Null;
         }
     }
 }

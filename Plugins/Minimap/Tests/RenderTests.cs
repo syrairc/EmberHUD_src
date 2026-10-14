@@ -22,11 +22,9 @@ public sealed class RenderTests
                 Scene.Entity(EntityKind.Portal, new Vector3(18, 12, 0)),
             ]
             : [],
-        terrain: terrain ? Scene.Cells(3, 3, false, (1, 1)) : null);
+        terrain: terrain ? Scene.OneCell() : null);
 
     static readonly Sprite Fill = new(new ImTextureRef { TexID = new ImTextureID(9ul) }, Vector2.Zero, Vector2.One);
-
-    static GameState OneCell() => Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)));
 
     static int DrawnWithFill(GameState state, Action<Main>? configure = null, Func<string, Sprite?>? resolve = null)
     {
@@ -42,7 +40,7 @@ public sealed class RenderTests
     }
 
     [Test]
-    public void TheRegionFillIsOneQuad() => Check.Equal(Drawn(OneCell()) + 4, DrawnWithFill(OneCell()));
+    public void TheRegionFillIsOneQuad() => Check.Equal(Drawn(OneCellScene()) + 4, DrawnWithFill(OneCellScene()));
 
     [Test]
     public void TheFillQuadIsDrawnFirstOverTheWholeGrid()
@@ -50,7 +48,7 @@ public sealed class RenderTests
         TestGame.UseTextures((_, _, _, _) => { }, _ => Fill);
         try
         {
-            TestGame.Set(OneCell());
+            TestGame.Set(OneCellScene());
             Map.View = null;
             var main = Scene.Plugin();
             TestFrame.Run(() =>
@@ -79,10 +77,10 @@ public sealed class RenderTests
     [Test]
     public void AFillTextureThatNeverArrivedSkipsTheFillButKeepsTheOutlines()
     {
-        var outlines = DrawnWithFill(OneCell(), resolve: _ => null);
+        var outlines = DrawnWithFill(OneCellScene(), resolve: _ => null);
 
         Check.That(outlines > 0, "the outlines draw");
-        Check.Equal(Drawn(OneCell()), outlines);
+        Check.Equal(Drawn(OneCellScene()), outlines);
     }
 
     [Test]
@@ -97,12 +95,12 @@ public sealed class RenderTests
             perLine = Draw.Background.VtxBuffer.Size - before;
         });
 
-        Check.Equal(4 * perLine, DrawnWithFill(OneCell(), WallsStyle) - DrawnWithFill(Scene.State(), WallsStyle));
+        Check.Equal(4 * perLine, DrawnWithFill(OneCellScene(), WallsStyle) - DrawnWithFill(Scene.State(), WallsStyle));
     }
 
     [Test]
     public void ADrawStyleItDoesNotKnowDrawsTheRegion() =>
-        Check.Equal(DrawnWithFill(OneCell()), DrawnWithFill(OneCell(), main => main.Settings.Map.DrawStyle.Value = "region"));
+        Check.Equal(DrawnWithFill(OneCellScene()), DrawnWithFill(OneCellScene(), main => main.Settings.Map.DrawStyle.Value = "region"));
 
     static Player Facing(Vector2 forward) => new(new Vector3(15, 15, 0), forward);
 
@@ -125,9 +123,9 @@ public sealed class RenderTests
         return drawn;
     }
 
-    static Vector2 FarthestFromPlayer(Vector2 forward, Action<Main>? configure = null)
+    static Vector2 FarthestFromPlayer(Vector2 forward, Action<Main>? configure = null, float? gameRotation = null)
     {
-        TestGame.Set(Busy(Facing(forward), entities: false, terrain: false));
+        TestGame.Set(Scene.State(player: Facing(forward), rotation: gameRotation));
         Map.View = null;
         var main = Scene.Plugin();
         configure?.Invoke(main);
@@ -261,27 +259,7 @@ public sealed class RenderTests
     [Test]
     public void TheArrowTurnsWithTheGameRotationToo()
     {
-        TestGame.Set(Scene.State(player: Facing(new Vector2(0, -1)), rotation: 90));
-        Map.View = null;
-        var main = Scene.Plugin();
-        var tip = Vector2.Zero;
-        TestFrame.Run(() =>
-        {
-            main.Tick();
-            main.Tick();
-            var player = Map.View!.Value.ToScreen(new Vector3(15, 15, 0));
-            var list = Draw.Background;
-            var first = list.VtxBuffer.Size;
-            main.Render();
-            var best = -1f;
-            for (var i = first; i < list.VtxBuffer.Size; i++)
-            {
-                var offset = list.VtxBuffer[i].Pos - player;
-                if (offset.LengthSquared() <= best) continue;
-                best = offset.LengthSquared();
-                tip = offset;
-            }
-        });
+        var tip = FarthestFromPlayer(new Vector2(0, -1), gameRotation: 90);
 
         Check.That(tip.X > 0 && MathF.Abs(tip.Y) < 1, "forward -Y turns right with a 90 degree game rotation");
     }
@@ -306,7 +284,7 @@ public sealed class RenderTests
 
     static readonly MapIcon Portal = new(10, "UI_MiniMap_Portal", new Vector2(15, 15), 1, 0, 0);
 
-    static GameState IconScene(params MapIcon[] icons) => Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)), icons: icons);
+    static GameState OneCellScene(params MapIcon[] icons) => Scene.State(terrain: Scene.OneCell(), icons: icons);
 
     static int DrawnWith(Func<string, Sprite?>? icons, GameState state, Action<Main>? configure = null)
     {
@@ -324,45 +302,45 @@ public sealed class RenderTests
     [Test]
     public void AReadyGameIconIsOneImageQuadAndAMarkerUntilThen()
     {
-        var walls = Drawn(IconScene());
+        var walls = Drawn(OneCellScene());
 
-        Check.Equal(walls + 4, DrawnWith(name => name == "UI_MiniMap_Portal" ? Ready : null, IconScene(Portal)));
-        Check.That(DrawnWith(_ => null, IconScene(Portal)) > walls + 4, "the fallback marker has more vertices than one quad");
+        Check.Equal(walls + 4, DrawnWith(name => name == "UI_MiniMap_Portal" ? Ready : null, OneCellScene(Portal)));
+        Check.That(DrawnWith(_ => null, OneCellScene(Portal)) > walls + 4, "the fallback marker has more vertices than one quad");
     }
 
     [Test]
     public void TurningGameIconsOffDrawsTheMarkerEvenWhenTheTextureIsReady()
     {
-        var off = DrawnWith(_ => Ready, IconScene(Portal), main => main.Settings.Icons.UseGameIcons.Value = false);
+        var off = DrawnWith(_ => Ready, OneCellScene(Portal), main => main.Settings.Icons.UseGameIcons.Value = false);
 
-        Check.Equal(DrawnWith(_ => null, IconScene(Portal)), off);
+        Check.Equal(DrawnWith(_ => null, OneCellScene(Portal)), off);
     }
 
     [Test]
     public void AnIconWithoutATextureNameDrawsAMarkerNotNothing()
     {
-        var walls = Drawn(IconScene());
+        var walls = Drawn(OneCellScene());
 
-        Check.That(DrawnWith(_ => Ready, IconScene(Portal with { Texture = "" })) > walls + 4, "empty texture name falls back");
-        Check.That(DrawnWith(_ => null, IconScene(Portal with { Type = 987654 })) > walls, "an unknown type still draws a dot");
+        Check.That(DrawnWith(_ => Ready, OneCellScene(Portal with { Texture = "" })) > walls + 4, "empty texture name falls back");
+        Check.That(DrawnWith(_ => null, OneCellScene(Portal with { Type = 987654 })) > walls, "an unknown type still draws a dot");
     }
 
     [Test]
     public void ANonFinitePositionIsSkippedAndABadSizeDrawsLikeOne()
     {
-        var walls = Drawn(IconScene());
+        var walls = Drawn(OneCellScene());
         var ready = (Func<string, Sprite?>)(_ => Ready);
 
-        Check.Equal(walls, DrawnWith(ready, IconScene(Portal with { Position = new Vector2(float.NaN, 0) })));
-        Check.Equal(walls, DrawnWith(ready, IconScene(Portal with { Position = new Vector2(float.PositiveInfinity, 0) })));
-        foreach (var size in new[] { 0f, -2f, float.NaN, float.PositiveInfinity }) Check.Equal(walls + 4, DrawnWith(ready, IconScene(Portal with { Size = size })), $"size {size}");
+        Check.Equal(walls, DrawnWith(ready, OneCellScene(Portal with { Position = new Vector2(float.NaN, 0) })));
+        Check.Equal(walls, DrawnWith(ready, OneCellScene(Portal with { Position = new Vector2(float.PositiveInfinity, 0) })));
+        foreach (var size in new[] { 0f, -2f, float.NaN, float.PositiveInfinity }) Check.Equal(walls + 4, DrawnWith(ready, OneCellScene(Portal with { Size = size })), $"size {size}");
     }
 
     [Test]
     public void AnEntityTheGameAlreadyIconisedIsNotDrawnTwice()
     {
         var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
-        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var terrain = Scene.OneCell();
         var iconOnly = Drawn(Scene.State(terrain: terrain, icons: [Portal with { EntityId = monster.Id }]));
 
         Check.Equal(iconOnly, Drawn(Scene.State(entities: [monster], terrain: terrain, icons: [Portal with { EntityId = monster.Id }])));
@@ -381,8 +359,7 @@ public sealed class RenderTests
 
     static Vector2 TopEdgeOffsetFromPlayer(Vector2 forward)
     {
-        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
-        TestGame.UseGameIcons(name => name == "UI_MiniMap_Player1" ? sprite : null);
+        TestGame.UseGameIcons(name => name == "UI_MiniMap_Player1" ? Ready : null);
         try
         {
             TestGame.Set(Scene.State(player: Facing(forward)));
@@ -400,7 +377,7 @@ public sealed class RenderTests
                 var count = 0;
                 for (var i = first; i < list.VtxBuffer.Size; i++)
                 {
-                    if (list.VtxBuffer[i].Uv.Y != sprite.Uv0.Y) continue;
+                    if (list.VtxBuffer[i].Uv.Y != Ready.Uv0.Y) continue;
                     top += list.VtxBuffer[i].Pos - player;
                     count++;
                 }
@@ -429,7 +406,7 @@ public sealed class RenderTests
     public void AnEntityWhoseGameIconIsOffscreenKeepsItsMarker()
     {
         var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
-        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var terrain = Scene.OneCell();
         var withMarker = Drawn(Scene.State(entities: [monster], terrain: terrain));
 
         Check.That(withMarker > Drawn(Scene.State(terrain: terrain)), "the monster draws");
@@ -440,7 +417,7 @@ public sealed class RenderTests
     public void AnEntityWithAnSvgIconAsksForItWithItsStyleAndDrawsOneQuad()
     {
         var asked = new List<(string Icon, int Pixels, Color Colour)>();
-        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var terrain = Scene.OneCell();
         var rare = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
         var walls = Drawn(Scene.State(terrain: terrain));
         TestGame.UseSvgIcons((icon, pixels, colour, _) =>
@@ -471,7 +448,7 @@ public sealed class RenderTests
     [Test]
     public void AnSvgMarkerIsADotUntilItsIconIsReadyAndPlainMarkersNeverAsk()
     {
-        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var terrain = Scene.OneCell();
         var walls = Drawn(Scene.State(terrain: terrain));
         var asked = 0;
         TestGame.UseSvgIcons((_, _, _, _) =>
@@ -501,7 +478,7 @@ public sealed class RenderTests
     static IconStyle FoundT(bool show = true, float scale = 1) => new() { Key = "T", Name = "T", Icon = "game:T", Colour = FoundColour, Scale = scale, Show = show };
 
     static GameState LinkedScene(string texture = "T") =>
-        Scene.State(terrain: Scene.Cells(3, 3, false, (1, 1)), entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], icons: [Portal with { Texture = texture, EntityId = 1 }]);
+        Scene.State(terrain: Scene.OneCell(), entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], icons: [Portal with { Texture = texture, EntityId = 1 }]);
 
     static void FixedRare(Main main, bool overrideGameIcon = false)
     {
@@ -567,10 +544,10 @@ public sealed class RenderTests
     [Test]
     public void AHiddenRowDrawsNothing()
     {
-        var empty = Drawn(IconScene());
+        var empty = Drawn(OneCellScene());
 
-        Check.That(DrawnWith(_ => Ready, IconScene(Portal with { Texture = "T" })) > empty, "a shown row draws");
-        Check.Equal(empty, DrawnWith(_ => Ready, IconScene(Portal with { Texture = "T" }), main => main.Settings.Icons.Found.Add(FoundT(show: false))));
+        Check.That(DrawnWith(_ => Ready, OneCellScene(Portal with { Texture = "T" })) > empty, "a shown row draws");
+        Check.Equal(empty, DrawnWith(_ => Ready, OneCellScene(Portal with { Texture = "T" }), main => main.Settings.Icons.Found.Add(FoundT(show: false))));
     }
 
     [Test]
@@ -579,7 +556,7 @@ public sealed class RenderTests
         var gold = Packed(Color.FromArgb(0xF9, 0xDD, 0x75));
         var settings = default(Settings);
 
-        Check.That(Colours(IconScene(Portal with { Texture = "" }), main => settings = main.Settings).Contains(gold), "gold fallback drawn");
+        Check.That(Colours(OneCellScene(Portal with { Texture = "" }), main => settings = main.Settings).Contains(gold), "gold fallback drawn");
         Check.Equal(0, settings!.Icons.Found.Count);
     }
 
@@ -589,7 +566,7 @@ public sealed class RenderTests
         TestGame.UseGameIcons(name => name == "T" ? Ready : null);
         try
         {
-            TestGame.Set(IconScene(Portal with { Texture = "T", Size = 1 }));
+            TestGame.Set(OneCellScene(Portal with { Texture = "T", Size = 1 }));
             Map.View = null;
             var main = Scene.Plugin();
             main.Settings.Icons.GameIconScale.Value = 2;
@@ -619,7 +596,7 @@ public sealed class RenderTests
         try
         {
             var player = new Player(new Vector3(12, 12, 0), Vector2.UnitX);
-            TestGame.Set(Scene.State(player: player, terrain: Scene.Cells(3, 3, false, (1, 1)), icons: [Portal with { Texture = "T", Size = 1, Position = new Vector2(12, 12) }]));
+            TestGame.Set(Scene.State(player: player, terrain: Scene.OneCell(), icons: [Portal with { Texture = "T", Size = 1, Position = new Vector2(12, 12) }]));
             Map.View = null;
             var main = Scene.Plugin();
             main.Settings.General.Zoom.Value = GeneralTab.DefaultZoom * 2;
@@ -644,7 +621,7 @@ public sealed class RenderTests
     [Test]
     public void FoundRowsAreRecordedWhileTicking()
     {
-        TestGame.Set(IconScene(Portal with { Texture = "T" }));
+        TestGame.Set(OneCellScene(Portal with { Texture = "T" }));
         var main = Scene.Plugin();
         TestFrame.Run(() => main.Tick());
 

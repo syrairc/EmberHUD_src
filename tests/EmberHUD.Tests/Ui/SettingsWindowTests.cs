@@ -4,14 +4,13 @@ using EmberHUD.Host.Ui;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
+using static EmberHUD.Tests.PluginFixture;
 
 namespace EmberHUD.Tests;
 
 public sealed class SettingsWindowTests : IDisposable
 {
     const string BrokenSource = "namespace Broken; public sealed class Main : EmberHUD.Plugin { int X = \"no\"; }";
-
-    static readonly Lazy<ImGuiStyle> Pristine = new(CapturePristine);
 
     readonly PluginFixture _fixture = new();
     readonly LogCapture _log = new();
@@ -24,25 +23,12 @@ public sealed class SettingsWindowTests : IDisposable
         File.WriteAllText(Path.Combine(_themes, "Plain.json"), flat);
         File.WriteAllText(Path.Combine(_themes, "Other.json"), flat);
         TestFrame.Run(() => { });
-        ResetStyle();
+        PristineStyle.Reset();
     }
-
-    static unsafe ImGuiStyle CapturePristine()
-    {
-        var main = ImGui.GetCurrentContext();
-        var scratch = ImGui.CreateContext();
-        ImGui.SetCurrentContext(scratch);
-        var style = *ImGui.GetStyle().Handle;
-        ImGui.SetCurrentContext(main);
-        ImGui.DestroyContext(scratch);
-        return style;
-    }
-
-    static unsafe void ResetStyle() => *ImGui.GetStyle().Handle = Pristine.Value;
 
     static ImGuiWindowPtr Win => ImGuiP.FindWindowByName("EmberHUD###settings");
 
-    static float PaneLeft => Win.Pos.X + ImGui.GetStyle().WindowPadding.X + 190 + ImGui.GetStyle().ItemSpacing.X / 2;
+    static float PaneLeft => Win.Pos.X + ImGui.GetStyle().WindowPadding.X + SettingsWindow.ListWidth + ImGui.GetStyle().ItemSpacing.X / 2;
 
     static float PaneRight => Win.Pos.X + Win.Size.X;
 
@@ -139,9 +125,9 @@ public sealed class SettingsWindowTests : IDisposable
         return themes;
     }
 
-    SettingsWindow Window(PluginHost host, ThemeStore? themes = null, Func<string?>? warning = null, LogBuffer? logs = null)
+    SettingsWindow Window(PluginHost host, ThemeStore? themes = null, LogBuffer? logs = null)
     {
-        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? new LogBuffer(), warning ?? (() => null));
+        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? new LogBuffer());
         window.Toggle();
         return window;
     }
@@ -190,8 +176,6 @@ public sealed class SettingsWindowTests : IDisposable
         return host;
     }
 
-    static PluginSlot Slot(PluginHost host, string name) => host.Slots.Single(slot => slot.Name == name);
-
     static ToggleNode Show(PluginSlot slot)
     {
         var settings = slot.Instance!.SettingsObject!;
@@ -236,7 +220,7 @@ public sealed class SettingsWindowTests : IDisposable
         var themes = new ThemeStore(Path.Combine(AppContext.BaseDirectory, "Themes"), Path.Combine(AppContext.BaseDirectory, "Fonts"), "Torchlight", action => action());
         var logs = new LogBuffer();
         logs.Add("100% done %s %d");
-        var window = new SettingsWindow(_fixture.Sdk, host, themes, logs, () => "warning: built for 100% %s another build");
+        var window = new SettingsWindow(_fixture.Sdk, host, themes, logs);
         window.Toggle();
 
         foreach (var tab in new[] { 0, 1, 2 })
@@ -525,21 +509,15 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
-    public void TheGeneralPageShowsTheBuildWarningTogglesAutoReloadAndClearsTheCache()
+    public void TheGeneralPageTogglesAutoReloadAndClearsTheCache()
     {
         using var host = Discovered();
         var cache = Path.Combine(_fixture.Root, "Cache");
         Directory.CreateDirectory(cache);
         var dll = Path.Combine(cache, "old.dll");
         File.WriteAllText(dll, "x");
-        var warning = (string?)"built for 100% %s another build";
-        var window = Window(host, warning: () => warning);
+        var window = Window(host);
         OpenTab(window, 0);
-        var yellow = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 0.85f, 0.3f, 1));
-
-        Assert.Equal(warning!.Count(letter => letter != ' '), Settled(window).Count(quad => quad.Glyph && quad.Col == yellow));
-        warning = null;
-        Assert.DoesNotContain(Settled(window), quad => quad.Glyph && quad.Col == yellow);
 
         Assert.False(_fixture.Sdk.AutoReload);
         Click(window, Checkbox(Settled(window)).Centre);
@@ -778,7 +756,8 @@ public sealed class SettingsWindowTests : IDisposable
 
         var mono = Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - (260 - ImGui.GetFrameHeight())) < 1.5f).ToList()[4];
         Click(window, mono.Centre);
-        Click(window, FirstItemBelow(Quad.Capture(), mono).Centre);
+        var filter = Frames(Quad.Capture()).First(quad => quad.Min.Y > mono.Max.Y);
+        Click(window, FirstItemBelow(Quad.Capture(), filter).Centre);
         Settled(window);
 
         Assert.Equal(themes.FontFiles()[0], themes.Current.Fonts.Mono.File);

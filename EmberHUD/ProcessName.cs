@@ -5,6 +5,8 @@ namespace EmberHUD.Host;
 
 internal static unsafe partial class ProcessName
 {
+    private const int ProcessBasicInformation = 0;
+    private const int PebBaseAddressIndex = 1;
     private const int LdrOffset = 0x18;
     private const int ProcessParametersOffset = 0x20;
     private const int InLoadOrderModuleListOffset = 0x10;
@@ -16,14 +18,19 @@ internal static unsafe partial class ProcessName
     [LibraryImport("ntdll.dll")]
     private static partial int NtQueryInformationProcess(SafeProcessHandle process, int informationClass, nint* information, int length, out int returned);
 
+    public static bool TryReadPebAddress(SafeProcessHandle handle, out nint peb)
+    {
+        var information = stackalloc nint[6];
+        var ok = NtQueryInformationProcess(handle, ProcessBasicInformation, information, 6 * nint.Size, out _) >= 0;
+        peb = ok ? information[PebBaseAddressIndex] : 0;
+        return ok;
+    }
+
     public static void Spoof(string name)
     {
         var fullPath = Path.Combine(AppContext.BaseDirectory, name);
         using var self = new SafeProcessHandle(-1, ownsHandle: false);
-        var information = stackalloc nint[6];
-        if (NtQueryInformationProcess(self, 0, information, 6 * nint.Size, out _) < 0) return;
-        var peb = information[1];
-        if (peb == 0) return;
+        if (!TryReadPebAddress(self, out var peb) || peb == 0) return;
 
         var ldrEntry = *(nint*)(*(nint*)(peb + LdrOffset) + InLoadOrderModuleListOffset);
         Write(ldrEntry + BaseDllNameOffset, name);

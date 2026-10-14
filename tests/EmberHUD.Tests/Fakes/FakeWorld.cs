@@ -1,4 +1,3 @@
-using System.Numerics;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
 
@@ -13,6 +12,7 @@ internal readonly record struct FakeIcon(int Type, float X, float Y, int Zorder 
 internal sealed class FakeWorld
 {
     public const long ModuleBase = 0x1_4000_0000;
+    public static nint Module => unchecked((nint)ModuleBase);
     public const int Unregistered = 0;
 
     private readonly long _worldAddress;
@@ -99,7 +99,7 @@ internal sealed class FakeWorld
         }
 
         Memory.Write(map, data);
-        Memory.Write(map + Offsets.TMapNum, slots.Length);
+        Memory.Write(map + Offsets.TArrayNum, slots.Length);
         if (slots.Length <= Offsets.TMapInlineBitCount)
         {
             Memory.WriteArray(map + Offsets.TMapInlineBits, bits[..4]);
@@ -120,7 +120,7 @@ internal sealed class FakeWorld
         PlaceObject(index, minimap.Widget);
         var manager = Alloc(0x100);
         Memory.Write(manager + Offsets.MiniMapMgrWidget, (uint)index);
-        Memory.Write(manager + Offsets.MiniMapMgrWidget + 4, weakSerial ?? serial);
+        Memory.Write(manager + Offsets.MiniMapMgrWidget + Offsets.WeakPtrSerial, weakSerial ?? serial);
         Memory.Write(ModuleBase + Offsets.MiniMapMgrGlobalRva, manager);
     }
 
@@ -138,7 +138,7 @@ internal sealed class FakeWorld
             var chunk = Alloc(size * Offsets.GObjectsItemSize);
             foreach (var (i, o) in inChunk)
             {
-                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, o);
+                Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize + Offsets.GObjectsItemObject, o);
                 Memory.Write(chunk + (i % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize + Offsets.GObjectsItemSerial, _serials.GetValueOrDefault(i));
             }
             Memory.Write(chunks + c * 8, chunk);
@@ -163,9 +163,9 @@ internal sealed class FakeWorld
     public uint AddName(string text, bool wide = false)
     {
         var index = (uint)(_nameCursor / Offsets.FNameEntryStride);
-        var header = (ushort)((text.Length << Offsets.FNameLengthShift) | (wide ? 1 : 0));
+        var header = (ushort)((text.Length << Offsets.FNameLengthShift) | (wide ? Offsets.FNameWideBit : 0));
         Memory.Write(_nameBlock + _nameCursor, header);
-        Memory.WriteArray(_nameBlock + _nameCursor + 2, System.Text.Encoding.ASCII.GetBytes(text));
+        Memory.WriteArray(_nameBlock + _nameCursor + Offsets.FNameHeaderSize, System.Text.Encoding.ASCII.GetBytes(text));
         _nameCursor += (2 + text.Length + 1) & ~1;
         return index;
     }
@@ -272,7 +272,7 @@ internal sealed class FakeWorld
         var buckets = Alloc(bucketCount * 8);
         Memory.WriteArray(buckets, heads);
         Memory.Write(map, buckets);
-        Memory.Write(map + Offsets.FollowMapBucketCount, (uint)bucketCount);
+        Memory.Write(map + Offsets.HashBucketCount, (uint)bucketCount);
     }
 
     public long AddTexture(string name)
@@ -286,14 +286,17 @@ internal sealed class FakeWorld
     {
         var map = Alloc(0x40);
         var data = Alloc(Math.Max(1, elements.Length) * Offsets.IconMapElementStride);
+        var bits = new uint[Offsets.TMapInlineBitCount / 32];
         for (var i = 0; i < elements.Length; i++)
         {
             Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementKey, elements[i].Type);
             Memory.Write(data + i * Offsets.IconMapElementStride + Offsets.IconMapElementTexture, elements[i].Texture);
+            bits[i / 32] |= 1u << (i % 32);
         }
 
         Memory.Write(map, data);
-        Memory.Write(map + Offsets.TMapNum, elements.Length);
+        Memory.Write(map + Offsets.TArrayNum, elements.Length);
+        Memory.WriteArray(map + Offsets.TMapInlineBits, bits);
         Memory.Write(minimap.Widget + Offsets.MinimapActiveIconMap, map);
         return map;
     }
@@ -327,13 +330,14 @@ internal sealed class FakeWorld
             Memory.Write(element, text);
             Memory.Write(element + Offsets.TArrayNum, record.Key.Length + 1);
             var points = Alloc(Math.Max(1, record.Points.Length) * Offsets.SavePointStride);
-            Memory.WriteArray(points, record.Points);
+            for (var p = 0; p < record.Points.Length; p++)
+                Memory.Write(points + p * Offsets.SavePointStride, record.Points[p]);
             Memory.Write(element + Offsets.SaveRecordPos, points);
             Memory.Write(element + Offsets.SaveRecordPos + Offsets.TArrayNum, record.Points.Length);
         }
 
         Memory.Write(map, data);
-        Memory.Write(map + Offsets.TMapNum, records.Length);
+        Memory.Write(map + Offsets.TArrayNum, records.Length);
         Memory.WriteArray(map + Offsets.TMapInlineBits, bits);
         Memory.Write(minimap.Widget + Offsets.MinimapSaveObject, save);
     }
@@ -455,7 +459,6 @@ internal sealed class FakeWorld
             var bucket = (int)(id % bucketCount);
             Memory.Write(node + Offsets.NodeKey, id);
             Memory.Write(node + Offsets.NodeEntity, address);
-            Memory.Write(node + 16, (long)id);
             Memory.Write(node + Offsets.NodeNext, buckets[bucket]);
             buckets[bucket] = node;
             Nodes.Add(node);
@@ -464,12 +467,12 @@ internal sealed class FakeWorld
         var array = Alloc(Math.Max(8, bucketCount * 8));
         Memory.WriteArray(array, buckets);
         Memory.Write(Scene + Offsets.SceneEntityBuckets, array);
-        Memory.Write(Scene + Offsets.SceneEntityBucketCount, (uint)bucketCount);
+        Memory.Write(Scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, (uint)bucketCount);
     }
 
     public long GridAddress { get; private set; }
 
-    public void SetGrid(int cols, int rows, byte[] clearance, int cellSize = 32, double oddRowShift = 16, double originX = 0, double originY = 0, (int BlockW, int BlockH, int BlocksPerRow, byte[] Mask)? hybrid = null, byte[]? secondClearance = null)
+    public void SetGrid(int cols, int rows, byte[] clearance, int cellSize = 32, double originX = 0, double originY = 0, (int BlockW, int BlockH, int BlocksPerRow, byte[] Mask)? hybrid = null, byte[]? secondClearance = null)
     {
         var geometry = Alloc(0x100);
         var module = Alloc(0x100);
@@ -478,7 +481,6 @@ internal sealed class FakeWorld
         Memory.Write(Scene + Offsets.SceneGeometry, geometry);
         Memory.Write(Scene + Offsets.SceneGridModule, module);
         Memory.Write(geometry + Offsets.GeometryCellSize, cellSize);
-        Memory.Write(geometry + Offsets.GeometryOddRowShift, oddRowShift);
         Memory.Write(geometry + Offsets.GeometryOriginX, originX);
         Memory.Write(geometry + Offsets.GeometryOriginY, originY);
         Memory.Write(GridAddress + Offsets.HybridCols, cols);

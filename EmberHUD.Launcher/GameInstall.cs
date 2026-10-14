@@ -7,7 +7,11 @@ public sealed record GameInstall(string Folder, int? Build)
 {
     public string Binaries => Path.Combine(Folder, "Game", "UE_game", "Binaries", "Win64");
 
-    public string Exe => Path.Combine(Binaries, "torchlight_infinite.exe");
+    public const string ExeName = "torchlight_infinite.exe";
+
+    public const string DefaultFolder = @"C:\Program Files (x86)\Torchlight Infinite";
+
+    public string Exe => Path.Combine(Binaries, ExeName);
 
     string Saved => Path.Combine(Folder, "Game", "UE_game", "Torchlight", "Saved", "PersistentDownloadDir");
 
@@ -19,7 +23,7 @@ public sealed record GameInstall(string Folder, int? Build)
     }
 
     public static GameInstall? Find(string configured, string? registered) =>
-        configured.Length > 0 ? At(configured) : At(registered ?? "") ?? At(@"C:\Program Files (x86)\Torchlight Infinite");
+        configured.Length > 0 ? At(configured) : At(registered ?? "") ?? At(DefaultFolder);
 
     public static string? Registered()
     {

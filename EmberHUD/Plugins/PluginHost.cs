@@ -12,13 +12,15 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     readonly string _config = Path.Combine(root, "Config");
     readonly string _cache = Path.Combine(root, "Cache");
     readonly List<PluginSlot> _slots = [];
+    PluginSlot[] _renderOrder = [];
     readonly ConcurrentQueue<(PluginSlot Slot, CompileResult Result)> _compiled = new();
     readonly Dictionary<string, string> _written = new() { [Path.Combine(root, "Config", "sdk.json")] = SettingsJson.Serialize(sdk) };
     readonly Dictionary<string, string> _warned = [];
     readonly Dictionary<PluginSlot, FileSystemWatcher> _watchers = [];
-    long _savedAt = Environment.TickCount64;
     readonly HashSet<PluginSlot> _watchFailed = [];
     bool _warnedCache;
+
+    internal long SavedAt = Environment.TickCount64;
 
     internal MethodInfo? ClearSerializerCache { get; set; } = typeof(JsonSerializerOptions).Assembly.GetType("System.Text.Json.JsonSerializerOptionsUpdateHandler")?.GetMethod("ClearCache", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 
@@ -36,6 +38,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             _slots.Add(slot);
             StartCompile(slot);
         }
+        SortForRender();
     }
 
     public void TickAll()
@@ -53,15 +56,16 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
                 plugin.DispatchHotkeys();
                 plugin.Tick();
             });
-        if (Environment.TickCount64 - _savedAt >= 2000) SaveAll();
+        if (Environment.TickCount64 - SavedAt >= 2000) SaveAll();
     }
 
     public void RenderAll()
     {
         var inFrame = InFrame();
         if (inFrame) Draw.SplitLayers();
-        foreach (var slot in _slots.Where(slot => slot.Enabled).OrderBy(slot => slot.Order).ThenBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase))
-            Call(slot, PluginStage.Render, plugin => plugin.Render());
+        foreach (var slot in _renderOrder)
+            if (slot.Enabled)
+                Call(slot, PluginStage.Render, plugin => plugin.Render());
         if (inFrame) Draw.MergeLayers();
     }
 
@@ -81,7 +85,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
 
     public void SaveAll()
     {
-        _savedAt = Environment.TickCount64;
+        SavedAt = Environment.TickCount64;
         foreach (var slot in _slots) SyncHotkeys(slot);
         foreach (var slot in _slots)
             if (slot.Instance?.SettingsObject is { } settings) Guard(slot, PluginStage.Settings, () => Write(SettingsPath(slot), SettingsJson.Serialize(settings)));
@@ -108,7 +112,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     public void WriteDefaults(PluginSlot slot)
     {
         if (slot.Instance?.SettingsObject is not { } settings) return;
-        var path = Path.Combine(slot.Directory, "defaults.json");
+        var path = DefaultsPath(slot.Directory);
         _written.Remove(path);
         if (Write(path, SettingsJson.Serialize(settings))) Log.Info($"{slot.Name} - wrote {path}");
     }
@@ -223,22 +227,23 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         Guard(slot, PluginStage.Initialize, () =>
         {
             using var stream = new MemoryStream(bytes);
-            var types = context.LoadFromStream(stream).GetTypes().Where(type => type.IsSubclassOf(typeof(Plugin)) && !type.IsAbstract).ToList();
-            if (types.Count != 1) throw new InvalidOperationException($"found {types.Count} Plugin subclasses, expected one");
-            var plugin = (Plugin)Activator.CreateInstance(types[0])!;
+            var plugin = (Plugin)Activator.CreateInstance(FindPluginType(context.LoadFromStream(stream).GetTypes()))!;
             plugin.Name = slot.Name;
             plugin.Directory = slot.Directory;
             LoadSettings(slot, plugin, ReadText(SettingsPath(slot)));
             slot.Order = plugin.Order;
             slot.Instance = plugin;
         });
+        SortForRender();
         if (slot.Enabled) Enable(slot);
     }
+
+    void SortForRender() => _renderOrder = [.. _slots.OrderBy(slot => slot.Order).ThenBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase)];
 
     void LoadSettings(PluginSlot slot, Plugin plugin, string? user)
     {
         if (plugin.SettingsType is not { } type) return;
-        var settings = SettingsJson.Load(type, ReadText(Path.Combine(slot.Directory, "defaults.json")), user, problem => Log.Warn($"{slot.Name} settings - {problem}"));
+        var settings = SettingsJson.Load(type, ReadDefaults(slot.Directory), user, problem => Log.Warn($"{slot.Name} settings - {problem}"));
         plugin.SettingsObject = settings;
         _written[SettingsPath(slot)] = user ?? SettingsJson.Serialize(settings);
     }
@@ -313,7 +318,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         catch (Exception ex)
         {
-            Log.Warn($"serializer cache clear failed - {(ex as TargetInvocationException)?.InnerException?.Message ?? ex.Message}");
+            Log.Warn($"serializer cache clear failed - {Unwrap(ex).Message}");
         }
     }
 
@@ -344,7 +349,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         catch (Exception ex)
         {
-            if (ex is TargetInvocationException { InnerException: { } inner }) ex = inner;
+            ex = Unwrap(ex);
             if (slot.ErrorStage is null)
             {
                 slot.ErrorStage = stage;
@@ -387,6 +392,18 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
     }
 
     string SettingsPath(PluginSlot slot) => Path.Combine(_config, "Plugins", slot.Name + ".json");
+
+    public static Type FindPluginType(IEnumerable<Type> types)
+    {
+        var found = types.Where(type => type.IsSubclassOf(typeof(Plugin)) && !type.IsAbstract).ToList();
+        return found.Count == 1 ? found[0] : throw new InvalidOperationException($"found {found.Count} Plugin subclasses, expected one");
+    }
+
+    public static string DefaultsPath(string directory) => Path.Combine(directory, "defaults.json");
+
+    public static string? ReadDefaults(string directory) => ReadText(DefaultsPath(directory));
+
+    public static Exception Unwrap(Exception ex) => ex is TargetInvocationException { InnerException: { } inner } ? inner : ex;
 
     static string? ReadText(string path) => File.Exists(path) ? File.ReadAllText(path) : null;
 }

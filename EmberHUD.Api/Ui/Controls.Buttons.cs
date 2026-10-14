@@ -24,7 +24,7 @@ public static partial class Controls
         return clicked;
     }
 
-    public static int GroupCount(int n) => n < 2 ? 0 : Math.Min(n, 5);
+    internal static int GroupCount(int n) => n < 2 ? 0 : Math.Min(n, 5);
 
     public static int ButtonGroup(string id, GroupButton[]? buttons, int selected = -1, IconSheet[]? sheets = null, float iconSize = 16f, bool desaturate = false)
     {
@@ -144,7 +144,7 @@ public static partial class Controls
         return hit;
     }
 
-    public static float SplitPrimaryWidth(float total, float arrow, float gap = 0f) =>
+    internal static float SplitPrimaryWidth(float total, float arrow, float gap = 0f) =>
         Math.Max(total - arrow - gap, 1f);
 
     public static bool SplitButton(string label, string?[]? menu, out int picked, string? id = null, float width = 0f)
@@ -179,7 +179,7 @@ public static partial class Controls
 
     const float SubScale = 0.85f;
 
-    public static float CompoundHeight(float topH, float subH, float gap, float iconSize, float padY) =>
+    internal static float CompoundHeight(float topH, float subH, float gap, float iconSize, float padY) =>
         Math.Max(topH + (subH > 0f ? gap + subH : 0f), iconSize) + padY * 2;
 
     public static bool CompoundButton(GroupButton b, string? secondary, IconSheet[]? sheets = null, float iconSize = 24f, float width = 0f, string? id = null)
@@ -229,7 +229,7 @@ public static partial class Controls
         return clicked;
     }
 
-    public static int FitItems(float[]? widths, float avail, float spacing, float overflowW)
+    internal static int FitItems(float[]? widths, float avail, float spacing, float overflowW)
     {
         if (widths is null || widths.Length == 0) return 0;
         float all = 0f;

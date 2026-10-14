@@ -10,31 +10,29 @@ namespace Minimap;
 
 public sealed class SettingsTests
 {
-    static Entity Of(EntityKind kind, Rarity rarity = Rarity.Normal) => new(1, 1000, Vector3.Zero, kind, rarity);
-
     static MapIcon Icon(string texture, string name = "", int type = 1, int entity = 0) => new(type, texture, Vector2.Zero, 1, 0, entity) { Name = name };
 
     [Test]
     public void MonstersPickTheFixedRowOfTheirRarity()
     {
         var s = new Settings();
-        Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Normal))));
-        Check.That(ReferenceEquals(s.Icons.MagicMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Magic))));
-        Check.That(ReferenceEquals(s.Icons.RareMonsters, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Rare))));
-        Check.That(ReferenceEquals(s.Icons.Bosses, s.Icons.FixedFor(Of(EntityKind.Monster, Rarity.Boss))));
+        Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Normal))));
+        Check.That(ReferenceEquals(s.Icons.MagicMonsters, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Magic))));
+        Check.That(ReferenceEquals(s.Icons.RareMonsters, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Rare))));
+        Check.That(ReferenceEquals(s.Icons.Bosses, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Boss))));
     }
 
     [Test]
     public void OtherKindsMapToTheirFixedRowOrNone()
     {
         var s = new Settings();
-        Check.That(ReferenceEquals(s.Icons.Minions, s.Icons.FixedFor(Of(EntityKind.Ally))));
-        Check.That(ReferenceEquals(s.Icons.OtherPlayers, s.Icons.FixedFor(Of(EntityKind.Player))));
-        Check.That(ReferenceEquals(s.Icons.Npcs, s.Icons.FixedFor(Of(EntityKind.Npc))));
-        Check.That(ReferenceEquals(s.Icons.MapObjects, s.Icons.FixedFor(Of(EntityKind.MapObject))));
-        Check.That(ReferenceEquals(s.Icons.Destructibles, s.Icons.FixedFor(Of(EntityKind.Destructible))));
+        Check.That(ReferenceEquals(s.Icons.Minions, s.Icons.FixedFor(Scene.Entity(EntityKind.Ally, Vector3.Zero))));
+        Check.That(ReferenceEquals(s.Icons.OtherPlayers, s.Icons.FixedFor(Scene.Entity(EntityKind.Player, Vector3.Zero))));
+        Check.That(ReferenceEquals(s.Icons.Npcs, s.Icons.FixedFor(Scene.Entity(EntityKind.Npc, Vector3.Zero))));
+        Check.That(ReferenceEquals(s.Icons.MapObjects, s.Icons.FixedFor(Scene.Entity(EntityKind.MapObject, Vector3.Zero))));
+        Check.That(ReferenceEquals(s.Icons.Destructibles, s.Icons.FixedFor(Scene.Entity(EntityKind.Destructible, Vector3.Zero))));
         foreach (var kind in new[] { EntityKind.Portal, EntityKind.Interactive, EntityKind.Coffin, EntityKind.Altar, EntityKind.Elevator })
-            Check.That(s.Icons.FixedFor(Of(kind)) is null, kind.ToString());
+            Check.That(s.Icons.FixedFor(Scene.Entity(kind, Vector3.Zero)) is null, kind.ToString());
     }
 
     [Test]

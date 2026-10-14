@@ -55,11 +55,5 @@
     "HeaderActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" },
     "SliderGrabActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF" },
     "HeaderHovered": { "Top": "#FFDC80FF", "Bottom": "#C98F17FF", "Highlight": "#FFEDB8FF", "Text": "#2A2C30FF" }
-  },
-  "Fonts": {
-    "Regular": { "File": "NotoSans-Regular.ttf", "Size": 15 },
-    "Bold": { "File": "NotoSans-SemiBold.ttf", "Size": 16 },
-    "Label": { "File": "Rajdhani-SemiBold.ttf", "Size": 16 },
-    "Mono": { "File": "JetBrainsMono-Regular.ttf", "Size": 15 }
   }
 }

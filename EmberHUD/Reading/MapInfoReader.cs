@@ -23,7 +23,6 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         .ToDictionary(s => s.Class);
 
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
-    private readonly FightMapReader _maps = new(memory);
     private readonly record struct SeenStatue(StatueSpec Spec, ContentState State, int Absent);
 
     private readonly Dictionary<int, SeenStatue> _statuesSeen = [];
@@ -73,7 +72,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         if (memory.TryReadPtr(moduleBase + Offsets.FightMgrGlobalRva, out var fightMgr) && fightMgr != 0)
         {
             HashSet<int> present = [];
-            foreach (var (id, entity) in _maps.Read(fightMgr + Offsets.FightMapGamePlay))
+            foreach (var (id, entity) in memory.ReadTMapPointers(fightMgr + Offsets.FightMapGamePlay))
                 if (ClassName(entity) is { } cls && StatueSpecs.TryGetValue(cls, out var spec))
                 {
                     present.Add(id);
@@ -91,7 +90,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
     }
 
     private bool IsActive(StatueSpec spec, nint entity) =>
-        spec.Component != "" && _maps.Read(entity + Offsets.EntityComponents).Any(c => ClassName(c.Value) == spec.Component && memory.TryRead(c.Value + spec.ActiveOffset, out byte on) && on != 0);
+        spec.Component != "" && memory.ReadTMapPointers(entity + Offsets.EntityComponents).Any(c => ClassName(c.Value) == spec.Component && memory.TryRead(c.Value + spec.ActiveOffset, out byte on) && on != 0);
 
     private string? ClassName(nint obj) =>
         memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && cls != 0 && memory.TryRead(cls + Offsets.UObjectName, out uint index) && tryName(index, out var text) ? text : null;
@@ -166,9 +165,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
     private bool TryVar(nint record, string name, out int value)
     {
         value = 0;
-        if (!memory.TryRead(record + Offsets.GameplayVarBucketCount, out int bucketCount) || bucketCount <= 0 || bucketCount > Offsets.MaxVarBuckets ||
-            !memory.TryReadPtr(record + Offsets.GameplayVarBuckets, out var buckets) || buckets == 0 ||
-            !memory.TryReadArray(buckets, bucketCount, out nint[] heads))
+        if (!memory.TryReadBuckets(record + Offsets.GameplayVarBuckets + Offsets.HashBucketCount, record + Offsets.GameplayVarBuckets, Offsets.MaxVarBuckets, out var heads))
             return false;
 
         var prefix = name + "_";

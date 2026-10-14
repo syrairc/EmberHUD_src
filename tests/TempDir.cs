@@ -1,8 +1,6 @@
-namespace EmberHUD.Setup.Tests;
-
 internal sealed class TempDir : IDisposable
 {
-    public string Path { get; } = Directory.CreateTempSubdirectory("emberhud-setup-").FullName;
+    public string Path { get; } = Directory.CreateTempSubdirectory("emberhud-test-").FullName;
 
     public string File(string relative, string content = "")
     {

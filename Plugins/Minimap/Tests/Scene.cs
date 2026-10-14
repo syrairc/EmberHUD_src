@@ -6,12 +6,14 @@ namespace Minimap;
 
 public static class Scene
 {
-    public static Terrain Cells(int cols, int rows, bool shift, params (int col, int row)[] walkable)
+    public static Terrain Cells(int cols, int rows, params (int col, int row)[] walkable)
     {
         var bits = new BitArray(cols * rows);
         foreach (var (col, row) in walkable) bits[row * cols + col] = true;
-        return new Terrain(cols, rows, 10f, Vector2.Zero, shift, bits);
+        return new Terrain(cols, rows, 10f, Vector2.Zero, bits);
     }
+
+    public static Terrain OneCell() => Cells(3, 3, (1, 1));
 
     public static Entity Entity(EntityKind kind, Vector3 at, Rarity rarity = Rarity.Normal) => new(1, 1000, at, kind, rarity);
 

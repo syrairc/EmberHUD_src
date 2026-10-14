@@ -51,9 +51,12 @@ public readonly record struct MapView
         var unit = new MapView(Vector2.Zero, 1, rotationDegrees, verticalScale);
         if (size.X <= 0 || size.Y <= 0 || room.X <= 0 || room.Y <= 0 || !unit.IsValid()) return default;
 
-        var corners = new[] { min, new Vector2(max.X, min.Y), new Vector2(min.X, max.Y), max }.Select(unit.ToScreenDirection).ToArray();
-        var low = corners.Aggregate(Vector2.Min);
-        var high = corners.Aggregate(Vector2.Max);
+        var a = unit.ToScreenDirection(min);
+        var b = unit.ToScreenDirection(new Vector2(max.X, min.Y));
+        var c = unit.ToScreenDirection(new Vector2(min.X, max.Y));
+        var d = unit.ToScreenDirection(max);
+        var low = Vector2.Min(Vector2.Min(a, b), Vector2.Min(c, d));
+        var high = Vector2.Max(Vector2.Max(a, b), Vector2.Max(c, d));
         var scale = MathF.Min(room.X / (high.X - low.X), room.Y / (high.Y - low.Y));
         return new MapView(viewport / 2 - (low + high) / 2 * scale, scale, rotationDegrees, verticalScale);
     }

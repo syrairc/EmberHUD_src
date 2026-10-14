@@ -8,37 +8,6 @@ public class CardTests
     static float Luma(Vector4 c) => c.X * 0.299f + c.Y * 0.587f + c.Z * 0.114f;
 
     [Fact]
-    public void ADarkThemeRaisesToALighterSurface() => Assert.True(Card.Raise(new Vector4(0.1f, 0.1f, 0.1f, 1f), 0.05f).X > 0.1f);
-
-    [Fact]
-    public void ALightThemeRaisesToADarkerSurface() => Assert.True(Card.Raise(new Vector4(0.9f, 0.9f, 0.9f, 1f), 0.05f).X < 0.9f);
-
-    [Fact]
-    public void RaiseKeepsAlpha() => Assert.Equal(0.5f, Card.Raise(new Vector4(0f, 0f, 0f, 0.5f), 0.05f).W);
-
-    [Fact]
-    public void RaiseClampsDown() => Assert.Equal(0.5f, Card.Raise(new Vector4(1f, 1f, 1f, 1f), 0.5f).X);
-
-    [Fact]
-    public void RaiseClampsUp() => Assert.Equal(1f, Card.Raise(new Vector4(0f, 0f, 0f, 1f), 2f).X);
-
-    [Fact]
-    public void RaiseClampsEveryChannelAtZeroOnALightThemeAndAtOneOnADarkOne()
-    {
-        Assert.Equal(new Vector4(0f, 0f, 0f, 1f), Card.Raise(new Vector4(0.9f, 0.9f, 0.9f, 1f), 2f));
-        Assert.Equal(new Vector4(1f, 1f, 1f, 1f), Card.Raise(new Vector4(0.1f, 0.1f, 0.1f, 1f), 2f));
-    }
-
-    [Fact]
-    public void RaiseMovesEveryChannelByTheSameAmount()
-    {
-        var raised = Card.Raise(new Vector4(0.1f, 0.2f, 0.3f, 1f), 0.05f);
-        Assert.Equal(0.15f, raised.X, 0.0001f);
-        Assert.Equal(0.25f, raised.Y, 0.0001f);
-        Assert.Equal(0.35f, raised.Z, 0.0001f);
-    }
-
-    [Fact]
     public void AFilledCardClearsACollidingFrameBg()
     {
         var frame = new Vector4(0.17f, 0.17f, 0.17f, 1f);
@@ -51,7 +20,8 @@ public class CardTests
     {
         var window = new Vector4(0.12f, 0.12f, 0.12f, 1f);
         var fill = Card.SurfaceFill(window, new Vector4(0.02f, 0.02f, 0.02f, 1f));
-        Assert.True(Math.Abs(Luma(fill) - Luma(Card.Raise(window, 0.055f))) < 0.001f);
+        Assert.True(Luma(fill) > Luma(window));
+        Assert.Equal(fill, Card.SurfaceFill(window, new Vector4(0f, 0f, 0f, 1f)));
     }
 
     [Fact]
@@ -109,98 +79,36 @@ public class CardTests
 
     const string Window = "card";
 
-    static int _ids;
+    readonly float FrameHeight = UiFrame.Measure(() => ImGui.GetFrameHeight());
 
-    static string NextId(string prefix) => prefix + Interlocked.Increment(ref _ids);
+    readonly float FontSize = UiFrame.Measure(() => ImGui.GetFontSize());
 
-    static T Metric<T>(Func<T> read)
-    {
-        T value = default!;
-        UiFrame.Run(Window, () => value = read());
-        return value;
-    }
+    readonly Vector2 Spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing);
 
-    readonly float FrameHeight = Metric(() => ImGui.GetFrameHeight());
+    readonly Vector2 Padding = UiFrame.Measure(() => ImGui.GetStyle().FramePadding);
 
-    readonly float FontSize = Metric(() => ImGui.GetFontSize());
+    readonly float BaseAlpha = UiFrame.Measure(() => ImGui.GetStyle().Alpha);
 
-    readonly Vector2 Spacing = Metric(() => ImGui.GetStyle().ItemSpacing);
+    readonly float ChildRounding = UiFrame.Measure(() => ImGui.GetStyle().ChildRounding);
 
-    readonly Vector2 Padding = Metric(() => ImGui.GetStyle().FramePadding);
+    readonly Vector2 WindowPadding = UiFrame.Measure(() => ImGui.GetStyle().WindowPadding);
 
-    readonly float BaseAlpha = Metric(() => ImGui.GetStyle().Alpha);
+    readonly Vector4 ChildBg = UiFrame.Measure(() => ImGui.GetStyle().Colors[(int)ImGuiCol.ChildBg]);
 
-    readonly float ChildRounding = Metric(() => ImGui.GetStyle().ChildRounding);
+    readonly Vector4 WindowBg = UiFrame.Measure(() => ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg]);
 
-    readonly Vector2 WindowPadding = Metric(() => ImGui.GetStyle().WindowPadding);
-
-    readonly Vector4 ChildBg = Metric(() => ImGui.GetStyle().Colors[(int)ImGuiCol.ChildBg]);
-
-    readonly Vector4 WindowBg = Metric(() => ImGui.GetStyle().Colors[(int)ImGuiCol.WindowBg]);
-
-    readonly Vector4 FrameBg = Metric(() => ImGui.GetStyle().Colors[(int)ImGuiCol.FrameBg]);
+    readonly Vector4 FrameBg = UiFrame.Measure(() => ImGui.GetStyle().Colors[(int)ImGuiCol.FrameBg]);
 
     static void Frames(Action body)
     {
         for (var i = 0; i < 3; i++) UiFrame.Run(Window, body);
     }
 
-    static void Settle(Action body)
-    {
-        var io = UiFrame.Io();
-        io.AddMouseButtonEvent(0, false);
-        io.AddMouseButtonEvent(1, false);
-        io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
-        UiFrame.Run(Window, body);
-        UiFrame.Run(Window, body);
-    }
-
-    static void TwoScopes(Action a, Action b)
-    {
-        ImGui.PushID("A");
-        a();
-        ImGui.PopID();
-        ImGui.PushID("B");
-        b();
-        ImGui.PopID();
-    }
-
-    static List<Vector2> UvsBetween(ImDrawListPtr list, int from, int to)
-    {
-        List<Vector2> uvs = [];
-        for (var i = from; i < to; i++) uvs.Add(list.VtxBuffer[i].Uv);
-        return uvs;
-    }
-
-    static List<Vector2> GlyphUvs(string text)
-    {
-        List<Vector2> uvs = [];
-        UiFrame.Run(Window, () =>
-        {
-            var list = ImGui.GetWindowDrawList();
-            var from = list.VtxBuffer.Size;
-            ImGui.TextUnformatted(text);
-            uvs = UvsBetween(list, from, list.VtxBuffer.Size);
-        });
-        return uvs;
-    }
-
-    static List<Vector2>? ActiveTooltipUvs()
-    {
-        var windows = ImGui.GetCurrentContext().Windows;
-        for (var i = 0; i < windows.Size; i++)
-        {
-            var window = windows[i];
-            if (window.Active && (window.Flags & ImGuiWindowFlags.Tooltip) != 0) return UvsBetween(window.DrawList, 0, window.DrawList.VtxBuffer.Size);
-        }
-        return null;
-    }
-
     static bool EndsWith(List<Vector2> all, List<Vector2> tail) => all.Count >= tail.Count && all.Skip(all.Count - tail.Count).SequenceEqual(tail);
 
     sealed class SurfaceRig
     {
-        public string Id = NextId("surface");
+        public string Id = UiFrame.NextId("surface");
         public CardLook Look = CardLook.Filled;
         public float Width;
         public float Padding = 10f;
@@ -271,7 +179,7 @@ public class CardTests
     {
         var a = new SurfaceRig();
         var b = new SurfaceRig { Id = a.Id };
-        UiFrame.Run(Window, () => TwoScopes(a.Draw, b.Draw));
+        UiFrame.Run(Window, () => UiFrame.TwoScopes(a.Draw, b.Draw));
         Assert.NotEqual(a.ProbeInside, b.ProbeInside);
     }
 
@@ -351,15 +259,15 @@ public class CardTests
     [Fact]
     public void HeaderActionSitsFlushWithTheCardsInnerRightEdge()
     {
-        var info = DrawHeader(NextId("flush"), "Title", null, () => ImGui.Button("act"));
+        var info = DrawHeader(UiFrame.NextId("flush"), "Title", null, () => ImGui.Button("act"));
         Assert.Equal(info.WorkRight, info.ActionRight, 0.5f);
     }
 
     [Fact]
     public void HeaderActionsOfDifferentWidthsInDifferentCardsAreEachFlush()
     {
-        var narrow = DrawHeader(NextId("narrow"), "A", null, () => ImGui.Button("x"));
-        var wide = DrawHeader(NextId("wide"), "B", null, () => ImGui.Button("a much longer label"));
+        var narrow = DrawHeader(UiFrame.NextId("narrow"), "A", null, () => ImGui.Button("x"));
+        var wide = DrawHeader(UiFrame.NextId("wide"), "B", null, () => ImGui.Button("a much longer label"));
         Assert.Equal(narrow.WorkRight, narrow.ActionRight, 0.5f);
         Assert.Equal(wide.WorkRight, wide.ActionRight, 0.5f);
     }
@@ -368,7 +276,7 @@ public class CardTests
     public void TheSameCardIdUnderTwoScopesKeepsEachHeadersOwnActionWidth()
     {
         float a = 0, b = 0, workA = 0, workB = 0;
-        var id = NextId("scoped");
+        var id = UiFrame.NextId("scoped");
         SurfaceRig Make(Action action, Action<float, float> record) => new()
         {
             Id = id,
@@ -382,7 +290,7 @@ public class CardTests
         };
         var first = Make(() => ImGui.Button("x"), (r, w) => (a, workA) = (r, w));
         var second = Make(() => ImGui.Button("a much longer label"), (r, w) => (b, workB) = (r, w));
-        for (var i = 0; i < 3; i++) UiFrame.Run(Window, () => TwoScopes(first.Draw, second.Draw));
+        for (var i = 0; i < 3; i++) UiFrame.Run(Window, () => UiFrame.TwoScopes(first.Draw, second.Draw));
         Assert.Equal(workA, a, 0.5f);
         Assert.Equal(workB, b, 0.5f);
     }
@@ -422,10 +330,10 @@ public class CardTests
     [Fact]
     public void HeaderWithoutDescriptionOrWithAnEmptyOneDrawsOnlyTheTitleLineAndADescriptionAddsOne()
     {
-        var oneLine = DrawHeader(NextId("h"), "Title", null, null);
-        var empty = DrawHeader(NextId("h"), "Title", "", null);
-        var noTitle = DrawHeader(NextId("h"), null, null, null);
-        var described = DrawHeader(NextId("h"), "Title", "desc", null);
+        var oneLine = DrawHeader(UiFrame.NextId("h"), "Title", null, null);
+        var empty = DrawHeader(UiFrame.NextId("h"), "Title", "", null);
+        var noTitle = DrawHeader(UiFrame.NextId("h"), null, null, null);
+        var described = DrawHeader(UiFrame.NextId("h"), "Title", "desc", null);
         Assert.Equal(FontSize + Spacing.Y, oneLine.Bottom - oneLine.Top, 0.01f);
         Assert.Equal(oneLine.Bottom - oneLine.Top, empty.Bottom - empty.Top, 0.01f);
         Assert.Equal(oneLine.Bottom - oneLine.Top, noTitle.Bottom - noTitle.Top, 0.01f);
@@ -478,8 +386,8 @@ public class CardTests
     public void HeaderDescriptionWrapsAtTheCardsInnerEdge()
     {
         var longText = string.Join(' ', Enumerable.Repeat("wrapping words", 40));
-        var wrapped = DrawHeader(NextId("w"), "T", longText, null, 200f);
-        var oneLine = DrawHeader(NextId("w"), "T", "short", null, 200f);
+        var wrapped = DrawHeader(UiFrame.NextId("w"), "T", longText, null, 200f);
+        var oneLine = DrawHeader(UiFrame.NextId("w"), "T", "short", null, 200f);
         Assert.True(wrapped.CardHeight > oneLine.CardHeight + 2 * FontSize);
     }
 
@@ -520,7 +428,7 @@ public class CardTests
 
     sealed class CardRig
     {
-        public string Id = NextId("card");
+        public string Id = UiFrame.NextId("card");
         public string Title = "Title";
         public bool? SetOpen;
         public bool DefaultOpen;
@@ -593,7 +501,7 @@ public class CardTests
     {
         var a = new CardRig();
         var b = new CardRig { Id = a.Id };
-        UiFrame.Run(Window, () => TwoScopes(a.Draw, b.Draw));
+        UiFrame.Run(Window, () => UiFrame.TwoScopes(a.Draw, b.Draw));
         Assert.NotEqual(a.ProbeInside, b.ProbeInside);
     }
 
@@ -625,7 +533,7 @@ public class CardTests
             UiFrame.Click(Window, CardHeader(rig), rig.Draw);
             Assert.False(rig.Open);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -642,7 +550,7 @@ public class CardTests
             UiFrame.Run(Window, rig.Draw);
             Assert.True(rig.Open);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -673,7 +581,7 @@ public class CardTests
             open.Draw();
             closed.Draw();
         });
-        Assert.Equal(8f, open.BodyStart.X - closed.BodyStart.X);
+        Assert.Equal(Card.BodyIndent, open.BodyStart.X - closed.BodyStart.X);
         Assert.Equal(open.Origin.X, open.CursorAfter.X);
         Assert.Equal(closed.Origin.X, closed.CursorAfter.X);
     }
@@ -703,7 +611,7 @@ public class CardTests
         Frames(outer.Draw);
         Assert.Equal(outer.Origin.X, outer.CursorAfter.X);
         Assert.Equal(inner.Origin.X, inner.CursorAfter.X);
-        Assert.Equal(outer.Origin.X + 8f, inner.Origin.X);
+        Assert.Equal(outer.Origin.X + Card.BodyIndent, inner.Origin.X);
     }
 
     float TrailingRight;
@@ -726,7 +634,7 @@ public class CardTests
     public void EachCardAlignsItsOwnTrailingWidgetsAndTheSameIdUnderTwoScopesDoesToo()
     {
         float narrowRight = 0, wideRight = 0;
-        var id = NextId("trail");
+        var id = UiFrame.NextId("trail");
         var narrow = new CardRig { Id = id, Trailing = () =>
         {
             ImGui.SmallButton("x");
@@ -740,7 +648,7 @@ public class CardTests
         var other = new CardRig { Trailing = Trail("another one") };
         for (var i = 0; i < 3; i++) UiFrame.Run(Window, () =>
         {
-            TwoScopes(narrow.Draw, wide.Draw);
+            UiFrame.TwoScopes(narrow.Draw, wide.Draw);
             other.Draw();
         });
         Assert.Equal(narrow.WorkRight - 6f, narrowRight, 0.5f);
@@ -757,13 +665,13 @@ public class CardTests
         try
         {
             for (var i = 0; i < 3; i++) UiFrame.Run(Window, rig.Draw);
-            var width = Metric(() => ImGui.CalcTextSize("go").X + Padding.X * 2);
+            var width = UiFrame.Measure(() => ImGui.CalcTextSize("go").X + Padding.X * 2);
             at = new Vector2(rig.WorkRight - 6f - width / 2, rig.Origin.Y + 1f + FrameHeight / 2);
             UiFrame.Click(Window, at, rig.Draw);
             Assert.Equal(1, clicks);
             Assert.False(rig.Open);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -781,31 +689,20 @@ public class CardTests
             UiFrame.Run(Window, withMenu.Draw);
             UiFrame.Click(Window, CardHeader(withMenu), withMenu.Draw, button: 1);
             Assert.True(shown > 0);
-            Assert.True(PopupOpen(withMenu.Draw));
+            Assert.True(UiFrame.PopupOpen(Window, withMenu.Draw));
             UiFrame.ClickAway(Window, withMenu.Draw);
-            Assert.False(PopupOpen(withMenu.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, withMenu.Draw));
             UiFrame.Run(Window, withoutMenu.Draw);
             UiFrame.Click(Window, CardHeader(withoutMenu), withoutMenu.Draw, button: 1);
-            Assert.False(PopupOpen(withoutMenu.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, withoutMenu.Draw));
         }
-        finally { UiFrame.ClickAway(Window, withMenu.Draw); Settle(withMenu.Draw); }
-    }
-
-    static bool PopupOpen(Action body)
-    {
-        var open = false;
-        UiFrame.Run(Window, () =>
-        {
-            body();
-            open = ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId);
-        });
-        return open;
+        finally { UiFrame.ClickAway(Window, withMenu.Draw); UiFrame.Settle(Window, withMenu.Draw); }
     }
 
     sealed class ListRig
     {
         public readonly List<string> Items = ["Zq", "Mk", "Ptr"];
-        public string Id = NextId("cardlist");
+        public string Id = UiFrame.NextId("cardlist");
         public AddSource<string>? Add;
         public bool Reorderable;
         public bool Confirm;
@@ -845,7 +742,7 @@ public class CardTests
             ProbeAfter = ImGui.GetID("probe");
             var modal = ImGuiP.FindWindowByName("Delete?##eidel");
             if (!modal.IsNull) ModalPos = modal.Pos;
-            Tooltip = ActiveTooltipUvs() ?? Tooltip;
+            Tooltip = UiFrame.ActiveTooltipUvs() ?? Tooltip;
         }
 
         bool Body(string item, int index)
@@ -880,12 +777,12 @@ public class CardTests
         try
         {
             UiFrame.Run(Window, rig.Draw);
-            var width = Metric(() => ImGui.CalcTextSize("+ Add").X + Padding.X * 2);
+            var width = UiFrame.Measure(() => ImGui.CalcTextSize("+ Add").X + Padding.X * 2);
             UiFrame.Click(Window, rig.Origin + new Vector2(width / 2, FrameHeight / 2), rig.Draw);
             Assert.Equal(["Zq", "Mk", "Ptr", "new"], rig.Items);
             Assert.Equal(1, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -902,7 +799,7 @@ public class CardTests
             UiFrame.Click(Window, HeaderAt(rig, 1), rig.Draw);
             Assert.Empty(rig.Bodies);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -920,7 +817,7 @@ public class CardTests
             UiFrame.Click(Window, HeaderAt(editing, 0), editing.Draw);
             Assert.True(editing.Returns > 0);
         }
-        finally { Settle(quiet.Draw); Settle(editing.Draw); }
+        finally { UiFrame.Settle(Window, quiet.Draw); UiFrame.Settle(Window, editing.Draw); }
     }
 
     [Fact]
@@ -949,7 +846,7 @@ public class CardTests
             Assert.Equal(ImGui.GetStyle().IndentSpacing, bodyX);
             Assert.Equal(rig.Origin.X, afterX);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Theory]
@@ -967,7 +864,7 @@ public class CardTests
             Assert.Equal(expected, rig.Items);
             Assert.Equal(1, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -981,17 +878,12 @@ public class CardTests
             Assert.Equal(0, rig.Returns);
             Assert.Empty(rig.Bodies);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     readonly UiFrame.ModalMetrics Modal = UiFrame.ReadModalMetrics();
 
     Vector2 ModalButton(ListRig rig, bool confirm) => UiFrame.ConfirmModalButton(rig.ModalPos, confirm, Modal);
-
-    void CloseModal(ListRig rig)
-    {
-        for (var i = 0; i < 2 && PopupOpen(rig.Draw); i++) UiFrame.Click(Window, ModalButton(rig, false), rig.Draw);
-    }
 
     [Fact]
     public void ListConfirmDeleteAsksFirstAndConfirmRemovesTheClickedRow()
@@ -1001,15 +893,15 @@ public class CardTests
         {
             UiFrame.Run(Window, rig.Draw);
             UiFrame.Click(Window, XButton(rig, 1), rig.Draw);
-            Assert.True(PopupOpen(rig.Draw));
+            Assert.True(UiFrame.PopupOpen(Window, rig.Draw));
             Assert.Equal(3, rig.Items.Count);
             Assert.Equal(0, rig.Returns);
             UiFrame.Click(Window, ModalButton(rig, true), rig.Draw);
             Assert.Equal(["Zq", "Ptr"], rig.Items);
             Assert.Equal(1, rig.Returns);
-            Assert.False(PopupOpen(rig.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, rig.Draw));
         }
-        finally { CloseModal(rig); Settle(rig.Draw); }
+        finally { UiFrame.CloseModal(Window, rig.Draw, () => ModalButton(rig, false)); UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1020,13 +912,13 @@ public class CardTests
         {
             UiFrame.Run(Window, rig.Draw);
             UiFrame.Click(Window, XButton(rig, 0), rig.Draw);
-            Assert.True(PopupOpen(rig.Draw));
+            Assert.True(UiFrame.PopupOpen(Window, rig.Draw));
             UiFrame.Click(Window, ModalButton(rig, false), rig.Draw);
             Assert.Equal(["Zq", "Mk", "Ptr"], rig.Items);
             Assert.Equal(0, rig.Returns);
-            Assert.False(PopupOpen(rig.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, rig.Draw));
         }
-        finally { CloseModal(rig); Settle(rig.Draw); }
+        finally { UiFrame.CloseModal(Window, rig.Draw, () => ModalButton(rig, false)); UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1043,14 +935,14 @@ public class CardTests
         {
             UiFrame.Run(Window, Body);
             UiFrame.Click(Window, XButton(owner, 1), Body);
-            Assert.True(PopupOpen(Body));
+            Assert.True(UiFrame.PopupOpen(Window, Body));
             UiFrame.Click(Window, ModalButton(owner, true), Body);
             Assert.Equal(["Zq", "Ptr"], owner.Items);
             Assert.Equal(["Zq", "Mk", "Ptr"], other.Items);
             Assert.Equal(1, owner.Returns);
             Assert.Equal(0, other.Returns);
         }
-        finally { CloseModal(owner); Settle(Body); }
+        finally { UiFrame.CloseModal(Window, owner.Draw, () => ModalButton(owner, false)); UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -1061,9 +953,9 @@ public class CardTests
         {
             UiFrame.Run(Window, rig.Draw);
             UiFrame.Click(Window, XButton(rig, 0), rig.Draw);
-            Assert.False(PopupOpen(rig.Draw));
+            Assert.False(UiFrame.PopupOpen(Window, rig.Draw));
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1082,7 +974,7 @@ public class CardTests
             Assert.Equal(["Zq", "Mk", "Ptr"], rig.Items);
             Assert.Equal(2, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1097,7 +989,7 @@ public class CardTests
             Assert.Equal(0, rig.Returns);
             Assert.Null(rig.Tooltip);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1115,7 +1007,7 @@ public class CardTests
             Assert.Equal(["Zq", "Mk", "Ptr"], rig.Items);
             Assert.Equal(0, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1138,7 +1030,7 @@ public class CardTests
             Assert.Equal(["Zq", "Mk", "Ptr"], rig.Items);
             Assert.Equal(0, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1158,7 +1050,7 @@ public class CardTests
             Assert.Equal(["Zq", "Mk", "Ptr"], rig.Items);
             Assert.Equal(0, rig.Returns);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1180,7 +1072,7 @@ public class CardTests
     {
         var a = new ListRig { Reorderable = true };
         var b = new ListRig { Id = a.Id, Reorderable = true };
-        void Body() => TwoScopes(a.Draw, b.Draw);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1191,7 +1083,7 @@ public class CardTests
             Assert.Equal(1, a.Returns);
             Assert.Equal(0, b.Returns);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -1199,7 +1091,7 @@ public class CardTests
     {
         var a = new ListRig { Reorderable = true };
         var b = new ListRig { Id = a.Id, Reorderable = true };
-        void Body() => TwoScopes(a.Draw, b.Draw);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1212,14 +1104,14 @@ public class CardTests
             Assert.Equal(["Zq", "Mk", "Ptr"], b.Items);
             Assert.Equal(0, a.Returns + b.Returns);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
     public void ListDragTooltipShowsTheDraggedRowsLabelOnlyWhenReorderable()
     {
-        var draggedLabel = GlyphUvs("Mk");
-        var otherLabel = GlyphUvs("Zq");
+        var draggedLabel = UiFrame.GlyphUvs(Window, "Mk");
+        var otherLabel = UiFrame.GlyphUvs(Window, "Zq");
         var rig = new ListRig { Reorderable = true };
         try
         {
@@ -1232,13 +1124,13 @@ public class CardTests
             Assert.False(EndsWith(rig.Tooltip, otherLabel));
             UiFrame.Release(Window, rig.Draw);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
     public void ListDragTooltipUsesTheLabelFunctionNotTheItem()
     {
-        var shown = GlyphUvs("Item Mk");
+        var shown = UiFrame.GlyphUvs(Window, "Item Mk");
         var rig = new ListRig { Reorderable = true, Label = s => "Item " + s };
         try
         {
@@ -1250,13 +1142,13 @@ public class CardTests
             Assert.True(EndsWith(rig.Tooltip, shown));
             UiFrame.Release(Window, rig.Draw);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
     public void ADragSourceShowsItsLabelInTheDragTooltipAndWithoutOneShowsNoText()
     {
-        var key = Metric(() => ImGui.GetID("dragsource"));
+        var key = UiFrame.Measure(() => ImGui.GetID("dragsource"));
         var items = new List<string> { "a", "b" };
         List<Vector2>? tooltip = null;
         var origin = Vector2.Zero;
@@ -1268,10 +1160,10 @@ public class CardTests
             ImGui.Button("second");
             ListEditor.DragSourceTarget(key, 1, null);
             ListEditor.ApplyReorder(key, items);
-            tooltip = ActiveTooltipUvs() ?? tooltip;
+            tooltip = UiFrame.ActiveTooltipUvs() ?? tooltip;
         }
-        var shown = GlyphUvs("Zq");
-        var buttonWidth = Metric(() => ImGui.CalcTextSize("first").X + Padding.X * 2);
+        var shown = UiFrame.GlyphUvs(Window, "Zq");
+        var buttonWidth = UiFrame.Measure(() => ImGui.CalcTextSize("first").X + Padding.X * 2);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1293,7 +1185,7 @@ public class CardTests
             Assert.Equal(labeledVertices - shown.Count, tooltip.Count);
             UiFrame.Release(Window, Body);
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -1310,7 +1202,7 @@ public class CardTests
             UiFrame.Click(Window, HeaderAt(filtered, 0), filtered.Draw);
             Assert.Equal([("Zq", 0)], filtered.Bodies);
         }
-        finally { Settle(plain.Draw); Settle(filtered.Draw); }
+        finally { UiFrame.Settle(Window, plain.Draw); UiFrame.Settle(Window, filtered.Draw); }
     }
 
     void Filter(ListRig rig, string text, Action body)
@@ -1334,7 +1226,7 @@ public class CardTests
             Assert.Equal(BaseAlpha, rig.BodyAlpha[1]);
             Assert.True(rig.BodyAlpha[2] < BaseAlpha);
         }
-        finally { UiFrame.EraseText(Window, rig.Draw, FilterBox(rig)); Settle(rig.Draw); }
+        finally { UiFrame.EraseText(Window, rig.Draw, FilterBox(rig)); UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1342,7 +1234,7 @@ public class CardTests
     {
         var a = new ListRig { FilterText = s => s };
         var b = new ListRig { Id = a.Id, FilterText = s => s };
-        void Body() => TwoScopes(a.Draw, b.Draw);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1354,7 +1246,7 @@ public class CardTests
             Assert.Contains(a.BodyAlpha.Values, alpha => alpha < BaseAlpha);
             Assert.All(b.BodyAlpha.Values, alpha => Assert.Equal(BaseAlpha, alpha));
         }
-        finally { UiFrame.EraseText(Window, Body, FilterBox(a)); Settle(Body); }
+        finally { UiFrame.EraseText(Window, Body, FilterBox(a)); UiFrame.Settle(Window, Body); }
     }
 
     [Fact]
@@ -1367,7 +1259,7 @@ public class CardTests
             Assert.Equal(rig.ExpectedProbes, rig.BodyProbes);
             Assert.Equal(3, rig.BodyProbes.Distinct().Count());
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 
     [Fact]
@@ -1375,7 +1267,7 @@ public class CardTests
     {
         var a = new ListRig();
         var b = new ListRig { Id = a.Id };
-        void Body() => TwoScopes(a.Draw, b.Draw);
+        void Body() => UiFrame.TwoScopes(a.Draw, b.Draw);
         try
         {
             UiFrame.Run(Window, Body);
@@ -1386,7 +1278,7 @@ public class CardTests
             Assert.Equal(3, a.BodyProbes.Count);
             Assert.Empty(a.BodyProbes.Intersect(b.BodyProbes));
         }
-        finally { Settle(Body); }
+        finally { UiFrame.Settle(Window, Body); }
     }
 
     [Theory]
@@ -1432,6 +1324,6 @@ public class CardTests
             UiFrame.Run(Window, rig.Draw);
             Assert.Equal([("Zq", 0)], rig.Bodies);
         }
-        finally { Settle(rig.Draw); }
+        finally { UiFrame.Settle(Window, rig.Draw); }
     }
 }

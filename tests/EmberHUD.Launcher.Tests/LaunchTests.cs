@@ -17,7 +17,6 @@ public class LaunchTests
     public void GameInnerHasNoSpaceBeforeTheFirstAmpersands()
     {
         Assert.Equal(Inner, Launch.GameInner(Game));
-        Assert.DoesNotContain("RunAsInvoker &&", Launch.GameInner(Game));
     }
 
     [Fact]

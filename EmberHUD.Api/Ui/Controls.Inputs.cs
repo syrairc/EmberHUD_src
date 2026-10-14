@@ -133,7 +133,7 @@ public static partial class Controls
 
     public record struct TriItem(string Label, int Value = 0);
 
-    public static int CycleTri(int v, bool back) => back ? (v + 2) % 3 : (v + 1) % 3;
+    internal static int CycleTri(int v, bool back) => back ? (v + 2) % 3 : (v + 1) % 3;
 
     public static bool TriState(string? label, ref int v, string? id = null, float box = 22f, float glyphScale = 1.4f)
     {

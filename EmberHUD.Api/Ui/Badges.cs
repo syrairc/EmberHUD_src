@@ -8,7 +8,7 @@ public static class Badges
 {
     const float DotR = 3f, DotGap = 5f;
 
-    public static string CountText(int n, int max = 99) => n > max ? max + "+" : n.ToString();
+    internal static string CountText(int n, int max = 99) => n > max ? max + "+" : n.ToString();
 
     public static void Draw(string? text, Color? color = null, bool outline = false, bool dot = false)
     {

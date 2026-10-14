@@ -23,7 +23,7 @@ internal static class Samples
 
     public static readonly MapIcon[] Icons = [new(5, "UI_MiniMap_Portal", new Vector2(1, 2), 1, 0, 0), new(6, "UI_MiniMap_S15xiaoguai", new Vector2(13, 24), 1, 0, 1)];
 
-    public static readonly Terrain Terrain = new(2, 2, 32, Vector2.Zero, false, new BitArray(new[] { true, false, true, true }));
+    public static readonly Terrain Terrain = new(2, 2, 32, Vector2.Zero, new BitArray(new[] { true, false, true, true }));
 
     public static readonly Camera Camera = new(new Vector3(-990, 20, 1000), new Vector3(-45, 0, 0), 90);
 

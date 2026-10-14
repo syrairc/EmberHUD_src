@@ -58,5 +58,5 @@ public readonly record struct Hotkey(Key Key, KeyModifiers Mods = KeyModifiers.N
     }
 
     internal static bool IsBindable(int virtualKey) =>
-        virtualKey is >= 0x08 and <= 0xFE && virtualKey != (int)Key.Escape && virtualKey is not (0x10 or 0x11 or 0x12 or >= 0xA0 and <= 0xA5 or 0x5B or 0x5C);
+        virtualKey is >= 0x08 and <= 0xFE && virtualKey != (int)Key.Escape && virtualKey is not ((int)Key.Shift or (int)Key.Ctrl or (int)Key.Alt or >= 0xA0 and <= 0xA5 or 0x5B or 0x5C);
 }

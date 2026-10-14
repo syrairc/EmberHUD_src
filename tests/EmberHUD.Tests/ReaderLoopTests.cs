@@ -38,6 +38,19 @@ public class ReaderLoopTests
     }
 
     [Fact]
+    public void TypeInitializerFailureReportsAndLogsTheInnerCause()
+    {
+        var good = GameState.Empty with { Status = "ok" };
+        var logged = new List<string>();
+        using var loop = new ReaderLoop(
+            () => new Scripted(() => good, () => throw new TypeInitializationException("Offsets", new InvalidDataException("resource t missing"))),
+            message => { lock (logged) logged.Add(message); });
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => loop.Current.State.Status.Contains("resource t missing"), 2000));
+        lock (logged) Assert.Equal("reader - resource t missing", Assert.Single(logged));
+    }
+
+    [Fact]
     public void LoopKeepsRunningAfterAFailure()
     {
         var good = GameState.Empty with { Status = "ok", AreaId = 7 };

@@ -11,7 +11,7 @@ internal static class LayoutParser
         {
             if (raw.StartsWith('"')) continue;
             var parsed = raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-                ? int.TryParse(raw[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex) ? (int?)hex : null
+                ? uint.TryParse(raw[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hex) && hex <= int.MaxValue ? (int?)hex : null
                 : int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dec) ? dec : null;
             entries.Add((name, parsed ?? throw new FormatException($"bad value '{raw}' for {name}")));
         }

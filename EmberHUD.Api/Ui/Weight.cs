@@ -33,20 +33,20 @@ public static class Weight
         public static readonly Color[] RedGoldGreen = [Color.FromArgb(255, 224, 103, 103), Color.FromArgb(255, 217, 193, 103), Color.FromArgb(255, 111, 207, 122)];
     }
 
-    public static float Norm(float v, float min, float max) => max - min == 0f ? 0f : Math.Clamp((v - min) / (max - min), 0f, 1f);
+    internal static float Norm(float v, float min, float max) => max - min == 0f ? 0f : Math.Clamp((v - min) / (max - min), 0f, 1f);
 
-    public static float Snap(float v, float step)
+    internal static float Snap(float v, float step)
     {
         if (step <= 0f) return v;
         var r = MathF.Round(v / step) * step;
         return r == 0f ? 0f : r;
     }
 
-    public static float EffStep(WeightOpts o) => o.Step > 0f ? o.Step : o.Decimals == 0 ? 1f : 0f;
+    internal static float EffStep(WeightOpts o) => o.Step > 0f ? o.Step : o.Decimals == 0 ? 1f : 0f;
 
-    public static string Fmt(float v, int decimals) => v.ToString("F" + Math.Max(0, decimals), CultureInfo.InvariantCulture);
+    internal static string Fmt(float v, int decimals) => v.ToString("F" + Math.Max(0, decimals), CultureInfo.InvariantCulture);
 
-    public static Color Lerp(Color[]? stops, float t)
+    internal static Color Lerp(Color[]? stops, float t)
     {
         if (stops is not { Length: > 0 }) return Color.FromArgb(0, 0, 0, 0);
         if (stops.Length == 1) return stops[0];
@@ -58,7 +58,7 @@ public static class Weight
         return Color.FromArgb((byte)MathF.Round(a.A + (b.A - a.A) * f), (byte)MathF.Round(a.R + (b.R - a.R) * f), (byte)MathF.Round(a.G + (b.G - a.G) * f), (byte)MathF.Round(a.B + (b.B - a.B) * f));
     }
 
-    public static Color GrabColor(float v, WeightOpts o)
+    internal static Color GrabColor(float v, WeightOpts o)
     {
         if (o.Scale is { Length: > 1 } scale) return Lerp(scale, Norm(v, o.Min, o.Max));
         if (o.Scale is [var only]) return only;
@@ -66,7 +66,7 @@ public static class Weight
         return EColor.FromVector4(ImGui.GetStyle().Colors[(int)ImGuiCol.SliderGrab]);
     }
 
-    public static float Commit(float typed, WeightOpts o) => Math.Clamp(Snap(typed, EffStep(o)), MathF.Min(o.Min, o.Max), MathF.Max(o.Min, o.Max));
+    internal static float Commit(float typed, WeightOpts o) => Math.Clamp(Snap(typed, EffStep(o)), MathF.Min(o.Min, o.Max), MathF.Max(o.Min, o.Max));
 
     public static bool Slider(string label, ref float v, WeightOpts? o = null, string? id = null)
     {

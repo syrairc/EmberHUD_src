@@ -50,7 +50,6 @@ internal sealed partial class GraphicsDevice : IDisposable
 
     public ID3D11Device Device { get; private set; } = null!;
     public ID3D11DeviceContext Context { get; private set; } = null!;
-    public ID3D11Texture2D BackBuffer => _backBuffer;
     public ID3D11RenderTargetView BackBufferView => _backBufferView;
     public int Width { get; private set; }
     public int Height { get; private set; }

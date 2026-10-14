@@ -1,6 +1,5 @@
 using EmberHUD.Host.Memory;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -12,31 +11,15 @@ public class TerrainReaderTests
     public void ReadsWalkableFromClearanceAndTheGeometryFields()
     {
         var world = new FakeWorld();
-        world.SetGrid(4, 3, FourByThree, cellSize: 32, oddRowShift: 16, originX: -64, originY: 128);
+        world.SetGrid(4, 3, FourByThree, cellSize: 32, originX: -64, originY: 128);
         var terrain = new TerrainReader(world.Memory).Read(unchecked((nint)world.Scene));
         Assert.NotNull(terrain);
         Assert.Equal((4, 3), (terrain.Cols, terrain.Rows));
         Assert.Equal(32f, terrain.CellSize);
         Assert.Equal(new Vector2(-64, 128), terrain.Origin);
-        Assert.False(terrain.OddRowShift);
         for (var row = 0; row < 3; row++)
             for (var col = 0; col < 4; col++)
                 Assert.Equal(FourByThree[row * 4 + col] >= 1, terrain.IsWalkable(col, row));
-    }
-
-    [Fact]
-    public void ShiftInMemoryIsIgnoredAndDoesNotChangeTheTerrain()
-    {
-        var world = new FakeWorld();
-        world.SetGrid(4, 3, FourByThree, oddRowShift: 16);
-        var reader = new TerrainReader(world.Memory);
-        var first = reader.Read(unchecked((nint)world.Scene))!;
-        Assert.False(first.OddRowShift);
-        world.SetGrid(4, 3, FourByThree, oddRowShift: 0);
-        Assert.Same(first, reader.Read(unchecked((nint)world.Scene)));
-        world.SetGrid(4, 3, FourByThree, oddRowShift: double.NaN);
-        Assert.Same(first, reader.Read(unchecked((nint)world.Scene)));
-        Assert.Equal(1, reader.Generation);
     }
 
     [Fact]

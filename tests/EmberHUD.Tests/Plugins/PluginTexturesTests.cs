@@ -1,4 +1,5 @@
 using Hexa.NET.ImGui;
+using EmberHUD.Host.Icons;
 using EmberHUD.Host.Plugins;
 
 namespace EmberHUD.Tests;
@@ -9,24 +10,21 @@ public sealed class PluginTexturesTests : IDisposable
     readonly List<Action> _queued = [];
     readonly Dictionary<string, int> _uploaded = [];
     readonly List<string> _released = [];
-    Func<string, byte[], int, int, bool>? _upload;
-    string _uploadError = "";
+    TextureUpload? _upload;
 
     public void Dispose() => _log.Dispose();
 
-    PluginTextures Host() => new(_queued.Add, (key, rgba, width, height) => _upload?.Invoke(key, rgba, width, height) ?? Store(key, width), Lookup, Release, () => _uploadError);
+    PluginTextures Host() => new(_queued.Add, Upload, Resolve, Release);
 
-    bool Store(string key, int width)
+    bool Upload(string key, byte[] rgba, int width, int height, out string failure)
     {
+        if (_upload is not null) return _upload(key, rgba, width, height, out failure);
         _uploaded[key] = width;
+        failure = "";
         return true;
     }
 
-    bool Lookup(string key, out ImTextureRef texture)
-    {
-        texture = new ImTextureRef { TexID = new ImTextureID((ulong)(_uploaded.TryGetValue(key, out var width) ? width : 0)) };
-        return _uploaded.ContainsKey(key);
-    }
+    Sprite? Resolve(string key) => _uploaded.TryGetValue(key, out var width) ? new Sprite(new ImTextureRef { TexID = new ImTextureID((ulong)width) }, Vector2.Zero, Vector2.One) : null;
 
     void Release(string key)
     {
@@ -97,8 +95,11 @@ public sealed class PluginTexturesTests : IDisposable
     public void AFailedUploadWarnsOnceUntilItWorksAndNeverThrows()
     {
         var textures = Host();
-        _uploadError = "texture is 20000 texels wide, the limit is 16384";
-        _upload = (_, _, width, _) => width > 0 ? false : throw new ArgumentException("texture size 0x1 is not positive");
+        _upload = (string _, byte[] _, int width, int _, out string failure) =>
+        {
+            failure = width > 0 ? "upload failed - texture is 20000 texels wide, the limit is 16384" : "texture size 0x1 is not positive";
+            return false;
+        };
         textures.Upload("Minimap", "region", new byte[4], 1, 1);
         textures.Upload("Minimap", "region", new byte[4], 1, 1);
         textures.Upload("Minimap", "bad", new byte[4], 0, 1);
@@ -109,7 +110,11 @@ public sealed class PluginTexturesTests : IDisposable
         _upload = null;
         textures.Upload("Minimap", "region", new byte[4], 1, 1);
         RunQueued();
-        _upload = (_, _, _, _) => false;
+        _upload = (string _, byte[] _, int _, int _, out string failure) =>
+        {
+            failure = "still failing";
+            return false;
+        };
         textures.Upload("Minimap", "region", new byte[4], 1, 1);
         RunQueued();
         Assert.Equal(3, _log.Messages().Count);

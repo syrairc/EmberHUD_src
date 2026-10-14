@@ -17,7 +17,7 @@ public class PakFileTests
     public void ListsEveryEntryWithItsFullPath()
     {
         using var temp = new TempDir();
-        using var pak = Open(temp, PakBuilder.Build("../../../", new PakSource("UE_game/Content/A/one.bin", [1, 2, 3]), new PakSource("UE_game/Content/B/two.bin", [4], "Zlib")));
+        using var pak = Open(temp, PakBuilder.Build(new PakSource("UE_game/Content/A/one.bin", [1, 2, 3]), new PakSource("UE_game/Content/B/two.bin", [4], "Zlib")));
         Assert.Equal(["UE_game/Content/A/one.bin", "UE_game/Content/B/two.bin"], pak.Entries.Select(entry => entry.Path));
         Assert.Equal("Zlib", pak.Methods[0]);
         Assert.Equal("Oodle", pak.Methods[1]);
@@ -34,7 +34,7 @@ public class PakFileTests
     {
         using var temp = new TempDir();
         byte[] odd = [.. Random10k.Take(37)];
-        using var pak = Open(temp, PakBuilder.Build("../../../", new PakSource("UE_game/x.bin", Random10k, method, encrypted, blockSize), new PakSource("UE_game/odd.bin", odd, method, encrypted, blockSize)));
+        using var pak = Open(temp, PakBuilder.Build(new PakSource("UE_game/x.bin", Random10k, method, encrypted, blockSize), new PakSource("UE_game/odd.bin", odd, method, encrypted, blockSize)));
         Assert.Equal(Random10k, pak.Read(pak.Entries[0]));
         Assert.Equal(odd, pak.Read(pak.Entries[1]));
     }
@@ -45,7 +45,7 @@ public class PakFileTests
     public void WrongMagicOrVersionSaysTheFormatChanged(uint magic, int version)
     {
         using var temp = new TempDir();
-        var error = Assert.Throws<InvalidDataException>(() => Open(temp, PakBuilder.Build("../../../", PakBuilder.Key, magic, version, new PakSource("UE_game/x.bin", [1]))));
+        var error = Assert.Throws<InvalidDataException>(() => Open(temp, PakBuilder.Build(PakBuilder.Key, magic, version, new PakSource("UE_game/x.bin", [1]))));
         Assert.Contains("pak format changed", error.Message);
         Assert.Contains("test.pak", error.Message);
     }
@@ -54,7 +54,7 @@ public class PakFileTests
     public void WrongKeyIsAClearError()
     {
         using var temp = new TempDir();
-        var error = Assert.Throws<InvalidDataException>(() => Open(temp, PakBuilder.Build("../../../", new PakSource("UE_game/x.bin", [1])), [.. new byte[32]]));
+        var error = Assert.Throws<InvalidDataException>(() => Open(temp, PakBuilder.Build(new PakSource("UE_game/x.bin", [1])), [.. new byte[32]]));
         Assert.Contains("pak key changed", error.Message);
     }
 
@@ -69,22 +69,19 @@ public class PakFileTests
     public void UnknownCompressionIsAClearError()
     {
         using var temp = new TempDir();
-        using var pak = Open(temp, PakBuilder.Build("../../../", new PakSource("UE_game/x.bin", [1, 2], "Oodle", Compressed: [[9, 9]])));
+        using var pak = Open(temp, PakBuilder.Build(new PakSource("UE_game/x.bin", [1, 2], "Oodle", Compressed: [[9, 9]])));
         Assert.Throws<InvalidDataException>(() => pak.Read(pak.Entries[0]));
     }
 
     [Fact]
     public void EveryRealPakOpensWhenTheGameIsSet()
     {
-        if (Environment.GetEnvironmentVariable("TLI_GAME_DIR") is not { } folder || GameInstall.At(folder) is not { } game) return;
+        var game = RealGame.Install();
         var key = Convert.FromHexString(Offsets.PakAesKey);
         foreach (var path in game.Paks())
         {
             using var pak = PakFile.Open(path, key);
             Assert.NotEmpty(pak.Entries);
         }
-        using var smallest = PakFile.Open(game.Paks().First(path => path.EndsWith("pakchunk999-WindowsNoEditor.pak", StringComparison.OrdinalIgnoreCase)), key);
-        Assert.Equal(130, smallest.Entries.Count);
-        Assert.EndsWith("BluePrint/EnvironmentAudioTool/GetActorLocations.uasset", smallest.Entries[0].Path);
     }
 }

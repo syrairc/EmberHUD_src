@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
@@ -39,10 +40,10 @@ internal sealed class ExploredReader(IReadBackend memory)
 
         if (count > _points.Count)
         {
-            if (!memory.TryReadArray(data + _points.Count * Offsets.SavePointStride, (count - _points.Count) * 3, out float[] xyz))
+            if (!memory.TryReadArray(data + _points.Count * Offsets.SavePointStride, (count - _points.Count) * Offsets.SavePointStride, out byte[] bytes))
                 return _trail;
-            for (var i = 0; i < xyz.Length; i += 3)
-                _points.Add(new Vector2(xyz[i], xyz[i + 1]));
+            for (var at = 0; at < bytes.Length; at += Offsets.SavePointStride)
+                _points.Add(MemoryMarshal.Read<Vector2>(bytes.AsSpan(at)));
             _trail = null;
         }
 
@@ -77,15 +78,12 @@ internal sealed class ExploredReader(IReadBackend memory)
     private bool TryFindRecord(nint map, string key, out nint record)
     {
         record = 0;
-        if (!memory.TryRead(map + Offsets.TMapNum, out int num) || num <= 0 || num > Offsets.MaxSaveRecords ||
-            !memory.TryReadTMapAllocationBits(map, num, out var bits) ||
-            !memory.TryReadPtr(map, out var data) ||
-            !memory.TryReadArray(data, num * Offsets.SaveRecordStride, out byte[] elements))
+        if (!memory.TryReadTMapElements(map, Offsets.SaveRecordStride, Offsets.MaxSaveRecords, out var data, out var elements, out var bits))
             return false;
 
-        for (var i = 0; i < num; i++)
+        for (var i = 0; i < elements.Length / Offsets.SaveRecordStride; i++)
         {
-            if ((bits[i >> 5] >> (i & 31) & 1) == 0)
+            if (!ReadExtensions.IsAllocated(bits, i))
                 continue;
             var at = i * Offsets.SaveRecordStride;
             var text = (nint)BitConverter.ToInt64(elements, at);

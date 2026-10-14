@@ -1,11 +1,10 @@
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
 public class MonsterRarityReaderTests
 {
-    private static MonsterRarityReader ReaderFor(FakeWorld world) => new(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+    private static MonsterRarityReader ReaderFor(FakeWorld world) => new(world.Memory, FakeWorld.Module);
 
     [Fact]
     public void MapsTheKnownTiersAndTreatsUnknownOnesAsNormal()

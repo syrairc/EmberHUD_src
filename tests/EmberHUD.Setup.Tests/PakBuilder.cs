@@ -11,9 +11,9 @@ internal static class PakBuilder
     public static readonly byte[] Key = [.. Enumerable.Range(1, 32).Select(i => (byte)i)];
     static readonly string[] Methods = ["Zlib", "Oodle"];
 
-    public static byte[] Build(string mount, params PakSource[] files) => Build(mount, Key, 0x6B2A56B8, 12, files);
+    public static byte[] Build(params PakSource[] files) => Build(Key, 0x6B2A56B8, 12, files);
 
-    public static byte[] Build(string mount, byte[] key, uint magic, int version, params PakSource[] files)
+    public static byte[] Build(byte[] key, uint magic, int version, params PakSource[] files)
     {
         using var aes = Aes.Create();
         aes.Key = key;
@@ -49,11 +49,11 @@ internal static class PakBuilder
         directory.Write(folders.Count);
         foreach (var folder in folders)
         {
-            FString(directory, folder.Key);
+            AssetBuilder.FString(directory, folder.Key);
             directory.Write(folder.Count());
             foreach (var entry in folder)
             {
-                FString(directory, entry.Name);
+                AssetBuilder.FString(directory, entry.Name);
                 directory.Write(entry.Location);
             }
         }
@@ -62,7 +62,7 @@ internal static class PakBuilder
         pak.Write(directoryBlob);
 
         var index = new BinaryWriter(new MemoryStream());
-        FString(index, mount);
+        AssetBuilder.FString(index, "../../../");
         index.Write(files.Length);
         index.Write(0L);
         index.Write(0);
@@ -88,13 +88,6 @@ internal static class PakBuilder
         for (var i = 0; i < Methods.Length; i++) Encoding.ASCII.GetBytes(Methods[i]).CopyTo(footer, 62 + i * 32);
         pak.Write(footer);
         return pak.ToArray();
-    }
-
-    static void FString(BinaryWriter writer, string text)
-    {
-        writer.Write(text.Length + 1);
-        writer.Write(Encoding.ASCII.GetBytes(text));
-        writer.Write((byte)0);
     }
 
     static byte[] Pad(byte[] data) => data.Length % 16 == 0 ? data : [.. data, .. new byte[16 - data.Length % 16]];

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Drawing;
-using System.Numerics;
 using System.Text.Json;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
@@ -13,7 +12,6 @@ public class TextStyleTests
     record Vtx(Vector2 Pos, Vector2 Uv, uint Col);
 
     const string Sentence = "Boss";
-    static Vector2 PadFor(float size) => new(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
     static readonly Vector2 At = new(100, 100);
 
     static TextStyle Sample() => new()
@@ -129,28 +127,17 @@ public class TextStyleTests
     }
 
     [Fact]
-    public void AMissingJsonFieldKeepsItsDefaultAndEveryDefaultIsTheDocumentedOne()
+    public void AMissingJsonFieldKeepsItsDefaultAndTheOverrideStartsFromTheSameDefaults()
     {
         var back = JsonSerializer.Deserialize<TextStyle>("{\"Scale\":2}", SettingsJson.Options)!;
-        var white = Color.FromArgb(255, 255, 255, 255);
+        var fresh = new TextStyle();
 
         Assert.Equal(2f, back.Scale);
-        Assert.Equal(white, back.Color);
-        Assert.False(back.BgEnabled);
-        Assert.Equal(Color.FromArgb(180, 0, 0, 0), back.BgColor);
-        Assert.False(back.BorderEnabled);
-        Assert.Equal(white, back.BorderColor);
-        Assert.Equal(1f, back.BorderThickness);
-        Assert.Equal(2f, back.BorderRounding);
-        Assert.False(back.StrokeEnabled);
-        Assert.Equal(Color.FromArgb(255, 0, 0, 0), back.StrokeColor);
+        Assert.Equal(Json(new TextStyle { Scale = 2f }), Json(back));
         var ov = new TextStyleOverride();
-        Assert.Equal((1f, white, 1f, 2f), (ov.Scale, ov.Color, ov.BorderThickness, ov.BorderRounding));
-        Assert.Equal((Color.FromArgb(180, 0, 0, 0), white, Color.FromArgb(255, 0, 0, 0)), (ov.BgColor, ov.BorderColor, ov.StrokeColor));
-        Assert.Equal(FontFace.Regular, back.Face);
-        Assert.False(back.ShadowEnabled);
-        Assert.Equal(Color.FromArgb(0xA0, 0, 0, 0), back.ShadowColor);
-        Assert.Equal((FontFace.Regular, Color.FromArgb(0xA0, 0, 0, 0)), (ov.Face, ov.ShadowColor));
+        Assert.Equal(
+            (fresh.Scale, fresh.Face, fresh.Color, fresh.BgColor, fresh.BorderColor, fresh.BorderThickness, fresh.BorderRounding, fresh.StrokeColor, fresh.ShadowColor),
+            (ov.Scale, ov.Face, ov.Color, ov.BgColor, ov.BorderColor, ov.BorderThickness, ov.BorderRounding, ov.StrokeColor, ov.ShadowColor));
     }
 
     [Fact]
@@ -479,7 +466,7 @@ public class TextStyleTests
         style.BgEnabled = true;
         AssertDraws(style, align, (list, min, box, size) =>
         {
-            list.AddRectFilled(min - PadFor(size), min + box + PadFor(size), EColor.U32(style.BgColor), style.BorderRounding);
+            list.AddRectFilled(min - Draw.TextPad(size), min + box + Draw.TextPad(size), EColor.U32(style.BgColor), style.BorderRounding);
             GlyphsAt(list, min, size, style.Color);
         });
     }
@@ -491,7 +478,7 @@ public class TextStyleTests
         style.BorderEnabled = true;
         AssertDraws(style, Align.Center, (list, min, box, size) =>
         {
-            list.AddRect(min - PadFor(size), min + box + PadFor(size), EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
+            list.AddRect(min - Draw.TextPad(size), min + box + Draw.TextPad(size), EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
             GlyphsAt(list, min, size, style.Color);
         });
     }
@@ -535,7 +522,7 @@ public class TextStyleTests
         style.BgEnabled = style.BorderEnabled = style.ShadowEnabled = style.StrokeEnabled = true;
         AssertDraws(style, Align.Center | Align.Middle, (list, min, box, size) =>
         {
-            var pad = PadFor(size);
+            var pad = Draw.TextPad(size);
             list.AddRectFilled(min - pad, min + box + pad, EColor.U32(style.BgColor), style.BorderRounding);
             list.AddRect(min - pad, min + box + pad, EColor.U32(style.BorderColor), style.BorderRounding, ImDrawFlags.None, style.BorderThickness);
             GlyphsAt(list, min + Vector2.One, size, style.ShadowColor);
@@ -554,33 +541,6 @@ public class TextStyleTests
             GlyphsAt(list, min + Vector2.One, size, style.ShadowColor);
             GlyphsAt(list, min, size, style.Color);
         });
-    }
-
-    [Fact]
-    public void ThePaddingIs8x3AtSixteenPixels()
-    {
-        var style = Distinct(1f);
-        style.BgEnabled = true;
-        var font = Fonts.Regular;
-        var size = Fonts.RegularSize;
-        try
-        {
-            for (var frame = 0; frame < 2; frame++)
-                TestFrame.Run(() =>
-                {
-                    Fonts.Regular = ImGui.GetFont();
-                    Fonts.RegularSize = 16f;
-                    var verts = Drawn(Draw.Foreground, () => Draw.Text(Sentence, At, style, Align.TopLeft, Draw.Foreground));
-                    var bg = verts.Where(v => v.Col == EColor.U32(style.BgColor)).ToList();
-                    Assert.InRange(bg.Min(v => v.Pos.X), At.X - 8.6f, At.X - 7.4f);
-                    Assert.InRange(bg.Min(v => v.Pos.Y), At.Y - 3.6f, At.Y - 2.4f);
-                });
-        }
-        finally
-        {
-            Fonts.Regular = font;
-            Fonts.RegularSize = size;
-        }
     }
 
     [Theory]

@@ -1,12 +1,10 @@
-using System.Numerics;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
 public class LiveReaderTests
 {
-    private static LiveReader ReaderFor(FakeWorld world) => new(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+    private static LiveReader ReaderFor(FakeWorld world) => new(world.Memory, FakeWorld.Module);
 
     [Fact]
     public void ReadsTerrainEntitiesAndAreaFromTheFakeWorld()
@@ -14,7 +12,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1]);
         world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out var failure));
         Assert.Null(failure);
         Assert.Equal(1, state.AreaId);
@@ -30,7 +28,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Same(GameUi.Empty, state.Ui);
     }
@@ -41,7 +39,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Trade);
     }
@@ -49,7 +47,7 @@ public class LiveReaderTests
     [Fact]
     public void FindRectSurvivesADisposedBackend()
     {
-        using var reader = new LiveReader(new DisposedBackend(), 0);
+        var reader = new LiveReader(new DisposedBackend(), 0);
         Assert.Null(reader.FindRect(1, "Any"));
     }
 
@@ -64,7 +62,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var first, out _);
         reader.TryRead(out var second, out _);
         Assert.Same(first.Terrain, second.Terrain);
@@ -77,7 +75,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var first, out _);
         world.SetGrid(5, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         reader.TryRead(out var second, out _);
@@ -90,7 +88,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var first, out _);
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         reader.TryRead(out var second, out _);
@@ -104,7 +102,7 @@ public class LiveReaderTests
         var world = new FakeWorld();
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.PublishEntities();
-        using var reader = new LiveReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), 5);
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, 5);
         reader.TryRead(out var state, out _);
         Assert.Equal(6, state.AreaId);
     }
@@ -114,7 +112,7 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.BreakScenePointer();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.False(reader.TryRead(out _, out var failure));
         Assert.Contains("map", failure);
     }
@@ -124,7 +122,7 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.PublishEntities(world.AddEntity(1, 1, true, 1, 2, 3));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Terrain);
         Assert.Single(state.Entities);
@@ -143,7 +141,7 @@ public class LiveReaderTests
     public void LocalPlayerBecomesThePlayerWithAnInitialForwardAndLeavesTheEntityList()
     {
         var (world, _) = WorldWithPlayerAt(100, 200);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.Equal("live - entities 1, map icons 0, explored off", state.Status);
         Assert.Equal(new Vector3(100, 200, 0), state.Player!.Position);
@@ -155,7 +153,7 @@ public class LiveReaderTests
     public void ForwardFollowsMovementAndStaysWhenStill()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 30, 0, 0);
         reader.TryRead(out var moved, out _);
@@ -174,7 +172,7 @@ public class LiveReaderTests
     public void SlowMovementStillTurnsForwardOnceItAddsUp()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 0.3, 0, 0);
         reader.TryRead(out var first, out _);
@@ -188,7 +186,7 @@ public class LiveReaderTests
     public void LosingThePlayerGivesNullAndStatusNote()
     {
         var (world, _) = WorldWithPlayerAt(0, 0);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.BreakPlayerMgr();
         reader.TryRead(out var state, out _);
@@ -201,7 +199,7 @@ public class LiveReaderTests
     public void ATeleportDoesNotRotateForward()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 30, 0, 0);
         reader.TryRead(out _, out _);
@@ -218,7 +216,7 @@ public class LiveReaderTests
     {
         var (world, player) = WorldWithPlayerAt(0, 0);
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 30, 0, 0);
         reader.TryRead(out _, out _);
@@ -235,7 +233,7 @@ public class LiveReaderTests
     public void LosingThePlayerResetsTheAnchor()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 30, 0, 0);
         reader.TryRead(out _, out _);
@@ -252,12 +250,12 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.PublishEntities();
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var without, out _);
         Assert.Null(without.MinimapRotation);
 
         world.AddMinimap(0.25f);
-        using var again = ReaderFor(world);
+        var again = ReaderFor(world);
         again.TryRead(out var with, out _);
         Assert.Equal(-90f, with.MinimapRotation);
     }
@@ -270,7 +268,7 @@ public class LiveReaderTests
         var minimap = world.AddMinimap(0.25f);
         world.SetLevel(110, 0);
         world.SetExplored(minimap, 0.4f, 1000, ("110_0", [new Vector3(1, 2, 3)]));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.Equal([new Vector2(1, 2)], state.Explored!.Points);
         Assert.EndsWith("explored 1", state.Status);
@@ -282,7 +280,7 @@ public class LiveReaderTests
         var (world, _) = WorldWithPlayerAt(0, 0);
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 3, new FakeIcon(1040, 1, 2, EntityId: 11), new FakeIcon(10, 7, 8));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.Equal([new MapIcon(1040, "", new Vector2(5, 5), 1, 0, 11), new MapIcon(10, "", new Vector2(7, 8), 1, 0, 0)], state.MapIcons);
     }
@@ -296,7 +294,7 @@ public class LiveReaderTests
         var (world, _) = WorldWithPlayerAt(0, 0);
         var minimap = world.AddMinimap(0f);
         world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, heading);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.Equal(x, state.Player!.Forward.X, 4);
         Assert.Equal(y, state.Player.Forward.Y, 4);
@@ -308,7 +306,7 @@ public class LiveReaderTests
         var (world, player) = WorldWithPlayerAt(0, 0);
         var minimap = world.AddMinimap(0f);
         world.Memory.Write(minimap.Widget + Offsets.MinimapHeading, float.NaN);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         reader.TryRead(out _, out _);
         world.MoveEntity(player, 30, 0, 0);
         reader.TryRead(out var moved, out _);
@@ -323,7 +321,7 @@ public class LiveReaderTests
         world.PublishEntities(world.AddEntity(5, 48, true, 1, 1, 0), world.AddEntity(5, 48, true, 2, 2, 0));
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(1040, 9, 9, EntityId: 5));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Equal(1040, Assert.Single(state.MapIcons).Type);
     }
@@ -336,7 +334,7 @@ public class LiveReaderTests
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 108);
         world.SetFollowIcons(minimap, (72, 2642u, 108u));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
 
         reader.TryRead(out var state, out _);
 
@@ -366,7 +364,7 @@ public class LiveReaderTests
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         world.SetMapInfo(4602, 3, 82, 112);
         world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Equal(82, state.Map!.MonsterLevel);
         Assert.NotNull(state.Terrain);
@@ -378,7 +376,7 @@ public class LiveReaderTests
         var world = MapInfoReaderTests.Demiman();
         world.PublishEntities(world.AddEntity(5, 77, true, 50, 60, 0));
         world.Memory.Write(world.Scene + Offsets.SceneGeometry, 0L);
-        using var reader = ReaderFor(world);
+        var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Null(state.Map);
         Assert.Single(state.Entities);

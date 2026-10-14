@@ -9,24 +9,23 @@ public static class Combo
     {
         public static readonly string[] Names = System.Enum.GetNames<T>();
         public static readonly T[] Values = System.Enum.GetValues<T>();
-        public static readonly string Id = typeof(T).Name;
     }
 
-    public static bool Enum<T>(ref T value, string? id = null, float width = 120f) where T : struct, System.Enum
+    public static bool Enum<T>(ref T value, string id, float width = 120f) where T : struct, System.Enum
     {
         var names = EnumCache<T>.Names;
         var values = EnumCache<T>.Values;
         var cur = Math.Max(0, Array.IndexOf(values, value));
         ImGui.SetNextItemWidth(width);
-        if (!ImGui.Combo("##" + (id ?? EnumCache<T>.Id), ref cur, names, names.Length)) return false;
+        if (!ImGui.Combo("##" + id, ref cur, names, names.Length)) return false;
         value = values[cur];
         return true;
     }
 
-    public static bool Option(ref int index, string[] labels, string? id = null, float width = 120f)
+    public static bool Option(ref int index, string[] labels, string id, float width = 120f)
     {
         ImGui.SetNextItemWidth(width);
-        return ImGui.Combo("##" + (id ?? (labels.Length > 0 ? labels[0] : "opt")), ref index, labels, labels.Length);
+        return ImGui.Combo("##" + id, ref index, labels, labels.Length);
     }
 
     public static bool SearchCombo(string id, string preview, IEnumerable<(string key, string label)> candidates, ref string filter, out string? picked, float width = 250f) =>

@@ -9,20 +9,13 @@ public class ComboTests
 
     enum Speed { Slow, Medium, Fast }
 
-    static float Metric(Func<float> read)
-    {
-        var value = 0f;
-        UiFrame.Run(Window, () => value = read());
-        return value;
-    }
+    static float FrameHeight => UiFrame.Measure(() => ImGui.GetFrameHeight());
 
-    static float FrameHeight => Metric(() => ImGui.GetFrameHeight());
+    static float FontSize => UiFrame.Measure(() => ImGui.GetFontSize());
 
-    static float FontSize => Metric(() => ImGui.GetFontSize());
+    static float SpacingY => UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
 
-    static float SpacingY => Metric(() => ImGui.GetStyle().ItemSpacing.Y);
-
-    static float PaddingY => Metric(() => ImGui.GetStyle().WindowPadding.Y);
+    static float PaddingY => UiFrame.Measure(() => ImGui.GetStyle().WindowPadding.Y);
 
     static void Cleanup(Rig rig)
     {
@@ -52,17 +45,6 @@ public class ComboTests
 
         public void Idle() => UiFrame.Run(Window, Body);
 
-        public bool PopupOpen()
-        {
-            var open = false;
-            UiFrame.Run(Window, () =>
-            {
-                Body();
-                open = ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId);
-            });
-            return open;
-        }
-
         public void Open(float width)
         {
             Idle();
@@ -81,16 +63,16 @@ public class ComboTests
     {
         var speed = Speed.Medium;
         var rig = new Rig();
-        rig.Draw = () => rig.Changed |= Combo.Enum(ref speed);
+        rig.Draw = () => rig.Changed |= Combo.Enum(ref speed, "speed");
         try
         {
             rig.Open(120f);
-            Assert.True(rig.PopupOpen());
+            Assert.True(UiFrame.PopupOpen(Window, rig.Body));
             Assert.False(rig.Changed);
             rig.PickRow(2);
             Assert.True(rig.Changed);
             Assert.Equal(Speed.Fast, speed);
-            Assert.False(rig.PopupOpen());
+            Assert.False(UiFrame.PopupOpen(Window, rig.Body));
         }
         finally { Cleanup(rig); }
     }
@@ -100,7 +82,7 @@ public class ComboTests
     {
         var speed = (Speed)99;
         var rig = new Rig();
-        rig.Draw = () => rig.Changed |= Combo.Enum(ref speed);
+        rig.Draw = () => rig.Changed |= Combo.Enum(ref speed, "speed");
         try
         {
             rig.Open(120f);
@@ -112,22 +94,17 @@ public class ComboTests
     }
 
     [Fact]
-    public void EnumIdDefaultsToTypeNameAndHonoursOverride()
+    public void EnumIdIsTheWidgetId()
     {
         var speed = Speed.Slow;
         var rig = new Rig();
         try
         {
-            rig.Draw = () => Combo.Enum(ref speed);
+            rig.Draw = () => Combo.Enum(ref speed, "pace");
             rig.Idle();
-            var defaultId = rig.ItemId;
-            rig.Draw = () => Combo.Enum(ref speed, "other");
-            rig.Idle();
-            var otherId = rig.ItemId;
-            var expected = (Default: 0u, Other: 0u);
-            UiFrame.Run(Window, () => expected = (ImGui.GetID("##Speed"), ImGui.GetID("##other")));
-            Assert.Equal(expected.Default, defaultId);
-            Assert.Equal(expected.Other, otherId);
+            var expected = 0u;
+            UiFrame.Run(Window, () => expected = ImGui.GetID("##pace"));
+            Assert.Equal(expected, rig.ItemId);
         }
         finally { Cleanup(rig); }
     }
@@ -140,10 +117,10 @@ public class ComboTests
         var rig = new Rig();
         try
         {
-            rig.Draw = () => Combo.Enum(ref speed, width: 173f);
+            rig.Draw = () => Combo.Enum(ref speed, "speed", width: 173f);
             rig.Idle();
             Assert.Equal(173f, rig.ItemSize.X);
-            rig.Draw = () => Combo.Option(ref index, ["A", "B"], width: 211f);
+            rig.Draw = () => Combo.Option(ref index, ["A", "B"], "index", width: 211f);
             rig.Idle();
             Assert.Equal(211f, rig.ItemSize.X);
         }
@@ -155,7 +132,7 @@ public class ComboTests
     {
         var index = 1;
         var rig = new Rig();
-        rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"]);
+        rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"], "index");
         try
         {
             rig.Open(120f);
@@ -172,7 +149,7 @@ public class ComboTests
     {
         var index = 1;
         var rig = new Rig();
-        rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"]);
+        rig.Draw = () => rig.Changed |= Combo.Option(ref index, ["A", "B", "C"], "index");
         try
         {
             rig.Open(120f);
@@ -184,25 +161,17 @@ public class ComboTests
     }
 
     [Fact]
-    public void OptionIdDefaultsToFirstLabelOrOptWhenEmpty()
+    public void OptionIdIsTheWidgetId()
     {
         var index = 0;
         var rig = new Rig();
-        var ids = new List<uint>();
         try
         {
-            rig.Draw = () => Combo.Option(ref index, ["Alpha", "B"]);
-            rig.Idle();
-            ids.Add(rig.ItemId);
-            rig.Draw = () => Combo.Option(ref index, []);
-            rig.Idle();
-            ids.Add(rig.ItemId);
             rig.Draw = () => Combo.Option(ref index, ["Alpha", "B"], "custom");
             rig.Idle();
-            ids.Add(rig.ItemId);
-            var expected = new List<uint>();
-            UiFrame.Run(Window, () => expected = [ImGui.GetID("##Alpha"), ImGui.GetID("##opt"), ImGui.GetID("##custom")]);
-            Assert.Equal(expected, ids);
+            var expected = 0u;
+            UiFrame.Run(Window, () => expected = ImGui.GetID("##custom"));
+            Assert.Equal(expected, rig.ItemId);
         }
         finally { Cleanup(rig); }
     }
@@ -252,8 +221,6 @@ public class ComboTests
             }
         }
 
-        public bool PopupOpen() => Rig.PopupOpen();
-
         public void Open()
         {
             Rig.Open(Width);
@@ -279,7 +246,7 @@ public class ComboTests
         try
         {
             rig.Open();
-            Assert.True(rig.PopupOpen());
+            Assert.True(UiFrame.PopupOpen(Window, rig.Rig.Body));
             Assert.Equal(0, rig.Picks);
             rig.Filter = "ban";
             rig.Rig.Idle();
@@ -288,7 +255,7 @@ public class ComboTests
             Assert.Equal("banana", rig.Picked);
             Assert.Equal("", rig.FilterAtPick);
             Assert.Equal("", rig.Filter);
-            Assert.False(rig.PopupOpen());
+            Assert.False(UiFrame.PopupOpen(Window, rig.Rig.Body));
         }
         finally { Cleanup(rig); }
     }

@@ -5,6 +5,8 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using EmberHUD.Host;
 using EmberHUD.Setup.Pak;
+using Files = System.Collections.Generic.Dictionary<string, (EmberHUD.Setup.Pak.PakFile Pak, EmberHUD.Setup.Pak.PakEntry Entry)>;
+using Raster = (byte[] Rgba, int Width, int Height, string Format);
 
 namespace EmberHUD.Setup.Icons;
 
@@ -35,81 +37,14 @@ internal static partial class IconExport
         List<PakFile> opened = [];
         try
         {
-            Dictionary<string, (PakFile Pak, PakEntry Entry)> files = new(StringComparer.Ordinal);
-            foreach (var path in paks)
-            {
-                progress($"reading {Path.GetFileName(path)}");
-                var pak = PakFile.Open(path, key);
-                opened.Add(pak);
-                foreach (var entry in pak.Entries) files[entry.Path] = (pak, entry);
-            }
-            byte[]? Read(string path) => files.TryGetValue(path, out var hit) ? hit.Pak.Read(hit.Entry) : null;
-
-            var config = UAsset.MapIconConfig(Read("UE_game/Content/Script/Data/ConfigView/config_map_icon.bin") ?? throw new InvalidDataException("config_map_icon.bin not found in the paks - game patched?"));
-            Dictionary<string, List<string>> byShort = new(StringComparer.Ordinal);
-            HashSet<string> wanted = new(config.Select(row => row.Texture).Where(texture => texture.Length > 0), StringComparer.Ordinal);
-            wanted.Add(Offsets.TradePriceTexture);
-            foreach (var path in files.Keys.Where(path => path.EndsWith(".uasset", StringComparison.Ordinal)))
-            {
-                var name = ShortName(path);
-                if (!byShort.TryGetValue(name, out var list)) byShort[name] = list = [];
-                list.Add(path);
-                if (IconFolder().IsMatch(path)) wanted.Add(name);
-            }
+            var files = OpenPaks(paks, key, opened, progress);
+            var config = UAsset.MapIconConfig(Read(files, "UE_game/Content/Script/Data/ConfigView/config_map_icon.bin") ?? throw new InvalidDataException("config_map_icon.bin not found in the paks - game patched?"));
+            var (byShort, wanted) = FindWanted(files, config);
 
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
             Directory.CreateDirectory(staging);
             var index = new IconIndex(paks.ToDictionary(path => Path.GetFileName(path), path => new FileInfo(path).Length), new(StringComparer.Ordinal), [], new(StringComparer.Ordinal), config);
-            Dictionary<string, (byte[] Rgba, int Width, int Height, string Format)> atlases = [];
-            var done = 0;
-            foreach (var name in wanted.Order(StringComparer.Ordinal))
-            {
-                if (++done % 25 == 0) progress($"{done} / {wanted.Count} icons");
-                if (!byShort.TryGetValue(name, out var found))
-                {
-                    index.Missing.Add(name);
-                    continue;
-                }
-                string[] candidates = [.. found.OrderBy(path => !IconFolder().IsMatch(path)).ThenBy(path => path.EndsWith("_Sprite.uasset", StringComparison.Ordinal)).ThenBy(path => path, StringComparer.Ordinal)];
-                var path = candidates[0];
-                var assetBase = path[..^".uasset".Length];
-                try
-                {
-                    var names = UAsset.Names(Read(path)!);
-                    var uexp = Read(assetBase + ".uexp") ?? throw new InvalidDataException("no .uexp");
-                    var asset = AssetPath(assetBase);
-                    string kind;
-                    string? atlas = null;
-                    int[]? rect = null;
-                    (byte[] Rgba, int Width, int Height, string Format) image;
-                    if (names.Contains("PaperSprite") && names.Contains("Default__PaperSprite"))
-                    {
-                        atlas = names.First(n => n.StartsWith("/Game/", StringComparison.Ordinal) && n != asset);
-                        if (!atlases.TryGetValue(atlas, out var sheet))
-                        {
-                            var atlasBase = "UE_game/Content/" + atlas[6..];
-                            atlases[atlas] = sheet = UAsset.Texture(Read(atlasBase + ".uexp") ?? throw new InvalidDataException($"atlas {atlas} not found"), Read(atlasBase + ".ubulk"));
-                        }
-                        var (x, y) = UAsset.Vector2D(uexp, names, "BakedSourceUV");
-                        var (w, h) = UAsset.Vector2D(uexp, names, "BakedSourceDimension");
-                        rect = [(int)Math.Round(x), (int)Math.Round(y), (int)Math.Round(w), (int)Math.Round(h)];
-                        image = (UAsset.Crop(sheet.Rgba, sheet.Width, sheet.Height, rect[0], rect[1], rect[2], rect[3]), rect[2], rect[3], sheet.Format);
-                        kind = "sprite";
-                    }
-                    else if (names.Contains("Texture2D") && names.Contains("Default__Texture2D"))
-                    {
-                        image = UAsset.Texture(uexp, Read(assetBase + ".ubulk"));
-                        kind = "texture";
-                    }
-                    else continue;
-                    UAsset.WritePng(Path.Combine(staging, name + ".png"), image.Rgba, image.Width, image.Height);
-                    index.Icons[name] = new IconEntry(asset, Path.GetFileName(files[path].Pak.Path), kind, atlas, rect, name + ".png", image.Format, [image.Width, image.Height], candidates.Length > 1 ? [.. candidates[1..].Select(c => AssetPath(c[..^".uasset".Length]))] : null);
-                }
-                catch (Exception ex)
-                {
-                    index.Failed[name] = $"{ex.GetType().Name}: {ex.Message} ({path})";
-                }
-            }
+            ExportAll(files, byShort, wanted, index, staging, progress);
             File.WriteAllText(Path.Combine(staging, "index.json"), JsonSerializer.Serialize(index, Options));
             foreach (var pak in opened) pak.Dispose();
             opened.Clear();
@@ -122,6 +57,95 @@ internal static partial class IconExport
             foreach (var pak in opened) pak.Dispose();
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
         }
+    }
+
+    static Files OpenPaks(IReadOnlyList<string> paks, byte[] key, List<PakFile> opened, Action<string> progress)
+    {
+        Files files = new(StringComparer.Ordinal);
+        foreach (var path in paks)
+        {
+            progress($"reading {Path.GetFileName(path)}");
+            var pak = PakFile.Open(path, key);
+            opened.Add(pak);
+            foreach (var entry in pak.Entries) files[entry.Path] = (pak, entry);
+        }
+        return files;
+    }
+
+    static byte[]? Read(Files files, string path) => files.TryGetValue(path, out var hit) ? hit.Pak.Read(hit.Entry) : null;
+
+    static (Dictionary<string, List<string>> ByShort, HashSet<string> Wanted) FindWanted(Files files, IReadOnlyList<MapIconRow> config)
+    {
+        Dictionary<string, List<string>> byShort = new(StringComparer.Ordinal);
+        HashSet<string> wanted = new(config.Select(row => row.Texture).Where(texture => texture.Length > 0), StringComparer.Ordinal);
+        wanted.Add(Offsets.TradePriceTexture);
+        foreach (var path in files.Keys.Where(path => path.EndsWith(".uasset", StringComparison.Ordinal)))
+        {
+            var name = ShortName(path);
+            if (!byShort.TryGetValue(name, out var list)) byShort[name] = list = [];
+            list.Add(path);
+            if (IconFolder().IsMatch(path)) wanted.Add(name);
+        }
+        return (byShort, wanted);
+    }
+
+    static void ExportAll(Files files, Dictionary<string, List<string>> byShort, HashSet<string> wanted, IconIndex index, string staging, Action<string> progress)
+    {
+        Dictionary<string, Raster> atlases = [];
+        var done = 0;
+        foreach (var name in wanted.Order(StringComparer.Ordinal))
+        {
+            if (++done % 25 == 0) progress($"{done} / {wanted.Count} icons");
+            if (!byShort.TryGetValue(name, out var found))
+            {
+                index.Missing.Add(name);
+                continue;
+            }
+            string[] candidates = [.. found.OrderBy(path => !IconFolder().IsMatch(path)).ThenBy(path => path.EndsWith("_Sprite.uasset", StringComparison.Ordinal)).ThenBy(path => path, StringComparer.Ordinal)];
+            try
+            {
+                if (ExportOne(name, candidates, files, atlases, staging) is { } entry) index.Icons[name] = entry;
+            }
+            catch (Exception ex)
+            {
+                index.Failed[name] = $"{ex.GetType().Name}: {ex.Message} ({candidates[0]})";
+            }
+        }
+    }
+
+    static IconEntry? ExportOne(string name, string[] candidates, Files files, Dictionary<string, Raster> atlases, string staging)
+    {
+        var path = candidates[0];
+        var assetBase = path[..^".uasset".Length];
+        var names = UAsset.Names(Read(files, path)!);
+        var uexp = Read(files, assetBase + ".uexp") ?? throw new InvalidDataException("no .uexp");
+        var asset = AssetPath(assetBase);
+        string kind;
+        string? atlas = null;
+        int[]? rect = null;
+        Raster image;
+        if (names.Contains("PaperSprite") && names.Contains("Default__PaperSprite"))
+        {
+            atlas = names.First(n => n.StartsWith("/Game/", StringComparison.Ordinal) && n != asset);
+            if (!atlases.TryGetValue(atlas, out var sheet))
+            {
+                var atlasBase = "UE_game/Content/" + atlas[6..];
+                atlases[atlas] = sheet = UAsset.Texture(Read(files, atlasBase + ".uexp") ?? throw new InvalidDataException($"atlas {atlas} not found"), Read(files, atlasBase + ".ubulk"));
+            }
+            var (x, y) = UAsset.Vector2D(uexp, names, "BakedSourceUV");
+            var (w, h) = UAsset.Vector2D(uexp, names, "BakedSourceDimension");
+            rect = [(int)Math.Round(x), (int)Math.Round(y), (int)Math.Round(w), (int)Math.Round(h)];
+            image = (UAsset.Crop(sheet.Rgba, sheet.Width, sheet.Height, rect[0], rect[1], rect[2], rect[3]), rect[2], rect[3], sheet.Format);
+            kind = "sprite";
+        }
+        else if (names.Contains("Texture2D") && names.Contains("Default__Texture2D"))
+        {
+            image = UAsset.Texture(uexp, Read(files, assetBase + ".ubulk"));
+            kind = "texture";
+        }
+        else return null;
+        UAsset.WritePng(Path.Combine(staging, name + ".png"), image.Rgba, image.Width, image.Height);
+        return new IconEntry(asset, Path.GetFileName(files[path].Pak.Path), kind, atlas, rect, name + ".png", image.Format, [image.Width, image.Height], candidates.Length > 1 ? [.. candidates[1..].Select(c => AssetPath(c[..^".uasset".Length]))] : null);
     }
 
     static string ShortName(string path)

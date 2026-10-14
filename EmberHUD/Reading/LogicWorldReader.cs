@@ -5,7 +5,6 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 {
-    private readonly FightMapReader _maps = new(memory);
     private readonly MonsterRarityReader _rarity = new(memory, moduleBase);
 
     public bool TryReadScene(out nint scene, out string? failure)
@@ -70,10 +69,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 
     private bool TryWalkScene(nint scene, Action<int, nint> visit)
     {
-        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
-            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
-            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
-            !memory.TryReadArray(bucketArray, (int)bucketCount, out nint[] buckets))
+        if (!memory.TryReadBuckets(scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, scene + Offsets.SceneEntityBuckets, Offsets.MaxBuckets, out var buckets))
             return false;
 
         var nodeCount = 0;
@@ -108,22 +104,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     public bool TryReadEntityPosition(nint scene, int id, out Vector3 position)
     {
         position = default;
-        if (!memory.TryRead(scene + Offsets.SceneEntityBucketCount, out uint bucketCount) ||
-            bucketCount == 0 || bucketCount > Offsets.MaxBuckets ||
-            !memory.TryReadPtr(scene + Offsets.SceneEntityBuckets, out var bucketArray) ||
-            !memory.TryRead(bucketArray + (nint)(unchecked((uint)id) % bucketCount) * nint.Size, out nint node))
-            return false;
-
-        for (var chainLength = 0; node != 0 && chainLength < Offsets.MaxChain; chainLength++)
-        {
-            if (!memory.TryRead(node + Offsets.NodeKey, out uint key) || !memory.TryRead(node + Offsets.NodeNext, out nint next))
-                return false;
-            if (unchecked((int)key) == id)
-                return memory.TryRead(node + Offsets.NodeEntity, out nint entity) && TryReadPosition(entity, out position);
-            node = next;
-        }
-
-        return false;
+        return memory.TryFindHashValue(scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, scene + Offsets.SceneEntityBuckets, unchecked((uint)id), out var entity) &&
+               TryReadPosition(entity, out position);
     }
 
     private Dictionary<int, (EntityKind Kind, nint Value)> ReadKinds()
@@ -147,7 +129,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             (Offsets.FightMapDestructible, EntityKind.Destructible),
         ];
         foreach (var (map, kind) in maps)
-            foreach (var (key, value) in _maps.Read(fightMgr + map))
+            foreach (var (key, value) in memory.ReadTMapPointers(fightMgr + map))
                 kinds[key] = (kind, value);
         return kinds;
     }
@@ -157,9 +139,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         pawn = 0;
         if (!memory.TryReadPtr(moduleBase + Offsets.PlayerMgrGlobalRva, out var playerMgr) ||
             !memory.TryRead(playerMgr + Offsets.PlayerMgrEntity, out uint index) ||
-            !memory.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
-            !memory.TryReadPtr(chunks + (nint)(index / Offsets.GObjectsPerChunk) * 8, out var chunk) ||
-            !memory.TryReadPtr(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, out var obj) ||
+            !memory.TryReadGObject(moduleBase, index, out var obj, out _) ||
             !memory.TryRead(obj + Offsets.UObjectInternalIndex, out uint internalIndex) || internalIndex != index)
             return false;
 

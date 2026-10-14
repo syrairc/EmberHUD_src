@@ -1,17 +1,11 @@
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
 public class MinimapReaderTests
 {
-    private sealed class Clock
-    {
-        public long Now;
-    }
-
-    private static MinimapReader ReaderFor(FakeWorld world, Clock? clock = null) =>
-        new(world.Memory, unchecked((nint)FakeWorld.ModuleBase), clock is null ? null : () => clock.Now);
+    private static MinimapReader ReaderFor(FakeWorld world) =>
+        new(world.Memory, FakeWorld.Module);
 
     [Fact]
     public void ReadsTheRotateTurnsAsClockwiseDegrees()
@@ -185,106 +179,89 @@ public class MinimapReaderTests
     }
 
     [Fact]
-    public void ARetiredWidgetGivesNullThenRecoversOnTheNextRescan()
+    public void ARetiredWidgetGivesNullThenRecoversOnTheNextGeneration()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         var old = world.AddMinimap(0.25f);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
 
         world.Memory.Write(old.Widget + Offsets.UObjectClass, 0L);
         world.AddMinimap(0.5f);
-        clock.Now = 100;
         Assert.Null(reader.ReadRotationDegrees(1));
-        clock.Now = Offsets.MinimapRescanMilliseconds - 1;
         Assert.Null(reader.ReadRotationDegrees(1));
-        clock.Now = Offsets.MinimapRescanMilliseconds;
-        Assert.Equal(-180f, reader.ReadRotationDegrees(1));
+        Assert.Equal(-180f, reader.ReadRotationDegrees(2));
     }
 
     [Fact]
-    public void ResetRescansAtOnceInsideTheThrottle()
+    public void ResetRescansAtOnceInsideTheSameGeneration()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         var old = world.AddMinimap(0.25f);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
 
         world.Memory.Write(old.Widget + Offsets.UObjectClass, 0L);
         world.AddMinimap(0.5f);
-        clock.Now = 100;
         Assert.Null(reader.ReadRotationDegrees(1));
         reader.Reset();
         Assert.Equal(-180f, reader.ReadRotationDegrees(1));
     }
 
     [Fact]
-    public void ScansAreThrottledWhileTheWidgetIsMissing()
+    public void TheObjectTableIsScannedOnceForEachGenerationWhileTheWidgetIsMissing()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.Null(reader.ReadRotationDegrees(1));
         world.AddMinimap(0.25f);
-        clock.Now = Offsets.MinimapRescanMilliseconds / 2;
+
+        var before = world.Memory.Reads.Count;
         Assert.Null(reader.ReadRotationDegrees(1));
-        clock.Now = Offsets.MinimapRescanMilliseconds;
-        Assert.Equal(-90f, reader.ReadRotationDegrees(1));
+        Assert.Null(reader.ReadRotationDegrees(1));
+        Assert.True(world.Memory.Reads.Count - before < 20);
+        Assert.Equal(-90f, reader.ReadRotationDegrees(2));
     }
 
     [Fact]
     public void ABrokenCachedWidgetWithNoReplacementKeepsGivingNull()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0.25f);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.NotNull(reader.ReadRotationDegrees(1));
         world.Memory.Write(minimap.Widget + Offsets.MinimapWidgetMaterial, 0L);
-        for (var t = 100; t <= 2 * Offsets.MinimapRescanMilliseconds; t += 900)
-        {
-            clock.Now = t;
+        for (var i = 0; i < 5; i++)
             Assert.Null(reader.ReadRotationDegrees(1));
-        }
     }
 
     [Fact]
     public void AGenerationChangeRescansAtOnceAndPicksTheNewestWidgetEvenWhenTheOldOneIsStillReadable()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         world.AddMinimap(0.25f);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
 
         world.AddMinimap(0.5f);
-        clock.Now = 100;
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
         Assert.Equal(-180f, reader.ReadRotationDegrees(2));
         Assert.Equal(-180f, reader.ReadRotationDegrees(2));
     }
 
     [Fact]
-    public void AFailedScanAfterAGenerationChangeStillThrottles()
+    public void AFailedScanAfterAGenerationChangeWaitsForTheNextGeneration()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         var old = world.AddMinimap(0.25f);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.NotNull(reader.ReadRotationDegrees(1));
 
         world.Memory.Write(old.Widget + Offsets.UObjectClass, 0L);
-        clock.Now = 100;
         Assert.Null(reader.ReadRotationDegrees(2));
         world.AddMinimap(0.5f);
-        clock.Now = 200;
         Assert.Null(reader.ReadRotationDegrees(2));
-        clock.Now = 100 + Offsets.MinimapRescanMilliseconds - 1;
-        Assert.Null(reader.ReadRotationDegrees(2));
-        clock.Now = 100 + Offsets.MinimapRescanMilliseconds;
-        Assert.Equal(-180f, reader.ReadRotationDegrees(2));
+        Assert.Equal(-180f, reader.ReadRotationDegrees(3));
     }
 
     [Fact]
@@ -334,7 +311,7 @@ public class MinimapReaderTests
         var bound = world.AddMinimap(0.25f);
         world.AddMinimap(0.5f);
         world.BindMinimap(bound);
-        var reader = ReaderFor(world, new Clock());
+        var reader = ReaderFor(world);
 
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
         Assert.Equal((nint)bound.Widget, reader.Widget);
@@ -343,16 +320,14 @@ public class MinimapReaderTests
     [Fact]
     public void BindingANewWidgetSwitchesOnTheNextReadWithoutWaitingForARescan()
     {
-        var clock = new Clock();
         var world = new FakeWorld();
         var old = world.AddMinimap(0.25f);
         world.BindMinimap(old);
-        var reader = ReaderFor(world, clock);
+        var reader = ReaderFor(world);
         Assert.Equal(-90f, reader.ReadRotationDegrees(1));
 
         var fresh = world.AddMinimap(0.5f);
         world.BindMinimap(fresh, serial: 9);
-        clock.Now = 1;
 
         Assert.Equal(-180f, reader.ReadRotationDegrees(1));
         Assert.Equal(-180f, reader.ReadRotationDegrees(2));
@@ -365,7 +340,7 @@ public class MinimapReaderTests
         var bound = world.AddMinimap(0.25f);
         world.AddMinimap(0.5f);
         world.BindMinimap(bound, serial: 7, weakSerial: 6);
-        var reader = ReaderFor(world, new Clock());
+        var reader = ReaderFor(world);
 
         Assert.Equal(-180f, reader.ReadRotationDegrees(1));
     }

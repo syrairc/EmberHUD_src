@@ -6,12 +6,8 @@ namespace EmberHUD.Host.Memory;
 
 internal sealed partial class GameProcess : IDisposable
 {
-    private const string ProcessName = "torchlight_infinite";
-
     private const uint QueryLimitedAndVmRead = 0x1000 | 0x0010;
     private const uint StillActive = 259;
-    private const int ProcessBasicInformation = 0;
-    private const int PebBaseAddressIndex = 1;
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     private static partial SafeProcessHandle OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, int pid);
@@ -23,9 +19,6 @@ internal sealed partial class GameProcess : IDisposable
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetExitCodeProcess(SafeProcessHandle process, out uint exitCode);
-
-    [LibraryImport("ntdll.dll")]
-    private static unsafe partial int NtQueryInformationProcess(SafeProcessHandle process, int informationClass, nint* information, int length, out int returned);
 
     private readonly SafeProcessHandle _handle;
 
@@ -44,15 +37,15 @@ internal sealed partial class GameProcess : IDisposable
 
     public static bool TryFindPid(out int pid, out string? failure)
     {
-        var candidates = Process.GetProcessesByName(ProcessName);
+        var candidates = Process.GetProcessesByName(Offsets.GameProcessName);
         var count = candidates.Length;
         pid = count == 1 ? candidates[0].Id : 0;
         foreach (var candidate in candidates) candidate.Dispose();
         failure = count switch
         {
             1 => null,
-            0 => $"{ProcessName}.exe is not running",
-            _ => $"{count} processes are named {ProcessName}.exe, the target is ambiguous",
+            0 => $"{Offsets.GameProcessName}.exe is not running",
+            _ => $"{count} processes are named {Offsets.GameProcessName}.exe, the target is ambiguous",
         };
         return count == 1;
     }
@@ -93,7 +86,7 @@ internal sealed partial class GameProcess : IDisposable
             }
 
             var backend = new NativeReadBackend(handle);
-            if (!TryReadPebAddress(handle, out var peb) ||
+            if (!ProcessName.TryReadPebAddress(handle, out var peb) ||
                 !backend.TryReadPtr(peb + Offsets.PebImageBase, out var moduleBase))
             {
                 failure = $"could not find the module base of pid {pid}";
@@ -107,7 +100,7 @@ internal sealed partial class GameProcess : IDisposable
         }
         catch (Exception ex)
         {
-            failure = $"could not attach to pid {pid} - {ex.Message}";
+            failure = $"could not attach to pid {pid} - {ex.GetBaseException().Message}";
             return false;
         }
         finally
@@ -128,13 +121,5 @@ internal sealed partial class GameProcess : IDisposable
             path = ok ? new string(p, 0, (int)length) : "";
             return ok;
         }
-    }
-
-    private static unsafe bool TryReadPebAddress(SafeProcessHandle handle, out nint peb)
-    {
-        var information = stackalloc nint[6];
-        var ok = NtQueryInformationProcess(handle, ProcessBasicInformation, information, 6 * nint.Size, out _) >= 0;
-        peb = ok ? information[PebBaseAddressIndex] : 0;
-        return ok;
     }
 }

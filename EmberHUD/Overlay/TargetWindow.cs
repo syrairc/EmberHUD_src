@@ -21,17 +21,17 @@ internal interface ITargetSource
 
 internal sealed class Win32TargetSource(string? className, string? windowTitle) : ITargetSource
 {
-    public static bool TitleMatches(string? wanted, string actual) => string.IsNullOrEmpty(wanted) || actual.StartsWith(wanted, StringComparison.Ordinal);
+    public static bool TitleMatches(string? wanted, ReadOnlySpan<char> actual) => string.IsNullOrEmpty(wanted) || actual.StartsWith(wanted, StringComparison.Ordinal);
 
     public unsafe nint Find()
     {
-        var buffer = new char[256];
+        Span<char> buffer = stackalloc char[256];
         for (var hwnd = Win32.FindWindowEx(0, 0, className, null); hwnd != 0; hwnd = Win32.FindWindowEx(0, hwnd, className, null))
         {
             int length;
             fixed (char* text = buffer)
                 length = Win32.GetWindowText(hwnd, text, buffer.Length);
-            if (TitleMatches(windowTitle, new string(buffer, 0, Math.Max(0, length))))
+            if (TitleMatches(windowTitle, buffer[..Math.Max(0, length)]))
                 return hwnd;
         }
 

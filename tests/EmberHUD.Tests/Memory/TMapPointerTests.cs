@@ -1,12 +1,12 @@
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
+using EmberHUD.Host.Memory;
 
-namespace EmberHUD.Tests.Reading;
+namespace EmberHUD.Tests.Memory;
 
-public class FightMapReaderTests
+public class TMapPointerTests
 {
     private static (int Key, nint Value)[] Read(FakeWorld world, int mapOffset) =>
-        new FightMapReader(world.Memory).Read(unchecked((nint)(world.FightMgr + mapOffset)));
+        world.Memory.ReadTMapPointers(unchecked((nint)(world.FightMgr + mapOffset)));
 
     [Fact]
     public void ReadsInlineBitMapAndSkipsHoles()
@@ -57,7 +57,7 @@ public class FightMapReaderTests
     {
         var world = new FakeWorld();
         world.WriteMap(Offsets.FightMapMonster, (1, 0x1000));
-        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TMapNum, num);
+        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TArrayNum, num);
         Assert.Empty(Read(world, Offsets.FightMapMonster));
     }
 

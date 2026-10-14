@@ -70,20 +70,7 @@ internal sealed class AppWindow : IDisposable
         }
     }
 
-    public bool PumpMessages()
-    {
-        while (Win32.PeekMessage(out var msg, 0, 0, 0, Win32.PM_REMOVE))
-        {
-            if (msg.Message == Win32.WM_QUIT)
-            {
-                _quit = true;
-                break;
-            }
-            Win32.TranslateMessage(ref msg);
-            Win32.DispatchMessage(ref msg);
-        }
-        return !_quit;
-    }
+    public bool PumpMessages() => Win32.PumpMessages(ref _quit);
 
     public void Dispose()
     {

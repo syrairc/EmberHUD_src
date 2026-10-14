@@ -106,28 +106,23 @@ internal sealed class SetupPage
         ImGui.End();
     }
 
-    static void Section(string text)
-    {
-        using (Fonts.UseBold()) ImGui.SeparatorText(text);
-    }
-
     void DrawGame()
     {
-        Section("Game");
+        Controls.Section("Game");
         var buttons = ImGui.CalcTextSize("Browse").X + ImGui.CalcTextSize("Detect").X + ImGui.GetStyle().FramePadding.X * 4 + ImGui.GetStyle().ItemSpacing.X * 2;
         ImGui.SetNextItemWidth(Math.Max(120, ImGui.GetContentRegionAvail().X - buttons));
-        ImGui.InputTextWithHint("##folder", $"auto - {_registered ?? @"C:\Program Files (x86)\Torchlight Infinite"}", ref Config.GameDirectory, 260);
+        ImGui.InputTextWithHint("##folder", $"auto - {_registered ?? GameInstall.DefaultFolder}", ref Config.GameDirectory, 260);
         ImGui.SameLine();
         if (ImGui.Button("Browse") && _pickFolder(_game?.Folder ?? Config.GameDirectory) is { } picked) Config.GameDirectory = picked;
         ImGui.SameLine();
         if (ImGui.Button("Detect")) Config.GameDirectory = GameInstall.Find("", _registered)?.Folder ?? "";
-        if (_game is null) ImGui.TextColored(EColor.ToVector4(EColor.Bad), "torchlight_infinite.exe not found");
+        if (_game is null) ImGui.TextColored(EColor.ToVector4(EColor.Bad), $"{GameInstall.ExeName} not found");
         else ImGui.TextUnformatted($"ok - build {_game.Build?.ToString() ?? "unknown"}");
     }
 
     void DrawRunAs()
     {
-        Section("Run as");
+        Controls.Section("Run as");
         var index = Math.Max(0, Array.FindIndex(_choices, choice => choice.Equals(Config.RunAsUser, StringComparison.OrdinalIgnoreCase)));
         if (Combo.Option(ref index, _choices, "runas", 220)) Config.RunAsUser = index == 0 ? "" : _choices[index];
         ImGui.SameLine();
@@ -139,7 +134,7 @@ internal sealed class SetupPage
 
     void DrawLaunch()
     {
-        Section("Launch");
+        Controls.Section("Launch");
         ImGui.Checkbox("Game", ref Config.LaunchGame);
         ImGui.SameLine();
         ImGui.Checkbox("EmberHUD", ref Config.LaunchEmberHUD);
@@ -147,7 +142,7 @@ internal sealed class SetupPage
 
     void DrawPrograms()
     {
-        Section("Other programs");
+        Controls.Section("Other programs");
         ListEditor.Compact("programs", Config.Programs, DrawProgram, AddSource<LauncherProgram>.Button(() => new LauncherProgram()));
     }
 
@@ -171,7 +166,7 @@ internal sealed class SetupPage
 
     void DrawIcons()
     {
-        Section("Game icons");
+        Controls.Section("Game icons");
         var busy = _extract is { IsCompleted: false };
         if (!busy) _iconStatus ??= _game is null ? "set the game folder first" : IconExport.Describe(Path.Combine(_root, "GameIcons"), _game.Paks(), _game.Build);
         ImGui.TextUnformatted(busy ? _progress : _iconStatus ?? "");

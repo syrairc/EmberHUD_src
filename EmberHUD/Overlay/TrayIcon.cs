@@ -30,13 +30,13 @@ internal sealed class TrayIcon : IDisposable
         _taskbarCreated = Win32.RegisterWindowMessage("TaskbarCreated");
     }
 
-    public static TrayIcon Create(string tooltip, Func<nint> returnFocusTo, Action<TrayCommand> onCommand)
+    public static TrayIcon Create(string tooltip, string exePath, Func<nint> returnFocusTo, Action<TrayCommand> onCommand)
     {
         var self = new TrayIcon(tooltip, returnFocusTo, onCommand);
         try
         {
             self.CreateWindow();
-            self._icon = LoadAppIcon();
+            self._icon = LoadAppIcon(exePath);
             self.Add();
             return self;
         }
@@ -75,9 +75,8 @@ internal sealed class TrayIcon : IDisposable
         }
     }
 
-    static unsafe nint LoadAppIcon()
+    internal static unsafe nint LoadAppIcon(string exe)
     {
-        if (Environment.ProcessPath is not { } exe) return 0;
         nint small = 0;
         return Win32.ExtractIconEx(exe, 0, null, &small, 1) > 0 ? small : 0;
     }

@@ -52,6 +52,21 @@ public static class TestFrame
         }
     }
 
+    public static int Vertices(Action draw, bool inWindow = false)
+    {
+        var vertices = 0;
+        Run(() =>
+        {
+            if (inWindow) ImGui.Begin("vertex probe");
+            var list = inWindow ? ImGui.GetWindowDrawList() : ImGui.GetBackgroundDrawList();
+            var before = list.VtxBuffer.Size;
+            draw();
+            vertices = list.VtxBuffer.Size - before;
+            if (inWindow) ImGui.End();
+        });
+        return vertices;
+    }
+
     static unsafe ImGuiContextPtr CreateContext()
     {
         var context = ImGui.CreateContext();

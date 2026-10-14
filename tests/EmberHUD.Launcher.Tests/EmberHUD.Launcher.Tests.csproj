@@ -1,18 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <PlatformTarget>x64</PlatformTarget>
-    <RootNamespace>EmberHUD.Launcher.Tests</RootNamespace>
-  </PropertyGroup>
   <ItemGroup>
-    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <ItemGroup>
-    <Using Include="Xunit" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="xunit.v3.mtp-v2" Version="4.0.1" />
+    <Compile Include="..\TempDir.cs" Link="TempDir.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />

@@ -26,8 +26,7 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
     {
         List<(string, string)> found = [];
         if (max <= 0 || !memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language) || !TryLanguageMap(language, out var map) ||
-            !memory.TryRead(map + Offsets.LocMapBucketCount, out uint count) || count == 0 || count > Offsets.MaxLocBuckets ||
-            !memory.TryReadPtr(map, out var bucketArray) || !memory.TryReadArray(bucketArray, (int)count, out nint[] buckets))
+            !memory.TryReadBuckets(map + Offsets.HashBucketCount, map, Offsets.MaxLocBuckets, out var buckets))
             return ([], false);
 
         HashSet<nint> seen = [];
@@ -59,41 +58,22 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
     private bool TryLanguageMap(byte language, out nint map)
     {
         map = 0;
-        if (!memory.TryRead(moduleBase + Offsets.LanguageBucketCountRva, out uint count) || count == 0 || count > Offsets.MaxBuckets ||
-            !memory.TryReadPtr(moduleBase + Offsets.LanguageBucketsRva, out var buckets) ||
-            !memory.TryReadPtr(buckets + (nint)(language % count) * nint.Size, out var node))
+        if (!memory.TryFindHashNode(moduleBase + Offsets.LanguageBucketCountRva, moduleBase + Offsets.LanguageBucketsRva, Offsets.MaxBuckets, language, Offsets.LanguageNodeNext,
+                candidate => memory.TryRead(candidate, out byte found) && found == language, out var node))
             return false;
 
-        for (var hops = 0; hops < Offsets.MaxChain && node != 0; hops++)
-        {
-            if (!memory.TryRead(node, out byte found)) return false;
-            if (found == language)
-            {
-                map = node + Offsets.LanguageNodeMap;
-                return true;
-            }
-            if (!memory.TryReadPtr(node + Offsets.LanguageNodeNext, out node)) return false;
-        }
-        return false;
+        map = node + Offsets.LanguageNodeMap;
+        return true;
     }
 
     private bool TryLookup(nint map, byte[] key, out string text)
     {
         text = "";
         var hash = Hash(key);
-        if (!memory.TryRead(map + Offsets.LocMapBucketCount, out uint count) || count == 0 || count > Offsets.MaxLocBuckets ||
-            !memory.TryReadPtr(map, out var buckets) ||
-            !memory.TryReadPtr(buckets + (nint)(hash % count) * nint.Size, out var node))
-            return false;
-
-        for (var hops = 0; hops < Offsets.MaxChain && node != 0; hops++)
-        {
-            if (memory.TryRead(node + Offsets.LocNodeHash, out ulong found) && found == hash && KeyMatches(node, key) &&
-                memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) && value != 0)
-                return TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out text);
-            if (!memory.TryReadPtr(node + Offsets.LocNodeNext, out node)) return false;
-        }
-        return false;
+        return memory.TryFindHashNode(map + Offsets.HashBucketCount, map, Offsets.MaxLocBuckets, hash, Offsets.LocNodeNext,
+                   candidate => memory.TryRead(candidate + Offsets.LocNodeHash, out ulong found) && found == hash && KeyMatches(candidate, key), out var node) &&
+               memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) &&
+               TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out text);
     }
 
     private bool KeyMatches(nint node, byte[] key)

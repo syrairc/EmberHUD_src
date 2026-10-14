@@ -56,6 +56,21 @@ public sealed class WidgetSmokeTests
     }
 
     [Fact]
+    public void SectionDrawsALabelledSeparatorAndRestoresTheFont()
+    {
+        float before = 0, after = 0, height = 0;
+        UiFrame.Run("section", () =>
+        {
+            before = ImGui.GetFontSize();
+            Controls.Section("Fonts");
+            height = ImGui.GetItemRectSize().Y;
+            after = ImGui.GetFontSize();
+        });
+        Assert.True(height > 0);
+        Assert.Equal(before, after);
+    }
+
+    [Fact]
     public void TabBarRunsTheSelectedTabAndRollsUpItsChange()
     {
         var ran = new List<string>();

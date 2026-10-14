@@ -1,7 +1,6 @@
 using System.Text;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -52,7 +51,7 @@ internal static class FakeMapInfoExtensions
         world.Memory.Write(FakeWorld.ModuleBase + Offsets.LanguageBucketCountRva, 1u);
         world.Memory.Write(languages, current);
         world.Memory.Write(languages + Offsets.LanguageNodeMap, buckets);
-        world.Memory.Write(languages + Offsets.LanguageNodeMap + Offsets.LocMapBucketCount, (uint)bucketCount);
+        world.Memory.Write(languages + Offsets.LanguageNodeMap + Offsets.HashBucketCount, (uint)bucketCount);
         world.Memory.Write(languageBuckets, languages);
     }
 
@@ -99,7 +98,7 @@ internal static class FakeMapInfoExtensions
             const int bucketCount = 4;
             var buckets = world.Alloc(bucketCount * 8);
             world.Memory.Write(record + Offsets.GameplayVarBuckets, buckets);
-            world.Memory.Write(record + Offsets.GameplayVarBucketCount, bucketCount);
+            world.Memory.Write(record + Offsets.GameplayVarBuckets + Offsets.HashBucketCount, bucketCount);
             var slot = 0;
             foreach (var (name, value) in gameplays[i].Vars)
             {
@@ -118,7 +117,7 @@ internal static class FakeMapInfoExtensions
         world.Memory.Write(world.Scene + Offsets.SceneGameplayCount, (uint)gameplays.Length);
     }
 
-    static (int Key, nint Value)[] GamePlayEntities(FakeWorld world) => new FightMapReader(world.Memory).Read((nint)(world.FightMgr + Offsets.FightMapGamePlay));
+    static (int Key, nint Value)[] GamePlayEntities(FakeWorld world) => world.Memory.ReadTMapPointers((nint)(world.FightMgr + Offsets.FightMapGamePlay));
 
     public static long AddStatue(this FakeWorld world, int entityId, string className, string componentClass = "", int activeOffset = 0, bool active = false)
     {

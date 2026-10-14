@@ -9,6 +9,7 @@ using EmberHUD.Host.Reading;
 using EmberHUD.Host.Ui;
 using EmberHUD.Ui;
 
+const string usage = "usage: EmberHUD [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]";
 var root = AppContext.BaseDirectory;
 var pluginsDirectory = Path.Combine(root, "Plugins");
 var check = false;
@@ -26,14 +27,15 @@ for (var i = 0; i < args.Length; i++)
     else if (args[i] == "--as" && i + 1 < args.Length && args[i + 1].Length > 0) processName = args[++i];
     else
     {
-        Console.Error.WriteLine($"unknown argument {args[i]} - usage: EmberHUD [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]");
+        Console.Error.WriteLine($"unknown argument {args[i]} - {usage}");
         return 2;
     }
 }
+var exePath = Environment.ProcessPath ?? "";
 if (processName is not null) ProcessName.Spoof(processName);
 if (fake && live)
 {
-    Console.Error.WriteLine("--fake and --live cannot be used together - usage: EmberHUD [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]");
+    Console.Error.WriteLine($"--fake and --live cannot be used together - {usage}");
     return 2;
 }
 if (iconSheet is not null && !check)
@@ -49,7 +51,7 @@ if (check)
     var report = TextWriter.Synchronized(text);
     Log.Sink = (level, plugin, message) => report.WriteLine($"{level} {(plugin is null ? "" : $"[{plugin}] ")}{message}");
     var code = CheckRunner.Run(pluginsDirectory, report);
-    if (iconSheet is not null) report.WriteLine($"icon sheet {IconSheet.Write(iconSheet, SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory))}");
+    if (iconSheet is not null) report.WriteLine($"icon sheet {IconSheet.Write(iconSheet, LoadSvgSources())}");
     File.WriteAllText(Path.Combine(root, "Logs", "check.txt"), text.ToString());
     Console.Write(text.ToString());
     return code;
@@ -80,15 +82,15 @@ var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(
 
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.Info, fake ? 8 : 33);
 reader.Start();
-using var overlay = OverlayLoop.Create("UnrealWindow", "Torchlight: Infinite");
+using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
 var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
-var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.UploadRgba, overlay.TryGetTexture);
+var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.TryUpload, overlay.Resolve);
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
 Draw.GameIconNames = gameIcons?.Names ?? [];
-var svgIcons = new SvgIconStore(SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory), overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture);
+var svgIcons = new SvgIconStore(LoadSvgSources(), overlay.TryUpload, overlay.Resolve, overlay.ReleaseTexture);
 Draw.SvgIcons = svgIcons.Resolve;
 Draw.SvgIconNames = svgIcons.Names;
-var textures = new PluginTextures(overlay.BeforeFrame, overlay.UploadRgba, overlay.TryGetTexture, overlay.ReleaseTexture, () => overlay.UploadError);
+var textures = new PluginTextures(overlay.BeforeFrame, overlay.TryUpload, overlay.Resolve, overlay.ReleaseTexture);
 Textures.Uploader = textures.Upload;
 Textures.Resolver = textures.Resolve;
 Textures.Releaser = textures.Release;
@@ -102,13 +104,15 @@ overlay.OnStyle(() =>
     ImGui.GetIO().ConfigErrorRecoveryEnableAssert = false;
     themes.Apply();
 });
-var window = new SettingsWindow(sdk, plugins, themes, logs, () => null);
-using var tray = TrayIcon.Create("EmberHUD", () => overlay.TargetHandle, command =>
+var window = new SettingsWindow(sdk, plugins, themes, logs);
+using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle, command =>
 {
     if (command == TrayCommand.Settings) window.Toggle();
     else overlay.Stop();
 });
 var smoother = new PlayerSmoother();
+
+Dictionary<string, string> LoadSvgSources() => SvgIconSources.Load(SvgIconSources.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory);
 
 void Frame()
 {

@@ -192,11 +192,11 @@ public sealed class Settings : PluginSettings
     internal bool DrawMap()
     {
         var changed = SettingsDrawer.DrawNodes(Map);
-        ImGui.SeparatorText("Region");
+        Controls.Section("Region");
         changed |= SettingsDrawer.DrawNodes(Map.Region);
-        ImGui.SeparatorText("Walls");
+        Controls.Section("Walls");
         changed |= SettingsDrawer.DrawNodes(Map.Walls);
-        ImGui.SeparatorText("Player");
+        Controls.Section("Player");
         changed |= SettingsDrawer.DrawNodes(Map.Player);
         return changed;
     }
@@ -204,7 +204,7 @@ public sealed class Settings : PluginSettings
     internal bool DrawIcons()
     {
         var changed = SettingsDrawer.DrawNodes(Icons);
-        ImGui.SeparatorText("Icons");
+        Controls.Section("Icons");
         ImGui.SetNextItemWidth(240);
         ImGui.InputTextWithHint("##filter", "search", ref _filter, 64);
         ImGui.SameLine();

@@ -19,6 +19,16 @@ internal sealed class PluginFixture : IDisposable
 
     public PluginHost Host() => new(Sdk, Root);
 
+    public PluginHost Start()
+    {
+        var host = Host();
+        host.Discover(Plugins);
+        Settle(host);
+        return host;
+    }
+
+    public static PluginSlot Slot(PluginHost host, string name) => host.Slots.Single(slot => slot.Name == name);
+
     public static void Settle(PluginHost host)
     {
         var deadline = Environment.TickCount64 + 60_000;

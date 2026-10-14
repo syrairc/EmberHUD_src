@@ -1,6 +1,5 @@
 using EmberHUD.Testing;
 using EmberHUD.Ui;
-using System.Numerics;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;

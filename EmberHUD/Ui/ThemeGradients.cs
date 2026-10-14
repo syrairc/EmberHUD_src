@@ -13,8 +13,6 @@ internal static class ThemeGradients
     const uint AlphaMask = 0xFF000000;
     const uint Marker = 0x0201;
 
-    public static uint SentinelRgb(int index) => Marker | (uint)index << 16;
-
     public static Vector4 Sentinel(int index, float alpha) => new(1 / 255f, 2 / 255f, index / 255f, alpha);
 
     public static int IndexOf(uint colour) => (colour & 0xFFFF) == Marker ? (int)(colour >> 16 & 0xFF) : -1;

@@ -1,6 +1,5 @@
 using EmberHUD.Host.Memory;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -20,7 +19,7 @@ public sealed class LiveGameSourceTests : IDisposable
         var world = new FakeWorld();
         world.SetLanguageTable(2, 7, ("level|name|4403", "Rainforest of Divine Legacy"));
         world.PublishEntities(world.AddEntity(11, 48, true, 1, 2, 0));
-        LiveGameSource.UseLookups(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+        LiveGameSource.UseLookups(world.Memory, FakeWorld.Module);
 
         Assert.Equal("Rainforest of Divine Legacy", Loc.Get("level|name|4403"));
         Assert.Equal([("level|name|4403", "Rainforest of Divine Legacy")], Loc.Find("rainforest"));
@@ -36,7 +35,7 @@ public sealed class LiveGameSourceTests : IDisposable
     [Fact]
     public void LookupsRacingTheHandleClosingGiveNothing()
     {
-        LiveGameSource.UseLookups(new ClosedBackend(), unchecked((nint)FakeWorld.ModuleBase));
+        LiveGameSource.UseLookups(new ClosedBackend(), FakeWorld.Module);
 
         Assert.Null(Loc.Get("level|name|4403"));
         Assert.Empty(Loc.Find("rainforest"));
@@ -50,7 +49,7 @@ public sealed class LiveGameSourceTests : IDisposable
         var world = new FakeWorld();
         world.SetLanguageTable(2, 7, ("level|name|4403", "Rainforest of Divine Legacy"));
         var gated = new GatedBackend(world.Memory);
-        LiveGameSource.UseLookups(gated, unchecked((nint)FakeWorld.ModuleBase));
+        LiveGameSource.UseLookups(gated, FakeWorld.Module);
 
         var find = Task.Run(() =>
         {
@@ -71,7 +70,7 @@ public sealed class LiveGameSourceTests : IDisposable
     public void SourceForPublishesTheGlobalsTheLayoutAndTheBackend()
     {
         var world = new FakeWorld();
-        var source = LiveGameSource.SourceFor(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+        var source = LiveGameSource.SourceFor(world.Memory, FakeWorld.Module);
         EmberHUD.Memory.Use(source);
 
         Assert.Equal(At(Offsets.FightMgrGlobalRva), EmberHUD.Memory.Globals["FightMgr"]);
@@ -88,7 +87,7 @@ public sealed class LiveGameSourceTests : IDisposable
     [Fact]
     public void DisposeDetachesMemory()
     {
-        EmberHUD.Memory.Use(LiveGameSource.SourceFor(new FakeWorld().Memory, unchecked((nint)FakeWorld.ModuleBase)));
+        EmberHUD.Memory.Use(LiveGameSource.SourceFor(new FakeWorld().Memory, FakeWorld.Module));
 
         new LiveGameSource().Dispose();
 
@@ -98,7 +97,7 @@ public sealed class LiveGameSourceTests : IDisposable
     [Fact]
     public void AReadRacingTheHandleClosingReturnsFalse()
     {
-        var source = LiveGameSource.SourceFor(new ClosedBackend(), unchecked((nint)FakeWorld.ModuleBase));
+        var source = LiveGameSource.SourceFor(new ClosedBackend(), FakeWorld.Module);
 
         Assert.False(source.Read(At(Offsets.FightMgrGlobalRva), new byte[8]));
     }

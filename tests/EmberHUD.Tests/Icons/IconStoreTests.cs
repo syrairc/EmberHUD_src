@@ -16,17 +16,21 @@ public sealed class IconStoreTests : IDisposable
         Directory.Delete(_directory, true);
     }
 
-    bool Upload(string key, byte[] pixels, int width, int height)
+    bool Upload(string key, byte[] pixels, int width, int height, out string failure)
     {
         _uploaded[key] = (width, height);
+        failure = "";
         return true;
     }
 
-    bool Lookup(string key, out ImTextureRef texture)
+    bool UploadFailingFor(string bad, string reason, string key, byte[] pixels, int width, int height, out string failure)
     {
-        texture = new ImTextureRef { TexID = new ImTextureID(_handle) };
-        return _uploaded.ContainsKey(key);
+        if (key != bad) return Upload(key, pixels, width, height, out failure);
+        failure = reason;
+        return false;
     }
+
+    Sprite? Resolve(string key) => _uploaded.ContainsKey(key) ? new Sprite(new ImTextureRef { TexID = new ImTextureID(_handle) }, Vector2.Zero, Vector2.One) : null;
 
     void Write(string name, byte[] bytes) => File.WriteAllBytes(Path.Combine(_directory, name), bytes);
 
@@ -37,18 +41,18 @@ public sealed class IconStoreTests : IDisposable
         WriteIndex("""{"icons":{"UI_MiniMap_Portal":{"file":"UI_MiniMap_Portal.png"},"Broken":{"file":"Broken.png"},"Gone":{"file":"Gone.png"}}}""");
         Write("UI_MiniMap_Portal.png", PngFixture.Rgba(3, 2, PngFixture.Gradient(3, 2), [0]));
         Write("Broken.png", [1, 2, 3, 4]);
-        return IconStore.Open(_directory, Upload, Lookup, inline: true)!;
+        return IconStore.Open(_directory, Upload, Resolve, inline: true)!;
     }
 
     [Fact]
     public void NamesListsTheIndexKeysSortedOrdinal() => Assert.Equal(["Broken", "Gone", "UI_MiniMap_Portal"], Open().Names);
 
-    IconStore OpenTwoPngs(Func<string, byte[], int, int, bool> upload)
+    IconStore OpenTwoPngs(TextureUpload upload)
     {
         WriteIndex("""{"icons":{"A":{"file":"A.png"},"B":{"file":"B.png"}}}""");
         Write("A.png", PngFixture.Rgba(2, 2, PngFixture.Gradient(2, 2), [0]));
         Write("B.png", PngFixture.Rgba(2, 2, PngFixture.Gradient(2, 2), [0]));
-        return IconStore.Open(_directory, upload, Lookup, inline: true)!;
+        return IconStore.Open(_directory, upload, Resolve, inline: true)!;
     }
 
     [Fact]
@@ -130,7 +134,7 @@ public sealed class IconStoreTests : IDisposable
     {
         WriteIndex("""{"icons":{"Dir":{"file":"Dir.png"}}}""");
         Directory.CreateDirectory(Path.Combine(_directory, "Dir.png"));
-        var store = IconStore.Open(_directory, Upload, Lookup, inline: true)!;
+        var store = IconStore.Open(_directory, Upload, Resolve, inline: true)!;
 
         for (var i = 0; i < 4; i++)
         {
@@ -145,7 +149,7 @@ public sealed class IconStoreTests : IDisposable
     [Fact]
     public void AFailedUploadWarnsAndFallsBackAndTheNextTextureStillLoads()
     {
-        var store = OpenTwoPngs((key, pixels, width, height) => key != "game:a" && Upload(key, pixels, width, height));
+        var store = OpenTwoPngs((string key, byte[] pixels, int width, int height, out string failure) => UploadFailingFor("game:a", "upload failed - device lost", key, pixels, width, height, out failure));
 
         store.Resolve("A");
         store.Resolve("B");
@@ -157,9 +161,9 @@ public sealed class IconStoreTests : IDisposable
     }
 
     [Fact]
-    public void AnUploadThatThrowsWarnsOnceAndNeverThrows()
+    public void AFailedUploadLogsItsReasonOnce()
     {
-        var store = OpenTwoPngs((key, pixels, width, height) => key == "game:a" ? throw new InvalidOperationException("device lost") : Upload(key, pixels, width, height));
+        var store = OpenTwoPngs((string key, byte[] pixels, int width, int height, out string failure) => UploadFailingFor("game:a", "device lost", key, pixels, width, height, out failure));
 
         store.Resolve("A");
         store.Resolve("B");
@@ -188,10 +192,10 @@ public sealed class IconStoreTests : IDisposable
     [Fact]
     public void AMissingFolderOrIndexTurnsGameIconsOffWithOneWarning()
     {
-        Assert.Null(IconStore.Open(Path.Combine(_directory, "nope"), Upload, Lookup, inline: true));
+        Assert.Null(IconStore.Open(Path.Combine(_directory, "nope"), Upload, Resolve, inline: true));
         Assert.Single(_log.Messages());
 
-        Assert.Null(IconStore.Open(_directory, Upload, Lookup, inline: true));
+        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
         Assert.Equal(2, _log.Messages().Count);
     }
 
@@ -199,11 +203,11 @@ public sealed class IconStoreTests : IDisposable
     public void ACorruptOrEmptyIndexTurnsGameIconsOffWithOneWarning()
     {
         WriteIndex("{not json");
-        Assert.Null(IconStore.Open(_directory, Upload, Lookup, inline: true));
+        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
         Assert.Single(_log.Messages());
 
         WriteIndex("""{"icons":{}}""");
-        Assert.Null(IconStore.Open(_directory, Upload, Lookup, inline: true));
+        Assert.Null(IconStore.Open(_directory, Upload, Resolve, inline: true));
         Assert.Equal(2, _log.Messages().Count);
     }
 }

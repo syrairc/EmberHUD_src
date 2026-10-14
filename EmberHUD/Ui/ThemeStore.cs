@@ -44,6 +44,8 @@ internal sealed record ThemeFile
 
 internal sealed class ThemeStore
 {
+    public const string DefaultTheme = "Torchlight";
+
     static readonly FieldInfo[] StyleFields = [.. Enum.GetNames<ImGuiStyleVar>().Select(name => typeof(ImGuiStyle).GetField(name)).OfType<FieldInfo>()];
 
     readonly string _themes;
@@ -60,9 +62,9 @@ internal sealed class ThemeStore
         _fonts = fontsDirectory;
         _beforeFrame = beforeFrame;
         var theme = Read(name);
-        if (theme is null) Log.Warn($"theme {name} not found, using Torchlight");
-        Name = theme is null ? "Torchlight" : name;
-        Current = theme ?? Read("Torchlight") ?? new ThemeFile();
+        if (theme is null) Log.Warn($"theme {name} not found, using {DefaultTheme}");
+        Name = theme is null ? DefaultTheme : name;
+        Current = theme ?? Read(DefaultTheme) ?? new ThemeFile();
     }
 
     public string Name { get; private set; }
@@ -129,8 +131,6 @@ internal sealed class ThemeStore
         }
         ThemeGradients.Apply(ImGui.GetDrawData(), _shades, ImGui.ColorConvertFloat4ToU32(style.Colors[(int)ImGuiCol.Text]) & 0xFFFFFF, _runs, blockers[..count]);
     }
-
-    public void Save() => SaveAs(Name);
 
     public unsafe void SaveAs(string name)
     {

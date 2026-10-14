@@ -145,12 +145,6 @@ public sealed class Overlay
         if (_resizeId == id) _resizeId = null;
     }
 
-    public static void Chrome(ImDrawListPtr dl, Vector2 min, Vector2 max, Color background, Color border, float thickness = 1f, float radius = 0f)
-    {
-        if (background.A > 0) dl.AddRectFilled(min, max, EColor.U32(background), radius);
-        if (thickness > 0) dl.AddRect(min, max, EColor.U32(border), radius, ImDrawFlags.None, thickness);
-    }
-
     public static void ClickBlocker(string id, Vector2 pos, Vector2 size)
     {
         ImGui.SetNextWindowPos(pos);

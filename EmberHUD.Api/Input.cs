@@ -28,7 +28,7 @@ public static partial class Input
     {
         (_was, _down) = (_down, _was);
         for (var vk = 1; vk < 256; vk++) _down[vk] = KeyDown(vk);
-        _mods = (_down[0x11] ? KeyModifiers.Ctrl : 0) | (_down[0x10] ? KeyModifiers.Shift : 0) | (_down[0x12] ? KeyModifiers.Alt : 0);
+        _mods = (_down[(byte)Key.Ctrl] ? KeyModifiers.Ctrl : 0) | (_down[(byte)Key.Shift] ? KeyModifiers.Shift : 0) | (_down[(byte)Key.Alt] ? KeyModifiers.Alt : 0);
         Typing = suppressed;
         if (Capturing && (suppressed || !_polled)) Capturing = false;
         _polled = false;

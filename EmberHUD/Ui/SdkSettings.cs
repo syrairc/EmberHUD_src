@@ -6,7 +6,7 @@ namespace EmberHUD.Host.Ui;
 internal sealed class SdkSettings : PluginSettings
 {
     public SdkHotkeys Hotkeys = new();
-    public string Theme = "Torchlight";
+    public string Theme = ThemeStore.DefaultTheme;
     public bool AutoReload;
     public string GameIconsDirectory = "";
     public Dictionary<string, PluginState> Plugins = [];

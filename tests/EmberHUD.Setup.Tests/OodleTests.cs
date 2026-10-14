@@ -33,7 +33,7 @@ public class OodleTests
     public void PakReadsAnOodleEntry()
     {
         using var temp = new TempDir();
-        using var pak = PakFile.Open(temp.File("o.pak", PakBuilder.Build("../../../", new PakSource("UE_game/o.txt", Text, "Oodle", BlockSize: Text.Length, Compressed: [Stream]))), PakBuilder.Key);
+        using var pak = PakFile.Open(temp.File("o.pak", PakBuilder.Build(new PakSource("UE_game/o.txt", Text, "Oodle", BlockSize: Text.Length, Compressed: [Stream]))), PakBuilder.Key);
         Assert.Equal(Text, pak.Read(pak.Entries[0]));
     }
 
@@ -41,14 +41,14 @@ public class OodleTests
     public void PakReadsAnEncryptedOodleEntry()
     {
         using var temp = new TempDir();
-        using var pak = PakFile.Open(temp.File("o.pak", PakBuilder.Build("../../../", new PakSource("UE_game/o.txt", Text, "Oodle", Encrypted: true, BlockSize: Text.Length, Compressed: [Stream]))), PakBuilder.Key);
+        using var pak = PakFile.Open(temp.File("o.pak", PakBuilder.Build(new PakSource("UE_game/o.txt", Text, "Oodle", Encrypted: true, BlockSize: Text.Length, Compressed: [Stream]))), PakBuilder.Key);
         Assert.Equal(Text, pak.Read(pak.Entries[0]));
     }
 
     [Fact]
     public void EveryEntryOfTheSmallestRealPakReadsWhenTheGameIsSet()
     {
-        if (Environment.GetEnvironmentVariable("TLI_GAME_DIR") is not { } folder || GameInstall.At(folder) is not { } game) return;
+        var game = RealGame.Install();
         using var pak = PakFile.Open(game.Paks().First(path => path.EndsWith("pakchunk999-WindowsNoEditor.pak", StringComparison.OrdinalIgnoreCase)), Convert.FromHexString(Offsets.PakAesKey));
         Assert.All(pak.Entries, entry => Assert.Equal(entry.RawSize, pak.Read(entry).Length));
     }

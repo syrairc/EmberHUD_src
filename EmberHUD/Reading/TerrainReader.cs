@@ -92,7 +92,7 @@ internal sealed class TerrainReader(IReadBackend memory, int firstGeneration = 0
         if (header.IsHybrid && !ClearUniformBlocks(header, walkable))
             return null;
 
-        return new Terrain(cols, rows, cellSize, origin, OddRowShift: false, walkable);
+        return new Terrain(cols, rows, cellSize, origin, walkable);
     }
 
     private bool ClearUniformBlocks(Header header, BitArray walkable)

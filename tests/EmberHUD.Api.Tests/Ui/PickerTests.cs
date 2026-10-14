@@ -107,20 +107,9 @@ public class PickerTests
 
     static readonly Vector2 PopupAt = new(50, 50);
 
-    static int _ids;
-
-    static string NextId(string prefix) => prefix + Interlocked.Increment(ref _ids);
-
-    static T Probe<T>(Func<T> read)
-    {
-        T value = default!;
-        UiFrame.Run(Win, () => value = read());
-        return value;
-    }
-
     readonly record struct Metrics(float Line, float Frame, float PanelFrame, Vector2 Spacing, Vector2 Padding, Dictionary<string, float> PanelWidths);
 
-    static Metrics Measure(params string[] texts) => Probe(() =>
+    static Metrics Measure(params string[] texts) => UiFrame.Measure(() =>
     {
         var style = ImGui.GetStyle();
         var line = ImGui.GetTextLineHeight();
@@ -134,18 +123,13 @@ public class PickerTests
 
     static void Scoped(Action test)
     {
-        var io = UiFrame.Io();
         try
         {
             test();
         }
         finally
         {
-            io.AddMouseButtonEvent(0, false);
-            io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
-            UiFrame.Run(Win, CloseAll);
-            UiFrame.Run(Win, () => { });
-            UiFrame.Run(Win, () => { });
+            UiFrame.Settle(Win, CloseAll);
         }
     }
 
@@ -163,7 +147,7 @@ public class PickerTests
 
     sealed class Rig
     {
-        public readonly string Id = NextId("pk");
+        public readonly string Id = UiFrame.NextId("pk");
         public readonly bool Multi;
         public readonly PickerOpts<Mod> Opts;
         public Mod[]? Items = Mods;
@@ -649,7 +633,7 @@ public class PickerTests
     [Fact]
     public void TheSecondLineIsPartOfTheClickableRow() => Scoped(() =>
     {
-        var line = Probe(ImGui.GetTextLineHeight);
+        var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         var rig = new Rig(configure: o =>
         {
             o.Secondary = _ => "second line";
@@ -663,7 +647,7 @@ public class PickerTests
     [Fact]
     public void AWrappedRowIsClickableOnItsLastLine() => Scoped(() =>
     {
-        var line = Probe(ImGui.GetTextLineHeight);
+        var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         var wrapped = string.Concat(Enumerable.Repeat("word ", 80));
         var rig = new Rig(configure: o => o.GroupByCategory = false) { Items = [new(wrapped, ""), new("short", "")] }.Opened();
         Assert.True(rig.Rows[1].Pos.Y - rig.Rows[0].Pos.Y > line * 3f);
@@ -675,7 +659,7 @@ public class PickerTests
     [Fact]
     public void ASecondaryLineDrawsTallerRows() => Scoped(() =>
     {
-        var line = Probe(ImGui.GetTextLineHeight);
+        var line = UiFrame.Measure(ImGui.GetTextLineHeight);
         float Gap(Action<PickerOpts<Mod>> configure)
         {
             var rig = new Rig(configure: o =>
@@ -959,8 +943,8 @@ public class PickerTests
     public void TheListIsDrawnInPanelStyleAndTheStyleIsRestored() => Scoped(() =>
     {
         (Vector2, float, float, float, float) Read() => (ImGui.GetStyle().FramePadding, ImGui.GetStyle().FrameRounding, ImGui.GetStyle().GrabRounding, ImGui.GetStyle().ChildRounding, ImGui.GetStyle().PopupRounding);
-        var before = Probe(Read);
-        var panel = Probe(() =>
+        var before = UiFrame.Measure(Read);
+        var panel = UiFrame.Measure(() =>
         {
             using var _ = new Controls.PanelStyleScope();
             return Read();
@@ -973,7 +957,7 @@ public class PickerTests
             return "";
         }).Opened();
         Assert.Equal(panel, inside);
-        Assert.Equal(before, Probe(Read));
+        Assert.Equal(before, UiFrame.Measure(Read));
         Assert.True(rig.ProbeStable);
     });
 

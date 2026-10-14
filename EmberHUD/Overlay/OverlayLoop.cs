@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Hexa.NET.ImGui;
 using Vortice.Direct3D11;
@@ -12,7 +13,7 @@ internal sealed class OverlayLoop : IDisposable
     readonly ITargetSource _source;
     readonly TargetWindow _target;
     readonly ConcurrentQueue<Action> _beforeFrame = new();
-    readonly Dictionary<string, (byte[] Data, int Width, int Height, Format Format)> _textureData = [];
+    readonly Dictionary<string, (byte[] Data, int Width, int Height)> _textureData = [];
     readonly Dictionary<string, (ID3D11Texture2D Texture, ID3D11ShaderResourceView View)> _textures = [];
 
     OverlayWindow _window = null!;
@@ -25,7 +26,7 @@ internal sealed class OverlayLoop : IDisposable
     public nint TargetHandle => _target.Handle;
     public bool IsOverlayActive { get; private set; }
     public bool WantTextInput => _imgui.WantTextInput;
-    public string UploadError { get; private set; } = "";
+    string UploadError { get; set; } = "";
 
     OverlayLoop(string? targetClassName, string? targetWindowTitle)
     {
@@ -56,7 +57,7 @@ internal sealed class OverlayLoop : IDisposable
             _imgui = imgui;
             _style?.Invoke();
             foreach (var (key, data) in _textureData)
-                if (TryCreate(data.Data, data.Width, data.Height, data.Format) is { } created) _textures[key] = created;
+                if (TryCreate(data.Data, data.Width, data.Height) is { } created) _textures[key] = created;
         }
         catch
         {
@@ -75,44 +76,47 @@ internal sealed class OverlayLoop : IDisposable
 
     public void BeforeFrame(Action action) => _beforeFrame.Enqueue(action);
 
-    public bool UploadBc3(string key, byte[] blocks, int width, int height)
-    {
-        if (width <= 0 || height <= 0) throw new ArgumentException($"texture size {width}x{height} is not positive");
-        var expected = (long)((width + 3) / 4) * ((height + 3) / 4) * 16;
-        if (blocks.Length < expected) throw new ArgumentException($"BC3 data is {blocks.Length} bytes, {width}x{height} needs {expected}");
-        return Upload(key, blocks, width, height, Format.BC3_UNorm);
-    }
-
     public bool UploadRgba(string key, byte[] pixels, int width, int height)
     {
         if (width <= 0 || height <= 0) throw new ArgumentException($"texture size {width}x{height} is not positive");
         var expected = (long)width * height * 4;
         if (pixels.Length < expected) throw new ArgumentException($"RGBA data is {pixels.Length} bytes, {width}x{height} needs {expected}");
-        return Upload(key, pixels, width, height, Format.R8G8B8A8_UNorm);
-    }
-
-    bool Upload(string key, byte[] data, int width, int height, Format format)
-    {
-        if (TryCreate(data, width, height, format) is not { } created) return false;
+        if (TryCreate(pixels, width, height) is not { } created) return false;
         DisposeTexture(key);
         _textures[key] = created;
-        _textureData[key] = (data, width, height, format);
+        _textureData[key] = (pixels, width, height);
         return true;
     }
 
-    public unsafe bool TryGetTexture(string key, out ImTextureRef texture)
-    {
-        texture = default;
-        if (!_textures.TryGetValue(key, out var entry)) return false;
-        texture = new ImTextureRef(null, new ImTextureID(entry.View.NativePointer));
-        return true;
-    }
-
-    (ID3D11Texture2D, ID3D11ShaderResourceView)? TryCreate(byte[] data, int width, int height, Format format)
+    public bool TryUpload(string key, byte[] rgba, int width, int height, out string failure)
     {
         try
         {
-            return Create(data, width, height, format);
+            if (UploadRgba(key, rgba, width, height))
+            {
+                failure = "";
+                return true;
+            }
+            failure = $"upload failed - {UploadError}";
+        }
+        catch (Exception ex)
+        {
+            failure = ex.Message;
+        }
+        return false;
+    }
+
+    public unsafe Sprite? Resolve(string key)
+    {
+        if (!_textures.TryGetValue(key, out var entry)) return null;
+        return new Sprite(new ImTextureRef(null, new ImTextureID(entry.View.NativePointer)), Vector2.Zero, Vector2.One);
+    }
+
+    (ID3D11Texture2D, ID3D11ShaderResourceView)? TryCreate(byte[] data, int width, int height)
+    {
+        try
+        {
+            return Create(data, width, height);
         }
         catch (Exception ex)
         {
@@ -121,7 +125,7 @@ internal sealed class OverlayLoop : IDisposable
         }
     }
 
-    (ID3D11Texture2D, ID3D11ShaderResourceView) Create(byte[] data, int width, int height, Format format)
+    (ID3D11Texture2D, ID3D11ShaderResourceView) Create(byte[] data, int width, int height)
     {
         var handle = GCHandle.Alloc(data, GCHandleType.Pinned);
         try
@@ -133,12 +137,12 @@ internal sealed class OverlayLoop : IDisposable
                     Height = (uint)height,
                     MipLevels = 1,
                     ArraySize = 1,
-                    Format = format,
+                    Format = Format.R8G8B8A8_UNorm,
                     SampleDescription = new SampleDescription(1, 0),
                     Usage = ResourceUsage.Immutable,
                     BindFlags = BindFlags.ShaderResource,
                 },
-                [new SubresourceData(handle.AddrOfPinnedObject(), format == Format.BC3_UNorm ? (uint)((width + 3) / 4 * 16) : (uint)(width * 4))]);
+                [new SubresourceData(handle.AddrOfPinnedObject(), (uint)(width * 4))]);
             return (texture, _gd.Device.CreateShaderResourceView(texture));
         }
         finally

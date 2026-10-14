@@ -62,9 +62,9 @@ public sealed class ToastHost
         _ => Color.FromArgb(255, 150, 190, 240),
     };
 
-    public static float FadeAlpha(double remaining, double fade) => remaining >= fade ? 1f : (float)Math.Clamp(remaining / fade, 0, 1);
+    internal static float FadeAlpha(double remaining, double fade) => remaining >= fade ? 1f : (float)Math.Clamp(remaining / fade, 0, 1);
 
-    public static bool GrowsUp(ToastGrow grow, float topY, float screenH) => grow == ToastGrow.Up || (grow == ToastGrow.Default && topY > screenH * 0.5f);
+    internal static bool GrowsUp(ToastGrow grow, float topY, float screenH) => grow == ToastGrow.Up || (grow == ToastGrow.Default && topY > screenH * 0.5f);
 
     public void Draw(float anchorX, float topY, ToastStyle st)
     {
@@ -124,7 +124,7 @@ public sealed class ToastHost
 
 public static class MessageBar
 {
-    public static float WrapWidth(float total, float accent, float pad, float reserved) => Math.Max(total - accent - pad * 2 - reserved, 1f);
+    internal static float WrapWidth(float total, float accent, float pad, float reserved) => Math.Max(total - accent - pad * 2 - reserved, 1f);
 
     public static bool Draw(string id, ToastLevel level, string? text, string? action = null, float width = 0f)
     {

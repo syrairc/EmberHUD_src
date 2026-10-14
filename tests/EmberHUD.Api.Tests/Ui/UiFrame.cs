@@ -13,12 +13,55 @@ static class UiFrame
         return ImGui.GetIO();
     }
 
-    public static void Unhover()
+    static int _ids;
+
+    public static string NextId(string prefix) => prefix + Interlocked.Increment(ref _ids);
+
+    public static T Measure<T>(Func<T> read)
+    {
+        T value = default!;
+        Run("measure", () => value = read());
+        return value;
+    }
+
+    public static void Settle(string window, Action body)
     {
         var io = Io();
         io.AddMouseButtonEvent(0, false);
+        io.AddMouseButtonEvent(1, false);
+        io.AddKeyEvent(ImGuiKey.DownArrow, false);
+        io.AddKeyEvent(ImGuiKey.UpArrow, false);
         io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
-        Run("unhover", () => { });
+        Run(window, body);
+        Run(window, body);
+    }
+
+    public static void Unhover() => Settle("unhover", () => { });
+
+    public static bool PopupOpen(string window, Action body)
+    {
+        var open = false;
+        Run(window, () =>
+        {
+            body();
+            open = ImGui.IsPopupOpen("", ImGuiPopupFlags.AnyPopupId);
+        });
+        return open;
+    }
+
+    public static void TwoScopes(Action a, Action b)
+    {
+        ImGui.PushID("A");
+        a();
+        ImGui.PopID();
+        ImGui.PushID("B");
+        b();
+        ImGui.PopID();
+    }
+
+    public static void CloseModal(string window, Action body, Func<Vector2> cancel)
+    {
+        for (var i = 0; i < 2 && PopupOpen(window, body); i++) Click(window, cancel(), body);
     }
 
     public static void Hover(string window, Vector2 at, Action body)

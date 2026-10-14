@@ -12,9 +12,9 @@ public class LaunchSettingsTests
         var src = SrcFolder();
         using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(src, "EmberHUD", "Properties", "launchSettings.json")));
         var args = json.RootElement.GetProperty("profiles").GetProperty("EmberHUD").GetProperty("commandLineArgs").GetString();
-        Assert.Equal(@"--plugins ..\..\..\..\Plugins", args);
+        Assert.StartsWith("--plugins ", args);
 
-        var plugins = Path.GetFullPath(args!["--plugins ".Length..], Path.Combine(src, "EmberHUD", "bin", "Debug", "net10.0-windows"));
+        var plugins = Path.GetFullPath(args!["--plugins ".Length..], Path.Combine(src, "EmberHUD", "bin", "Debug", "net10.0-windows", "win-x64"));
         Assert.Equal(Path.Combine(src, "Plugins"), plugins);
     }
 }

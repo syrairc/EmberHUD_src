@@ -9,14 +9,14 @@ namespace Minimap;
 
 public sealed class OutlineTests
 {
-    static readonly Terrain Grid = Scene.Cells(4, 4, false);
+    static readonly Terrain Grid = Scene.Cells(4, 4);
 
     static bool SameRun(Vector2[] points, params Vector2[] expected) => points.SequenceEqual(expected) || points.Reverse().SequenceEqual(expected);
 
     [Test]
     public void ALoneCellIsOneClosedSquareWalkedCornerToCorner()
     {
-        var terrain = Scene.Cells(3, 3, false, (1, 1));
+        var terrain = Scene.OneCell();
         var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
 
         Check.That(line.Closed, "closed");
@@ -38,7 +38,7 @@ public sealed class OutlineTests
     [Test]
     public void TwoLoopsTouchingAtACornerUseEveryEdgeOnceAndStayClosed()
     {
-        var terrain = Scene.Cells(2, 2, false, (0, 0), (1, 1));
+        var terrain = Scene.Cells(2, 2, (0, 0), (1, 1));
         var edges = WallExtractor.Extract(terrain);
         var lines = Outline.Join(edges, terrain);
 
@@ -49,20 +49,9 @@ public sealed class OutlineTests
     }
 
     [Test]
-    public void AShiftedCellIsOneLoopThroughItsHalfEdgeMidpoints()
-    {
-        var terrain = Scene.Cells(3, 3, true, (1, 1));
-        var line = Outline.Join(WallExtractor.Extract(terrain), terrain).Single();
-
-        Check.That(line.Closed, "closed");
-        Check.Equal(6, line.Points.Length);
-        Check.That(line.Points.Contains(new Vector2(20, 10)) && line.Points.Contains(new Vector2(20, 20)), "top and bottom midpoints");
-    }
-
-    [Test]
     public void EndpointsThatDifferByRoundingStillJoin()
     {
-        var terrain = new Terrain(4, 4, 10f, new Vector2(0.1f, 0.3f), false, new BitArray(16));
+        var terrain = new Terrain(4, 4, 10f, new Vector2(0.1f, 0.3f), new BitArray(16));
         List<WallSegment> edges = [new(0.1f, 0.3f, 10.1f, 0.3f), new(10.100001f, 0.3f, 20.1f, 0.3f)];
 
         Check.Equal(3, Outline.Join(edges, terrain).Single().Points.Length);

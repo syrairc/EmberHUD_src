@@ -36,6 +36,6 @@ internal sealed class MonsterRarityReader(IReadBackend memory, nint moduleBase)
     private bool TryReadTier(uint configId, out uint tier)
     {
         tier = 0;
-        return ConfigTable.TryFindRow(memory, moduleBase, Offsets.MonsterCfgBucketsRva, Offsets.MonsterCfgBucketCountRva, configId, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
+        return memory.TryFindHashValue(moduleBase + Offsets.MonsterCfgBucketCountRva, moduleBase + Offsets.MonsterCfgBucketsRva, configId, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
     }
 }

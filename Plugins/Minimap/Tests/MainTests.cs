@@ -15,7 +15,7 @@ public sealed class MainTests
 
     readonly List<string> _uploads = [];
     readonly List<string> _released = [];
-    readonly Terrain _cell = Scene.Cells(3, 3, false, (1, 1));
+    readonly Terrain _cell = Scene.OneCell();
     long _now;
 
     Main RegionPlugin()
@@ -33,7 +33,7 @@ public sealed class MainTests
         TickTwice(main);
     }
 
-    static GameState InArea(int area = 1) => Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.Cells(3, 3, false, (1, 1)), area: area);
+    static GameState InArea() => Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.OneCell());
 
     static void TickTwice(Main main) => TestFrame.Run(() =>
     {
@@ -125,7 +125,7 @@ public sealed class MainTests
     [Test]
     public void TickPublishesAViewRotatedLikeTheGameState()
     {
-        TestGame.Set(Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.Cells(3, 3, false, (1, 1)), rotation: -90));
+        TestGame.Set(Scene.State(player: new Player(new Vector3(15, 15, 0), Vector2.UnitX), terrain: Scene.OneCell(), rotation: -90));
         var main = Scene.Plugin();
         Map.View = null;
 
@@ -389,7 +389,7 @@ public sealed class MainTests
         {
             var main = RegionPlugin();
             TickTwiceAt(main, 0, Scene.State(terrain: _cell, area: 1));
-            TickTwiceAt(main, 10, Scene.State(terrain: Scene.Cells(2, 2, false, (0, 0)), area: 2));
+            TickTwiceAt(main, 10, Scene.State(terrain: Scene.Cells(2, 2, (0, 0)), area: 2));
 
             Check.That(_uploads.SequenceEqual(new[] { "region-1", "region-2" }), string.Join(", ", _uploads));
             Check.That(_released.SequenceEqual(new[] { "region-1" }), string.Join(", ", _released));
@@ -408,7 +408,7 @@ public sealed class MainTests
             var main = RegionPlugin();
             TestGame.Set(Scene.State(terrain: _cell, area: 1));
             TestFrame.Run(main.Tick);
-            TestGame.Set(Scene.State(terrain: Scene.Cells(2, 2, false, (0, 0)), area: 2));
+            TestGame.Set(Scene.State(terrain: Scene.Cells(2, 2, (0, 0)), area: 2));
             TickTwice(main);
 
             Check.That(_uploads.SequenceEqual(new[] { "region-2" }), string.Join(", ", _uploads));
@@ -481,7 +481,7 @@ public sealed class MainTests
             TestGame.UseTextures((_, rgba, _, _) => last = rgba, null);
             var main = Scene.Plugin();
             main.Clock = () => _now;
-            var strip = Scene.Cells(4, 1, false, (0, 0), (3, 0));
+            var strip = Scene.Cells(4, 1, (0, 0), (3, 0));
 
             TickTwiceAt(main, 0, Scene.State(terrain: strip, area: 1, explored: new([new Vector2(5, 5)], 4)));
             TickTwiceAt(main, 10, Scene.State(terrain: strip, area: 2, explored: new([new Vector2(35, 5)], 4)));

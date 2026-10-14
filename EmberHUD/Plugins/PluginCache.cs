@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Plugins;
@@ -30,7 +31,7 @@ internal static class PluginCache
             hash.AppendData(source.Bytes);
         }
         hash.AppendData(typeof(Plugin).Assembly.ManifestModule.ModuleVersionId.ToByteArray());
-        hash.AppendData(Encoding.UTF8.GetBytes($"{typeof(ImGui).Assembly.GetName().Version};latest;nullable;unsafe;release;embedded"));
+        hash.AppendData(Encoding.UTF8.GetBytes($"{typeof(ImGui).Assembly.GetName().Version};{PluginCompiler.OptionsSignature}"));
         return Convert.ToHexString(hash.GetHashAndReset())[..16];
     }
 
@@ -56,7 +57,7 @@ internal static class PluginCache
     }
 
     static bool IsOwnCacheFile(string file, string name) =>
-        file.Length == name.Length + 21 && file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) || file.Length == name.Length + 25 && file.EndsWith(".dll.tmp", StringComparison.OrdinalIgnoreCase);
+        Regex.IsMatch(file, $@"^{Regex.Escape(name)}-[0-9A-F]{{16}}\.dll(\.tmp)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     static IEnumerable<string> Files(string directory, bool tests) =>
         Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)

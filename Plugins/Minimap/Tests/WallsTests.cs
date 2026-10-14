@@ -10,7 +10,7 @@ public sealed class WallsTests
     [Test]
     public void ALoneCellProjectsItsFourEdgesIntoMapSpaceWithTheirBounds()
     {
-        var walls = Walls.Build(1, Scene.Cells(3, 3, false, (1, 1)));
+        var walls = Walls.Build(1, Scene.OneCell());
 
         Check.Equal(8, walls.Lines.Length);
         Check.That(walls.Lines.Contains(new Vector2(10, 10)));
@@ -37,7 +37,7 @@ public sealed class WallsTests
         var bits = new System.Collections.BitArray(1);
         bits[0] = true;
 
-        var walls = Walls.Build(1, new Terrain(1, 1, float.NaN, Vector2.Zero, false, bits));
+        var walls = Walls.Build(1, new Terrain(1, 1, float.NaN, Vector2.Zero, bits));
 
         Check.Equal(0, walls.Lines.Length);
     }
@@ -45,19 +45,19 @@ public sealed class WallsTests
     [Test]
     public void MatchesNeedsTheSameAreaAndTheSameTerrainInstance()
     {
-        var terrain = Scene.Cells(2, 2, false, (0, 0));
+        var terrain = Scene.Cells(2, 2, (0, 0));
         var walls = Walls.Build(5, terrain);
 
         Check.That(walls.Matches(5, terrain));
         Check.That(!walls.Matches(6, terrain));
-        Check.That(!walls.Matches(5, Scene.Cells(2, 2, false, (0, 0))));
+        Check.That(!walls.Matches(5, Scene.Cells(2, 2, (0, 0))));
         Check.That(!Walls.Empty.Matches(0, null));
     }
 
     [Test]
     public void TheRegionOutlineIsTheWallsJoinedIntoALoop()
     {
-        var loop = Walls.Build(1, Scene.Cells(4, 3, false, (1, 1), (2, 1))).RegionOutline.Single();
+        var loop = Walls.Build(1, Scene.Cells(4, 3, (1, 1), (2, 1))).RegionOutline.Single();
 
         Check.That(loop.Closed, "closed");
         Check.Equal(6, loop.Points.Length);

@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace EmberHUD;
 
-public sealed record Terrain(int Cols, int Rows, float CellSize, Vector2 Origin, bool OddRowShift, BitArray Walkable)
+public sealed record Terrain(int Cols, int Rows, float CellSize, Vector2 Origin, BitArray Walkable)
 {
     public bool IsWalkable(int col, int row)
     {
@@ -12,9 +12,5 @@ public sealed record Terrain(int Cols, int Rows, float CellSize, Vector2 Origin,
         return index < Walkable.Length && Walkable[index];
     }
 
-    public Vector2 CellCenter(int col, int row)
-    {
-        var shift = OddRowShift && (row & 1) == 1 ? 0.5f : 0f;
-        return new Vector2(Origin.X + (col + 0.5f + shift) * CellSize, Origin.Y + (row + 0.5f) * CellSize);
-    }
+    public Vector2 CellCenter(int col, int row) => new(Origin.X + (col + 0.5f) * CellSize, Origin.Y + (row + 0.5f) * CellSize);
 }

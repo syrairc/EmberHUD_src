@@ -28,7 +28,7 @@ exit 0
 $stubBuild = 'if ($env:STUB_FAIL -eq ''build'') { exit 99 }; exit 0'
 try {
     New-Item -ItemType Directory -Force "$box/bin", "$box/stubapp" | Out-Null
-    Set-Content "$box/stubapp/EmberHUD.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>'
+    Set-Content "$box/stubapp/EmberHUD.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><AssemblyName>Ember</AssemblyName><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>'
     Set-Content "$box/stubapp/Program.cs" 'if (Environment.GetEnvironmentVariable("STUB_FAIL") == "check") return 1; Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Logs")); File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "Logs", "check.txt"), "PASS stub"); return 0;'
     dotnet build "$box/stubapp/EmberHUD.csproj" -o "$box/stubapp-out" | Out-Null
     if ($LASTEXITCODE) { throw 'stub app build failed' }

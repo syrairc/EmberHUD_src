@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Numerics;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
@@ -46,7 +45,7 @@ public class ControlsIconsTests
         var names = Enumerable.Range(0, 500).Select(i => $"T{i:D3}").ToArray();
         Draw.GameIconNames = names;
         var asked = new HashSet<string>();
-        Draw.GameIcons = name => { asked.Add(name); return null; };
+        Draw.GameIcons = name => { asked.Add(name.ToString()); return null; };
         try
         {
             Controls.IconSheet[] sheets = [Controls.IconSheet.GameIcons()];

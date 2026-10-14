@@ -26,12 +26,14 @@ public static class Draw
         return measured;
     }
 
+    internal static Vector2 TextPad(float size) => new(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
+
     public static Vector2 Text(string text, Vector2 pos, Ui.TextStyle style, Align align = Align.TopLeft, ImDrawListPtr? list = null)
     {
         var size = SizeOf(style);
         var box = MeasureText(text, size, style.Face);
         var min = pos - AlignOffset(box, align);
-        var pad = new Vector2(MathF.Round(size * 0.5f), MathF.Round(size * 0.2f));
+        var pad = TextPad(size);
         if (style.BgEnabled) RectFilled(min - pad, min + box + pad, style.BgColor, style.BorderRounding, list);
         if (style.BorderEnabled) Rect(min - pad, min + box + pad, style.BorderColor, style.BorderThickness, style.BorderRounding, list);
         if (style.ShadowEnabled) Text(text, min + Vector2.One, style.ShadowColor, Align.TopLeft, size, style.Face, list);
@@ -142,28 +144,29 @@ public static class Draw
         target.AddConvexPolyFilled(ref MemoryMarshal.GetReference(points), points.Length, EColor.U32(color));
     }
 
+    internal const int GlowSegments = 32;
+
     public static void Glow(Vector2 centre, float radius, Color color, float inner = 0, ImDrawListPtr? list = null)
     {
         if (radius <= 0 || color.A == 0) return;
-        const int segments = 32;
         var target = list ?? Background;
         var solid = EColor.U32(color);
         var clear = EColor.U32(Color.FromArgb(0, color));
         var uv = ImGui.GetFontTexUvWhitePixel();
-        target.PrimReserve(segments * 9, 1 + segments * 2);
+        target.PrimReserve(GlowSegments * 9, 1 + GlowSegments * 2);
         var first = target.VtxCurrentIdx;
         target.PrimWriteVtx(centre, uv, solid);
-        for (var i = 0; i < segments; i++)
+        for (var i = 0; i < GlowSegments; i++)
         {
-            var direction = new Vector2(MathF.Cos(i * MathF.Tau / segments), MathF.Sin(i * MathF.Tau / segments));
+            var direction = new Vector2(MathF.Cos(i * MathF.Tau / GlowSegments), MathF.Sin(i * MathF.Tau / GlowSegments));
             target.PrimWriteVtx(centre + direction * MathF.Min(inner, radius), uv, solid);
             target.PrimWriteVtx(centre + direction * radius, uv, clear);
         }
-        for (var i = 0; i < segments; i++)
+        for (var i = 0; i < GlowSegments; i++)
         {
             var near = (ushort)(first + 1 + i * 2);
             var far = (ushort)(near + 1);
-            var nextNear = (ushort)(first + 1 + (i + 1) % segments * 2);
+            var nextNear = (ushort)(first + 1 + (i + 1) % GlowSegments * 2);
             var nextFar = (ushort)(nextNear + 1);
             foreach (var index in (ReadOnlySpan<ushort>)[(ushort)first, near, nextNear, near, far, nextFar, near, nextFar, nextNear]) target.PrimWriteIdx(index);
         }
@@ -224,27 +227,23 @@ public static class Draw
         for (var i = 0; i < star.Length; i += 2) target.AddQuadFilled(centre, star[(i + star.Length - 1) % star.Length], star[i], star[i + 1], fill);
     }
 
+    internal const int Layers = 3;
+
     public const string GameIconPrefix = "game:";
 
-    internal static Func<string, Sprite?>? GameIcons { get; set; }
+    internal delegate Sprite? GameIconResolver(ReadOnlySpan<char> texture);
+
+    internal static GameIconResolver? GameIcons { get; set; }
 
     internal static IReadOnlyList<string> GameIconNames { get; set; } = [];
 
-    public static bool TryGameIcon(string texture, out Sprite sprite)
-    {
-        if (string.IsNullOrEmpty(texture))
-        {
-            sprite = default;
-            return false;
-        }
+    public static bool TryGameIcon(string texture, out Sprite sprite) => TryGameIcon(texture.AsSpan(), out sprite);
 
-        if (GameIcons?.Invoke(texture) is { } found)
-        {
-            sprite = found;
-            return true;
-        }
-        sprite = default;
-        return false;
+    internal static bool TryGameIcon(ReadOnlySpan<char> texture, out Sprite sprite)
+    {
+        var found = texture.IsEmpty ? null : GameIcons?.Invoke(texture);
+        sprite = found ?? default;
+        return found is not null;
     }
 
     public const string SvgIconPrefix = "svg:";
@@ -258,9 +257,10 @@ public static class Draw
         var sprite = default(Sprite);
         var tint = color;
         var found = false;
-        if (icon is not null && !TryMarker(icon, out _))
+        var isMarker = TryMarker(icon, out var shape);
+        if (icon is not null && !isMarker)
         {
-            if (icon.StartsWith(GameIconPrefix, StringComparison.Ordinal)) found = TryGameIcon(icon[GameIconPrefix.Length..], out sprite);
+            if (icon.StartsWith(GameIconPrefix, StringComparison.Ordinal)) found = TryGameIcon(icon.AsSpan(GameIconPrefix.Length), out sprite);
             else if (icon.StartsWith(SvgIconPrefix, StringComparison.Ordinal))
             {
                 tint = Color.FromArgb(color.A, Color.White);
@@ -275,7 +275,6 @@ public static class Draw
 
         if (!found)
         {
-            TryMarker(icon, out var shape);
             Marker(centre, radius, color, shape, glow, list);
             return;
         }
@@ -316,7 +315,7 @@ public static class Draw
     public static LayerScope Layer(DrawLayer layer)
     {
         var list = Background;
-        if (list.Splitter.Count < 3) return default;
+        if (list.Splitter.Count < Layers) return default;
         var previous = list.Splitter.Current;
         list.ChannelsSetCurrent((int)layer);
         return new LayerScope(previous);
@@ -326,13 +325,13 @@ public static class Draw
     {
         var list = Background;
         if (list.Splitter.Count > 1) return;
-        list.ChannelsSplit(3);
+        list.ChannelsSplit(Layers);
         list.ChannelsSetCurrent((int)DrawLayer.Middle);
     }
 
     internal static void ResetLayer()
     {
-        if (Background.Splitter.Count >= 3) Background.ChannelsSetCurrent((int)DrawLayer.Middle);
+        if (Background.Splitter.Count >= Layers) Background.ChannelsSetCurrent((int)DrawLayer.Middle);
     }
 
     internal static void MergeLayers() => Background.ChannelsMerge();
@@ -410,6 +409,6 @@ public readonly struct LayerScope : IDisposable
     public void Dispose()
     {
         var list = Draw.Background;
-        if (list.Splitter.Count >= 3) list.ChannelsSetCurrent(_previous);
+        if (list.Splitter.Count >= Draw.Layers) list.ChannelsSetCurrent(_previous);
     }
 }

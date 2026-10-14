@@ -3,7 +3,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0) : IGameSource
+internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0)
 {
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly TerrainReader _terrain = new(memory, firstAreaId);
@@ -90,9 +90,5 @@ internal sealed class LiveReader(IReadBackend memory, nint moduleBase, int first
 
         _anchor = position;
         return _forward;
-    }
-
-    public void Dispose()
-    {
     }
 }

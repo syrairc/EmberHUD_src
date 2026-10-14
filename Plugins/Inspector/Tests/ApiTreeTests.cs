@@ -138,7 +138,7 @@ public sealed class ApiTreeTests
     {
         var huge = Samples.Rich with
         {
-            Terrain = new Terrain(2000, 2000, 32, Vector2.Zero, false, new BitArray(4_000_000)),
+            Terrain = new Terrain(2000, 2000, 32, Vector2.Zero, new BitArray(4_000_000)),
             Explored = new ExploredTrail(new Vector2[30000], 250),
         };
         Draw(new ApiTree { OpenAll = true }, huge);

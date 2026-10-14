@@ -37,6 +37,11 @@ public static partial class Controls
         return changed;
     }
 
+    public static void Section(string text)
+    {
+        using (Fonts.UseBold()) ImGui.SeparatorText(text);
+    }
+
     public static void LogView(string id, IReadOnlyList<string> lines, float height = 200)
     {
         if (ImGui.BeginChild(id, new Vector2(0, height), ImGuiChildFlags.Borders))

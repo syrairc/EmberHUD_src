@@ -80,7 +80,7 @@ try {
     if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
 
     foreach ($project in 'EmberHUD/EmberHUD.csproj', 'EmberHUD.Launcher/EmberHUD.Launcher.csproj', 'EmberHUD.Setup/EmberHUD.Setup.csproj') {
-        dotnet publish "$src/$project" -c Release -r win-x64 --self-contained false -p:SatelliteResourceLanguages=en -o $publish
+        dotnet publish "$src/$project" -c Release -o $publish
         if ($LASTEXITCODE) { throw "publish failed for $project (exit $LASTEXITCODE)" }
     }
 

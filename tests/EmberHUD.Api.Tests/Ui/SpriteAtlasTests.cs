@@ -1,4 +1,3 @@
-using System.Numerics;
 using EmberHUD.Ui;
 
 namespace EmberHUD.Api.Tests;

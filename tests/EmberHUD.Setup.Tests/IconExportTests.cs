@@ -35,8 +35,8 @@ public class IconExportTests
     {
         string[] paks =
         [
-            temp.File(@"game\pakchunk0-WindowsNoEditor.pak", PakBuilder.Build("../../../", BasePak())),
-            .. patches.Select((files, i) => temp.File($@"game\UE_game_{i + 9}_P.pak", PakBuilder.Build("../../../", files))),
+            temp.File(@"game\pakchunk0-WindowsNoEditor.pak", PakBuilder.Build(BasePak())),
+            .. patches.Select((files, i) => temp.File($@"game\UE_game_{i + 9}_P.pak", PakBuilder.Build(files))),
         ];
         return (Path.Combine(temp.Path, "GameIcons"), paks);
     }
@@ -121,7 +121,7 @@ public class IconExportTests
         using var temp = new TempDir();
         var (folder, paks) = Game(temp);
         var old = temp.File(@"GameIcons\index.json", "old");
-        var broken = temp.File(@"game\pakchunk1-WindowsNoEditor.pak", PakBuilder.Build("../../../", PakBuilder.Key, 0x5A6F12E1, 12, new PakSource("UE_game/x.bin", [1])));
+        var broken = temp.File(@"game\pakchunk1-WindowsNoEditor.pak", PakBuilder.Build(PakBuilder.Key, 0x5A6F12E1, 12, new PakSource("UE_game/x.bin", [1])));
         Assert.Throws<InvalidDataException>(() => IconExport.Run([.. paks, broken], folder, PakBuilder.Key, _ => { }));
         Assert.Equal("old", File.ReadAllText(old));
         Assert.False(Directory.Exists(folder + ".new"));
@@ -131,7 +131,7 @@ public class IconExportTests
     public void MissingConfigIsAClearError()
     {
         using var temp = new TempDir();
-        var pak = temp.File("a.pak", PakBuilder.Build("../../../", new PakSource("UE_game/x.bin", [1])));
+        var pak = temp.File("a.pak", PakBuilder.Build(new PakSource("UE_game/x.bin", [1])));
         Assert.Contains("config_map_icon.bin", Assert.Throws<InvalidDataException>(() => IconExport.Run([pak], Path.Combine(temp.Path, "GameIcons"), PakBuilder.Key, _ => { })).Message);
     }
 
@@ -191,7 +191,8 @@ public class IconExportTests
     [Fact]
     public void ExtractMatchesTheCheckedInIconsWhenTheGameIsSet()
     {
-        if (Environment.GetEnvironmentVariable("TLI_GAME_DIR") is not { } gameFolder || Environment.GetEnvironmentVariable("TLI_ICON_ASSETS") is not { } assets || GameInstall.At(gameFolder) is not { } game || !File.Exists(Path.Combine(assets, "index.json"))) return;
+        var game = RealGame.Install();
+        var assets = RealGame.IconAssets();
         using var temp = new TempDir();
         var folder = Path.Combine(temp.Path, "GameIcons");
         var result = IconExport.Run(game.Paks(), folder, Convert.FromHexString(Offsets.PakAesKey), _ => { });

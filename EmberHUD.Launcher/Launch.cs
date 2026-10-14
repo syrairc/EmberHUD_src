@@ -7,7 +7,7 @@ public static class Launch
     public static bool NeedsSetup(LauncherConfig? config, GameInstall? game) => config is null || game is null;
 
     public static string GameInner(GameInstall game) =>
-        $"set __COMPAT_LAYER=RunAsInvoker&& cd /d \"{game.Binaries}\" && start /high torchlight_infinite.exe -SkipGameLauncher -UserDir=Torchlight{(game.Build is { } build ? $" -Version={build}" : "")}";
+        $"set __COMPAT_LAYER=RunAsInvoker&& cd /d \"{game.Binaries}\" && start /high {GameInstall.ExeName} -SkipGameLauncher -UserDir=Torchlight{(game.Build is { } build ? $" -Version={build}" : "")}";
 
     public static ProcessStartInfo Game(GameInstall game, string runAsUser) =>
         runAsUser.Length == 0
@@ -29,7 +29,7 @@ public static class Launch
     {
         List<(string Name, ProcessStartInfo Start)> steps = [];
         if (!config.LaunchGame) log("game - off");
-        else if (isRunning("torchlight_infinite.exe")) log("game - already running");
+        else if (isRunning(GameInstall.ExeName)) log("game - already running");
         else
         {
             if (game.Build is null) log("game - no CurrentBuild in live_patch_version.json, starting without -Version");

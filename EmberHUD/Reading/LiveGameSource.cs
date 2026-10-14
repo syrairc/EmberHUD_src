@@ -52,7 +52,6 @@ internal sealed class LiveGameSource : IGameSource
         GameUi.Finder = null;
         UseLookups(null, 0);
         EmberHUD.Memory.Use(null);
-        _reader?.Dispose();
         _reader = null;
         _game?.Dispose();
         _game = null;

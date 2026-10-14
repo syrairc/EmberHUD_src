@@ -42,8 +42,9 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
             }
             catch (Exception ex)
             {
-                if (_logged.Add(ex.Message)) log($"reader - {ex.Message}");
-                _current = lastGood with { State = lastGood.State with { Status = $"read failed - {ex.Message}" } };
+                var cause = ex.GetBaseException().Message;
+                if (_logged.Add(cause)) log($"reader - {cause}");
+                _current = lastGood with { State = lastGood.State with { Status = $"read failed - {cause}" } };
             }
         }
     }

@@ -1,3 +1,4 @@
+using System.Drawing;
 using EmberHUD.Testing;
 using Hexa.NET.ImGui;
 
@@ -50,5 +51,32 @@ public sealed class TestFrameTests
         }));
         Assert.Equal("bad draw", error.Message);
         TestFrame.Run(() => ImGui.TextUnformatted("recovered"));
+    }
+
+    [Fact]
+    public void VerticesCountsWhatTheDrawAddedToTheBackgroundList()
+    {
+        Assert.Equal(0, TestFrame.Vertices(() => { }));
+        Assert.Equal(4, TestFrame.Vertices(() => Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red)));
+        Assert.Equal(8, TestFrame.Vertices(() =>
+        {
+            Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red);
+            Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Blue);
+        }));
+    }
+
+    [Fact]
+    public void VerticesInAWindowCountsTheWindowListAndIgnoresTheBackground()
+    {
+        Assert.Equal(4, TestFrame.Vertices(() => Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red, list: ImGui.GetWindowDrawList()), inWindow: true));
+        Assert.Equal(0, TestFrame.Vertices(() => Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red), inWindow: true));
+        Assert.Equal(0, TestFrame.Vertices(() => Draw.RectFilled(Vector2.Zero, new Vector2(10), Color.Red, list: ImGui.GetWindowDrawList())));
+    }
+
+    [Fact]
+    public void VerticesLetsADrawThatThrowsThrough()
+    {
+        Assert.Equal("bad draw", Assert.Throws<InvalidOperationException>(() => TestFrame.Vertices(() => throw new InvalidOperationException("bad draw"), inWindow: true)).Message);
+        Assert.Equal(0, TestFrame.Vertices(() => { }));
     }
 }

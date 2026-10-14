@@ -13,26 +13,11 @@ public sealed class ThemeStoreTests : IDisposable
     readonly string _themes = Directory.CreateTempSubdirectory("emberhud-themes-").FullName;
     readonly LogCapture _log = new();
 
-    static readonly Lazy<ImGuiStyle> Pristine = new(CapturePristine);
-
     public ThemeStoreTests()
     {
         TestFrame.Run(() => { });
-        ResetStyle();
+        PristineStyle.Reset();
     }
-
-    static unsafe ImGuiStyle CapturePristine()
-    {
-        var main = ImGui.GetCurrentContext();
-        var scratch = ImGui.CreateContext();
-        ImGui.SetCurrentContext(scratch);
-        var style = *ImGui.GetStyle().Handle;
-        ImGui.SetCurrentContext(main);
-        ImGui.DestroyContext(scratch);
-        return style;
-    }
-
-    static unsafe void ResetStyle() => *ImGui.GetStyle().Handle = Pristine.Value;
 
     public void Dispose()
     {

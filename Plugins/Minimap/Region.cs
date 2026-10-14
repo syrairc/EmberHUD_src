@@ -64,7 +64,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
         var size = terrain.CellSize;
         var rowFrom = Clamp((at.Y - radius - terrain.Origin.Y) / size, terrain.Rows);
         var rowTo = Clamp((at.Y + radius - terrain.Origin.Y) / size, terrain.Rows);
-        var colFrom = Clamp((at.X - radius - terrain.Origin.X) / size - 1, terrain.Cols);
+        var colFrom = Clamp((at.X - radius - terrain.Origin.X) / size, terrain.Cols);
         var colTo = Clamp((at.X + radius - terrain.Origin.X) / size, terrain.Cols);
         var reach = radius * radius;
         for (var row = rowFrom; row <= rowTo; row++)
@@ -76,20 +76,19 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
 
     static byte[] Texels(Terrain terrain, BitArray explored, bool everything, Color regionFill, Color exploredFill, out int width)
     {
-        width = terrain.Cols * 2 + (terrain.OddRowShift ? 1 : 0);
+        width = terrain.Cols * 2;
         var pixels = new byte[width * terrain.Rows * 4];
         var clear = Color.FromArgb(0, regionFill);
         for (var row = 0; row < terrain.Rows; row++)
         {
             var line = row * width * 4;
             for (var x = 0; x < width; x++) Put(pixels, line + x * 4, clear);
-            var shift = terrain.OddRowShift && (row & 1) == 1 ? 1 : 0;
             for (var col = 0; col < terrain.Cols; col++)
             {
                 if (!terrain.IsWalkable(col, row)) continue;
                 var colour = everything || explored[row * terrain.Cols + col] ? exploredFill : regionFill;
-                Put(pixels, line + (col * 2 + shift) * 4, colour);
-                Put(pixels, line + (col * 2 + shift + 1) * 4, colour);
+                Put(pixels, line + col * 8, colour);
+                Put(pixels, line + col * 8 + 4, colour);
             }
         }
         return pixels;

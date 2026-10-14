@@ -1,7 +1,5 @@
-using System.Numerics;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -17,13 +15,13 @@ public class MapIconReaderTests
     private static (MinimapReader Minimap, MapIconReader Icons) ReadersFor(FakeWorld world, Clock? clock = null)
     {
         Func<long>? now = clock is null ? null : () => clock.Now;
-        return (new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), now), new MapIconReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), now));
+        return (new MinimapReader(world.Memory, FakeWorld.Module), new MapIconReader(world.Memory, FakeWorld.Module, now));
     }
 
     private static MapIcon[] Read((MinimapReader Minimap, MapIconReader Icons) readers, IReadOnlyDictionary<int, Vector2>? positions = null)
     {
         readers.Minimap.ReadRotationDegrees(1);
-        return readers.Icons.Read(readers.Minimap, positions ?? NoEntities);
+        return readers.Icons.Read(readers.Minimap, positions ?? NoEntities, _ => null);
     }
 
     [Fact]
@@ -139,6 +137,18 @@ public class MapIconReaderTests
     }
 
     [Fact]
+    public void AFreedIconMapSlotWhoseFreeIndexMatchesALiveTypeIsSkipped()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1), new FakeIcon(2, 2, 2));
+        var map = world.SetIconMap(minimap, (10, world.AddTexture("Stale_Boss")), (2, world.AddTexture("Stale_Chest")), (10, world.AddTexture("UI_MiniMap_Portal")));
+        world.Memory.Write(map + Offsets.TMapInlineBits, 0b100u);
+
+        Assert.Equal(["UI_MiniMap_Portal", ""], Read(ReadersFor(world)).Select(icon => icon.Texture));
+    }
+
+    [Fact]
     public void AnUnresolvedTypeRereadsTheIconMapOnlyAfterTheInterval()
     {
         var world = new FakeWorld();
@@ -162,7 +172,7 @@ public class MapIconReaderTests
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1));
         var map = world.SetIconMap(minimap, (10, world.AddTexture("UI_MiniMap_Portal")));
-        world.Memory.Write(map + Offsets.TMapNum, Offsets.MaxIconMapElements + 1);
+        world.Memory.Write(map + Offsets.TArrayNum, Offsets.MaxIconMapElements + 1);
 
         Assert.Equal("", Assert.Single(Read(ReadersFor(world))).Texture);
     }
@@ -183,7 +193,7 @@ public class MapIconReaderTests
         world.SetMapIcons(replacement, 1, new FakeIcon(10, 1, 1));
         world.SetIconMap(replacement, (10, world.AddTexture("New_Portal")));
         Read(readers);
-        clock.Now = Offsets.MinimapRescanMilliseconds;
+        readers.Minimap.Reset();
 
         Assert.Equal("New_Portal", Read(readers)[0].Texture);
     }
@@ -306,7 +316,7 @@ public class MapIconReaderTests
         var minimap = world.AddMinimap(0f);
         world.SetMapIcons(minimap, 1, new FakeIcon(10, 1, 1));
         world.SetFollowIcons(minimap, (5, 4, 1));
-        world.Memory.Write(minimap.Widget + Offsets.MinimapFollowTypes + Offsets.FollowMapBucketCount, (uint)Offsets.MaxBuckets + 1);
+        world.Memory.Write(minimap.Widget + Offsets.MinimapFollowTypes + Offsets.HashBucketCount, (uint)Offsets.MaxBuckets + 1);
 
         Assert.Equal([10], Read(ReadersFor(world), new Dictionary<int, Vector2> { [5] = new(5, 5) }).Select(icon => icon.Type));
     }
@@ -339,7 +349,7 @@ public class MapIconReaderTests
         var spread = world.Alloc(bucketCount * 8);
         world.Memory.WriteArray(spread, Enumerable.Repeat((long)node, bucketCount).ToArray());
         world.Memory.Write(map, spread);
-        world.Memory.Write(map + Offsets.FollowMapBucketCount, (uint)bucketCount);
+        world.Memory.Write(map + Offsets.HashBucketCount, (uint)bucketCount);
 
         Assert.Equal([10], Read(ReadersFor(world), new Dictionary<int, Vector2> { [5] = new(5, 5) }).Select(icon => icon.Type));
     }

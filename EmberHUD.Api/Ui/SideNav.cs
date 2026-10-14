@@ -23,6 +23,9 @@ public sealed class NavState
 
 public static class SideNav
 {
+    internal const float RowPad = 8f;
+    internal const float BadgePad = 2f;
+
     static readonly Dictionary<uint, int> _sideTab = [];
 
     public static bool Rail(string id, NavItem[]? items, NavState? state, float collapsedWidth = 40f, float expandedWidth = 152f, float iconSize = 20f)
@@ -59,7 +62,7 @@ public static class SideNav
         return changed;
     }
 
-    public static int PickTab((string Label, Func<bool>? Body)[]? tabs, int want)
+    internal static int PickTab((string Label, Func<bool>? Body)[]? tabs, int want)
     {
         if (tabs is not { Length: > 0 }) return -1;
         if (want >= 0 && want < tabs.Length && tabs[want].Body is not null) return want;
@@ -116,7 +119,7 @@ public static class SideNav
     static bool DrawItem(NavItem it, int index, bool selected, bool labels, float side)
     {
         var label = it.Label ?? "";
-        var h = Math.Max(ImGui.GetFrameHeight(), side + 8f);
+        var h = Math.Max(ImGui.GetFrameHeight(), side + RowPad);
         var w = Math.Max(1f, ImGui.GetContentRegionAvail().X);
 
         ImGui.InvisibleButton("##i" + index, new Vector2(w, h));
@@ -154,17 +157,16 @@ public static class SideNav
 
     static void Badge(ImDrawListPtr dl, string text, Vector2 min, Vector2 max, Vector2 iconMax, bool labels)
     {
-        const float padX = 2f;
         var size = ImGui.CalcTextSize(text);
-        var w = size.X + padX * 2f;
+        var w = size.X + BadgePad * 2f;
 
         var bMin = labels
-            ? new Vector2(max.X - w - padX * 2f, min.Y + (max.Y - min.Y - size.Y) * 0.5f)
+            ? new Vector2(max.X - w - BadgePad * 2f, min.Y + (max.Y - min.Y - size.Y) * 0.5f)
             : new Vector2(Math.Min(iconMax.X - w * 0.5f, max.X - w), min.Y);
 
         var bMax = bMin + new Vector2(w, size.Y);
         dl.AddRectFilled(bMin, bMax, ImGui.GetColorU32(ImGuiCol.Button));
-        dl.AddText(bMin + new Vector2(padX, 0f), ImGui.GetColorU32(ImGuiCol.Text), text);
+        dl.AddText(bMin + new Vector2(BadgePad, 0f), ImGui.GetColorU32(ImGuiCol.Text), text);
     }
 
     static void Initials(ImDrawListPtr dl, string? label, Vector2 min, Vector2 max)

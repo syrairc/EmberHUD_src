@@ -15,17 +15,14 @@ public sealed class SvgIconStoreTests : IDisposable
 
     public void Dispose() => _log.Dispose();
 
-    bool Upload(string key, byte[] pixels, int width, int height)
+    bool Upload(string key, byte[] pixels, int width, int height, out string failure)
     {
         _uploaded[key] = (width, height);
+        failure = "";
         return true;
     }
 
-    bool Lookup(string key, out ImTextureRef texture)
-    {
-        texture = new ImTextureRef { TexID = new ImTextureID(_handle) };
-        return _uploaded.ContainsKey(key);
-    }
+    Sprite? Resolve(string key) => _uploaded.ContainsKey(key) ? new Sprite(new ImTextureRef { TexID = new ImTextureID(_handle) }, Vector2.Zero, Vector2.One) : null;
 
     void Release(string key)
     {
@@ -33,8 +30,8 @@ public sealed class SvgIconStoreTests : IDisposable
         _uploaded.Remove(key);
     }
 
-    SvgIconStore Store(Func<string, int, DecodedImage>? rasterize = null, Func<string, byte[], int, int, bool>? upload = null, Action<string>? release = null, TextureLookup? lookup = null) =>
-        new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square, ["svg:broken"] = "<svg><rect" }, upload ?? Upload, lookup ?? new TextureLookup(Lookup), release ?? new Action<string>(Release), rasterize, inline: true);
+    SvgIconStore Store(Func<string, int, DecodedImage>? rasterize = null, TextureUpload? upload = null, Action<string>? release = null) =>
+        new(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["svg:square"] = Square, ["svg:broken"] = "<svg><rect" }, upload ?? Upload, Resolve, release ?? new Action<string>(Release), rasterize, inline: true);
 
     [Fact]
     public void NamesListsTheSourceKeysSortedOrdinal() => Assert.Equal(["svg:broken", "svg:square"], Store().Names);
@@ -148,16 +145,16 @@ public sealed class SvgIconStoreTests : IDisposable
     }
 
     [Fact]
-    public void AFailedOrThrowingUploadWarnsOnceAndFallsBack()
+    public void AFailedUploadWarnsOnceWithItsReasonAndFallsBack()
     {
-        var store = Store(upload: (_, _, _, _) => false);
+        var store = Store(upload: (string _, byte[] _, int _, int _, out string failure) =>
+        {
+            failure = "upload failed - device lost";
+            return false;
+        });
         Assert.Null(Ready(store, "svg:square", 12, Color.Red, Color.Blue));
         Assert.Null(Ready(store, "svg:square", 12, Color.Lime, Color.Blue));
-        Assert.Single(_log.Messages());
-
-        var throwing = Store(upload: (_, _, _, _) => throw new ArgumentException("bad size"));
-        Assert.Null(Ready(throwing, "svg:square", 12, Color.Red, Color.Blue));
-        Assert.Equal(2, _log.Messages().Count);
+        Assert.Contains("device lost", Assert.Single(_log.Messages()));
     }
 
     [Fact]
@@ -234,14 +231,5 @@ public sealed class SvgIconStoreTests : IDisposable
         Assert.Equal(5, releases);
         Assert.Null(store.Resolve("svg:square", 12, Color.FromArgb(0), Color.Blue));
         Assert.NotNull(store.Resolve("svg:square", 12, Color.FromArgb(260), Color.Blue));
-    }
-
-    [Fact]
-    public void AThrowingLookupResolvesToNullWithoutThrowing()
-    {
-        var store = Store(lookup: (string key, out ImTextureRef texture) => throw new InvalidOperationException("device removed"));
-
-        Assert.Null(Ready(store, "svg:square", 12, Color.Red, Color.Blue));
-        Assert.Single(_uploaded);
     }
 }

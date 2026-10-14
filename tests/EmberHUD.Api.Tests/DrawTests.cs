@@ -9,6 +9,7 @@ namespace EmberHUD.Api.Tests;
 public sealed class DrawTests
 {
     static readonly Vector2 Centre = new(100, 50);
+    const int GlowVertices = 1 + 2 * Draw.GlowSegments;
 
     [Theory]
     [InlineData(Align.TopLeft, 0, 0)]
@@ -307,7 +308,7 @@ public sealed class DrawTests
         var start = list.VtxBuffer.Size;
         var colour = Color.FromArgb(100, 200, 150, 50);
         Draw.Glow(Centre, 20, colour, 8);
-        Assert.Equal(65, list.VtxBuffer.Size - start);
+        Assert.Equal(GlowVertices, list.VtxBuffer.Size - start);
         Assert.Equal(Centre, list.VtxBuffer[start].Pos);
         Assert.Equal(EColor.U32(colour), list.VtxBuffer[start].Col);
         Assert.Equal(new Vector2(108, 50), list.VtxBuffer[start + 1].Pos);
@@ -361,7 +362,7 @@ public sealed class DrawTests
 
         var glowing = list.VtxBuffer.Size;
         Draw.Marker(Centre, 6, Color.Red, glow: 1);
-        Assert.Equal(plain + 65, list.VtxBuffer.Size - glowing);
+        Assert.Equal(plain + GlowVertices, list.VtxBuffer.Size - glowing);
         Assert.Equal(EColor.U32(Color.FromArgb(51, Color.Red)), list.VtxBuffer[glowing].Col);
         Assert.Equal(6 * 2.2f, Vector2.Distance(Centre, list.VtxBuffer[glowing + 2].Pos), 3);
 
@@ -421,7 +422,7 @@ public sealed class DrawTests
 
         var glowing = list.VtxBuffer.Size;
         Draw.Icon("door", Centre, 8, Color.Gold, atlas, 1);
-        Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+        Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
 
         var marker = list.VtxBuffer.Size;
         Draw.Marker(Centre, 8, Color.Gold, MarkerShape.Star);
@@ -511,7 +512,7 @@ public sealed class DrawTests
 
             var glowing = list.VtxBuffer.Size;
             Draw.Icon("game:UI_MiniMap_Portal", Centre, 8, Color.Gold, null, 1);
-            Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+            Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
 
             var dot = list.VtxBuffer.Size;
             Draw.Marker(Centre, 8, Color.Gold);
@@ -597,7 +598,7 @@ public sealed class DrawTests
 
             var glowing = list.VtxBuffer.Size;
             Draw.Icon("svg:quest", Centre, 8, Color.Gold, null, 1);
-            Assert.Equal(65 + 4, list.VtxBuffer.Size - glowing);
+            Assert.Equal(GlowVertices + 4, list.VtxBuffer.Size - glowing);
 
             var dot = list.VtxBuffer.Size;
             Draw.Marker(Centre, 8, Color.Gold);

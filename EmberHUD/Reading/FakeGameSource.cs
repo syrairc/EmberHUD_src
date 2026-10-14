@@ -102,7 +102,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static Terrain BuildTerrain()
     {
         var walkable = new BitArray(Cells * Cells);
-        var terrain = new Terrain(Cells, Cells, CellSize, Vector2.Zero, true, walkable);
+        var terrain = new Terrain(Cells, Cells, CellSize, Vector2.Zero, walkable);
         for (var row = 0; row < Cells; row++)
             for (var col = 0; col < Cells; col++)
             {

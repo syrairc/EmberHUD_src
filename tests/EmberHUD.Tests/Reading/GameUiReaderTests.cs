@@ -1,7 +1,5 @@
-using System.Numerics;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -14,8 +12,8 @@ public sealed class GameUiReaderTests
 
     static GameUiReader Reader(FakeWorld world, Func<long>? clock = null)
     {
-        var minimap = new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
-        return new GameUiReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), minimap.TryReadName, clock);
+        var minimap = new MinimapReader(world.Memory, FakeWorld.Module);
+        return new GameUiReader(world.Memory, FakeWorld.Module, minimap.TryReadName, clock);
     }
 
     static (FakeWorld World, FakeUi Ui, long Page, long Root, long Child) OpenNamedPanel(Vector2? origin = null)

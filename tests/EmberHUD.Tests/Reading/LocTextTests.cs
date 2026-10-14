@@ -1,13 +1,12 @@
 using System.Text;
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
 public class LocTextTests
 {
-    static LocText ReaderFor(FakeWorld world) => new(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+    static LocText ReaderFor(FakeWorld world) => new(world.Memory, FakeWorld.Module);
 
     [Theory]
     [InlineData("", 0u)]
@@ -110,7 +109,7 @@ public class LocTextTests
     {
         var world = new FakeWorld();
         world.SetLanguageTable(2, 7, ("a", "forest"));
-        world.Memory.Write(LanguageMap(world) + Offsets.LocMapBucketCount, (uint)Offsets.MaxLocBuckets + 1);
+        world.Memory.Write(LanguageMap(world) + Offsets.HashBucketCount, (uint)Offsets.MaxLocBuckets + 1);
         Assert.Empty(ReaderFor(world).Find("forest", 50).Matches);
     }
 
@@ -133,7 +132,7 @@ public class LocTextTests
         var buckets = world.Alloc(chains * 8);
         world.Memory.WriteArray(buckets, Enumerable.Range(0, chains).Select(c => at + (long)c * Offsets.MaxChain * stride).ToArray());
         world.Memory.Write(LanguageMap(world), buckets);
-        world.Memory.Write(LanguageMap(world) + Offsets.LocMapBucketCount, (uint)chains);
+        world.Memory.Write(LanguageMap(world) + Offsets.HashBucketCount, (uint)chains);
 
         var (matches, truncated) = ReaderFor(world).Find("forest", 50);
         Assert.Empty(matches);

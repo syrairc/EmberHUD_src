@@ -3,13 +3,12 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<long>? clockMilliseconds = null)
+internal sealed class MinimapReader(IReadBackend memory, nint moduleBase)
 {
-    private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<nint, bool> _isMinimapClass = [];
     private readonly Dictionary<uint, bool> _isRotateName = [];
     private nint _widget;
-    private long _nextScan;
+    private bool _scanned;
     private int? _generation;
 
     public nint Widget => _widget;
@@ -17,7 +16,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
     public void Reset()
     {
         _widget = 0;
-        _nextScan = 0;
+        _scanned = false;
         _generation = null;
         _isMinimapClass.Clear();
         _isRotateName.Clear();
@@ -33,7 +32,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
         {
             _generation = generation;
             _widget = 0;
-            _nextScan = 0;
+            _scanned = false;
         }
 
         if (bound != 0)
@@ -55,25 +54,19 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
     {
         if (!memory.TryReadPtr(moduleBase + Offsets.MiniMapMgrGlobalRva, out var manager) ||
             !memory.TryRead(manager + Offsets.MiniMapMgrWidget, out uint index) ||
-            !memory.TryRead(manager + Offsets.MiniMapMgrWidget + sizeof(uint), out int serial) || serial == 0 ||
-            index / Offsets.GObjectsPerChunk >= Offsets.MaxGObjectChunks ||
-            !memory.TryReadPtr(moduleBase + Offsets.GObjectsGlobalRva, out var chunks) ||
-            !memory.TryReadPtr(chunks + (nint)(index / Offsets.GObjectsPerChunk) * nint.Size, out var chunk) ||
-            !memory.TryReadArray(chunk + (nint)(index % Offsets.GObjectsPerChunk) * Offsets.GObjectsItemSize, Offsets.GObjectsItemSize, out byte[] item) ||
-            BitConverter.ToInt32(item, Offsets.GObjectsItemSerial) != serial)
+            !memory.TryRead(manager + Offsets.MiniMapMgrWidget + Offsets.WeakPtrSerial, out int serial) || serial == 0 ||
+            !memory.TryReadGObject(moduleBase, index, out var widget, out var itemSerial) || itemSerial != serial)
             return 0;
 
-        var widget = (nint)BitConverter.ToInt64(item, 0);
-        return widget != 0 && (widget == _widget || IsWidget(widget)) ? widget : 0;
+        return widget == _widget || IsWidget(widget) ? widget : 0;
     }
 
     private bool TryFindWidget()
     {
-        var now = _clock();
-        if (now < _nextScan)
+        if (_scanned)
             return false;
 
-        _nextScan = now + Offsets.MinimapRescanMilliseconds;
+        _scanned = true;
         _widget = Scan();
         return _widget != 0;
     }
@@ -95,7 +88,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
 
             for (var i = inChunk - 1; i >= 0; i--)
             {
-                var obj = (nint)BitConverter.ToInt64(bytes, i * Offsets.GObjectsItemSize);
+                var obj = (nint)BitConverter.ToInt64(bytes, i * Offsets.GObjectsItemSize + Offsets.GObjectsItemObject);
                 if (obj != 0 && IsWidget(obj))
                     return obj;
             }
@@ -163,11 +156,11 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Func<l
             return false;
 
         var entry = blockStart + (nint)(index % Offsets.FNameBlockSize) * Offsets.FNameEntryStride;
-        if (!memory.TryRead(entry, out ushort header) || (header & 1) != 0)
+        if (!memory.TryRead(entry, out ushort header) || (header & Offsets.FNameWideBit) != 0)
             return false;
 
         var length = header >> Offsets.FNameLengthShift;
-        if (length == 0 || length > Offsets.MaxNameLength || !memory.TryReadArray(entry + sizeof(ushort), length, out byte[] chars))
+        if (length == 0 || length > Offsets.MaxNameLength || !memory.TryReadArray(entry + Offsets.FNameHeaderSize, length, out byte[] chars))
             return false;
 
         name = Encoding.ASCII.GetString(chars);

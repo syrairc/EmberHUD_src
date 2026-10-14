@@ -33,5 +33,8 @@ if (Test-Path $icons) {
     }
 }
 
-& (Join-Path $out 'Ember.exe') --check --plugins "$src/Plugins" | Select-String -NotMatch '^PASS'
+$check = & (Join-Path $out 'Ember.exe') --check --plugins "$src/Plugins"
+$checkExit = $LASTEXITCODE
+$check | Select-String -NotMatch '^PASS'
+if ($checkExit) { exit $checkExit }
 Write-Host "run: & '$out\Ember.exe' --live --plugins '$src\Plugins'"

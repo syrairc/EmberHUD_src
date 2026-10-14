@@ -1,4 +1,3 @@
-using System.Numerics;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
@@ -7,8 +6,6 @@ namespace EmberHUD.Api.Tests;
 public class SideNavTests
 {
     const string Win = "sidenav";
-    const float RowPad = 8f;
-    const float BadgePad = 2f;
 
     static readonly Func<bool> Body = () => false;
     static readonly (string Label, Func<bool>? Body)[] Tabs = [("Group", null), ("A", Body), ("B", Body)];
@@ -24,15 +21,10 @@ public class SideNavTests
     static readonly Sprite IdleSprite = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.625f, 0.75f), new Vector2(0.875f, 1f));
     static readonly Sprite PlainSprite = new(new ImTextureRef { TexID = new ImTextureID(1ul) }, new Vector2(0.0625f, 0.5625f), new Vector2(0.1875f, 0.6875f));
 
-    static int _next;
-
-    static string NextId(string prefix) => prefix + ++_next;
-
     static uint U32(Vector4 colour) => ImGui.ColorConvertFloat4ToU32(colour);
 
     static void Scoped(Action test)
     {
-        var io = UiFrame.Io();
         Measure();
         var style = ImGui.GetStyle();
         ImGuiCol[] touched = [ImGuiCol.Header, ImGuiCol.HeaderHovered, ImGuiCol.Button, ImGuiCol.Text, ImGuiCol.TextDisabled, ImGuiCol.Border];
@@ -44,10 +36,7 @@ public class SideNavTests
         finally
         {
             for (var i = 0; i < touched.Length; i++) style.Colors[(int)touched[i]] = saved[i];
-            io.AddMouseButtonEvent(0, false);
-            io.AddMousePosEvent(-float.MaxValue, -float.MaxValue);
-            UiFrame.Run(Win, () => { });
-            UiFrame.Run(Win, () => { });
+            UiFrame.Settle(Win, () => { });
         }
     }
 
@@ -111,7 +100,7 @@ public class SideNavTests
     static (Vector2 Min, Vector2 Max) RowRect(ImGuiWindowPtr rail, int row, float iconSize)
     {
         var content = rail.ContentRegionRect;
-        var height = Math.Max(Measure().FrameHeight, iconSize + RowPad);
+        var height = Math.Max(Measure().FrameHeight, iconSize + SideNav.RowPad);
         var top = content.Min.Y + row * height;
         return (new Vector2(content.Min.X, top), new Vector2(content.Max.X, top + height));
     }
@@ -178,7 +167,7 @@ public class SideNavTests
 
     sealed class RailRig
     {
-        public string Id = NextId("rail");
+        public string Id = UiFrame.NextId("rail");
         public NavItem[]? Items;
         public NavState? State = new();
         public float CollapsedWidth = 40f;
@@ -491,7 +480,7 @@ public class SideNavTests
         rig.Items = [rig.Item("a"), rig.Item("b")];
         rig.Frame();
         var fill = Bounds(WithColour(rig.Rail, HeaderColour));
-        Assert.Equal(Math.Max(Measure().FrameHeight, iconSize + RowPad), fill.Max.Y - fill.Min.Y, 0.01f);
+        Assert.Equal(Math.Max(Measure().FrameHeight, iconSize + SideNav.RowPad), fill.Max.Y - fill.Min.Y, 0.01f);
     });
 
     [Fact]
@@ -761,7 +750,7 @@ public class SideNavTests
         var rail = rig.Rail;
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
         var box = Bounds(WithColour(rail, ButtonColour));
-        var width = textSize.X + BadgePad * 2;
+        var width = textSize.X + SideNav.BadgePad * 2;
         var iconMaxX = rowMin.X + (rowMax.X - rowMin.X - rig.IconSize) / 2 + rig.IconSize;
         Assert.Equal(width, box.Max.X - box.Min.X, 0.01f);
         Assert.Equal(textSize.Y, box.Max.Y - box.Min.Y, 0.01f);
@@ -782,8 +771,8 @@ public class SideNavTests
         var rail = rig.Rail;
         var (rowMin, rowMax) = RowRect(rail, 0, rig.IconSize);
         var box = Bounds(WithColour(rail, ButtonColour));
-        var width = textSize.X + BadgePad * 2;
-        Assert.Equal(rowMax.X - BadgePad * 2, box.Max.X, 0.01f);
+        var width = textSize.X + SideNav.BadgePad * 2;
+        Assert.Equal(rowMax.X - SideNav.BadgePad * 2, box.Max.X, 0.01f);
         Assert.Equal(width, box.Max.X - box.Min.X, 0.01f);
         Assert.Equal(rowMin.Y + (rowMax.Y - rowMin.Y - textSize.Y) / 2, box.Min.Y, 0.01f);
     });
@@ -1005,7 +994,7 @@ public class SideNavTests
     public void ClickingATabSelectsItDrawsOnlyItsBodyAndKeepsItAcrossFrames() => Scoped(() =>
     {
         var log = new List<string>();
-        var rig = new SideRig(NextId("side"), 120f, Pages(log));
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log));
         rig.Frame();
         Assert.Equal(["A"], log);
         UiFrame.Click(Win, rig.Row(1), rig.Draw);
@@ -1019,7 +1008,7 @@ public class SideNavTests
     public void TheSideTabsReturnTheSelectedBodysChangedFlag() => Scoped(() =>
     {
         var log = new List<string>();
-        var rig = new SideRig(NextId("side"), 120f, Pages(log, lastResult: true));
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log, lastResult: true));
         rig.Frame();
         Assert.False(rig.Returned);
         UiFrame.Click(Win, rig.Row(2), rig.Draw);
@@ -1032,7 +1021,7 @@ public class SideNavTests
     {
         var log = new List<string>();
         (string Label, Func<bool>? Body)[] tabs = [("Group", null), ("A", () => { log.Add("A"); return false; }), ("B", () => { log.Add("B"); return false; })];
-        var rig = new SideRig(NextId("side"), 120f, tabs);
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, tabs);
         rig.Frame();
         UiFrame.Click(Win, rig.Row(2), rig.Draw);
         UiFrame.Click(Win, rig.Row(0), rig.Draw);
@@ -1046,7 +1035,7 @@ public class SideNavTests
     {
         var log = new List<string>();
         (string Label, Func<bool>? Body)[] tabs = [("Same", () => { log.Add("first"); return false; }), ("Same", () => { log.Add("second"); return false; })];
-        var rig = new SideRig(NextId("side"), 120f, tabs);
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, tabs);
         rig.Frame();
         UiFrame.Click(Win, rig.Row(1), rig.Draw);
         log.Clear();
@@ -1058,7 +1047,7 @@ public class SideNavTests
     public void TheSelectedTabIsFilledWithHeader() => Scoped(() =>
     {
         Paint();
-        var rig = new SideRig(NextId("side"), 120f, Pages([]));
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages([]));
         rig.Frame();
         UiFrame.Click(Win, rig.Row(1), rig.Draw);
         rig.Frame();
@@ -1074,7 +1063,7 @@ public class SideNavTests
     [Fact]
     public void TheNavColumnIsTheRequestedWidthAndTheBodyStartsAfterIt() => Scoped(() =>
     {
-        var rig = new SideRig(NextId("side"), 137f, Pages([]));
+        var rig = new SideRig(UiFrame.NextId("side"), 137f, Pages([]));
         rig.Frame();
         Assert.Equal(137f, rig.Nav.Size.X, 0.01f);
         Assert.Equal(rig.Nav.Pos.X + 137f + Measure().ItemSpacing.X, rig.BodyPane.Pos.X, 0.01f);
@@ -1084,7 +1073,7 @@ public class SideNavTests
     public void ASelectionThatLandsOnAHeaderAfterTheTabsChangeFallsBackToTheFirstTab() => Scoped(() =>
     {
         var log = new List<string>();
-        var rig = new SideRig(NextId("side"), 120f, Pages(log));
+        var rig = new SideRig(UiFrame.NextId("side"), 120f, Pages(log));
         rig.Frame();
         UiFrame.Click(Win, rig.Row(2), rig.Draw);
         log.Clear();
@@ -1101,8 +1090,8 @@ public class SideNavTests
     {
         var logFirst = new List<string>();
         var logSecond = new List<string>();
-        var first = new SideRig(NextId("side"), 100f, Pages(logFirst)) { Wrapper = "first" };
-        var second = new SideRig(NextId("side"), 100f, Pages(logSecond)) { Wrapper = "second" };
+        var first = new SideRig(UiFrame.NextId("side"), 100f, Pages(logFirst)) { Wrapper = "first" };
+        var second = new SideRig(UiFrame.NextId("side"), 100f, Pages(logSecond)) { Wrapper = "second" };
         void Both()
         {
             first.Draw();
@@ -1156,7 +1145,7 @@ public class SideNavTests
             SideVariant.BodyThrows => [("A", () => throw new InvalidOperationException("body"))],
             _ => Pages([]),
         };
-        var rig = new SideRig(NextId("side"), 100f, tabs);
+        var rig = new SideRig(UiFrame.NextId("side"), 100f, tabs);
         var thrown = false;
         UiFrame.Run(Win, () =>
         {
@@ -1178,11 +1167,11 @@ public class SideNavTests
     [Fact]
     public void AllHeadersAndNoTabsDrawNothingAndReturnFalse() => Scoped(() =>
     {
-        var headers = new SideRig(NextId("side"), 100f, [("Only", null)]);
+        var headers = new SideRig(UiFrame.NextId("side"), 100f, [("Only", null)]);
         headers.Frame();
         Assert.False(headers.Returned);
         Assert.True(headers.Nav.IsNull);
-        var empty = new SideRig(NextId("side"), 100f, []);
+        var empty = new SideRig(UiFrame.NextId("side"), 100f, []);
         empty.Frame();
         Assert.False(empty.Returned);
         Assert.True(empty.Nav.IsNull);

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
@@ -7,6 +8,10 @@ namespace EmberHUD;
 
 public static partial class SettingsDrawer
 {
+    sealed record Row(FieldInfo Field, string Text, string Label, string? Tooltip);
+
+    static readonly ConditionalWeakTable<Type, Row[]> Rows = [];
+
     public static bool DrawNodes(object holder)
     {
         ImGui.PushID(holder.GetType().Name);
@@ -23,11 +28,8 @@ public static partial class SettingsDrawer
     static bool DrawFields(object holder)
     {
         var changed = false;
-        foreach (var field in holder.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance).OrderBy(field => field.MetadataToken))
+        foreach (var (field, text, label, tooltip) in Rows.GetValue(holder.GetType(), RowsOf))
         {
-            var menu = field.GetCustomAttribute<MenuAttribute>();
-            var text = menu?.Label ?? Label(field.Name);
-            var label = $"{text}##{field.Name}";
             switch (field.GetValue(holder))
             {
                 case ToggleNode node:
@@ -70,10 +72,20 @@ public static partial class SettingsDrawer
                 default:
                     continue;
             }
-            Text.Tip(menu?.Tooltip);
+            Text.Tip(tooltip);
         }
         return changed;
     }
+
+    static Row[] RowsOf(Type type) =>
+    [
+        .. type.GetFields(BindingFlags.Public | BindingFlags.Instance).OrderBy(field => field.MetadataToken).Select(field =>
+        {
+            var menu = field.GetCustomAttribute<MenuAttribute>();
+            var text = menu?.Label ?? Label(field.Name);
+            return new Row(field, text, $"{text}##{field.Name}", menu?.Tooltip);
+        }),
+    ];
 
     internal static string Label(string fieldName) => Capitals().Replace(fieldName, " ");
 

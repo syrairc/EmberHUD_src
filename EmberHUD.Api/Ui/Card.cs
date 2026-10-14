@@ -7,13 +7,13 @@ public enum CardLook { Outline, Filled, Subtle }
 
 public static class Card
 {
+    internal const float BodyIndent = 8f;
+
     static readonly Stack<bool> _open = new();
 
     static float Luma(Vector4 c) => c.X * 0.299f + c.Y * 0.587f + c.Z * 0.114f;
 
     static Vector4 Shift(Vector4 c, float d) => new(Math.Clamp(c.X + d, 0f, 1f), Math.Clamp(c.Y + d, 0f, 1f), Math.Clamp(c.Z + d, 0f, 1f), c.W);
-
-    public static Vector4 Raise(Vector4 bg, float amount) => Shift(bg, Luma(bg) > 0.5f ? -amount : amount);
 
     public static Vector4 SurfaceFill(Vector4 window, Vector4 frame, float step = 0.055f, float margin = 0.05f)
     {
@@ -22,19 +22,6 @@ public static class Card
         var gap = (Luma(c) - Luma(frame)) * dir;
         return gap >= margin ? c : Shift(c, dir * (margin - gap));
     }
-
-    static int PushLook(CardLook look, float padding, float rounding)
-    {
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(padding));
-        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, rounding);
-        if (look != CardLook.Filled) return 0;
-        var c = ImGui.GetStyle().Colors;
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, SurfaceFill(c[(int)ImGuiCol.WindowBg], c[(int)ImGuiCol.FrameBg]));
-        return 1;
-    }
-
-    static ImGuiChildFlags LookFlags(CardLook look) =>
-        (look == CardLook.Subtle ? ImGuiChildFlags.None : ImGuiChildFlags.Borders) | ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize | (look == CardLook.Subtle ? ImGuiChildFlags.AlwaysUseWindowPadding : ImGuiChildFlags.None);
 
     public readonly struct CardScope : IDisposable
     {
@@ -54,9 +41,17 @@ public static class Card
     public static CardScope Surface(string id, CardLook look = CardLook.Filled, float width = 0f, float padding = 10f)
     {
         ImGui.PushID(id);
-        var colors = PushLook(look, padding, 6f);
-        ImGui.BeginChild("##surface", new Vector2(width, 0f), LookFlags(look));
-        return new CardScope(colors);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(padding));
+        ImGui.PushStyleVar(ImGuiStyleVar.ChildRounding, 6f);
+        var filled = look == CardLook.Filled;
+        if (filled)
+        {
+            var c = ImGui.GetStyle().Colors;
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, SurfaceFill(c[(int)ImGuiCol.WindowBg], c[(int)ImGuiCol.FrameBg]));
+        }
+        var flags = look == CardLook.Subtle ? ImGuiChildFlags.AlwaysUseWindowPadding : ImGuiChildFlags.Borders;
+        ImGui.BeginChild("##surface", new Vector2(width, 0f), flags | ImGuiChildFlags.AutoResizeY | ImGuiChildFlags.AlwaysAutoResize);
+        return new CardScope(filled ? 1 : 0);
     }
 
     public static void Header(string? title, string? description = null, Action? action = null)
@@ -145,7 +140,7 @@ public static class Card
         _open.Push(open);
         if (open)
         {
-            ImGui.Indent(8f);
+            ImGui.Indent(BodyIndent);
             ImGui.Dummy(new Vector2(0, 2f));
         }
         return open;
@@ -156,7 +151,7 @@ public static class Card
         if (_open.Count > 0 && _open.Pop())
         {
             ImGui.Dummy(new Vector2(0, 4f));
-            ImGui.Unindent(8f);
+            ImGui.Unindent(BodyIndent);
         }
         ImGui.EndChild();
         ImGui.PopStyleVar(1);

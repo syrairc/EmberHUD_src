@@ -46,6 +46,7 @@ public class OffsetsTests
 
         Assert.Equal(want.Count, properties.Count);
         Assert.Equal("MiniMap_C", properties["MinimapClassName"]);
+        Assert.Equal("torchlight_infinite", properties["GameProcessName"]);
         foreach (var (name, value) in want)
             Assert.Equal(value, properties[name]);
     }

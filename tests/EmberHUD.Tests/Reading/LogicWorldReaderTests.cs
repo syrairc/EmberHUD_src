@@ -4,7 +4,7 @@ namespace EmberHUD.Tests.Reading;
 
 public class LogicWorldReaderTests
 {
-    private static LogicWorldReader ReaderFor(FakeWorld world) => new(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
+    private static LogicWorldReader ReaderFor(FakeWorld world) => new(world.Memory, FakeWorld.Module);
 
     private static (Vector3? PlayerPosition, Entity[] Entities) ReadWorld(FakeWorld world)
     {
@@ -240,7 +240,7 @@ public class LogicWorldReaderTests
         world.PublishEntities(
             world.AddEntity(1, 48, true, 1, 1, 0),
             world.AddEntity(2, 5, true, 2, 2, 0, mapOffset: Offsets.FightMapNpc));
-        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TMapNum, 20001);
+        world.Memory.Write(world.FightMgr + Offsets.FightMapMonster + Offsets.TArrayNum, 20001);
         Assert.Equal([2], Read(world).Select(e => e.Id));
     }
 
@@ -414,7 +414,7 @@ public class LogicWorldReaderTests
         var world = new FakeWorld();
         Assert.Empty(Read(world));
         world.PublishEntities(world.AddEntity(1, 9, true, 1, 1, 1));
-        world.Memory.Write(world.Scene + Offsets.SceneEntityBucketCount, 0u);
+        world.Memory.Write(world.Scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, 0u);
         Assert.Empty(Read(world));
     }
 
@@ -425,7 +425,7 @@ public class LogicWorldReaderTests
     {
         var world = new FakeWorld();
         world.PublishEntities(world.AddEntity(1, 9, true, 1, 1, 1));
-        world.Memory.Write(world.Scene + Offsets.SceneEntityBucketCount, bucketCount);
+        world.Memory.Write(world.Scene + Offsets.SceneEntityBuckets + Offsets.HashBucketCount, bucketCount);
         Assert.Empty(Read(world));
     }
 
@@ -512,7 +512,7 @@ public class LogicWorldReaderTests
     }
 
     private static SceneEntity[] ListScene(FakeWorld world) =>
-        ReaderFor(world).ListScene((nint)world.Scene, new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase)).TryReadName);
+        ReaderFor(world).ListScene((nint)world.Scene, new MinimapReader(world.Memory, FakeWorld.Module).TryReadName);
 
     [Fact]
     public void ListSceneListsEveryEntityWithKindAndClassWhenItHasThem()

@@ -96,7 +96,7 @@ public static class Picker
             return false;
         }
 
-        var matches = Header(all, state, o, prim, appearing);
+        var matches = DrawFilterBar(all, state, o, appearing);
 
         var acted = false;
         var footer = multi ? ImGui.GetFrameHeightWithSpacing() + ImGui.GetStyle().ItemSpacing.Y : 0f;
@@ -131,7 +131,7 @@ public static class Picker
         return acted;
     }
 
-    static List<T> Header<T>(IReadOnlyList<T> all, PickerState<T> state, PickerOpts<T> o, Func<T, string> prim, bool appearing)
+    static List<T> DrawFilterBar<T>(IReadOnlyList<T> all, PickerState<T> state, PickerOpts<T> o, bool appearing)
     {
         if (o.ShowSearch)
         {
@@ -164,13 +164,6 @@ public static class Picker
         var matches = Filter(all, state, o);
         ImGui.TextDisabled(matches.Count + " of " + all.Count);
         ImGui.Separator();
-
-        if (o.Category is { } group && o.GroupByCategory && state.Category == AnyCategory)
-            matches.Sort((a, b) =>
-            {
-                var c = string.CompareOrdinal(group(a) ?? "", group(b) ?? "");
-                return c != 0 ? c : string.CompareOrdinal(prim(a) ?? "", prim(b) ?? "");
-            });
         return matches;
     }
 
@@ -178,31 +171,36 @@ public static class Picker
     {
         var terms = Terms(state.Filter);
         var only = state.Category == AnyCategory ? null : o.Category;
-        return [.. all.Where(it => (only is null || (only(it) ?? "") == state.Category) && RowMatches(it, o, terms))];
-    }
-
-    static bool RowMatches<T>(T it, PickerOpts<T> o, Func<string, bool>[] terms)
-    {
-        if (terms.Length == 0) return true;
-        if (o.Search is { } search)
+        List<T> matches = [];
+        foreach (var it in all)
         {
-            var s = search(it) ?? "";
-            return terms.All(m => m(s));
+            if (only is not null && (only(it) ?? "") != state.Category) continue;
+            if (terms.Length > 0)
+            {
+                string[] fields = o.Search is { } search
+                    ? [search(it) ?? ""]
+                    : [(o.Primary is { } primary ? primary(it) : it?.ToString()) ?? "", o.Secondary?.Invoke(it) ?? "", o.Category?.Invoke(it) ?? ""];
+                if (!terms.All(term => fields.Any(term))) continue;
+            }
+            matches.Add(it);
         }
-        var a = (o.Primary is { } primary ? primary(it) : it?.ToString()) ?? "";
-        var b = o.Secondary?.Invoke(it) ?? "";
-        var c = o.Category?.Invoke(it) ?? "";
-        return terms.All(m => m(a) || m(b) || m(c));
+        return matches;
     }
 
     static void Rows<T>(List<T> matches, PickerState<T> state, PickerOpts<T> o, Func<T, string> prim, Func<T, string> key, bool multi, ref T? picked, ref bool acted)
     {
         var category = o.Category;
+        var grouped = category is not null && o.GroupByCategory && state.Category == AnyCategory;
+        if (grouped)
+            matches.Sort((a, b) =>
+            {
+                var c = string.CompareOrdinal(category!(a) ?? "", category!(b) ?? "");
+                return c != 0 ? c : string.CompareOrdinal(prim(a) ?? "", prim(b) ?? "");
+            });
         if (!ImGui.BeginTable("##pickrows", category is null ? 1 : 2, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH)) return;
         ImGui.TableSetupColumn("row", ImGuiTableColumnFlags.WidthStretch);
         if (category is not null) ImGui.TableSetupColumn("cat", ImGuiTableColumnFlags.WidthFixed, o.CategoryWidth);
 
-        var grouped = category is not null && o.GroupByCategory && state.Category == AnyCategory;
         string? curGroup = null;
         foreach (var it in matches.Take(o.MaxRows))
         {

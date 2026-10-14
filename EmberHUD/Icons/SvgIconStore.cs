@@ -13,8 +13,8 @@ internal sealed class SvgIconStore
     sealed record Rendered(Request Request, DecodedImage? Image, string? Failure, bool SkiaMissing);
 
     readonly IReadOnlyDictionary<string, string> _sources;
-    readonly Func<string, byte[], int, int, bool> _upload;
-    readonly TextureLookup _lookup;
+    readonly TextureUpload _upload;
+    readonly Func<string, Sprite?> _resolve;
     readonly Action<string> _release;
     readonly Func<string, int, DecodedImage> _rasterize;
     readonly BackgroundJob<Rendered> _job;
@@ -27,12 +27,12 @@ internal sealed class SvgIconStore
 
     public IReadOnlyList<string> Names { get; }
 
-    public SvgIconStore(IReadOnlyDictionary<string, string> sources, Func<string, byte[], int, int, bool> upload, TextureLookup lookup, Action<string> release, Func<string, int, DecodedImage>? rasterize = null, bool inline = false)
+    public SvgIconStore(IReadOnlyDictionary<string, string> sources, TextureUpload upload, Func<string, Sprite?> resolve, Action<string> release, Func<string, int, DecodedImage>? rasterize = null, bool inline = false)
     {
         _sources = sources;
         Names = [.. sources.Keys.Order(StringComparer.Ordinal)];
         _upload = upload;
-        _lookup = lookup;
+        _resolve = resolve;
         _release = release;
         _rasterize = rasterize ?? SvgRasterizer.Rasterize;
         _job = new BackgroundJob<Rendered>(inline);
@@ -54,7 +54,7 @@ internal sealed class SvgIconStore
         {
             _recent.Remove(node);
             _recent.AddFirst(node);
-            return Lookup(node.Value.Key);
+            return _resolve(node.Value.Key);
         }
         if (_queue.Count < MaxQueued && _queued.Add(request)) _queue.Enqueue(request);
         return null;
@@ -107,9 +107,10 @@ internal sealed class SvgIconStore
 
         var request = done.Request;
         var key = $"{request.Icon}@{request.Pixels}#{request.Colour:X6}#{request.Accent:X6}";
-        if (done.Image is not { } image || !Upload(key, image))
+        var failure = done.Failure ?? "";
+        if (done.Image is not { } image || !_upload(key, image.Rgba, image.Width, image.Height, out failure))
         {
-            if (_failed.Add(request.Icon)) Log.Warn($"svg icon {request.Icon} - {done.Failure ?? "texture upload failed"}");
+            if (_failed.Add(request.Icon)) Log.Warn($"svg icon {request.Icon} - {failure}");
             return;
         }
 
@@ -123,18 +124,6 @@ internal sealed class SvgIconStore
         }
     }
 
-    Sprite? Lookup(string key)
-    {
-        try
-        {
-            return _lookup(key, out var texture) ? new Sprite(texture, Vector2.Zero, Vector2.One) : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     void Release(string key)
     {
         try
@@ -143,18 +132,6 @@ internal sealed class SvgIconStore
         }
         catch (Exception)
         {
-        }
-    }
-
-    bool Upload(string key, DecodedImage image)
-    {
-        try
-        {
-            return _upload(key, image.Rgba, image.Width, image.Height);
-        }
-        catch (Exception)
-        {
-            return false;
         }
     }
 }

@@ -21,7 +21,9 @@ public sealed class ThemeGradientsTests
 
     static ImDrawVert V(float x, float y, uint colour) => new() { Pos = new Vector2(x, y), Col = colour };
 
-    static uint Tag(int index, uint alpha = Opaque) => alpha | ThemeGradients.SentinelRgb(index);
+    static uint SentinelRgb(int index) => ImGui.ColorConvertFloat4ToU32(ThemeGradients.Sentinel(index, 1)) & 0xFFFFFF;
+
+    static uint Tag(int index, uint alpha = Opaque) => alpha | SentinelRgb(index);
 
     static void Shade(ImDrawVert[] vertices) => ThemeGradients.Apply(vertices, Shades, TextRgb, []);
 
@@ -76,7 +78,6 @@ public sealed class ThemeGradientsTests
     [Fact]
     public void TheSentinelVectorPacksToTheSentinelRgb()
     {
-        Assert.Equal(ThemeGradients.SentinelRgb(7), ImGui.ColorConvertFloat4ToU32(ThemeGradients.Sentinel(7, 1)) & 0xFFFFFF);
         Assert.Equal(7, ThemeGradients.IndexOf(Tag(7)));
         Assert.Equal(-1, ThemeGradients.IndexOf(Opaque | TextRgb));
     }
@@ -211,7 +212,7 @@ public sealed class ThemeGradientsTests
                 var list = data.CmdLists[n];
                 for (var i = 0; i < list.VtxBuffer.Size; i++) colours.Add(list.VtxBuffer[i].Col & 0xFFFFFF);
             }
-            Assert.DoesNotContain(ThemeGradients.SentinelRgb(0), colours);
+            Assert.DoesNotContain(SentinelRgb(0), colours);
             Assert.Contains(Gold.Bottom, colours);
         }
         finally

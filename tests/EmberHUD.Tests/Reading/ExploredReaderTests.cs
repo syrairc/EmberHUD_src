@@ -1,6 +1,4 @@
-using System.Numerics;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -42,6 +40,19 @@ public class ExploredReaderTests
 
         Assert.Equal([new Vector2(1, 2), new Vector2(4, 5), new Vector2(7, 8)], second!.Points);
         Assert.Equal(2, first!.Points.Length);
+    }
+
+    [Fact]
+    public void PaddedPointsAreReadAtTheirStride()
+    {
+        using var padded = new OffsetPatch(nameof(Offsets.SavePointStride), 16);
+        var (world, minimap, _, read) = Setup();
+        world.SetExplored(minimap, 0.4f, 1000, ("110_0", Two));
+        Assert.Equal([new Vector2(1, 2), new Vector2(4, 5)], read()!.Points);
+
+        world.SetExplored(minimap, 0.4f, 1000, ("110_0", [.. Two, new(7, 8, 9)]));
+
+        Assert.Equal([new Vector2(1, 2), new Vector2(4, 5), new Vector2(7, 8)], read()!.Points);
     }
 
     [Fact]

@@ -1,6 +1,4 @@
-using System.Numerics;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -69,8 +67,8 @@ public sealed class TradeReaderTests
 
     static GameUiReader Reader(Market market)
     {
-        var minimap = new MinimapReader(market.World.Memory, unchecked((nint)FakeWorld.ModuleBase));
-        return new GameUiReader(market.World.Memory, unchecked((nint)FakeWorld.ModuleBase), minimap.TryReadName, () => market.Now);
+        var minimap = new MinimapReader(market.World.Memory, FakeWorld.Module);
+        return new GameUiReader(market.World.Memory, FakeWorld.Module, minimap.TryReadName, () => market.Now);
     }
 
     static TradePage? Tick(GameUiReader reader, Market market)
@@ -202,8 +200,8 @@ public sealed class TradeReaderTests
     {
         var world = new FakeWorld();
         _ = new FakeUi(world);
-        var minimap = new MinimapReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase));
-        var reader = new GameUiReader(world.Memory, unchecked((nint)FakeWorld.ModuleBase), minimap.TryReadName, () => 0);
+        var minimap = new MinimapReader(world.Memory, FakeWorld.Module);
+        var reader = new GameUiReader(world.Memory, FakeWorld.Module, minimap.TryReadName, () => 0);
         reader.Read();
         Assert.Null(reader.ReadTrade());
     }

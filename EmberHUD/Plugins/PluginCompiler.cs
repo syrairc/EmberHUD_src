@@ -26,17 +26,24 @@ internal static class PluginCompiler
         ];
     });
 
+    static readonly CSharpParseOptions ParseOptions = new(LanguageVersion.Latest);
+
+    static readonly CSharpCompilationOptions CompilationOptions = new(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release, allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable, deterministic: true);
+
+    static readonly EmitOptions EmitOptions = new(debugInformationFormat: DebugInformationFormat.Embedded);
+
+    public static string OptionsSignature => string.Join(';', ParseOptions.LanguageVersion, CompilationOptions.OutputKind, CompilationOptions.OptimizationLevel, CompilationOptions.AllowUnsafe, CompilationOptions.NullableContextOptions, CompilationOptions.Deterministic, EmitOptions.DebugInformationFormat);
+
     public static CompileResult Compile(string name, IReadOnlyList<SourceFile> sources)
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
         var texts = sources.Select(source => (source.Path, Text: SourceText.From(source.Bytes, source.Bytes.Length, Encoding.UTF8, canBeEmbedded: true))).ToList();
         var compilation = CSharpCompilation.Create(
             name,
-            texts.Select(text => CSharpSyntaxTree.ParseText(text.Text, parse, text.Path)),
+            texts.Select(text => CSharpSyntaxTree.ParseText(text.Text, ParseOptions, text.Path)),
             References.Value,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, optimizationLevel: OptimizationLevel.Release, allowUnsafe: true, nullableContextOptions: NullableContextOptions.Enable, deterministic: true));
+            CompilationOptions);
         using var assembly = new MemoryStream();
-        var emitted = compilation.Emit(assembly, options: new EmitOptions(debugInformationFormat: DebugInformationFormat.Embedded), embeddedTexts: texts.Select(text => EmbeddedText.FromSource(text.Path, text.Text)));
+        var emitted = compilation.Emit(assembly, options: EmitOptions, embeddedTexts: texts.Select(text => EmbeddedText.FromSource(text.Path, text.Text)));
         if (emitted.Success) return new CompileResult(assembly.ToArray(), []);
         return new CompileResult(null, [.. emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Select(diagnostic =>
         {

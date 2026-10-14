@@ -56,7 +56,8 @@ public static class ListEditor
             {
                 if (reorderable)
                 {
-                    DragGrip(key, i);
+                    ImGui.Button(":::");
+                    DragSourceTarget(key, i, null);
                     ImGui.SameLine();
                 }
                 d |= drawRow(list[i], i);
@@ -179,7 +180,7 @@ public static class ListEditor
         return changed;
     }
 
-    public static int SwapTarget(int from, int dir, int count, int pinnedTail, int pinnedHead = 0)
+    internal static int SwapTarget(int from, int dir, int count, int pinnedTail, int pinnedHead = 0)
     {
         if (dir == 0 || from < 0 || from >= count) return -1;
         var head = Math.Clamp(pinnedHead, 0, count);
@@ -222,12 +223,6 @@ public static class ListEditor
         if (!picked || add.Make is null) return false;
         list.Add(add.Make(pick!));
         return true;
-    }
-
-    static void DragGrip(uint key, int index)
-    {
-        ImGui.Button(":::");
-        DragSourceTarget(key, index, null);
     }
 
     internal static void DragSourceTarget(uint key, int index, string? label)

@@ -15,14 +15,6 @@ public sealed class PluginReloadTests : IDisposable
         _fixture.Dispose();
     }
 
-    PluginHost Start()
-    {
-        var host = _fixture.Host();
-        host.Discover(_fixture.Plugins);
-        PluginFixture.Settle(host);
-        return host;
-    }
-
     static string Ticking(string name, string version) => PluginFixture.Source(name, $$"""public override void Tick() => Log.Info("{{version}}");""");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -32,7 +24,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadUnloadsTheOldContextAndRunsTheNewSource()
     {
         _fixture.Write("Hot", "Main.cs", Ticking("Hot", "v1"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         host.SetEnabled(slot, true);
         host.TickAll();
@@ -61,7 +53,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadUnloadsTheContextEvenWhileSomethingStillHoldsIt()
     {
         _fixture.Write("Held", "Main.cs", Ticking("Held", "v1"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         var held = slot.Context;
         var assembly = WeakAssembly(slot);
@@ -80,7 +72,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadIsTheRetryForAnErroredPlugin()
     {
         _fixture.Write("Fixable", "Main.cs", "namespace Fixable; public sealed class Main : EmberHUD.Plugin { int X = \"no\"; }");
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         Assert.Equal(PluginStage.Compile, slot.ErrorStage);
 
@@ -97,7 +89,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("Watched", "Main.cs", Ticking("Watched", "v1"));
         _fixture.Sdk.AutoReload = true;
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(host.Slots[0], true);
         host.TickAll();
 
@@ -115,7 +107,7 @@ public sealed class PluginReloadTests : IDisposable
     public void WriteDefaultsDumpsTheCurrentValuesAndResetRebuildsFromThem()
     {
         _fixture.Write("Resettable", "Main.cs", PluginFixture.Source("Resettable", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         var plugin = slot.Instance!;
         var user = Path.Combine(_fixture.Root, "Config", "Plugins", "Resettable.json");
@@ -139,7 +131,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ClearCacheDeletesCompiledPluginsOnly()
     {
         _fixture.Write("Cached", "Main.cs", PluginFixture.Source("Cached", ""));
-        using var host = Start();
+        using var host = _fixture.Start();
         var cache = Path.Combine(_fixture.Root, "Cache");
         File.WriteAllText(Path.Combine(cache, "slots.bin"), "class slots");
         Assert.NotEmpty(Directory.GetFiles(cache, "*.dll"));
@@ -152,7 +144,7 @@ public sealed class PluginReloadTests : IDisposable
     public void AChangeStampOnlyReloadsOnceTheDebounceHasPassed()
     {
         _fixture.Write("Debounced", "Main.cs", Ticking("Debounced", "v1"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
 
         slot.ChangedAt = Environment.TickCount64;
@@ -173,7 +165,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("A", "Main.cs", PluginFixture.Source("A", ""));
         _fixture.Write("B", "Main.cs", PluginFixture.Source("B", ""));
-        var host = Start();
+        var host = _fixture.Start();
         Assert.Empty(host.Watchers);
 
         _fixture.Sdk.AutoReload = true;
@@ -202,7 +194,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadingAPluginThatNeverInitializedDoesNotDisposeIt()
     {
         _fixture.Write("Cold", "Main.cs", PluginFixture.Source("Cold", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.Reload(host.Slots[0]);
         PluginFixture.Settle(host);
         Assert.DoesNotContain("dispose", _log.Messages("Cold"));
@@ -213,7 +205,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadKeepsAnEnabledPluginEnabledAndRunsItsLifecycleAgain()
     {
         _fixture.Write("Life", "Main.cs", PluginFixture.Source("Life", PluginFixture.Lifecycle));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         host.SetEnabled(slot, true);
         host.Reload(slot);
@@ -227,7 +219,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("One", "Main.cs", PluginFixture.Source("One", ""));
         _fixture.Write("Two", "Main.cs", PluginFixture.Source("Two", ""));
-        var host = Start();
+        var host = _fixture.Start();
         host.ClearSerializerCache = null;
         host.Reload(host.Slots[0]);
         PluginFixture.Settle(host);
@@ -242,7 +234,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("One", "Main.cs", PluginFixture.Source("One", PluginFixture.Lifecycle));
         _fixture.Write("Two", "Main.cs", PluginFixture.Source("Two", PluginFixture.Lifecycle));
-        var host = Start();
+        var host = _fixture.Start();
         host.ClearSerializerCache = typeof(PluginReloadTests).GetMethod(nameof(Throwing), BindingFlags.Static | BindingFlags.NonPublic);
         host.SetEnabled(host.Slots[0], true);
         host.SetEnabled(host.Slots[1], true);
@@ -273,7 +265,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("Gone", "Main.cs", PluginFixture.Source("Gone", ""));
         _fixture.Write("Live", "Main.cs", Ticking("Live", "t"));
-        using var host = Start();
+        using var host = _fixture.Start();
         host.SetEnabled(host.Slots.Single(slot => slot.Name == "Live"), true);
         Directory.Delete(Path.Combine(_fixture.Plugins, "Gone"), true);
         _fixture.Sdk.AutoReload = true;
@@ -287,7 +279,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ReloadClearsAPendingStampSoItReloadsOnlyOnce()
     {
         _fixture.Write("Once", "Main.cs", Ticking("Once", "v"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         slot.ChangedAt = Environment.TickCount64 - 600;
         host.Reload(slot);
@@ -300,7 +292,7 @@ public sealed class PluginReloadTests : IDisposable
     {
         _fixture.Write("Stale", "Main.cs", Ticking("Stale", "v"));
         _fixture.Sdk.AutoReload = true;
-        using var host = Start();
+        using var host = _fixture.Start();
         host.TickAll();
         var slot = host.Slots[0];
         Assert.Single(host.Watchers);
@@ -314,7 +306,7 @@ public sealed class PluginReloadTests : IDisposable
     public void WriteDefaultsRewritesAFileThatWasDeletedBehindItsBack()
     {
         _fixture.Write("Defaulted", "Main.cs", PluginFixture.Source("Defaulted", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         var path = Path.Combine(slot.Directory, "defaults.json");
         host.WriteDefaults(slot);
@@ -327,7 +319,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ResetSettingsDeletesTheUserFileEvenWithoutAnInstance()
     {
         _fixture.Write("Broken", "Main.cs", "namespace Broken; public sealed class Main : EmberHUD.Plugin { int X = \"no\"; }");
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         Assert.Null(slot.Instance);
         var user = Path.Combine(_fixture.Root, "Config", "Plugins", "Broken.json");
@@ -341,7 +333,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ResetSettingsWithALockedUserFileWarnsAndDoesNotErrorAHealthyPlugin()
     {
         _fixture.Write("Locked", "Main.cs", PluginFixture.Source("Locked", "", "public RangeNode<float> X = new(10, 0, 100);"));
-        using var host = Start();
+        using var host = _fixture.Start();
         var slot = host.Slots[0];
         var user = Path.Combine(_fixture.Root, "Config", "Plugins", "Locked.json");
         Directory.CreateDirectory(Path.GetDirectoryName(user)!);
@@ -357,7 +349,7 @@ public sealed class PluginReloadTests : IDisposable
     public void ClearCacheWithALockedFileWarnsAndDoesNotClaimSuccess()
     {
         _fixture.Write("Cached", "Main.cs", PluginFixture.Source("Cached", ""));
-        using var host = Start();
+        using var host = _fixture.Start();
         var locked = Directory.GetFiles(Path.Combine(_fixture.Root, "Cache"), "*.dll").Single();
         using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
             host.ClearCache();

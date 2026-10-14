@@ -26,7 +26,7 @@ internal static class AssetBuilder
         return ((MemoryStream)writer.BaseStream).ToArray();
     }
 
-    public static byte[] Texture(string format, int width, int height, byte[] pixels, uint flags = 0x48, byte[]? emptyMipFirst = null)
+    public static byte[] Texture(string format, int width, int height, byte[] pixels, byte[]? emptyMipFirst = null)
     {
         var writer = new BinaryWriter(new MemoryStream());
         writer.Write(new byte[33]);
@@ -37,7 +37,7 @@ internal static class AssetBuilder
         writer.Write(0);
         writer.Write(emptyMipFirst is null ? 1 : 2);
         if (emptyMipFirst is not null) Mip(writer, 0x20, [], width * 2, height * 2);
-        Mip(writer, flags, pixels, width, height);
+        Mip(writer, 0x48, pixels, width, height);
         writer.Write(new byte[8]);
         return ((MemoryStream)writer.BaseStream).ToArray();
     }
@@ -138,7 +138,7 @@ internal static class AssetBuilder
         return (rgba, info.Width, info.Height);
     }
 
-    static void FString(BinaryWriter writer, string text, Encoding? encoding = null)
+    internal static void FString(BinaryWriter writer, string text, Encoding? encoding = null)
     {
         var bytes = (encoding ?? Encoding.ASCII).GetBytes(text);
         writer.Write(bytes.Length + 1);

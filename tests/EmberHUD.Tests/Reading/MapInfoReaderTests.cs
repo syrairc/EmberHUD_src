@@ -1,6 +1,5 @@
-using System.Numerics;
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
+using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Tests.Reading;
 
@@ -17,7 +16,7 @@ public class MapInfoReaderTests
 
     MapInfoReader ReaderFor(FakeWorld world)
     {
-        var module = unchecked((nint)FakeWorld.ModuleBase);
+        var module = FakeWorld.Module;
         var minimap = new MinimapReader(world.Memory, module);
         return new(world.Memory, module, new LocText(world.Memory, module), new GameUiReader(world.Memory, module, minimap.TryReadName), minimap.TryReadName, () => _now);
     }
@@ -434,7 +433,7 @@ public class MapInfoReaderTests
         var statue = AddWar(world, 300);
         var row = Assert.Single(Statues(world, reader));
         Assert.Equal(("Statue of War", War[2], ContentState.Pending), (row.Name, row.Icon, row.State));
-        var component = new FightMapReader(world.Memory).Read((nint)(statue + Offsets.EntityComponents)).Single().Value;
+        var component = world.Memory.ReadTMapPointers((nint)(statue + Offsets.EntityComponents)).Single().Value;
         world.Memory.Write(component + Convert.ToInt32(War[4], 16), (byte)1);
         Assert.Equal(ContentState.Active, Assert.Single(Statues(world, reader)).State);
     }
@@ -459,9 +458,9 @@ public class MapInfoReaderTests
         var reader = ReaderFor(world);
         world.AddStatue(301, Machine[0]);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, reader)).State);
-        world.Memory.Write(world.FightMgr + Offsets.FightMapGamePlay + Offsets.TMapNum, Offsets.MaxMapElements + 1);
+        world.Memory.Write(world.FightMgr + Offsets.FightMapGamePlay + Offsets.TArrayNum, Offsets.MaxMapElements + 1);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, reader)).State);
-        world.Memory.Write(world.FightMgr + Offsets.FightMapGamePlay + Offsets.TMapNum, 1);
+        world.Memory.Write(world.FightMgr + Offsets.FightMapGamePlay + Offsets.TArrayNum, 1);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, reader)).State);
         world.RemoveStatue(301);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, reader)).State);
@@ -545,9 +544,9 @@ public class MapInfoReaderTests
     {
         var world = StatueMap();
         var statue = AddWar(world, 300, active: true);
-        world.Memory.Write(statue + Offsets.EntityComponents + Offsets.TMapNum, Offsets.MaxMapElements + 1);
+        world.Memory.Write(statue + Offsets.EntityComponents + Offsets.TArrayNum, Offsets.MaxMapElements + 1);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, ReaderFor(world))).State);
-        world.Memory.Write(statue + Offsets.EntityComponents + Offsets.TMapNum, 1);
+        world.Memory.Write(statue + Offsets.EntityComponents + Offsets.TArrayNum, 1);
         world.Memory.Write(statue + Offsets.EntityComponents, 0x7FFF_0000L);
         Assert.Equal(ContentState.Pending, Assert.Single(Statues(world, ReaderFor(world))).State);
     }

@@ -25,27 +25,20 @@ public class ChipsTests
         public void Idle() => UiFrame.Run(Window, Body);
     }
 
-    static float Metric(Func<float> read)
-    {
-        var value = 0f;
-        UiFrame.Run(Window, () => value = read());
-        return value;
-    }
+    static float FrameHeight() => UiFrame.Measure(() => ImGui.GetFrameHeight());
 
-    static float FrameHeight() => Metric(() => ImGui.GetFrameHeight());
+    static float ItemSpacingX() => UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.X);
 
-    static float ItemSpacingX() => Metric(() => ImGui.GetStyle().ItemSpacing.X);
+    static float ButtonWidth(string label) => UiFrame.Measure(() => ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2);
 
-    static float ButtonWidth(string label) => Metric(() => ImGui.CalcTextSize(label).X + ImGui.GetStyle().FramePadding.X * 2);
+    static float PlusX() => Chips.InputWidth + ItemSpacingX() + ButtonWidth("+") / 2;
 
-    static float PlusX() => 160f + ItemSpacingX() + ButtonWidth("+") / 2;
-
-    static float ChipEnd(string label) => ButtonWidth(label) + 2f + ButtonWidth("x");
+    static float ChipEnd(string label) => ButtonWidth(label) + Chips.RemoveGap + ButtonWidth("x");
 
     static void Focus(Rig rig)
     {
         rig.Idle();
-        var rowBelowChips = rig.Tags.Count > 0 ? FrameHeight() + Metric(() => ImGui.GetStyle().ItemSpacing.Y) * 2 : 0f;
+        var rowBelowChips = rig.Tags.Count > 0 ? FrameHeight() + UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y) * 2 : 0f;
         UiFrame.Click(Window, rig.Origin + new Vector2(20f, rowBelowChips + FrameHeight() / 2), rig.Body);
     }
 
@@ -240,7 +233,7 @@ public class ChipsTests
         {
             UiFrame.Run(Window, Body);
             var frame = FrameHeight();
-            var spacing = Metric(() => ImGui.GetStyle().ItemSpacing.Y);
+            var spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
             var inputY = frame + spacing * 2 + frame / 2;
             UiFrame.Click(Window, secondOrigin + new Vector2(20f, inputY), Body);
             io.AddInputCharactersUTF8("Chaos");
@@ -453,9 +446,9 @@ public class ChipsTests
 
         var oneRow = Height("fits", 1f);
         var twoRows = Height("wraps", -1f);
-        var rowStep = Metric(() => ImGui.GetFrameHeight() + ImGui.GetStyle().ItemSpacing.Y);
+        var rowStep = UiFrame.Measure(() => ImGui.GetFrameHeight() + ImGui.GetStyle().ItemSpacing.Y);
         var frame = FrameHeight();
-        var spacing = Metric(() => ImGui.GetStyle().ItemSpacing.Y);
+        var spacing = UiFrame.Measure(() => ImGui.GetStyle().ItemSpacing.Y);
         Assert.Equal(rowStep, twoRows - oneRow, 1e-3f);
         Assert.Equal(frame * 2 + spacing * 3, oneRow, 1e-3f);
     }

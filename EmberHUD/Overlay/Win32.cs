@@ -224,4 +224,15 @@ internal static partial class Win32
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool ChangeWindowMessageFilterEx(nint hwnd, uint message, uint action, nint filterStatus);
+
+    public static bool PumpMessages(ref bool quit)
+    {
+        while (PeekMessage(out var msg, 0, 0, 0, PM_REMOVE))
+        {
+            if (msg.Message == WM_QUIT) { quit = true; break; }
+            TranslateMessage(ref msg);
+            DispatchMessage(ref msg);
+        }
+        return !quit;
+    }
 }

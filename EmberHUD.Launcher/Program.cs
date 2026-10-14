@@ -11,7 +11,7 @@ var config = LauncherConfig.Load(Path.Combine(root, "Config", "launcher.json"), 
 var game = config is null ? null : GameInstall.Find(config.GameDirectory, GameInstall.Registered());
 if (Launch.NeedsSetup(config, game))
 {
-    Log(config is null ? "no usable launcher.json - opening Setup" : $"torchlight_infinite.exe not found ({(config.GameDirectory.Length > 0 ? config.GameDirectory : "auto-detect")}) - opening Setup");
+    Log(config is null ? "no usable launcher.json - opening Setup" : $"{GameInstall.ExeName} not found ({(config.GameDirectory.Length > 0 ? config.GameDirectory : "auto-detect")}) - opening Setup");
     Start("Setup", new ProcessStartInfo(Path.Combine(root, "EmberSetup.exe")) { UseShellExecute = false, WorkingDirectory = root });
 }
 else
