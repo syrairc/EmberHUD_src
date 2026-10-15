@@ -38,10 +38,10 @@ public sealed class Main : Plugin<Settings>
         string Show(long value) => exact ? Exact(value) : Compact(value);
         List<Row> rows =
         [
-            new("Current DPS", Show(stats.CurUnlimited)),
-            new("Average DPS", Show(stats.AvgUnlimited)),
-            new("Max DPS", Show(stats.MaxUnlimited)),
-            new("Time", Clock(stats.Seconds)),
+            new("Average DPS in a span of time", Show(stats.AvgUnlimited)),
+            new("Duration", Clock(stats.Seconds)),
+            new("Highest DPS in 5s", Show(stats.MaxUnlimited)),
+            new("Average DPS in 5s", Show(stats.CurUnlimited)),
         ];
         if (Over(stats.CurUnlimited, stats.Cur) || Over(stats.AvgUnlimited, stats.Avg) || Over(stats.MaxUnlimited, stats.Max))
             rows.Add(new("Game tracker is capped, shows", $"{Show(stats.Avg)} avg", true));

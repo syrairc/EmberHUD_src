@@ -39,11 +39,11 @@ public sealed class DummyDpsTests
     public void RowsShowTheUnlimitedNumbersAndFlagACappedGameTracker()
     {
         var rows = Main.Rows(Capped, false);
-        Check.Equal("Current DPS,Average DPS,Max DPS,Time,Game tracker is capped, shows", string.Join(',', rows.Select(r => r.Label)));
-        Check.Equal("7.25T", rows[0].Value);
-        Check.Equal("6.10T", rows[1].Value);
+        Check.Equal("Average DPS in a span of time,Duration,Highest DPS in 5s,Average DPS in 5s,Game tracker is capped, shows", string.Join(',', rows.Select(r => r.Label)));
+        Check.Equal("6.10T", rows[0].Value);
+        Check.Equal("1:15", rows[1].Value);
         Check.Equal("8.90T", rows[2].Value);
-        Check.Equal("1:15", rows[3].Value);
+        Check.Equal("7.25T", rows[3].Value);
         Check.Equal("5.00T avg", rows[4].Value);
         Check.That(rows[4].Note, "the note row is marked");
     }
@@ -58,7 +58,7 @@ public sealed class DummyDpsTests
     [Test]
     public void ExactRowsUseFullDigits()
     {
-        Check.Equal("7,250,000,000,000", Main.Rows(Capped, true)[0].Value);
+        Check.Equal("6,100,000,000,000", Main.Rows(Capped, true)[0].Value);
     }
 
     [Test]
