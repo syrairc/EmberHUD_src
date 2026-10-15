@@ -136,6 +136,7 @@ try {
     Get-ChildItem -LiteralPath $Out -Force | Where-Object { $_.Name -notin @('.git', '.gitignore', 'README.md') + $userData -and -not (-not $_.PSIsContainer -and $_.Name -in 'LICENSE', 'LICENSE.md', 'LICENSE.txt') } | Remove-Item -Recurse -Force
     $files | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } } | Copy-Item -Destination $Out
     foreach ($dir in $folders) { Copy-Item (Join-Path $publish $dir) $Out -Recurse }
+    Copy-Item "$src/scripts/steam/*.reg" $Out
 
     $root = (Resolve-Path -LiteralPath $Out).Path
     $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and ($_.FullName.Substring($root.Length + 1) -split '[\\/]')[0] -notin $userData }) $root
