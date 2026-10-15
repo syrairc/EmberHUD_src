@@ -17,7 +17,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private nint _lastScene;
     private int _tornTicks;
 
-    private static readonly (int Map, EntityKind Kind)[] KindMaps =
+    private readonly (int Map, EntityKind Kind)[] KindMaps =
     [
         (Offsets.FightMapPlayer, EntityKind.Player),
         (Offsets.FightMapMonster, EntityKind.Monster),

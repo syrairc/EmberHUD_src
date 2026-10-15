@@ -56,16 +56,17 @@ public class OffsetsTests
     {
         var builds = WantBuilds();
         Assert.Equal(builds.Keys.Order(), Offsets.BuildSizes.Order());
-        var rvaProperties = OffsetProperties<int>().Where(p => p.Name.EndsWith("Rva")).ToDictionary(p => p.Name);
+        var perBuildNames = builds.Values.First().Keys.ToHashSet();
+        var properties = OffsetProperties<int>().Where(p => perBuildNames.Contains(p.Name)).ToDictionary(p => p.Name);
         var original = Offsets.Build;
         try
         {
             foreach (var (size, values) in builds)
             {
                 Assert.True(Offsets.SelectBuild(size));
-                Assert.Equal(rvaProperties.Keys.Order(), values.Keys.Order());
+                Assert.Equal(properties.Keys.Order(), values.Keys.Order());
                 foreach (var (name, value) in values)
-                    Assert.Equal(value, (long)(int)rvaProperties[name].GetValue(null)!);
+                    Assert.Equal(value, (long)(int)properties[name].GetValue(null)!);
             }
         }
         finally
@@ -107,14 +108,49 @@ public class OffsetsTests
         }
     }
 
+    [Fact]
+    public void TheSeventeenthBuildHasItsOwnRvasAndMovedStructOffsets()
+    {
+        var original = Offsets.Build;
+        try
+        {
+            Assert.True(Offsets.SelectBuild(126258104));
+            Assert.Equal(0x6BFC1A8, Offsets.LogicWorldGlobalRva);
+            Assert.Equal(0x6BFD400, Offsets.WoodStakeMgrGlobalRva);
+            Assert.Equal(0x710, Offsets.FightMapNpc);
+            Assert.Equal(0x8A0, Offsets.FightMapServant);
+            Assert.Equal(142, Offsets.EntityHasPosition);
+            Assert.Equal(936, Offsets.EntityPosition);
+            Assert.Equal(944, Offsets.EntityHeaderSize);
+            Assert.Equal(768, Offsets.EntityRole);
+            Assert.Equal(376, Offsets.WoodStakeStatistic);
+            Assert.Equal(224, Offsets.WoodStakeUnlimitedTotal);
+            Assert.Equal(0xD0, Offsets.FightMapPlayer);
+
+            Assert.True(Offsets.SelectBuild(123144120));
+            Assert.Equal(0x6C0, Offsets.FightMapNpc);
+            Assert.Equal(920, Offsets.EntityPosition);
+            Assert.True(Offsets.SelectBuild(124465080));
+            Assert.Equal(0x6C0, Offsets.FightMapNpc);
+            Assert.Equal(752, Offsets.EntityRole);
+        }
+        finally
+        {
+            Offsets.Build = original;
+        }
+    }
+
     [Theory]
     [InlineData(123144120, true, 123144120)]
     [InlineData(124465080, true, 124465080)]
+    [InlineData(126258104, true, 126258104)]
     [InlineData(123804599, false, 123144120)]
     [InlineData(123804600, false, 124465080)]
     [InlineData(124000000, false, 124465080)]
+    [InlineData(125361591, false, 124465080)]
+    [InlineData(125361592, false, 126258104)]
     [InlineData(100, false, 123144120)]
-    [InlineData(999999999, false, 124465080)]
+    [InlineData(999999999, false, 126258104)]
     public void SelectBuildPicksExactThenClosestThenLater(long exeSize, bool exact, long expectedBuild)
     {
         var original = Offsets.Build;

@@ -28,7 +28,6 @@ internal static class LayoutParser
     {
         var (baseText, sections) = Sections(text);
         var baseSet = baseNames.ToHashSet();
-        if (baseSet.FirstOrDefault(name => name.EndsWith("Rva")) is { } stray) throw new FormatException($"'{stray}' ends in Rva so it belongs in a [build] section");
         if (sections.Count == 0) throw new FormatException("no [build <exe size>] section");
         var builds = sections.Select(section => (section.Size, Entries: Ints(section.Body))).ToList();
         var names = builds[0].Entries.Select(entry => entry.Name).ToArray();
@@ -37,7 +36,6 @@ internal static class LayoutParser
         {
             foreach (var entry in entries)
             {
-                if (!entry.Name.EndsWith("Rva")) throw new FormatException($"build {size}: '{entry.Name}' does not end in Rva, only Rva keys differ per build");
                 if (baseSet.Contains(entry.Name)) throw new FormatException($"build {size}: '{entry.Name}' is also in the base");
             }
             var missing = names.Except(entries.Select(entry => entry.Name)).FirstOrDefault();
@@ -109,9 +107,9 @@ internal static class LayoutParser
 
 internal static class OffsetEmitter
 {
-    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string> stringNames, IReadOnlyList<string>? rvaNames = null, IReadOnlyList<long>? buildSizes = null)
+    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string> stringNames, IReadOnlyList<string>? buildNames = null, IReadOnlyList<long>? buildSizes = null)
     {
-        rvaNames ??= [];
+        buildNames ??= [];
         var source = new StringBuilder();
         source.AppendLine("namespace EmberHUD.Host;");
         source.AppendLine();
@@ -119,7 +117,7 @@ internal static class OffsetEmitter
         source.AppendLine("{");
         source.AppendLine($"    internal static ReadOnlySpan<byte> Seed => [{string.Join(", ", seed.Select(b => $"0x{b:X2}"))}];");
         for (var i = 0; i < names.Count; i++) source.AppendLine($"    internal static int {names[i]} => T[{i}];");
-        for (var j = 0; j < rvaNames.Count; j++) source.AppendLine($"    internal static int {rvaNames[j]} => T[{names.Count + j} + Build * {rvaNames.Count}];");
+        for (var j = 0; j < buildNames.Count; j++) source.AppendLine($"    internal static int {buildNames[j]} => T[{names.Count + j} + Build * {buildNames.Count}];");
         for (var i = 0; i < stringNames.Count; i++) source.AppendLine($"    internal static string {stringNames[i]} => S[{i}];");
         if (buildSizes is { Count: > 0 }) source.AppendLine($"    internal static readonly long[] BuildSizes = [{string.Join(", ", buildSizes)}];");
         source.AppendLine("}");

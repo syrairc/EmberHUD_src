@@ -122,14 +122,17 @@ public class OffsetGenTests
     [InlineData("A = 1\n[build 100]\nXRva = 1\n[build 250]\nYRva = 2")]
     public void BuildsMustDefineTheSameKeys(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
 
-    [Theory]
-    [InlineData("A = 1\n[build 100]\nXRva = 1\nB = 2")]
-    [InlineData("A = 1\n[build 100]\nA = 1\nXRva = 1")]
-    public void OnlyRvaKeysThatAreNotInTheBaseBelongInABuild(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
+    [Fact]
+    public void AKeyInTheBaseCannotAlsoBeInABuild() =>
+        Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds("A = 1\n[build 100]\nA = 1\nXRva = 1", ["A"]));
 
     [Fact]
-    public void ARvaKeyInTheBaseIsRejected() =>
-        Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds("ZRva = 1\n[build 100]\nXRva = 1", ["ZRva"]));
+    public void AnyKeyCanDifferPerBuildNotOnlyRvas()
+    {
+        var table = LayoutParser.ParseBuilds("A = 1\n[build 100]\nXRva = 1\nFieldOffset = 8\n[build 250]\nFieldOffset = 16\nXRva = 2", ["A"]);
+        Assert.Equal(["XRva", "FieldOffset"], table.Names);
+        Assert.Equal([1, 8, 2, 16], table.Values);
+    }
 
     [Theory]
     [InlineData("A = 1\n[build x]\nXRva = 1")]
@@ -140,7 +143,7 @@ public class OffsetGenTests
     public void RejectsBadBuildHeadersAndValues(string text) => Assert.Throws<FormatException>(() => LayoutParser.ParseBuilds(text, ["A"]));
 
     [Fact]
-    public void EmitsRvaAccessorsIndexedByTheSelectedBuild()
+    public void EmitsPerBuildAccessorsIndexedByTheSelectedBuild()
     {
         var source = OffsetEmitter.Emit(["Alpha", "Beta"], [1], [], ["XRva", "YRva"], [100, 250]);
         Assert.Contains("internal static int Alpha => T[0];", source);
