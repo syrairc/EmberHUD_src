@@ -86,6 +86,29 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void PublishesTheCombatSnapshotWhenGivenACombatReader()
+    {
+        var world = new FakeWorld();
+        world.SetLocalPlayer(15);
+        world.PublishEntities();
+        var combat = new CombatReader(world.Memory, FakeWorld.Module, () => 7);
+        combat.Poll();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, 0, combat);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.NotNull(combat.Snapshot);
+        Assert.Same(combat.Snapshot, state.Combat);
+    }
+
+    [Fact]
+    public void CombatIsNullWithoutACombatReader()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Null(state.Combat);
+    }
+
+    [Fact]
     public void NoSceneIsAFailureWithTheReason()
     {
         var world = new FakeWorld();

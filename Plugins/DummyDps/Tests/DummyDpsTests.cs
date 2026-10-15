@@ -85,4 +85,71 @@ public sealed class DummyDpsTests
         plugin.Tick();
         TestFrame.Run(plugin.Render);
     }
+
+    static readonly MapInfo Town = new("Ember's Rest", 1, null, null, true, [], []);
+
+    [Test]
+    public void CombatRowsFormatTheMeter()
+    {
+        var meter = new CombatMeter();
+        meter.Add(0, 0, 1, 5);
+        meter.Add(1, 12_345, 1, 5);
+        meter.Add(3, 20_000, 1, 5);
+        var rows = Main.CombatRows(meter, false);
+        Check.Equal("DPS,Peak DPS,Average DPS,Total damage,Fight time", string.Join(',', rows.Select(r => r.Label)));
+        Check.Equal("20.0K", rows[3].Value);
+        Check.Equal("0:02", rows[4].Value);
+        Check.Equal("20,000", Main.CombatRows(meter, true)[3].Value);
+    }
+
+    [Test]
+    public void CombatVisibleHidesInTown()
+    {
+        var inTown = GameState.Empty with { Area = Town };
+        Check.That(!Main.CombatVisible(inTown, new CombatTab { HideInTown = true }, false), "town hides");
+        Check.That(Main.CombatVisible(inTown, new CombatTab { HideInTown = false }, false), "rule off shows");
+    }
+
+    [Test]
+    public void CombatVisibleHidesBehindFullScreenPanels()
+    {
+        var full = GameState.Empty with { Ui = new GameUi([new GamePanel("Map", PanelKind.WorldMap, default, default, true)]) };
+        Check.That(!Main.CombatVisible(full, new CombatTab(), true), "full-screen panel hides");
+        Check.That(Main.CombatVisible(full, new CombatTab(), false), "rule off shows");
+    }
+
+    [Test]
+    public void CombatVisibleNeedsAFightAndShowOn()
+    {
+        Check.That(!Main.CombatVisible(GameState.Empty, new CombatTab { Show = false }, false), "show off hides");
+        Check.That(Main.CombatVisible(GameState.Empty, new CombatTab(), false), "default shows");
+    }
+
+    [Test]
+    public void TickOnlyAsksForCombatDataWhereThePanelCanShow()
+    {
+        var plugin = new Main();
+        TestInput.Hold();
+        TestGame.Set(GameState.Empty with { Area = Town });
+        Check.That(!TestGame.CombatAskedDuring(plugin.Tick), "town does not ask");
+        TestGame.Set(GameState.Empty);
+        Check.That(TestGame.CombatAskedDuring(plugin.Tick), "outside town asks");
+    }
+
+    [Test]
+    public void TogglingCountOverkillResetsTheMeter()
+    {
+        var plugin = new Main();
+        TestInput.Hold();
+        var second = System.Diagnostics.Stopwatch.Frequency;
+        TestGame.Set(GameState.Empty with { Combat = new CombatStats(0, 0, 0, 0) });
+        plugin.Tick();
+        TestGame.Set(GameState.Empty with { Combat = new CombatStats(second, 1000, 1500, 1) });
+        plugin.Tick();
+        Check.That(plugin._meter.HasFight, "fight running");
+        plugin.Settings.Combat.CountOverkill = true;
+        TestGame.Set(GameState.Empty with { Combat = new CombatStats(2 * second, 1000, 1500, 1) });
+        plugin.Tick();
+        Check.That(!plugin._meter.HasFight, "toggle cleared the fight");
+    }
 }

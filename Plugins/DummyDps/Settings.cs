@@ -20,6 +20,18 @@ public sealed class GeneralTab
     public int Width = 280;
 }
 
+public sealed class CombatTab
+{
+    public bool Show = true;
+    public bool HideInTown = true;
+    public bool CountOverkill;
+    public bool Exact;
+    public int Window = 5;
+    public int X = 40;
+    public int Y = 700;
+    public int Width = 280;
+}
+
 public sealed class LookTab
 {
     public TextStyle Title = new() { Face = FontFace.Bold, Scale = 1.15f, ShadowEnabled = true };
@@ -32,10 +44,12 @@ public sealed class LookTab
 public sealed class Settings : PluginSettings
 {
     public GeneralTab General = new();
+    public CombatTab Combat = new();
     public LookTab Look = new();
 
     public override void Draw() => Layout.TabBar("dummydps",
         ("General", DrawGeneral),
+        ("Combat", DrawCombat),
         ("Look", DrawLook));
 
     void DrawGeneral()
@@ -49,6 +63,18 @@ public sealed class Settings : PluginSettings
         Setting.Slider("X", ref General.X, 0, 7680);
         Setting.Slider("Y", ref General.Y, 0, 4320);
         Setting.Slider("Width", ref General.Width, GeneralTab.MinWidth, GeneralTab.MaxWidth);
+    }
+
+    void DrawCombat()
+    {
+        Setting.Checkbox("Show", ref Combat.Show);
+        Setting.Checkbox("Hide in town", ref Combat.HideInTown, "Hides the overlay in Ember's Rest and stops reading combat data there");
+        Setting.Checkbox("Count overkill", ref Combat.CountOverkill, "Count the damage a hit does beyond the monster's remaining HP");
+        Setting.Checkbox("Exact numbers", ref Combat.Exact, "Full digits instead of K / M / B / T / Qa");
+        Setting.Slider("Window seconds", ref Combat.Window, 1, 30);
+        Setting.Slider("X", ref Combat.X, 0, 7680);
+        Setting.Slider("Y", ref Combat.Y, 0, 4320);
+        Setting.Slider("Width", ref Combat.Width, GeneralTab.MinWidth, GeneralTab.MaxWidth);
     }
 
     void DrawLook()

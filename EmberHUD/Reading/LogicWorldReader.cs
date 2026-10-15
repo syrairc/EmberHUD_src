@@ -180,6 +180,12 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return _kinds;
     }
 
+    public bool TryReadLocalPlayerId(out int id)
+    {
+        id = 0;
+        return TryReadLocalPawn(out var pawn) && memory.TryRead(pawn + Offsets.UObjectEntityId, out id) && id != 0;
+    }
+
     private bool TryReadLocalPawn(out nint pawn)
     {
         pawn = 0;

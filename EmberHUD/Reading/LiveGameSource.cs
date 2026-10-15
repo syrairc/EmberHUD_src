@@ -9,6 +9,8 @@ internal sealed class LiveGameSource : IGameSource
 
     private GameProcess? _game;
     private LiveReader? _reader;
+    private CombatReader? _combat;
+    private CombatPoller? _poller;
     private long _nextAttach;
     private int _lastAreaId;
     private string? _attachFailure;
@@ -40,7 +42,9 @@ internal sealed class LiveGameSource : IGameSource
         if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
         if (!GameProcess.TryAttach(pid, out _game, out _attachFailure)) return false;
         if (!_game!.ExactBuild) Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
-        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId);
+        _combat = new CombatReader(_game.Backend, _game.ModuleBase);
+        _poller = new CombatPoller(_combat.Poll, () => Game.CombatWanted(Stopwatch.GetTimestamp(), Offsets.CombatWantedSeconds), Log.Warn);
+        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat);
         EmberHUD.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         UseLookups(_game.Backend, _game.ModuleBase);
         return true;
@@ -51,6 +55,9 @@ internal sealed class LiveGameSource : IGameSource
         UseLookups(null, 0);
         EmberHUD.Memory.Use(null);
         _reader = null;
+        _poller?.Dispose();
+        _poller = null;
+        _combat = null;
         _game?.Dispose();
         _game = null;
         _attachFailure = "game closed - waiting for it to start again";

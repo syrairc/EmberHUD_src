@@ -326,6 +326,20 @@ BigNumberCount = 64
 BigNumberScale = 100000000
 MaxWoodStakeSeconds = 86400
 
+UObjectHurtContainer = 1256
+HurtInlineFlag = 288
+HurtListPointer = 328
+HurtListCount = 336
+HitSize = 208
+HitAttacker = 20
+HitEvent = 24
+HitEffective = 32
+HitRaw = 56
+MaxHurtList = 256
+CombatPollMilliseconds = 4
+CombatRefreshMilliseconds = 1000
+CombatWantedSeconds = 3
+
 UeClassClassName = "Class"
 GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"
 

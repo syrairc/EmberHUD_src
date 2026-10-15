@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 
 namespace EmberHUD.Testing;
@@ -5,6 +6,14 @@ namespace EmberHUD.Testing;
 public static class TestGame
 {
     public static void Set(GameState state) => Game.State = state;
+
+    public static bool CombatAskedDuring(Action run)
+    {
+        Game.CombatAsked = 0;
+        run();
+        return Game.CombatAsked != 0;
+    }
+
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver is null ? null : texture => resolver(texture.ToString());
     public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
 

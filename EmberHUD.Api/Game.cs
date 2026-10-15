@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace EmberHUD;
@@ -5,10 +6,25 @@ namespace EmberHUD;
 public static class Game
 {
     static int _minimapRescans;
+    static long _combatAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
     public static void RescanMinimap() => Interlocked.Increment(ref _minimapRescans);
+
+    public static void WantCombat() => Interlocked.Exchange(ref _combatAsked, Stopwatch.GetTimestamp());
+
+    internal static long CombatAsked
+    {
+        get => Interlocked.Read(ref _combatAsked);
+        set => Interlocked.Exchange(ref _combatAsked, value);
+    }
+
+    internal static bool CombatWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _combatAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
 
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
@@ -46,6 +62,8 @@ public sealed record GameState
     public MapInfo? Area { get; init; }
 
     public WoodStakeStats? WoodStake { get; init; }
+
+    public CombatStats? Combat { get; init; }
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
@@ -89,6 +107,11 @@ public readonly record struct MapContent(string Name, string Icon, ContentState 
 public sealed record MapInfo(string Name, int MonsterLevel, int? Remaining, string? XpGain, bool IsTown, MapContent[] Content, string[] Modifiers);
 
 public sealed record WoodStakeStats(bool Running, int Seconds, long Avg, long Cur, long Max, long CurUnlimited, long MaxUnlimited, long AvgUnlimited);
+
+public sealed record CombatStats(long At, double Effective, double Raw, long Hits)
+{
+    public double Seconds => At / (double)Stopwatch.Frequency;
+}
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 

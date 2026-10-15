@@ -40,6 +40,29 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void CombatGrowsInBurstsAndPlateausEachCycle()
+    {
+        var second = Stopwatch.Frequency;
+        var samples = Enumerable.Range(0, 61).Select(s => FakeGameSource.CombatAt(s * second)).ToArray();
+        Assert.All(samples.Zip(samples.Skip(1)), pair =>
+        {
+            Assert.True(pair.Second.Effective >= pair.First.Effective);
+            Assert.True(pair.Second.Hits >= pair.First.Hits);
+        });
+        Assert.All(samples, stats => Assert.True(stats.Raw >= stats.Effective));
+        Assert.True(samples[^1].Effective > 0);
+        for (var cycle = 0; cycle < 5; cycle++)
+            Assert.Contains(Enumerable.Range(cycle * 12, 12), s => samples[s].Effective == samples[s + 1].Effective);
+    }
+
+    [Fact]
+    public void TryReadPublishesTheFakeCombat()
+    {
+        var now = 5 * Stopwatch.Frequency;
+        Assert.Equal(FakeGameSource.CombatAt(now), At(now).Combat);
+    }
+
+    [Fact]
     public void TerrainHasWalkableAndBlockedCells()
     {
         var terrain = At(0).Terrain!;

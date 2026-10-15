@@ -59,6 +59,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Area = MapAt(now),
             Trade = TradeAt(now),
             WoodStake = WoodStakeAt(now),
+            Combat = CombatAt(now),
         };
         failure = null;
         return true;
@@ -71,6 +72,16 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         const long Average = 6_200_000_000_000;
         const long Cap = 5_000_000_000_000;
         return new WoodStakeStats(true, (int)(seconds % 60), Cap, Math.Min(unlimited, Cap), Cap, unlimited, 8_500_000_000_000, Average);
+    }
+
+    internal static CombatStats CombatAt(long now)
+    {
+        const double CycleSeconds = 12;
+        const double FightSeconds = 8;
+        static double Damage(double fought) => 2.0e6 * (fought + 0.5 * (1 - Math.Cos(fought)));
+        var seconds = now / (double)Stopwatch.Frequency;
+        var effective = Math.Floor(seconds / CycleSeconds) * Damage(FightSeconds) + Damage(Math.Min(seconds % CycleSeconds, FightSeconds));
+        return new CombatStats(now, effective, effective * 1.3, (long)(effective / 4.0e5));
     }
 
     internal static GameUi UiAt(long now) =>

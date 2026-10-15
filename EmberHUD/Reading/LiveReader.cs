@@ -14,13 +14,15 @@ internal sealed class LiveReader
     private readonly GameUiReader _ui;
     private readonly MapInfoReader _mapInfo;
     private readonly WoodStakeReader _woodStake;
+    private readonly CombatReader? _combat;
     private int _generation;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null)
     {
         _memory = memory;
+        _combat = combat;
         var names = new Names(memory, moduleBase);
         _world = new LogicWorldReader(memory, moduleBase);
         _terrain = new TerrainReader(memory, firstAreaId);
@@ -82,6 +84,7 @@ internal sealed class LiveReader
             Trade = _ui.ReadTrade(),
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
+            Combat = _combat?.Snapshot,
         };
         return true;
     }
