@@ -16,26 +16,37 @@ static class SettingsUI
 
     public static void Draw(Settings s)
     {
-        Controls.Section("General");
+        if (OpenAllBuckets)
+        {
+            DrawGeneral(s);
+            for (var i = 0; i < s.Buckets.Length; i++) DrawBucket(s, i);
+            DrawOverrides(s);
+            DrawTextures();
+        }
+        else if (ImGui.BeginTabBar("##nameplates"))
+        {
+            if (ImGui.BeginTabItem("General")) { DrawGeneral(s); ImGui.EndTabItem(); }
+            for (var i = 0; i < s.Buckets.Length; i++)
+            {
+                if (!ImGui.BeginTabItem($"{(Bucket)i}##bucket{i}")) continue;
+                DrawBucket(s, i);
+                ImGui.EndTabItem();
+            }
+            if (ImGui.BeginTabItem("Overrides")) { DrawOverrides(s); ImGui.EndTabItem(); }
+            if (ImGui.BeginTabItem("Textures")) { DrawTextures(); ImGui.EndTabItem(); }
+            ImGui.EndTabBar();
+        }
+    }
+
+    static void DrawGeneral(Settings s)
+    {
         Setting.Slider("Distance unit", ref s.DistanceUnit, 1, 1000, "World units per displayed distance unit, 100 = metres", log: true);
         Setting.Slider("Max distance", ref s.MaxDistance, 1, 10000, "In distance units, plates beyond this distance from the player are not drawn", log: true);
         Setting.Checkbox("Hide behind full-screen panels", ref s.HideBehindPanels);
+    }
 
-        Controls.Section("Buckets");
-        for (var i = 0; i < s.Buckets.Length; i++)
-        {
-            var bucket = s.Buckets[i];
-            var id = $"bucket{i}";
-            if (OpenAllBuckets) ImGui.SetNextItemOpen(true);
-            if (!ImGui.CollapsingHeader($"{(Bucket)i}##{id}")) continue;
-            ImGui.PushID(id);
-            Setting.Checkbox("Show", ref bucket.Show);
-            Setting.Checkbox("Damaged only", ref bucket.DamagedOnly, "Only draw the plate once the target has lost health");
-            EditStyle(id, bucket.Style, s);
-            ImGui.PopID();
-        }
-
-        Controls.Section("Overrides");
+    static void DrawOverrides(Settings s)
+    {
         ListEditor.Compact("overrides", s.Overrides, DrawOverrideRow, AddSource<StyleOverride>.Button(() => NewOverride(s), "+ Add override"), reorderable: true);
         for (var i = 0; i < s.Overrides.Count; i++)
         {
@@ -48,13 +59,26 @@ static class SettingsUI
             ImGui.PopID();
         }
         OpenEditors.RemoveWhere(row => !s.Overrides.Contains(row));
+    }
 
-        Controls.Section("Textures");
+    static void DrawTextures()
+    {
         var folder = BarTextures.DropInFolder;
         ImGui.TextUnformatted("Drop PNG files in:");
         ImGui.InputText("##texturefolder", ref folder, 512, ImGuiInputTextFlags.ReadOnly);
         if (ImGui.Button("Rescan")) BarTextures.Load(BarTextures.DropInFolder);
         ImGui.TextUnformatted(string.Join(", ", BarTextures.Names));
+    }
+
+    static void DrawBucket(Settings s, int i)
+    {
+        var bucket = s.Buckets[i];
+        var id = $"bucket{i}";
+        ImGui.PushID(id);
+        Setting.Checkbox("Show", ref bucket.Show);
+        Setting.Checkbox("Damaged only", ref bucket.DamagedOnly, "Only draw the plate once the target has lost health");
+        EditStyle(id, bucket.Style, s);
+        ImGui.PopID();
     }
 
     internal static StyleOverride NewOverride(Settings s) => new() { Style = s.Buckets[(int)Bucket.Normal].Style.Clone() };
