@@ -98,6 +98,39 @@ public sealed class BarTexturesTests
     }
 
     [Test]
+    public void NullAndEmptyNamesFallBackToFlat()
+    {
+        var flat = new Sprite(default, new Vector2(7, 7), Vector2.One);
+        TestGame.UseTextures(null, key => key == "nameplates/Flat" ? flat : null);
+        try
+        {
+            WithFolder(folder => BarTextures.Load(folder));
+            Check.Equal(flat, BarTextures.Get(null!));
+            Check.Equal(flat, BarTextures.Get(""));
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
+    public void CaseDuplicateDropInsAreListedOnce()
+    {
+        var original = BarTextures.PngLoader;
+        BarTextures.PngLoader = (_, _) => true;
+        try
+        {
+            BarTextures.Register(["x/Same.png", "x/same.png", "x/Other.png"]);
+            Check.Equal("Flat,Gradient,Gloss,Bevel,Same,Other", string.Join(',', BarTextures.Names));
+        }
+        finally
+        {
+            BarTextures.PngLoader = original;
+        }
+    }
+
+    [Test]
     public void DropInFolderPngsAreListedAfterTheBuiltIns() => WithFolder(folder =>
     {
         BarTextures.Load(folder);

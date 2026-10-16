@@ -29,10 +29,16 @@ public static class BarTextures
             var rgba = Generate(name, out var width, out var height);
             Textures.Upload(Key(name), rgba, width, height);
         }
+        Register(Scan(dropInFolder));
+    }
+
+    internal static void Register(IEnumerable<string> paths)
+    {
         var names = new List<string>(BuiltIns);
-        foreach (var path in Scan(dropInFolder))
+        foreach (var path in paths)
         {
             var name = Path.GetFileNameWithoutExtension(path);
+            if (names.Contains(name, StringComparer.OrdinalIgnoreCase)) continue;
             if (PngLoader(Key(name), path)) names.Add(name);
             else if (Warned.Add(path)) Log.Warn($"Nameplates: skipped unreadable texture {path}");
         }
@@ -42,12 +48,16 @@ public static class BarTextures
 
     public static Sprite? Get(string name)
     {
-        if (!_keys.TryGetValue(name, out var key)) key = FallbackKey;
+        if (name is null || !_keys.TryGetValue(name, out var key)) key = FallbackKey;
         return Textures.TryGet(key, out var sprite) ? sprite : null;
     }
 
-    static Dictionary<string, string> Index(IEnumerable<string> names) =>
-        names.ToDictionary(name => name, Key, StringComparer.OrdinalIgnoreCase);
+    static Dictionary<string, string> Index(IEnumerable<string> names)
+    {
+        var keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names) keys.TryAdd(name, Key(name));
+        return keys;
+    }
 
     internal static string[] Scan(string folder)
     {
