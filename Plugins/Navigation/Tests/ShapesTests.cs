@@ -55,6 +55,41 @@ public sealed class ShapesTests
         Check.That(points.Any(p => MathF.Abs(Vector2.Distance(p, head) - 200) < 0.01f), "tail at length");
     }
 
+    static Vector2[] Arrow(Vector2 centre, Vector2 direction, float size)
+    {
+        var into = new Vector2[8];
+        return into[..Shapes.Arrow(centre, direction, size, into)];
+    }
+
+    [Test]
+    public void ArrowPointsAlongTheDirection()
+    {
+        var centre = new Vector2(10, 20);
+        var points = Arrow(centre, East, 80);
+        var tip = points.MaxBy(p => Vector2.Dot(p - centre, East));
+
+        Check.That(points.Length >= 3, "polygon");
+        Check.That(Vector2.Dot(tip - centre, East) > 0, "tip ahead");
+        Check.That(points.Min(p => Vector2.Dot(p - centre, East)) < 0, "tail behind");
+        Check.Equal(0, Arrow(centre, Vector2.Zero, 80).Length);
+        Check.Equal(0, Arrow(centre, East, 0).Length);
+        Check.Equal(0, Arrow(centre, new Vector2(float.NaN, 0), 80).Length);
+    }
+
+    [Test]
+    public void ArrowIsConvex()
+    {
+        var points = Arrow(Vector2.Zero, East, 80);
+        var turns = Enumerable.Range(0, points.Length).Select(i =>
+        {
+            var a = points[(i + 1) % points.Length] - points[i];
+            var b = points[(i + 2) % points.Length] - points[(i + 1) % points.Length];
+            return a.X * b.Y - a.Y * b.X;
+        }).ToArray();
+
+        Check.That(turns.All(t => t > 0) || turns.All(t => t < 0), "every turn the same way");
+    }
+
     [Test]
     public void ZeroDirectionDrawsNothing()
     {

@@ -13,6 +13,7 @@ public sealed class Main : Plugin<Settings>
     const float TangentSpan = 20;
     const float HaloWidth = 2.5f;
     const float HaloAlpha = 0.25f;
+    const float UnreachableDim = 0.45f;
 
     readonly Overlay _panel = new();
 
@@ -20,7 +21,7 @@ public sealed class Main : Plugin<Settings>
     internal Func<double> Seconds = () => Environment.TickCount64 / 1000.0;
     readonly Vector2[] _particles = new Vector2[256];
 
-    public override void Initialize() => RegisterHotkey("Toggle paths", "Shows or hides the quest paths, legend and labels", () => Settings.General.Show = !Settings.General.Show);
+    public override void Initialize() => RegisterHotkey("Toggle paths", "Shows or hides the quest paths, legend and compass", () => Settings.General.Show = !Settings.General.Show);
 
     public override void Tick()
     {
@@ -30,7 +31,7 @@ public sealed class Main : Plugin<Settings>
     internal static bool LegendHidden(Settings settings, GameState state) =>
         !settings.Legend.Show || settings.Legend.HideBehindPanels && state.Ui.AnyFullScreen;
 
-    internal static Vector2? LabelAnchor(PathState path, Vector2 player, float alongDistance, float sideOffset)
+    internal static Vector2? PointAhead(PathState path, Vector2 player, float distance)
     {
         if (path.Points is not { Length: > 1 } points) return null;
         var segment = 0;
@@ -46,28 +47,35 @@ public sealed class Main : Plugin<Settings>
         }
 
         var at = points[segment] + (points[segment + 1] - points[segment]) * fraction;
-        var remaining = alongDistance;
+        var remaining = distance;
         for (var i = segment; i < points.Length - 1; i++)
         {
             var run = points[i + 1] - at;
             var length = run.Length();
-            if (length > 0 && remaining <= length) return at + run / length * remaining + Sideways(run / length) * sideOffset;
+            if (length > 0 && remaining <= length) return at + run / length * remaining;
             remaining -= length;
             at = points[i + 1];
         }
 
-        var last = points[^1] - points[^2];
-        return at + Sideways(last == Vector2.Zero ? Vector2.UnitX : Vector2.Normalize(last)) * sideOffset;
+        return at;
     }
 
-    static Vector2 Sideways(Vector2 direction) => new(-direction.Y, direction.X);
+    internal static Vector2? CompassDirection(PathState path, Vector2 player, float lookahead, float radius)
+    {
+        if (!float.IsFinite(player.X) || !float.IsFinite(player.Y) || !float.IsFinite(path.Target.X) || !float.IsFinite(path.Target.Y) || !float.IsFinite(lookahead) || !float.IsFinite(radius)) return null;
+        if (Vector2.Distance(player, path.Target) <= radius) return null;
+        var toward = (PointAhead(path, player, lookahead) ?? path.Target) - player;
+        return toward.LengthSquared() > 1e-6f ? Vector2.Normalize(toward) : null;
+    }
 
     public override void Render()
     {
         var state = Game.State;
         var general = Settings.General;
         if (!general.Show || Paths.Current.Count == 0) return;
-        DrawPaths(state, state.Ui.AnyFullScreen);
+        var covered = state.Ui.AnyFullScreen;
+        DrawPaths(state, covered);
+        if (!covered && Settings.Compass.Show && state.Camera is not null && state.Player is { } player) DrawCompass(player.Position);
         if (!LegendHidden(Settings, state)) DrawLegend();
     }
 
@@ -81,19 +89,20 @@ public sealed class Main : Plugin<Settings>
             if (path.Points is not { Length: > 1 } points) continue;
             if (!coveredByPanel && general.Ground && state.Camera is not null) DrawGround(path, points, seconds);
             if (general.Minimap && Map.View is { } map) DrawMinimap(path, points, seconds, map, height);
-            if (!coveredByPanel && Settings.Labels.Show && state.Camera is { } camera && state.Player is { } player) DrawLabel(path, camera, player.Position);
         }
     }
 
-    void DrawLabel(PathState path, Camera camera, Vector3 player)
+    void DrawCompass(Vector3 player)
     {
-        var labels = Settings.Labels;
-        if (LabelAnchor(path, new Vector2(player.X, player.Y), labels.AlongDistance, labels.SideOffset) is not { } anchor) return;
-        if (camera.ToScreen(new Vector3(anchor, player.Z), ImGui.GetIO().DisplaySize) is not { } screen) return;
-        var style = labels.Label.Clone();
-        style.Color = path.Colour;
-        var text = labels.ShowDistance ? $"{path.Name}  {Legend.Distance(path)}" : path.Name;
-        Draw.Text(text, screen, style, Align.Center | Align.Middle);
+        var compass = Settings.Compass;
+        var from = new Vector2(player.X, player.Y);
+        Span<Vector2> arrow = stackalloc Vector2[4];
+        foreach (var path in Paths.Current)
+        {
+            if (CompassDirection(path, from, compass.Lookahead, compass.Radius) is not { } direction) continue;
+            var count = Shapes.Arrow(from + direction * compass.Radius, direction, compass.Size, arrow);
+            if (count > 2) Ground.PolygonFilled(arrow[..count], Faded(path.Colour, compass.Opacity * (path.Points is null ? UnreachableDim : 1)));
+        }
     }
 
     void DrawLegend()

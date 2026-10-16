@@ -42,13 +42,13 @@ public sealed class LegendTab
     public TextStyle Text = TextStyle.Hud();
 }
 
-public sealed class LabelsTab
+public sealed class CompassTab
 {
-    public bool Show;
-    public float AlongDistance = 600;
-    public float SideOffset = 120;
-    public bool ShowDistance = true;
-    public TextStyle Label = TextStyle.WorldLabel();
+    public bool Show = true;
+    public float Radius = 250;
+    public float Size = 80;
+    public float Opacity = 0.9f;
+    public float Lookahead = 600;
 }
 
 public sealed class Settings : PluginSettings
@@ -58,14 +58,14 @@ public sealed class Settings : PluginSettings
     public SurfaceStyle GroundStyle = new() { Size = 25, Spacing = 250, Speed = 400, Trail = 200, BaseLine = 2 };
     public SurfaceStyle MinimapStyle = new();
     public LegendTab Legend = new();
-    public LabelsTab Labels = new();
+    public CompassTab Compass = new();
 
     public override void Draw() => Layout.TabBar("navigation",
         ("General", DrawGeneral),
         ("Ground", DrawGround),
         ("Minimap", DrawMinimap),
+        ("Compass", DrawCompass),
         ("Legend", DrawLegend),
-        ("Labels", DrawLabels),
         ("Hotkeys", Controls.PluginHotkeys));
 
     internal void DrawGround()
@@ -88,18 +88,18 @@ public sealed class Settings : PluginSettings
         Setting.Style("Text", Legend.Text);
     }
 
-    internal void DrawLabels()
+    internal void DrawCompass()
     {
-        Setting.Checkbox("Show", ref Labels.Show, "A name tag floating beside each path on the ground", id: "LabelsShow");
-        Setting.Slider("Along distance", ref Labels.AlongDistance, 0, 3000, "World units along the path from you", id: "LabelsAlong");
-        Setting.Slider("Side offset", ref Labels.SideOffset, -500, 500, "World units sideways from the path, negative = other side", id: "LabelsSide");
-        Setting.Checkbox("Show distance", ref Labels.ShowDistance, "Append the path length to the name", id: "LabelsDistance");
-        Setting.Style("Label", Labels.Label);
+        Setting.Checkbox("Show", ref Compass.Show, "A ring of arrows around you, one per objective in its path colour, pointing along the route (dimmed when no path was found)", id: "CompassShow");
+        Setting.Slider("Radius", ref Compass.Radius, 50, 1000, "World units from you to the arrows, also the distance from an objective where its arrow hides", id: "CompassRadius");
+        Setting.Slider("Size", ref Compass.Size, 10, 300, "Length of each arrow in world units", id: "CompassSize");
+        Setting.Slider("Opacity", ref Compass.Opacity, 0.05f, 1, "How solid the arrows are", id: "CompassOpacity");
+        Setting.Slider("Lookahead", ref Compass.Lookahead, 0, 3000, "World units along the route the arrows aim at, so they follow bends instead of pointing straight at the objective", id: "CompassLookahead");
     }
 
     internal void DrawGeneral()
     {
-        Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and labels included", id: "GeneralShow");
+        Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and compass included", id: "GeneralShow");
         Setting.Checkbox("Ground", ref General.Ground, "Particles flow along the path on the ground in the game world");
         Setting.Checkbox("Minimap", ref General.Minimap, "Particles flow along the path on the Minimap plugin's map");
     }

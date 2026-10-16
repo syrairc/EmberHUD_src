@@ -18,8 +18,11 @@ public sealed class SettingsTests
         Check.That(TestFrame.Vertices(settings.DrawGround, inWindow: true) > 0, "ground");
         Check.That(TestFrame.Vertices(settings.DrawMinimap, inWindow: true) > 0, "minimap");
         Check.That(TestFrame.Vertices(settings.DrawLegend, inWindow: true) > 0, "legend");
-        Check.That(TestFrame.Vertices(settings.DrawLabels, inWindow: true) > 0, "labels");
+        Check.That(TestFrame.Vertices(settings.DrawCompass, inWindow: true) > 0, "compass");
     }
+
+    [Test]
+    public void CompassIsOnByDefault() => Check.That(new Settings().Compass.Show, "compass on");
 
     static float Height(Action tab)
     {
