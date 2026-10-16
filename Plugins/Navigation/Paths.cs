@@ -27,11 +27,10 @@ internal sealed class Paths(Random random)
         public float Length;
     }
 
-    sealed record Result(int Generation, (Tracked Tracked, Vector2[]? Points, float Length)[] Items);
+    sealed record Result((Tracked Tracked, Vector2[]? Points, float Length)[] Items);
 
     readonly List<Tracked> tracked = [];
     int area;
-    int generation;
     bool busy;
     bool dirty;
     Terrain? plannedTerrain;
@@ -47,21 +46,25 @@ internal sealed class Paths(Random random)
     public void Update(GameState state, long nowMilliseconds)
     {
         Land();
-        if (state.AreaId != area || state.Terrain is null || state.Player is null) Reset(state.AreaId);
-        if (state.Terrain is { } terrain && state.Player is { } player)
+        if (state.AreaId != area) Reset(state.AreaId);
+        if (state.Terrain is not { } terrain || state.Player is not { } player)
         {
-            Follow(state.QuestTargets);
-            Dispatch(terrain, new Vector2(player.Position.X, player.Position.Y));
-            Land();
+            if (Current.Count > 0)
+            {
+                Current = [];
+                dirty = true;
+            }
+            return;
         }
+        Follow(state.QuestTargets);
+        Dispatch(terrain, new Vector2(player.Position.X, player.Position.Y));
+        Land();
         if (dirty) Publish();
     }
 
     void Reset(int newArea)
     {
-        if (newArea == area && tracked.Count == 0) return;
         area = newArea;
-        generation++;
         tracked.Clear();
         plannedTerrain = null;
         dirty = true;
@@ -69,7 +72,7 @@ internal sealed class Paths(Random random)
 
     void Follow(QuestTarget[] targets)
     {
-        var ordered = targets.OrderBy(t => t.Id).ToArray();
+        var ordered = targets.GroupBy(t => t.Id).Select(g => g.First()).OrderBy(t => t.Id).ToArray();
         var live = ordered.Select(t => t.Id).ToHashSet();
         var vanished = tracked.Where(t => !live.Contains(t.Id)).ToList();
         var known = tracked.Select(t => t.Id).ToHashSet();
@@ -114,26 +117,36 @@ internal sealed class Paths(Random random)
         plannedTerrain = terrain;
         plannedStart = start;
         busy = true;
-        var jobGeneration = generation;
         var work = tracked.Select(t => (Tracked: t, Target: t.Target)).ToArray();
         foreach (var (item, target) in work) item.Planned = target;
-        Runner(() =>
+        try
         {
-            var items = new (Tracked, Vector2[]?, float)[work.Length];
-            for (var i = 0; i < work.Length; i++)
+            Runner(() =>
             {
-                Vector2[]? points = null;
-                try
+                var items = new (Tracked, Vector2[]?, float)[work.Length];
+                for (var i = 0; i < work.Length; i++)
                 {
-                    points = Finder(terrain, start, work[i].Target);
+                    Vector2[]? points = null;
+                    var length = 0f;
+                    try
+                    {
+                        points = Finder(terrain, start, work[i].Target);
+                        if (points is not null) length = PathFinder.Length(points);
+                    }
+                    catch (Exception)
+                    {
+                        points = null;
+                    }
+                    items[i] = (work[i].Tracked, points, length);
                 }
-                catch (Exception)
-                {
-                }
-                items[i] = (work[i].Tracked, points, points is null ? 0 : PathFinder.Length(points));
-            }
-            done = new Result(jobGeneration, items);
-        });
+                done = new Result(items);
+            });
+        }
+        catch (Exception)
+        {
+            busy = false;
+            plannedTerrain = null;
+        }
     }
 
     void Land()
@@ -142,7 +155,6 @@ internal sealed class Paths(Random random)
         if (result is null) return;
         done = null;
         busy = false;
-        if (result.Generation != generation) return;
         foreach (var (item, points, length) in result.Items)
         {
             item.Points = points;

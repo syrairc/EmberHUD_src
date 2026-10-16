@@ -216,16 +216,56 @@ public sealed class PalettesAndPathsTests
     }
 
     [Test]
-    public void StaleResultAfterAreaChangeIsDropped()
+    public void NullPlayerForOneTickKeepsColours()
     {
-        Action? pending = null;
-        var paths = new Paths(new Random(1)) { Runner = job => pending = job, Finder = (_, from, to) => [from, to] };
+        var targets = Enumerable.Range(1, 5).Select(i => Target(i, i * 1000, 500)).ToArray();
+        foreach (var gap in new[] { State(Open, null, 1, targets), State(null, At(50, 50), 1, targets) })
+        {
+            var paths = Sync();
+            paths.Update(Open1(At(50, 50), targets), 0);
+            var before = paths.Current.ToDictionary(p => p.Id, p => p.Colour);
+            paths.Update(gap, 100);
+            Check.Equal(0, paths.Current.Count);
+            paths.Update(Open1(At(50, 50), targets), 200);
+            Check.Equal(5, paths.Current.Count);
+            foreach (var path in paths.Current) Check.Equal(before[path.Id], path.Colour);
+        }
+    }
 
+    [Test]
+    public void AreaChangeStillResetsTracking()
+    {
+        var calls = new List<(Vector2, Vector2)>();
+        var paths = Sync(calls: calls);
         paths.Update(State(Open, At(50, 50), 1, Target(1, 500, 500)), 0);
         paths.Update(State(Open, At(50, 50), 2, Target(1, 500, 500)), 100);
-        pending!();
-        paths.Update(State(Open, At(50, 50), 2, Target(1, 500, 500)), 200);
+        Check.Equal(2, calls.Count);
+    }
+
+    [Test]
+    public void DuplicateIdsDoNotThrow()
+    {
+        var paths = Sync();
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(1, 900, 900), Target(2, 700, 100)), 0);
+        Check.Equal(2, paths.Current.Count);
+        Check.Equal(new Vector2(500, 500), paths.Current[0].Target);
+    }
+
+    [Test]
+    public void ThrowingRunnerDoesNotJamTheSlot()
+    {
+        var throwing = true;
+        var paths = new Paths(new Random(1)) { Finder = (_, from, to) => [from, to] };
+        paths.Runner = job =>
+        {
+            if (throwing) throw new InvalidOperationException("no threads");
+            job();
+        };
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
         Check.Equal(0, paths.Current.Count);
+        throwing = false;
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 100);
+        Check.Equal(1, paths.Current.Count);
     }
 
     [Test]
