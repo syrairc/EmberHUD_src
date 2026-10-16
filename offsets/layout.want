@@ -181,6 +181,7 @@ TextDataString = 0x28
 FStringNum = 8
 MaxFStringChars = 1024
 LevelNameKey = "level|name|"
+NpcNameKey = "npc|name|"
 ModifierTextKey = "map_modifier|description|"
 VigilStartedVar = "MissionStart"
 VigilDoneVar = "MissionCompleted"

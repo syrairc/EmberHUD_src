@@ -8,6 +8,8 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
     private readonly Dictionary<string, string> _cache = [];
     private byte _language = byte.MaxValue;
 
+    internal bool TryReadLanguage(out byte language) => memory.TryRead(moduleBase + Offsets.LanguageRva, out language);
+
     public string? Get(string key)
     {
         if (!memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language)) return null;
@@ -20,6 +22,35 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
         if (!TryFind(language, key, out var text)) return null;
         _cache[key] = text;
         return text;
+    }
+
+    internal bool TryGet(string key, out string? text)
+    {
+        text = null;
+        if (!TryReadLanguage(out var language)) return false;
+        if (language != _language)
+        {
+            _cache.Clear();
+            _language = language;
+        }
+        if (_cache.TryGetValue(key, out var cached))
+        {
+            text = cached;
+            return true;
+        }
+        if (!TryLanguageMap(language, out var map)) return false;
+
+        var bytes = Encoding.UTF8.GetBytes(key);
+        var hash = Hash(bytes);
+        var found = memory.FindHashNode(map + Offsets.HashBucketCount, map, Offsets.MaxLocBuckets, hash, Offsets.LocNodeNext,
+            candidate => memory.TryRead(candidate + Offsets.LocNodeHash, out ulong at) && at == hash && KeyMatches(candidate, bytes), out var node);
+        if (found == HashFind.Absent) return true;
+        if (found == HashFind.Unreadable || !memory.TryReadPtr(node + Offsets.LocNodeValue, out var value) ||
+            !TryUtf8(value + Offsets.LocValueText, value + Offsets.LocValueLength, out var read))
+            return false;
+        _cache[key] = read;
+        text = read;
+        return true;
     }
 
     public ((string Key, string Text)[] Matches, bool Truncated) Find(string needle, int max)
