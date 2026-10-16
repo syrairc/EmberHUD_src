@@ -434,6 +434,71 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void OverlappingEntitiesDrawInTheSameOrderWhateverOrderTheyArriveIn()
+    {
+        var terrain = Scene.OneCell();
+        var rare = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare) with { Id = 1 };
+        var boss = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Boss) with { Id = 2 };
+        var npc = Scene.Entity(EntityKind.Npc, new Vector3(15, 15, 0)) with { Id = 3 };
+        var asked = new List<Color>();
+        TestGame.UseSvgIcons((_, _, colour, _) =>
+        {
+            asked.Add(colour);
+            return Ready;
+        });
+        try
+        {
+            void Configure(Main main)
+            {
+                main.Settings.Icons.RareMonsters.Icon = main.Settings.Icons.Bosses.Icon = main.Settings.Icons.Npcs.Icon = "svg:elite";
+            }
+
+            Drawn(Scene.State(entities: [rare, boss, npc], terrain: terrain), configure: Configure);
+            var forward = asked.Select(c => c.ToArgb()).ToArray();
+            asked.Clear();
+            Drawn(Scene.State(entities: [npc, boss, rare], terrain: terrain), configure: Configure);
+
+            Check.Equal(3, forward.Length);
+            Check.Equal(string.Join(",", forward), string.Join(",", asked.Select(c => c.ToArgb())));
+            Check.Equal(string.Join(",", new[] { rare, boss, npc }.Select(e => new Settings().Icons.FixedFor(e)!.Colour.ToArgb())), string.Join(",", forward));
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
+
+    [Test]
+    public void HiddenMonstersFadeByHalfWhenTheOptionIsOn()
+    {
+        var terrain = Scene.OneCell();
+        var rare = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var asked = new List<int>();
+        TestGame.UseSvgIcons((_, _, colour, _) =>
+        {
+            asked.Add(colour.A);
+            return Ready;
+        });
+        try
+        {
+            int AlphaOf(Entity entity, bool fade)
+            {
+                asked.Clear();
+                Drawn(Scene.State(entities: [entity], terrain: terrain), configure: main => main.Settings.Icons.FadeHidden = fade);
+                return asked[^1];
+            }
+
+            Check.Equal(255, AlphaOf(rare, true));
+            Check.Equal(128, AlphaOf(rare with { Hidden = true }, true));
+            Check.Equal(255, AlphaOf(rare with { Hidden = true }, false));
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
+
+    [Test]
     public void AnSvgMarkerIsADotUntilItsIconIsReadyAndPlainMarkersNeverAsk()
     {
         var terrain = Scene.OneCell();

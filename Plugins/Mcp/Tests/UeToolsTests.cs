@@ -6,7 +6,7 @@ namespace Mcp;
 
 public sealed class UeToolsTests
 {
-    static readonly Tool[] Tools = UeTools.Create();
+    static readonly Tool[] Tools = UeTools.Create(Fixture.TempPath());
 
     sealed class World
     {
@@ -48,7 +48,7 @@ public sealed class UeToolsTests
     public void NotAttachedSaysSo()
     {
         TestMemory.Clear();
-        foreach (var (name, args) in new (string, JsonObject)[] { ("ue_find", new JsonObject()), ("ue_class", Args(("class", "Actor"))), ("ue_object", Args(("address", "0x1000"))), ("ue_name", Args(("index", 1))) })
+        foreach (var (name, args) in new (string, JsonObject)[] { ("ue_find", new JsonObject()), ("ue_class", Args(("class", "Actor"))), ("ue_object", Args(("address", "0x1000"))), ("ue_name", Args(("index", 1))), ("ue_dump_reflection", Args(("tag", "v1"))) })
             Check.That(Wire.Fails(Tools, name, args).Contains("not attached"), name);
     }
 
@@ -177,6 +177,40 @@ public sealed class UeToolsTests
         var instance = ue.Object("Instance", holder);
         var result = Wire.Run(Tools, "ue_object", Args(("address", Hex.Of(instance)), ("depth", 2)));
         Check.That(result["fields"]![0]!["fields"] is null, "no expansion for an overflowing size");
+    }
+
+    [Test]
+    public void DumpReflectionWritesNativeClassesWithTheirOwnProperties()
+    {
+        var ue = new TestUe();
+        var package = ue.Object("/Script/Engine", ue.Class("Package"));
+        var animal = ue.Class("Animal", 0, 0x40, new TestProp("Legs", "IntProperty", 0x30));
+        var dog = ue.Class("Dog", animal, 0x48, new TestProp("Bark", "BoolProperty", 0x40, 1, 0x02));
+        ue.Class("Hero_C", dog, 0x50, new TestProp("Level", "IntProperty", 0x48));
+        ue.SetOuter(animal, package);
+        ue.SetOuter(dog, package);
+        var directory = Fixture.TempPath();
+        try
+        {
+            var result = Wire.Run(UeTools.Create(directory), "ue_dump_reflection", Args(("tag", "v99")));
+            Check.Equal(2, (int)result["classes"]!);
+            Check.Equal(2, (int)result["props"]!);
+            var folder = System.IO.Path.Combine(directory, "v99");
+            Check.Equal("name\tpackage\tsize\tsuper\nAnimal\t/Script/Engine\t64\t\nDog\t/Script/Engine\t72\tAnimal", string.Join('\n', System.IO.File.ReadAllLines(System.IO.Path.Combine(folder, "classes.tsv"))));
+            Check.Equal("class\tprop\toffset\ttype\tdim\nAnimal\tLegs\t0x30\tInt\t1\nDog\tBark\t0x40\tBool\t1", string.Join('\n', System.IO.File.ReadAllLines(System.IO.Path.Combine(folder, "props.tsv"))));
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(directory)) System.IO.Directory.Delete(directory, true);
+        }
+    }
+
+    [Test]
+    public void DumpReflectionRejectsATagThatEscapesTheFolder()
+    {
+        _ = new TestUe();
+        foreach (var tag in new[] { "..", "a/b", "a\\b", "" })
+            Check.That(Wire.Fails(Tools, "ue_dump_reflection", Args(("tag", tag))).Contains("tag"), tag);
     }
 
     [Test]

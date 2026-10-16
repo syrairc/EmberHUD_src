@@ -17,5 +17,7 @@ public sealed class Settings : PluginSettings
         Setting.Slider("Radius", ref Radius, 2, 40);
         Setting.Color("Colour", ref Colour);
         Setting.Style("Status text", Label, "Style of the status line under the marker");
+        Controls.Section("Hotkeys");
+        Controls.PluginHotkeys();
     }
 }

@@ -86,6 +86,10 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public double Life { get; init; }
 
     public double MaxLife { get; init; }
+
+    public bool Friendly { get; init; }
+
+    public bool Hidden { get; init; }
 }
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)
@@ -155,6 +159,8 @@ public sealed record Camera
     public Vector3 Rotation { get; }
 
     public float Fov { get; }
+
+    internal float Depth(Vector3 world) => Vector3.Dot(world - Location, _forward);
 
     public Vector2? ToScreen(Vector3 world, Vector2 viewport)
     {

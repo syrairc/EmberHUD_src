@@ -89,6 +89,8 @@ public sealed class TestUe
         return at;
     }
 
+    public void SetOuter(nint obj, nint outer) => TestMemory.Write(obj + Layout.ObjectOuter, outer);
+
     nint _enumClass;
 
     public nint Enum(string name, params (string Name, long Value)[] values)

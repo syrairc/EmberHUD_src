@@ -144,13 +144,16 @@ public class OffsetsTests
     [InlineData(123144120, true, 123144120)]
     [InlineData(124465080, true, 124465080)]
     [InlineData(126258104, true, 126258104)]
+    [InlineData(127223224, true, 127223224)]
     [InlineData(123804599, false, 123144120)]
     [InlineData(123804600, false, 124465080)]
     [InlineData(124000000, false, 124465080)]
     [InlineData(125361591, false, 124465080)]
     [InlineData(125361592, false, 126258104)]
+    [InlineData(126740663, false, 126258104)]
+    [InlineData(126740664, false, 127223224)]
     [InlineData(100, false, 123144120)]
-    [InlineData(999999999, false, 126258104)]
+    [InlineData(999999999, false, 127223224)]
     public void SelectBuildPicksExactThenClosestThenLater(long exeSize, bool exact, long expectedBuild)
     {
         var original = Offsets.Build;

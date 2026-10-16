@@ -97,12 +97,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         if (Layout.ConfirmModal("reset", $"Reset {slot.Name} to its defaults?", out var confirmed) && confirmed) plugins.ResetSettings(slot);
         ImGui.Separator();
 
-        if (ImGui.BeginChild("body"))
-        {
-            if (slot.Initialized && slot.Instance is { Hotkeys.Count: > 0 } instance)
-                Layout.TabBar("plugin", ("Settings", () => plugins.DrawSettings(slot)), ("Hotkeys", () => Controls.HotkeyTable(instance)));
-            else plugins.DrawSettings(slot);
-        }
+        if (ImGui.BeginChild("body")) plugins.DrawSettings(slot);
         ImGui.EndChild();
         ImGui.PopID();
     }

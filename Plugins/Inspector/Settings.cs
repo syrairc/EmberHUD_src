@@ -20,5 +20,7 @@ public sealed class Settings : PluginSettings
         Setting.Checkbox("Pick UE actors", ref PickActors, "Every Actor in the loaded level - scans all UObjects twice a second while pick mode is on");
         Setting.Slider("Pick radius", ref PickRadius, 8, 80, "Pixels from the cursor");
         Setting.Slider("Refresh rate", ref RefreshRate, 1, 60, "Raw memory reads per second, Freeze stops them");
+        Controls.Section("Hotkeys");
+        Controls.PluginHotkeys();
     }
 }

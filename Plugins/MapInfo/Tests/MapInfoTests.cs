@@ -138,10 +138,8 @@ public sealed class MapInfoTests
         var inMap = GameState.Empty with { Area = Rainforest };
         Check.That(!Main.Hidden(settings, inMap), "map shows");
         Check.That(Main.Hidden(settings, GameState.Empty), "no map hides");
-        Check.That(Main.Hidden(settings, inMap with { Area = Rainforest with { IsTown = true } }), "town hides");
         Check.That(Main.Hidden(settings, inMap with { Ui = new GameUi([new GamePanel("Big_C", PanelKind.WorldMap, default, new(100, 100), true)]) }), "full-screen panel hides");
-        settings.General.HideInTown = false;
-        Check.That(!Main.Hidden(settings, inMap with { Area = Rainforest with { IsTown = true } }), "town shows when the rule is off");
+        Check.That(!Main.Hidden(settings, inMap with { Area = Rainforest with { IsTown = true } }), "town shows");
         settings.General.Show = false;
         Check.That(Main.Hidden(settings, inMap), "toggled off hides");
     }

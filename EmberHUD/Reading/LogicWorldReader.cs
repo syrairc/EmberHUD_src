@@ -9,6 +9,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private readonly record struct Known(nint Entity, nint Value, int CfgId);
 
     private readonly Dictionary<uint, uint> _tiers = [];
+    private readonly HashSet<uint> _friendlyConfigs = [];
     private Dictionary<int, Known> _known = [];
     private Dictionary<int, Known> _seen = [];
     private int? _generation;
@@ -18,6 +19,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private int _tornTicks;
     private nint _playerRole;
     private nint _lastPlayerRole;
+    private float _groundZ;
 
     internal readonly record struct Vitals(double Life, double MaxLife, double Shield, double MaxShield);
 
@@ -67,6 +69,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         {
             _known.Clear();
             _generation = generation;
+            _groundZ = 0;
         }
 
         if (!sameTickSource)
@@ -83,6 +86,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         var kinds = ReadKinds();
         var hasPawn = TryReadLocalPawn(out var pawn);
         var localPlayerId = hasPawn && memory.TryRead(pawn + Offsets.UObjectEntityId, out int id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
+        if (localPlayerId is { } playerId && TryReadRawPosition(scene, playerId, out var rawPlayer) && TryReadWorldZ(pawn, out var worldZ))
+            _groundZ = worldZ - rawPlayer.Z;
         Vector3? playerPosition = null;
         var entities = new List<Entity>();
         var whole = TryWalkScene(scene, (entityId, entity) =>
@@ -99,7 +104,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 
             if (entityId == localPlayerId)
             {
-                playerPosition = TryReadPosition(header, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
+                playerPosition = TryReadPosition(header, out var position) && position.Z < Offsets.ParkedZ ? Lift(position) : playerPosition;
                 _playerRole = (nint)BitConverter.ToInt64(header[Offsets.EntityRole..]);
             }
             else if (mapped)
@@ -149,7 +154,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
                 _ => kind.Kind,
             };
             if (listedKind == EntityKind.Monster && TryReadMonsterCfgId(kind.Value, out var monsterCfgId)) cfgId = monsterCfgId;
-            listed.Add(new SceneEntity(id, (int)cfgId, TryReadPosition(header, out var position) ? position : null,
+            listed.Add(new SceneEntity(id, (int)cfgId, TryReadPosition(header, out var position) ? WorldPosition(position, kind.Value) : null,
                 header[Offsets.EntityAlive] != 0, listedKind, mapped && names.TryReadClassName(kind.Value, out var className) ? className : "") { Address = entity });
         });
         return whole ? [.. listed] : [];
@@ -170,6 +175,13 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     }
 
     public bool TryReadEntityPosition(nint scene, int id, out Vector3 position)
+    {
+        if (!TryReadRawPosition(scene, id, out position)) return false;
+        position = Lift(position);
+        return true;
+    }
+
+    private bool TryReadRawPosition(nint scene, int id, out Vector3 position)
     {
         position = default;
         Span<byte> header = stackalloc byte[Offsets.EntityHeaderSize];
@@ -227,6 +239,16 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return float.IsFinite(fov) && fov is > 0 and < 180 && IsFinite(location) && IsFinite(rotation) ? new Camera(location, rotation, fov) : null;
     }
 
+    private bool TryReadWorldZ(nint pawn, out float z)
+    {
+        z = 0;
+        return memory.TryReadPtr(pawn + Offsets.PawnRootComponent, out var root) && memory.TryRead(root + Offsets.RootRelativeZ, out z) && float.IsFinite(z);
+    }
+
+    private Vector3 Lift(Vector3 raw) => raw with { Z = raw.Z + _groundZ };
+
+    private Vector3 WorldPosition(Vector3 raw, nint actor) => TryReadWorldZ(actor, out var z) ? raw with { Z = z } : Lift(raw);
+
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     private bool TryReadHeader(nint entity, Span<byte> header) => entity != 0 && memory.TryRead(entity, header);
@@ -254,6 +276,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             kind == EntityKind.Altar && cfgId != Offsets.SeasonAltarCfg)
             return false;
 
+        position = WorldPosition(position, value);
+
         var rarity = Rarity.Normal;
         var role = (nint)0;
         if (kind == EntityKind.Monster)
@@ -278,7 +302,8 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         var maxLife = 0d;
         if (kind == EntityKind.Monster)
             TryReadStat(role, Offsets.RoleLifeMax, false, out life, out maxLife);
-        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife };
+        var hidden = kind == EntityKind.Monster && memory.TryRead(value + Offsets.ActorFlags, out byte actorFlags) && (actorFlags & Offsets.ActorHiddenMask) != 0;
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId), Hidden = hidden };
         return true;
     }
 
@@ -339,6 +364,11 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private bool TryReadTier(uint configId, out uint tier)
     {
         tier = 0;
-        return memory.TryFindHashValue(moduleBase + Offsets.MonsterCfgBucketCountRva, moduleBase + Offsets.MonsterCfgBucketsRva, configId, out var row) && memory.TryRead(row + Offsets.MonsterCfgRarity, out tier);
+        if (!memory.TryFindHashValue(moduleBase + Offsets.MonsterCfgBucketCountRva, moduleBase + Offsets.MonsterCfgBucketsRva, configId, out var row) || !memory.TryRead(row + Offsets.MonsterCfgRarity, out tier))
+            return false;
+
+        if (memory.TryRead(row + Offsets.MonsterCfgFriendly, out uint friendly) && friendly == 1)
+            _friendlyConfigs.Add(configId);
+        return true;
     }
 }

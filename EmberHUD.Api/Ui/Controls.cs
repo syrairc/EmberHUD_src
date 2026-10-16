@@ -62,6 +62,13 @@ public static partial class Controls
 
     internal static Func<Hotkey, HotkeyBinding?, string?> HotkeyConflict { get; set; } = (_, _) => null;
 
+    internal static Plugin? SettingsPlugin { get; set; }
+
+    public static void PluginHotkeys()
+    {
+        if (SettingsPlugin is { } plugin) HotkeyTable(plugin);
+    }
+
     public static void HotkeyTable(Plugin plugin)
     {
         foreach (var group in plugin.Hotkeys.GroupBy(binding => binding.Category).OrderBy(group => group.Key is not null))

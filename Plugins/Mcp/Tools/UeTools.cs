@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text.Json.Nodes;
 using EmberHUD;
@@ -13,7 +14,9 @@ internal static class UeTools
     const int MaxContainer = 0x4000;
     const int MaxNodes = 300;
 
-    public static Tool[] Create() =>
+    const string NativePackagePrefix = "/Script/";
+
+    public static Tool[] Create(string dumpDirectory) =>
     [
         new("ue_find", "Find UObjects by class (inheritance aware) and / or name substring. Default__ objects are skipped unless includeDefaults. Scans GObjects with a 5 second budget; timedOut says it stopped early.",
             Schema.Of([], ("class", "string", "class name, matches subclasses too"), ("name", "string", "case-insensitive substring of the object name"), ("includeDefaults", "boolean", "include Default__ objects, default false"), ("limit", "integer", "1 to 1000, default 100")), Find),
@@ -22,7 +25,32 @@ internal static class UeTools
         new("ue_object", "Read a UObject's fields formatted by their reflected types. depth 2 or more follows object pointers and expands structs (at most 300 nodes, cycles are not followed).",
             Schema.Of(["address"], ("address", "string", "hex address of the UObject"), ("depth", "integer", "1 to 4, default 1")), Object),
         new("ue_name", "Resolve an FName index through FNamePool.", Schema.Of(["index"], ("index", "integer", "FName index")), Name),
+        new("ue_dump_reflection", "Write classes.tsv (name, package, size, super) and props.tsv (class, prop, offset, type, dim; the class's own properties only) for every native /Script/ class into <Config\\Mcp\\reflection>\\<tag>. Same files the IDA dump_reflection script makes, feed them to diff_reflection.py.",
+            Schema.Of(["tag"], ("tag", "string", "folder name, letters digits - _ . only, e.g. v18")), args => DumpReflection(args, dumpDirectory), ReadOnly: false),
     ];
+
+    static JsonObject DumpReflection(Args args, string dumpDirectory)
+    {
+        Live.Require();
+        var tag = args.Str("tag");
+        if (tag.Trim('.').Length == 0 || !tag.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')) throw new ToolError("tag must be letters, digits, - _ . and not only dots");
+        var objects = Ue.Objects();
+        if (objects.Count == 0) throw new ToolError("no UObjects readable - GObjects is not resolved yet");
+        List<string> classes = [], props = [];
+        foreach (var obj in objects)
+        {
+            if (obj.Class?.Name != "Class" || obj.Outer?.Name is not { } package || !package.StartsWith(NativePackagePrefix, StringComparison.Ordinal) || Ue.Struct(obj.Address) is not { } info) continue;
+            classes.Add($"{info.Name}\t{package}\t{info.Size}\t{info.Super?.Name}");
+            props.AddRange(info.Properties.Where(prop => prop.Owner == info.Name).Select(prop => $"{info.Name}\t{prop.Name}\t0x{prop.Offset:X}\t{prop.Type.Replace("Property", "")}\t{prop.ArrayDim}"));
+        }
+        classes.Sort(StringComparer.Ordinal);
+        props.Sort(StringComparer.Ordinal);
+        var folder = Path.Combine(dumpDirectory, tag);
+        Directory.CreateDirectory(folder);
+        File.WriteAllLines(Path.Combine(folder, "classes.tsv"), ["name\tpackage\tsize\tsuper", .. classes]);
+        File.WriteAllLines(Path.Combine(folder, "props.tsv"), ["class\tprop\toffset\ttype\tdim", .. props]);
+        return new JsonObject { ["directory"] = folder, ["classes"] = classes.Count, ["props"] = props.Count };
+    }
 
     static JsonObject Find(Args args)
     {

@@ -72,6 +72,7 @@ public sealed class IconsTab
     public bool UseGameIcons = true;
     public float GameIconScale = 1;
     public bool ScaleWithZoom = true;
+    public bool FadeHidden = true;
     public float ZoomScaleFactor = 0.5f;
     public float ZoomScaleMin = 0.5f;
     public float ZoomScaleMax = 2;
@@ -100,8 +101,21 @@ public sealed class IconsTab
 
     public IconStyle[] Fixed => [NormalMonsters, MagicMonsters, RareMonsters, Bosses, Minions, Npcs, OtherPlayers, MapObjects, Destructibles];
 
+    public static int Layer(Entity entity) => entity.Kind switch
+    {
+        EntityKind.Destructible => 0,
+        EntityKind.MapObject => 1,
+        EntityKind.Monster when entity.Friendly => 7,
+        EntityKind.Monster => 2 + (int)entity.Rarity,
+        EntityKind.Ally => 6,
+        EntityKind.Npc => 7,
+        EntityKind.Player => 8,
+        _ => 9,
+    };
+
     public IconStyle? FixedFor(Entity entity) => entity.Kind switch
     {
+        EntityKind.Monster when entity.Friendly => Npcs,
         EntityKind.Monster => entity.Rarity switch
         {
             Rarity.Normal => NormalMonsters,
@@ -183,7 +197,8 @@ public sealed class Settings : PluginSettings
     public override void Draw() => Layout.TabBar("minimap",
         ("General", DrawGeneral),
         ("Map", DrawMap),
-        ("Icons", DrawIcons));
+        ("Icons", DrawIcons),
+        ("Hotkeys", () => { Controls.PluginHotkeys(); return false; }));
 
     bool DrawGeneral()
     {
@@ -221,7 +236,9 @@ public sealed class Settings : PluginSettings
     internal bool DrawIcons()
     {
         Icons.SeedPresets();
+        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
+        changed |= Setting.Checkbox("Fade hidden monsters", ref Icons.FadeHidden, "Draw buried or hidden monsters at half opacity");
         changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
         changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
         changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
@@ -234,7 +251,6 @@ public sealed class Settings : PluginSettings
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("Show", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("Icon", ImGuiTableColumnFlags.WidthFixed);
-        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("Scale", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("Override game icon", ImGuiTableColumnFlags.WidthFixed);

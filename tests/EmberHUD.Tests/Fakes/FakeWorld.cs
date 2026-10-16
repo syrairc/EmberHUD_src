@@ -64,7 +64,7 @@ internal sealed class FakeWorld
 
     public List<nint> Nodes { get; } = [];
 
-    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null, (double Max, double Cur)? life = null, (double Max, double Cur)? shield = null)
+    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null, (double Max, double Cur)? life = null, (double Max, double Cur)? shield = null, bool hidden = false)
     {
         var map = mapOffset ?? Offsets.FightMapMonster;
         var entity = Alloc(0x400);
@@ -84,6 +84,7 @@ internal sealed class FakeWorld
         }
 
         var value = map == Unregistered ? 0 : Alloc(0x400);
+        if (value != 0) Memory.Write(value + Offsets.ActorFlags, (byte)(0x90 | (hidden ? Offsets.ActorHiddenMask : 0)));
         if (value != 0 && monsterCfgId is { } monsterCfg)
         {
             var record = Alloc(0x200);
@@ -367,12 +368,15 @@ internal sealed class FakeWorld
 
     public List<nint> ConfigNodes { get; } = [];
 
+    public HashSet<uint> FriendlyConfigIds { get; } = [];
+
     public void SetMonsterConfigTable(int bucketCount, params (uint Id, uint Rarity)[] rows)
     {
         var entries = rows.Select(r =>
         {
             var row = Alloc(0x40);
             Memory.Write(row + Offsets.MonsterCfgRarity, r.Rarity);
+            Memory.Write(row + Offsets.MonsterCfgFriendly, FriendlyConfigIds.Contains(r.Id) ? 1u : 0u);
             return (r.Id, row);
         }).ToArray();
         var (array, nodes) = WriteChains(bucketCount, entries);

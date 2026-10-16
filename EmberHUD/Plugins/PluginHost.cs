@@ -75,7 +75,12 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         if (inFrame) Draw.MergeLayers();
     }
 
-    public void DrawSettings(PluginSlot slot) => Call(slot, PluginStage.Settings, plugin => plugin.DrawSettings());
+    public void DrawSettings(PluginSlot slot) => Call(slot, PluginStage.Settings, plugin =>
+    {
+        EmberHUD.Ui.Controls.SettingsPlugin = plugin;
+        try { plugin.DrawSettings(); }
+        finally { EmberHUD.Ui.Controls.SettingsPlugin = null; }
+    });
 
     public void SetEnabled(PluginSlot slot, bool enabled)
     {

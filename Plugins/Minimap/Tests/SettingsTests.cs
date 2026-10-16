@@ -23,6 +23,15 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void FriendlyMonstersPickTheNpcRow()
+    {
+        var s = new Settings();
+        var friendly = Scene.Entity(EntityKind.Monster, Vector3.Zero, Rarity.Normal) with { Friendly = true };
+        Check.That(ReferenceEquals(s.Icons.Npcs, s.Icons.FixedFor(friendly)));
+        Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero))));
+    }
+
+    [Test]
     public void OtherKindsMapToTheirFixedRowOrNone()
     {
         var s = new Settings();
@@ -79,15 +88,6 @@ public sealed class SettingsTests
     }
 
     [Test]
-    public void SeedingAddsEveryPresetOnceAndKeepsRenamedRows()
-    {
-        var s = new Settings();
-        s.Icons.Found = [new IconStyle { Key = "UI_MiniMap_Portal", Name = "Mine", Show = false }];
-        s.Icons.SeedPresets();
-        var count = s.Icons.Found.Count;
-        s.Icons.SeedPresets();
-        Check.Equal(count, s.Icons.Found.Count);
-    [Test]
     public void SeedingUpgradesRowsSavedWithAnInternalName()
     {
         var s = new Settings();
@@ -97,6 +97,15 @@ public sealed class SettingsTests
         Check.Equal("Skill vendor", s.Icons.FoundFor("UI_MiniMap_Skill")!.Name);
     }
 
+    [Test]
+    public void SeedingAddsEveryPresetOnceAndKeepsRenamedRows()
+    {
+        var s = new Settings();
+        s.Icons.Found = [new IconStyle { Key = "UI_MiniMap_Portal", Name = "Mine", Show = false }];
+        s.Icons.SeedPresets();
+        var count = s.Icons.Found.Count;
+        s.Icons.SeedPresets();
+        Check.Equal(count, s.Icons.Found.Count);
         Check.Equal(IconPresets.All.Length, count);
         Check.Equal("Mine", s.Icons.FoundFor("UI_MiniMap_Portal")!.Name);
         Check.That(!s.Icons.FoundFor("UI_MiniMap_Portal")!.Show);

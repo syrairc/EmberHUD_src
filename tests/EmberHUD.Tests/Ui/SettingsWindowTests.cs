@@ -266,6 +266,23 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
     }
 
     [Fact]
+    public void APluginsOwnTabBarCarriesItsHotkeysTab()
+    {
+        _fixture.Write("Tabs", "Main.cs", PluginFixture.Source("Tabs",
+            """public override void Initialize() => RegisterHotkey("Magnify", "Closer", () => { }, new Hotkey(Key.F3));""",
+            """public override void Draw() { if (!ImGui.BeginTabBar("inner")) return; if (ImGui.BeginTabItem("Hotkeys")) { EmberHUD.Ui.Controls.PluginHotkeys(); ImGui.EndTabItem(); } ImGui.EndTabBar(); }"""));
+        using var host = Discovered();
+        host.SetEnabled(Slot(host, "Tabs"), true);
+        var window = Window(host);
+        window.Selected = Slot(host, "Tabs");
+
+        var scene = Settled(window);
+
+        Assert.Equal(0, ImGui.GetCurrentContext().ErrorCountCurrentFrame);
+        Assert.Contains(PageRows(scene), row => row.Count == "F3Magnify".Length);
+    }
+
+    [Fact]
     public void WriteDefaultsButtonWritesDefaultsJson()
     {
         using var host = Discovered("Good");

@@ -19,6 +19,9 @@ public sealed class HotkeyTests
     [InlineData("alt + ctrl + d1", Key.D1, KeyModifiers.Ctrl | KeyModifiers.Alt)]
     [InlineData("0x7B", Key.F12, KeyModifiers.None)]
     [InlineData("Shift+0xE2", (Key)0xE2, KeyModifiers.Shift)]
+    [InlineData("Alt", Key.Alt, KeyModifiers.None)]
+    [InlineData("ctrl", Key.Ctrl, KeyModifiers.None)]
+    [InlineData("0x10", Key.Shift, KeyModifiers.None)]
     public void TryParseReadsTheTextForm(string text, Key key, KeyModifiers mods)
     {
         Assert.True(Hotkey.TryParse(text, out var hotkey));
@@ -38,16 +41,14 @@ public sealed class HotkeyTests
     [InlineData("Ctrl+None")]
     [InlineData("")]
     [InlineData("Ctrl+")]
-    [InlineData("Ctrl")]
-    [InlineData("Alt")]
     [InlineData("Shift+Ctrl")]
+    [InlineData("Alt+Alt")]
     [InlineData("Meta+F1")]
     [InlineData("Escape")]
     [InlineData("1")]
     [InlineData("A, B")]
     [InlineData("0xZZ")]
     [InlineData("0x1B")]
-    [InlineData("0x11")]
     [InlineData("0xFF")]
     [InlineData("5")]
     [InlineData("-1")]

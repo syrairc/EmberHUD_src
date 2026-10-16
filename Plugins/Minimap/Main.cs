@@ -20,6 +20,8 @@ public sealed class Main : Plugin<Settings>
     byte[]? _spare;
     int _warnedArea = -1;
     Vector2[] _screen = [];
+    readonly List<Entity> _ordered = [];
+    static readonly Comparison<Entity> DrawOrder = (a, b) => (IconsTab.Layer(a), a.Id).CompareTo((IconsTab.Layer(b), b.Id));
     readonly HashSet<int> _overridden = [];
     readonly HashSet<int> _iconEntities = [];
     MapIcon[]? _indexedIcons;
@@ -139,7 +141,10 @@ public sealed class Main : Plugin<Settings>
         _overridden.Clear();
         IndexIcons(state.MapIcons);
         var zoomScale = Settings.Icons.ZoomScale(map.Scale);
-        foreach (var entity in state.Entities)
+        _ordered.Clear();
+        _ordered.AddRange(state.Entities);
+        _ordered.Sort(DrawOrder);
+        foreach (var entity in _ordered)
         {
             var row = Settings.Icons.FixedFor(entity);
             if (_iconEntities.Contains(entity.Id))
@@ -150,7 +155,8 @@ public sealed class Main : Plugin<Settings>
             if (row is not { Show: true }) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
-            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, row.Colour);
+            var colour = entity.Hidden && Settings.Icons.FadeHidden ? Color.FromArgb(row.Colour.A / 2 + row.Colour.A % 2, row.Colour) : row.Colour;
+            Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, colour);
         }
 
         foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport, zoomScale);

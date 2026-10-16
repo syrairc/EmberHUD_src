@@ -396,6 +396,34 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void MonstersWhoseConfigRowIsFriendlyAreMarkedFriendly()
+    {
+        var world = new FakeWorld();
+        world.FriendlyConfigIds.Add(11305);
+        world.SetMonsterConfigTable(7, (11305, 1), (1180001, 1));
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 11305, role: 1),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 1180001, role: 1),
+            world.AddEntity(3, 48, true, 3, 3, 0, monsterCfgId: 777, role: 1));
+        var reader = ReaderFor(world);
+        foreach (var _ in new[] { 1, 2 })
+            Assert.Equal([true, false, false], Tick(reader).OrderBy(e => e.Id).Select(e => e.Friendly));
+    }
+
+    [Fact]
+    public void MonstersWithTheActorHiddenBitAreMarkedHidden()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 1180001, role: 1, hidden: true),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 1180001, role: 1),
+            world.AddEntity(3, 48, true, 3, 3, 0, mapOffset: Offsets.FightMapNpc, hidden: true));
+        var reader = ReaderFor(world);
+        foreach (var _ in new[] { 1, 2 })
+            Assert.Equal([true, false, false], Tick(reader).OrderBy(e => e.Id).Select(e => e.Hidden));
+    }
+
+    [Fact]
     public void MonsterRarityComesFromTheRoleBlockAndNotForOtherKinds()
     {
         var world = new FakeWorld();
@@ -549,9 +577,9 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
-    public void AKnownMonsterCostsItsNodeHeaderPositionRoleAndLife()
+    public void AKnownMonsterCostsItsNodeHeaderPositionActorRootRoleLifeAndHiddenBit()
     {
-        Assert.Equal(5 * 10, SecondTickReads(11) - SecondTickReads(1));
+        Assert.Equal(7 * 10, SecondTickReads(11) - SecondTickReads(1));
     }
 
     [Fact]
@@ -914,6 +942,86 @@ public class LogicWorldReaderTests
 
         Assert.Single(world.Memory.Reads, r => r.Address >= manager && r.Address < manager + 0x2000);
         Assert.Contains((manager + Offsets.CameraCache, Offsets.CameraPovSize), world.Memory.Reads);
+    }
+
+    private static (FakeWorld World, LogicWorldReader Reader, nint Scene, nint Pawn) WorldWithRootZ(float rootZ)
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer), world.AddEntity(11, 48, true, 1, 2, 0), world.AddEntity(12, 48, true, 1, 2, 7999), world.AddEntity(13, 48, true, 1, 2, 8000));
+        var (pawn, _) = world.SetLocalPlayer(10);
+        var root = world.Alloc(0x200);
+        world.Memory.Write(pawn + Offsets.PawnRootComponent, root);
+        world.Memory.Write(root + Offsets.RootRelativeZ, rootZ);
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        return (world, reader, scene, pawn);
+    }
+
+    [Fact]
+    public void ReadWorldLiftsThePlayerAndEntitiesByTheRootComponentHeight()
+    {
+        var (_, reader, scene, _) = WorldWithRootZ(1010);
+
+        var (player, entities, _) = reader.ReadWorld(scene, 0);
+
+        Assert.Equal(1010f, player!.Value.Z);
+        Assert.Equal(1007f, entities.Single(e => e.Id == 11).Position.Z);
+    }
+
+    [Fact]
+    public void TheParkedCheckStaysOnTheRawLogicZ()
+    {
+        var (_, reader, scene, _) = WorldWithRootZ(1010);
+
+        var entities = reader.ReadWorld(scene, 0).Entities;
+
+        Assert.Contains(entities, e => e.Id == 12);
+        Assert.DoesNotContain(entities, e => e.Id == 13);
+    }
+
+    [Fact]
+    public void EntityPositionLookupsAreLiftedToo()
+    {
+        var (_, reader, scene, _) = WorldWithRootZ(1010);
+        reader.ReadWorld(scene, 0);
+
+        Assert.True(reader.TryReadEntityPosition(scene, 11, out var position));
+        Assert.Equal(1007f, position.Z);
+    }
+
+    [Fact]
+    public void AMonsterWithAnActorUsesTheActorsWorldZNotItsLogicZ()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(11, 48, true, 1, 2, 1335);
+        var other = world.AddEntity(12, 48, true, 3, 4, 0);
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer), monster, other);
+        var (pawn, _) = world.SetLocalPlayer(10);
+        var playerRoot = world.Alloc(0x200);
+        world.Memory.Write(pawn + Offsets.PawnRootComponent, playerRoot);
+        world.Memory.Write(playerRoot + Offsets.RootRelativeZ, 1010f);
+        var monsterRoot = world.Alloc(0x200);
+        world.Memory.Write(monster.Value + Offsets.PawnRootComponent, monsterRoot);
+        world.Memory.Write(monsterRoot + Offsets.RootRelativeZ, 1010f);
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+
+        var entities = reader.ReadWorld(scene, 0).Entities;
+
+        Assert.Equal(1010f, entities.Single(e => e.Id == 11).Position.Z);
+        Assert.Equal(1007f, entities.Single(e => e.Id == 12).Position.Z);
+    }
+
+    [Fact]
+    public void WithoutARootComponentPositionsStayRaw()
+    {
+        var (world, reader, scene, pawn) = WorldWithRootZ(1010);
+        world.Memory.Write(pawn + Offsets.PawnRootComponent, 0L);
+
+        var (player, entities, _) = reader.ReadWorld(scene, 0);
+
+        Assert.Equal(3f, player!.Value.Z);
+        Assert.Equal(0f, entities.Single(e => e.Id == 11).Position.Z);
     }
 
     [Fact]

@@ -52,7 +52,7 @@ public readonly record struct Hotkey(Key Key, KeyModifiers Mods = KeyModifiers.N
         var vk = name.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? int.TryParse(name.AsSpan(2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var hex) ? hex : 0
             : name.Length > 0 && !char.IsDigit(name[0]) && name.All(char.IsLetterOrDigit) && Enum.TryParse(name, true, out Key known) ? (int)known : 0;
-        if (!IsBindable(vk)) return false;
+        if (!IsBindable(vk) && !(mods == KeyModifiers.None && vk is (int)Key.Shift or (int)Key.Ctrl or (int)Key.Alt)) return false;
         hotkey = new Hotkey((Key)vk, mods);
         return true;
     }
