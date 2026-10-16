@@ -21,6 +21,16 @@ public sealed class TexturesTests : IDisposable
         Textures.Uploader = null;
         Textures.Resolver = null;
         Textures.Releaser = null;
+        Textures.PngLoader = null;
+    }
+
+    [Fact]
+    public void LoadPngCallsTheHostLoaderAndIsFalseWithoutOne()
+    {
+        Assert.False(Textures.LoadPng("icon", "a.png"));
+        Textures.PngLoader = (key, path) => key == "icon" && path == "a.png";
+        Assert.True(Textures.LoadPng("icon", "a.png"));
+        Assert.False(Textures.LoadPng("other", "a.png"));
     }
 
     [Fact]

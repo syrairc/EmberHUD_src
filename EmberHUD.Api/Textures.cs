@@ -13,7 +13,11 @@ public static class Textures
 
     internal static Action<string?, string>? Releaser { get; set; }
 
+    internal static Func<string, string, bool>? PngLoader { get; set; }
+
     public static void Upload(string key, byte[] rgba, int width, int height) => Uploader?.Invoke(Log.CurrentPlugin.Value, key, rgba, width, height);
+
+    public static bool LoadPng(string key, string path) => PngLoader?.Invoke(key, path) ?? false;
 
     public static bool TryGet(string key, out Sprite sprite)
     {

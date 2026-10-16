@@ -92,6 +92,7 @@ Draw.SvgIcons = svgIcons.Resolve;
 Draw.SvgIconNames = svgIcons.Names;
 var textures = new PluginTextures(overlay.BeforeFrame, overlay.Textures.TryUpload, overlay.Textures.Resolve, overlay.Textures.Release);
 Textures.Uploader = textures.Upload;
+Textures.PngLoader = new PngFileLoader(textures.Upload).Load;
 Textures.Resolver = textures.Resolve;
 Textures.Releaser = textures.Release;
 using var plugins = new PluginHost(sdk, root, textures.ReleaseAll);
