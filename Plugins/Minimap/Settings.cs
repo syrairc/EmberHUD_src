@@ -136,20 +136,19 @@ public sealed class IconsTab
         foreach (var icon in icons)
         {
             if (string.IsNullOrEmpty(icon.Texture)) continue;
-            var name = IconPresets.NameFor(icon.Texture) ?? icon.Name;
-            if (FoundFor(icon.Texture) is { } existing)
-            {
-                if ((existing.Name == existing.Key || existing.Name == icon.Name) && !string.IsNullOrEmpty(name)) existing.Name = name;
-                continue;
-            }
-            AddFound(icon.Texture, string.IsNullOrEmpty(name) ? icon.Texture : name);
+            Apply(icon.Texture, IconPresets.NameFor(icon.Texture) ?? icon.Texture, icon.Name);
         }
     }
 
     public void SeedPresets()
     {
-        foreach (var (texture, name) in IconPresets.All)
-            if (FoundFor(texture) is null) AddFound(texture, name);
+        foreach (var (texture, name) in IconPresets.All) Apply(texture, name, "");
+    }
+
+    void Apply(string texture, string name, string gameName)
+    {
+        if (FoundFor(texture) is not { } existing) AddFound(texture, name);
+        else if (existing.Name == existing.Key || existing.Name == gameName || IconPresets.IsInternalName(existing.Name)) existing.Name = name;
     }
 
     void AddFound(string texture, string name)
@@ -224,7 +223,6 @@ public sealed class Settings : PluginSettings
         Icons.SeedPresets();
         changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
         changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
-        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
         changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
         changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
@@ -232,10 +230,11 @@ public sealed class Settings : PluginSettings
         Controls.Filter(ref _filter, width: 240);
         ImGui.SameLine();
         ImGui.TextDisabled($"{Icons.Fixed.Length} fixed + {Icons.Found.Count} found");
-        if (!ImGui.BeginTable("##icons", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingFixedFit, new Vector2(0, 360))) return changed;
+        if (!ImGui.BeginTable("##icons", 5, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingFixedFit, new Vector2(0, Math.Max(360, ImGui.GetContentRegionAvail().Y)))) return changed;
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("Show", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("Icon", ImGuiTableColumnFlags.WidthFixed);
+        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("Scale", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("Override game icon", ImGuiTableColumnFlags.WidthFixed);

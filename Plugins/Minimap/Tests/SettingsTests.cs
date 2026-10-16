@@ -50,21 +50,18 @@ public sealed class SettingsTests
         s.Icons.Discover([Icon("Tex1", "Portal"), Icon(""), Icon("Tex1", "Portal"), Icon("Tex2")]);
         Check.Equal(2, s.Icons.Found.Count);
         var portal = s.Icons.FoundFor("Tex1")!;
-        Check.Equal("Portal", portal.Name);
+        Check.Equal("Tex1", portal.Name);
         Check.Equal("game:Tex1", portal.Icon);
         Check.Equal("Tex2", s.Icons.FoundFor("Tex2")!.Name);
         Check.That(s.Icons.FoundFor("") is null);
     }
 
     [Test]
-    public void AGameNameUpgradesOnlyRowsStillShowingTheirTexture()
+    public void AnIconWithNoPresetIsNamedAfterItsTexture()
     {
         var s = new Settings();
-        s.Icons.Discover([Icon("A"), Icon("B")]);
-        s.Icons.FoundFor("B")!.Name = "My chest";
-        s.Icons.Discover([Icon("A", "S15MonsterNormal"), Icon("B", "Chest")]);
-        Check.Equal("S15MonsterNormal", s.Icons.FoundFor("A")!.Name);
-        Check.Equal("My chest", s.Icons.FoundFor("B")!.Name);
+        s.Icons.Discover([Icon("A", "S15MonsterNormal")]);
+        Check.Equal("A", s.Icons.FoundFor("A")!.Name);
     }
 
     [Test]
@@ -77,7 +74,7 @@ public sealed class SettingsTests
         s.Icons.Discover([Icon("UI_MiniMap_cangku", "wanjiacangku")]);
         Check.Equal("Player Stash / Stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
         s.Icons.FoundFor("UI_MiniMap_cangku")!.Name = "My stash";
-        s.Icons.Discover([Icon("UI_MiniMap_cangku", "wanjiacangku")]);
+        s.Icons.SeedPresets();
         Check.Equal("My stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
     }
 
@@ -90,6 +87,16 @@ public sealed class SettingsTests
         var count = s.Icons.Found.Count;
         s.Icons.SeedPresets();
         Check.Equal(count, s.Icons.Found.Count);
+    [Test]
+    public void SeedingUpgradesRowsSavedWithAnInternalName()
+    {
+        var s = new Settings();
+        s.Icons.Found = [new IconStyle { Key = "UI_MiniMap_cangku", Name = "cangku" }, new IconStyle { Key = "UI_MiniMap_Skill", Name = "Skill vendor" }];
+        s.Icons.SeedPresets();
+        Check.Equal("Player Stash / Stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
+        Check.Equal("Skill vendor", s.Icons.FoundFor("UI_MiniMap_Skill")!.Name);
+    }
+
         Check.Equal(IconPresets.All.Length, count);
         Check.Equal("Mine", s.Icons.FoundFor("UI_MiniMap_Portal")!.Name);
         Check.That(!s.Icons.FoundFor("UI_MiniMap_Portal")!.Show);
