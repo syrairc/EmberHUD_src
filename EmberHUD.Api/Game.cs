@@ -83,6 +83,8 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
 {
     public nint Address { get; init; }
 
+    public string Name { get; init; } = "";
+
     public double Life { get; init; }
 
     public double MaxLife { get; init; }

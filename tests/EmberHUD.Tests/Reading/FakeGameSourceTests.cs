@@ -40,6 +40,14 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void EveryFakeEntityHasADistinctName()
+    {
+        var entities = At(0).Entities;
+        Assert.All(entities, e => Assert.NotEqual("", e.Name));
+        Assert.Equal(entities.Length, entities.Select(e => e.Name).Distinct().Count());
+    }
+
+    [Fact]
     public void CombatGrowsInBurstsAndPlateausEachCycle()
     {
         var second = Stopwatch.Frequency;

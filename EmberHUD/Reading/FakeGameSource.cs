@@ -153,7 +153,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         {
             var index = entities.Count;
             var maxLife = kind == EntityKind.Monster ? rarity switch { Rarity.Normal => 120d, Rarity.Magic => 300, Rarity.Rare => 900, _ => 12000 } : 0;
-            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife });
+            var label = kind == EntityKind.Monster ? rarity.ToString() : kind.ToString();
+            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Name = $"Fake {label} {index + 1}", Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife });
         }
 
         Rarity[] rarities = [Rarity.Normal, Rarity.Magic, Rarity.Rare];
