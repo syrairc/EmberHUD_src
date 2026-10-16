@@ -252,8 +252,9 @@ public sealed class PlateRendererTests
         var style = Style(name: true);
         style.DrawBar = false;
         style.OnBar = new TextLine { Enabled = true, Template = "{hp%}%", Style = new TextStyle { Color = NameColour } };
-        var texts = Drawn(NameColour, () => DrawPlate(Data(50, 100), style, At));
-        Check.That(texts.Count > 0, "texts missing");
+        var texts = Drawn(NameColour, () => PlateRenderer.DrawPlate(Data(50, 100), style, Track, Viewport));
+        var (textMin, textMax) = Across(texts);
+        Check.That(textMin >= 600 && textMax <= 680, $"texts off the track {textMin}..{textMax}");
         Check.Equal(0, Drawn(Back, () => DrawPlate(Data(50, 100), style, At)).Count);
         Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(50, 100), style, At)).Count);
         Check.Equal(0, Drawn(Border, () => DrawPlate(Data(50, 100), style, At)).Count);

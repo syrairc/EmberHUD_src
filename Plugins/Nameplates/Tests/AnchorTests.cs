@@ -54,4 +54,22 @@ public sealed class AnchorTests
     [Test]
     public void TheBorderWidthGrowsTheGameRectOutward() =>
         Check.Equal<ScreenRect?>(new ScreenRect(new Vector2(597, 297), new Vector2(683, 309)), Anchor.Rect(On(), Make(EntityKind.Monster, true, Track), Style(3), Point));
+
+    [Test]
+    public void NoBorderGrowthWhenTheBarIsNotDrawn()
+    {
+        var style = Style(3);
+        style.DrawBar = false;
+        Check.Equal<ScreenRect?>(Track, Anchor.Rect(On(), Make(EntityKind.Monster, true, Track), style, Point));
+        style.OffsetY = 4;
+        Check.Equal<ScreenRect?>(new ScreenRect(new Vector2(600, 296), new Vector2(680, 302)), Anchor.Rect(On(), Make(EntityKind.Monster, true, Track), style, Point));
+    }
+
+    [Test]
+    public void OffsetYMovesTheGameRectUp()
+    {
+        var style = Style();
+        style.OffsetY = 10;
+        Check.Equal<ScreenRect?>(new ScreenRect(new Vector2(600, 290), new Vector2(680, 296)), Anchor.Rect(On(), Make(EntityKind.Monster, true, Track), style, Point));
+    }
 }

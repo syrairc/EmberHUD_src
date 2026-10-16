@@ -10,7 +10,7 @@ static class Anchor
         if (settings.AnchorToGameBar && entity.Kind == EntityKind.Monster && entity.HasGameBar)
         {
             if (entity.GameBar is not { } bar) return null;
-            var grow = new Vector2(style.Bar.BorderWidth);
+            var grow = style.DrawBar ? new Vector2(style.Bar.BorderWidth) : Vector2.Zero;
             var shift = new Vector2(0, style.OffsetY);
             return new ScreenRect(bar.Min - grow - shift, bar.Max + grow - shift);
         }
