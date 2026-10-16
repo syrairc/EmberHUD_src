@@ -1,5 +1,6 @@
 using System;
-using System.Reflection;
+using System.Drawing;
+using EmberHUD.Ui;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -17,18 +18,40 @@ public sealed class SettingsTests
     public void SettingsRoundTripThroughJson()
     {
         var s = new Settings();
-        s.Buckets[(int)Bucket.Rare].Style.Bar.Width = 321;
-        s.Buckets[(int)Bucket.Rare].Style.Below.Template = "{dist}m";
-        s.Overrides.Add(new StyleOverride { Kind = MatchKind.CfgId, CfgId = 4242, Name = "Boss", Style = new PlateStyle { OffsetY = 7 } });
+        var boss = s.Buckets[(int)Bucket.Boss].Style;
+        boss.Bar.Width = 321;
+        boss.Bar.Fill = Color.FromArgb(0x12, 0x34, 0x56, 0x78);
+        boss.Above.Style.Scale = 2;
+        boss.Above.Style.BorderEnabled = true;
+        boss.OnBar.Template = "{hp}/{hpmax}";
+        boss.Below.Template = "{dist}m";
+        s.Overrides.Add(new StyleOverride
+        {
+            Kind = MatchKind.CfgId,
+            Name = "Some Boss",
+            CfgId = 1170000,
+            Style = new PlateStyle { OffsetY = 7, Bar = new BarStyle { Width = 55, Fill = Color.FromArgb(1, 2, 3, 4) }, Above = new TextLine { Enabled = true, Template = "!{name}", Style = new TextStyle { Scale = 1.5f } } },
+        });
+
         var back = Load(Serialize(s));
-        Check.Equal(321f, back.Buckets[(int)Bucket.Rare].Style.Bar.Width);
-        Check.Equal("{dist}m", back.Buckets[(int)Bucket.Rare].Style.Below.Template);
+
+        var backBoss = back.Buckets[(int)Bucket.Boss].Style;
+        Check.Equal(321f, backBoss.Bar.Width);
+        Check.Equal(boss.Bar.Fill, backBoss.Bar.Fill);
+        Check.Equal(2f, backBoss.Above.Style.Scale);
+        Check.That(backBoss.Above.Style.BorderEnabled);
+        Check.Equal("{hp}/{hpmax}", backBoss.OnBar.Template);
+        Check.Equal("{dist}m", backBoss.Below.Template);
         Check.Equal(1, back.Overrides.Count);
-        Check.Equal(MatchKind.CfgId, back.Overrides[0].Kind);
-        Check.Equal(4242, back.Overrides[0].CfgId);
-        Check.Equal(7f, back.Overrides[0].Style.OffsetY);
-        Check.Equal(s.Buckets[(int)Bucket.Boss].Style.Bar.Fill, back.Buckets[(int)Bucket.Boss].Style.Bar.Fill);
-        Check.Equal(s.Buckets[(int)Bucket.Boss].Style.Above.Style.ShadowEnabled, back.Buckets[(int)Bucket.Boss].Style.Above.Style.ShadowEnabled);
+        var ov = back.Overrides[0];
+        Check.Equal(MatchKind.CfgId, ov.Kind);
+        Check.Equal("Some Boss", ov.Name);
+        Check.Equal(1170000, ov.CfgId);
+        Check.Equal(7f, ov.Style.OffsetY);
+        Check.Equal(55f, ov.Style.Bar.Width);
+        Check.Equal(Color.FromArgb(1, 2, 3, 4), ov.Style.Bar.Fill);
+        Check.Equal("!{name}", ov.Style.Above.Template);
+        Check.Equal(1.5f, ov.Style.Above.Style.Scale);
     }
 
     [Test]
@@ -37,6 +60,13 @@ public sealed class SettingsTests
         var s = new Settings();
         Check.Equal(Enum.GetValues<Bucket>().Length, s.Buckets.Length);
         foreach (var bucket in s.Buckets) Check.That(bucket?.Style?.Bar != null);
+        s.Buckets[0].Style.Bar.Width = 777;
+        s.Buckets[0].Style.Above.Style.Scale = 9;
+        for (var i = 1; i < s.Buckets.Length; i++)
+        {
+            Check.That(s.Buckets[i].Style.Bar.Width != 777);
+            Check.Equal(1f, s.Buckets[i].Style.Above.Style.Scale);
+        }
     }
 
     [Test]
