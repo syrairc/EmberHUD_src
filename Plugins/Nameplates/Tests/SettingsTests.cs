@@ -58,6 +58,29 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void AnchorAndDrawBarRoundTripAndDefault()
+    {
+        Check.That(!new Settings().AnchorToGameBar);
+        Check.That(new PlateStyle().DrawBar);
+        var s = new Settings { AnchorToGameBar = true };
+        s.Buckets[(int)Bucket.Boss].Style.DrawBar = false;
+        var back = Load(Serialize(s));
+        Check.That(back.AnchorToGameBar);
+        Check.That(!back.Buckets[(int)Bucket.Boss].Style.DrawBar);
+        Check.That(back.Buckets[(int)Bucket.Normal].Style.DrawBar);
+        var old = Load("{\"DistanceUnit\": 100}");
+        Check.That(!old.AnchorToGameBar);
+        Check.That(old.Buckets[(int)Bucket.Normal].Style.DrawBar);
+    }
+
+    [Test]
+    public void CloneCopiesDrawBar()
+    {
+        var source = new PlateStyle { DrawBar = false };
+        Check.That(!source.Clone().DrawBar);
+    }
+
+    [Test]
     public void NormalizeFillsAShortOrNullSettingsObject()
     {
         var s = new Settings();

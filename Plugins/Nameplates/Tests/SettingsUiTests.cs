@@ -24,6 +24,14 @@ public sealed class SettingsUiTests
     public void TheSettingsPageDraws() => Page(new Settings());
 
     [Test]
+    public void ThePageDrawsWithAnchorOnAndDrawBarOff()
+    {
+        var s = new Settings { AnchorToGameBar = true };
+        s.Buckets[(int)Bucket.Normal].Style.DrawBar = false;
+        Page(s);
+    }
+
+    [Test]
     public void ThePageDrawsWithAnOverrideAndAnUnknownTexture()
     {
         var s = new Settings();

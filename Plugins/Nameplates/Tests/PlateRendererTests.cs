@@ -14,7 +14,7 @@ public sealed class PlateRendererTests
     static readonly Color Back = Color.FromArgb(255, 1, 2, 3);
     static readonly Color Border = Color.FromArgb(255, 4, 5, 6);
     static readonly Color NameColour = Color.FromArgb(255, 250, 20, 240);
-    static readonly Vector2 Anchor = new(500, 300);
+    static readonly Vector2 At = new(500, 300);
     static readonly Vector2 Viewport = new(1920, 1080);
     static readonly Camera Forward = new(Vector3.Zero, Vector3.Zero, 90);
 
@@ -63,7 +63,7 @@ public sealed class PlateRendererTests
         return (min, max);
     }
 
-    static void DrawPlate(PlateData data, PlateStyle style, Vector2 anchor) => PlateRenderer.DrawPlate(data, style, anchor, Viewport);
+    static bool DrawPlate(PlateData data, PlateStyle style, Vector2 anchor) => PlateRenderer.DrawPlate(data, style, Anchor.Projected(style, anchor), Viewport);
 
     static PlateData Data(double life, double maxLife, string name = "Ghoul") => new(name, life, maxLife, 0, "Normal", "Monster");
 
@@ -88,8 +88,8 @@ public sealed class PlateRendererTests
     public void ABarDrawsFillOnlyForTheLifeFraction()
     {
         var style = Style();
-        var back = Drawn(Back, () => DrawPlate(Data(50, 100), style, Anchor));
-        var fill = Drawn(Fill, () => DrawPlate(Data(50, 100), style, Anchor));
+        var back = Drawn(Back, () => DrawPlate(Data(50, 100), style, At));
+        var fill = Drawn(Fill, () => DrawPlate(Data(50, 100), style, At));
         Check.Equal((450f, 550f), Across(back));
         Check.Equal((450f, 500f), Across(fill));
         Check.Equal(4, fill.Count);
@@ -99,9 +99,9 @@ public sealed class PlateRendererTests
     public void NoBarWhenMaxLifeIsZeroButTheNameStillDraws()
     {
         var style = Style(name: true);
-        Check.Equal(0, Drawn(Back, () => DrawPlate(Data(0, 0), style, Anchor)).Count);
-        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(0, 0), style, Anchor)).Count);
-        var name = Drawn(NameColour, () => DrawPlate(Data(0, 0), style, Anchor));
+        Check.Equal(0, Drawn(Back, () => DrawPlate(Data(0, 0), style, At)).Count);
+        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(0, 0), style, At)).Count);
+        var name = Drawn(NameColour, () => DrawPlate(Data(0, 0), style, At));
         var (min, max) = Across(name);
         Check.That(min >= 400 && max <= 600 && min < 500 && max > 500, $"name not centred on the plate {min}..{max}");
     }
@@ -111,16 +111,16 @@ public sealed class PlateRendererTests
     {
         var style = Style();
         style.OnBar = new TextLine { Enabled = true, Template = "{hp%}%", Style = new TextStyle { Color = NameColour } };
-        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(0, 0), style, Anchor)).Count);
-        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(double.NaN, 100), style, Anchor)).Count);
-        Check.That(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, Anchor)).Count > 0);
+        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(0, 0), style, At)).Count);
+        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(double.NaN, 100), style, At)).Count);
+        Check.That(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, At)).Count > 0);
     }
 
     static (float Min, float Max) NameExtent(HAlign align)
     {
         var style = Style(name: true);
         style.Above.Align = align;
-        return Across(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, Anchor)));
+        return Across(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, At)));
     }
 
     [Test]
@@ -148,28 +148,28 @@ public sealed class PlateRendererTests
     public void ANaNAnchorDrawsNothing()
     {
         var style = Style(name: true);
-        Check.That(!PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(float.NaN, 300), Viewport));
-        Check.That(!PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(500, float.NaN), Viewport));
+        Check.That(!DrawPlate(Data(50, 100), style, new Vector2(float.NaN, 300)));
+        Check.That(!DrawPlate(Data(50, 100), style, new Vector2(500, float.NaN)));
     }
 
     [Test]
     public void LifeAboveMaxClampsToAFullBar() =>
-        Check.Equal((450f, 550f), Across(Drawn(Fill, () => DrawPlate(Data(500, 100), Style(), Anchor))));
+        Check.Equal((450f, 550f), Across(Drawn(Fill, () => DrawPlate(Data(500, 100), Style(), At))));
 
     [Test]
     public void NegativeLifeDrawsAnEmptyBar()
     {
         var style = Style();
-        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(-20, 100), style, Anchor)).Count);
-        Check.Equal((450f, 550f), Across(Drawn(Back, () => DrawPlate(Data(-20, 100), style, Anchor))));
+        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(-20, 100), style, At)).Count);
+        Check.Equal((450f, 550f), Across(Drawn(Back, () => DrawPlate(Data(-20, 100), style, At))));
     }
 
     [Test]
     public void NaNLifeDrawsNoBar()
     {
         var style = Style();
-        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(double.NaN, 100), style, Anchor)).Count);
-        Check.Equal(0, Drawn(Back, () => DrawPlate(Data(double.NaN, 100), style, Anchor)).Count);
+        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(double.NaN, 100), style, At)).Count);
+        Check.Equal(0, Drawn(Back, () => DrawPlate(Data(double.NaN, 100), style, At)).Count);
     }
 
     [Test]
@@ -177,7 +177,7 @@ public sealed class PlateRendererTests
     {
         var style = Style();
         style.OffsetY = 40;
-        var fill = Drawn(Fill, () => DrawPlate(Data(100, 100), style, Anchor));
+        var fill = Drawn(Fill, () => DrawPlate(Data(100, 100), style, At));
         Check.Equal(254f, fill[0].Pos.Y);
     }
 
@@ -188,7 +188,7 @@ public sealed class PlateRendererTests
         TestGame.UseTextures((_, _, _, _) => { }, _ => sprite);
         try
         {
-            var fill = Drawn(Fill, () => DrawPlate(Data(50, 100), Style(), Anchor));
+            var fill = Drawn(Fill, () => DrawPlate(Data(50, 100), Style(), At));
             Check.Equal((450f, 500f), Across(fill));
             var maxU = 0f;
             foreach (var (_, uv) in fill) maxU = Math.Max(maxU, uv.X);
@@ -204,9 +204,9 @@ public sealed class PlateRendererTests
     public void OffScreenDrawsNothing()
     {
         var style = Style(name: true);
-        Check.Equal(0, TestFrame.Vertices(() => Check.That(!PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(-500, 300), Viewport), "reported drawn")));
-        Check.Equal(0, TestFrame.Vertices(() => PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(500, 2000), Viewport)));
-        Check.That(TestFrame.Vertices(() => PlateRenderer.DrawPlate(Data(50, 100), style, Anchor, Viewport)) > 0, "control plate drew nothing");
+        Check.Equal(0, TestFrame.Vertices(() => Check.That(!DrawPlate(Data(50, 100), style, new Vector2(-500, 300)), "reported drawn")));
+        Check.Equal(0, TestFrame.Vertices(() => DrawPlate(Data(50, 100), style, new Vector2(500, 2000))));
+        Check.That(TestFrame.Vertices(() => DrawPlate(Data(50, 100), style, At)) > 0, "control plate drew nothing");
     }
 
     [Test]
@@ -216,14 +216,14 @@ public sealed class PlateRendererTests
         style.Above = new TextLine { Enabled = true, Template = "" };
         style.OnBar = new TextLine { Enabled = true, Template = "" };
         style.Below = new TextLine { Enabled = true, Template = "" };
-        Check.Equal(0, TestFrame.Vertices(() => PlateRenderer.DrawPlate(Data(0, 0), style, Anchor, Viewport)));
+        Check.Equal(0, TestFrame.Vertices(() => DrawPlate(Data(0, 0), style, At)));
     }
 
     [Test]
     public void AnEmptyNameDrawsNoNameText()
     {
         var style = Style(name: true);
-        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(50, 100, name: ""), style, Anchor)).Count);
+        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(50, 100, name: ""), style, At)).Count);
     }
 
     [Test]
@@ -242,6 +242,40 @@ public sealed class PlateRendererTests
         var state = GameState.Empty with { Camera = Forward, Entities = [Ghoul(new Vector3(1000, 0, 0))], Ui = new GameUi([panel]) };
         Check.Equal(0, Rendered(state));
         Check.That(Rendered(state, settings => settings.HideBehindPanels = false) > 0, "panels hid plates with HideBehindPanels off");
+    }
+
+    static readonly ScreenRect Track = new(new Vector2(600, 300), new Vector2(680, 306));
+
+    [Test]
+    public void DrawBarOffDrawsNoBarButKeepsTheTexts()
+    {
+        var style = Style(name: true);
+        style.DrawBar = false;
+        style.OnBar = new TextLine { Enabled = true, Template = "{hp%}%", Style = new TextStyle { Color = NameColour } };
+        var texts = Drawn(NameColour, () => DrawPlate(Data(50, 100), style, At));
+        Check.That(texts.Count > 0, "texts missing");
+        Check.Equal(0, Drawn(Back, () => DrawPlate(Data(50, 100), style, At)).Count);
+        Check.Equal(0, Drawn(Fill, () => DrawPlate(Data(50, 100), style, At)).Count);
+        Check.Equal(0, Drawn(Border, () => DrawPlate(Data(50, 100), style, At)).Count);
+        style.DrawBar = true;
+        Check.That(Drawn(Back, () => DrawPlate(Data(50, 100), style, At)).Count > 0, "bar missing with DrawBar on");
+    }
+
+    [Test]
+    public void TheBackQuadMatchesTheGameRect()
+    {
+        var style = Style();
+        style.Bar.BorderWidth = 0;
+        var settings = new Settings { AnchorToGameBar = true };
+        var entity = new Entity(1, 1, Vector3.Zero, EntityKind.Monster, Rarity.Normal) { HasGameBar = true, GameBar = Track };
+        var rect = Anchor.Rect(settings, entity, style, At)!.Value;
+        var back = Drawn(Back, () => PlateRenderer.DrawPlate(Data(50, 100), style, rect, Viewport));
+        Check.Equal((600f, 680f), Across(back));
+        Check.Equal(300f, back[0].Pos.Y);
+        style.Bar.BorderWidth = 2;
+        rect = Anchor.Rect(settings, entity, style, At)!.Value;
+        back = Drawn(Back, () => PlateRenderer.DrawPlate(Data(50, 100), style, rect, Viewport));
+        Check.Equal((598f, 682f), Across(back));
     }
 
     [Test]
