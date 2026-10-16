@@ -145,6 +145,15 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void EntityRowsCarryTheNameWhenThereIsOne()
+    {
+        Use(Mob(1, 5, 10) with { Name = "Crimson Boar" }, Mob(2, 5, 20));
+        var rows = Entities(new JsonObject());
+        Check.Equal("Crimson Boar", (string?)rows[0]!["name"]);
+        Check.That(rows[1]!["name"] is null, "no name, no key");
+    }
+
+    [Test]
     public void FiltersCombineAndAddressesAreHex()
     {
         Use(Mob(1, 5, 10, rarity: Rarity.Rare, address: 0x1F2E), Mob(2, 5, 90, rarity: Rarity.Rare), Mob(3, 6, 10, rarity: Rarity.Rare), Mob(4, 5, 10), Mob(5, 5, 10, EntityKind.Npc, Rarity.Rare));
