@@ -285,15 +285,18 @@ internal sealed class FakeWorld
         Memory.Write(minimap.Widget + Offsets.MinimapIconList + Offsets.TArrayNum, icons.Length);
     }
 
-    public void SetQuestTargets(FakeMinimap minimap, uint area, params (int Id, float X, float Y)[] targets)
+    public void SetQuestTargets(FakeMinimap minimap, uint area, params (int Id, float X, float Y)[] targets) =>
+        SetQuestTargets(minimap, area, _ => true, [.. targets.Select(t => (t.Id, t.X, t.Y, area))]);
+
+    public void SetQuestTargets(FakeMinimap minimap, uint area, Func<int, bool> present, params (int Id, float X, float Y, uint Area)[] targets)
     {
         Memory.Write(minimap.Widget + Offsets.MinimapIconArea, area);
-        WriteTMap(minimap.Widget + Offsets.MinimapQuestTargets, Offsets.QuestTargetStride, targets.Length, _ => true, (at, i) =>
+        WriteTMap(minimap.Widget + Offsets.MinimapQuestTargets, Offsets.QuestTargetStride, targets.Length, present, (at, i) =>
         {
             Memory.Write(at + Offsets.QuestTargetId, targets[i].Id);
             Memory.Write(at + Offsets.QuestTargetX, targets[i].X);
             Memory.Write(at + Offsets.QuestTargetY, targets[i].Y);
-            Memory.Write(at + Offsets.QuestTargetArea, area);
+            Memory.Write(at + Offsets.QuestTargetArea, targets[i].Area);
         });
     }
 

@@ -8,7 +8,7 @@ internal sealed class QuestTargetReader(IReadBackend memory)
     public QuestTarget[] Read(MinimapReader minimap)
     {
         var widget = minimap.Widget;
-        if (widget == 0 || !memory.TryRead(widget + Offsets.MinimapIconArea, out uint area) ||
+        if (widget == 0 || !memory.TryRead(widget + Offsets.MinimapIconArea, out uint area) || area == 0 ||
             !memory.TryReadTMapElements(widget + Offsets.MinimapQuestTargets, Offsets.QuestTargetStride, Offsets.MaxQuestTargets, out _, out var bytes, out var bits))
             return [];
 

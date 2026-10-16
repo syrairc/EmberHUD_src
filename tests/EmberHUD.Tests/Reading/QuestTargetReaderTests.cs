@@ -62,5 +62,32 @@ public class QuestTargetReaderTests
     }
 
     [Fact]
+    public void SkipsFreeSlots()
+    {
+        var world = new FakeWorld();
+        world.SetQuestTargets(world.AddMinimap(0f), 7, i => i != 1, (1, 1, 1, 7), (2, 2, 2, 7), (3, 3, 3, 7));
+
+        Assert.Equal([1, 3], Read(world).Select(target => target.Id));
+    }
+
+    [Fact]
+    public void SkipsOtherAreaArrows()
+    {
+        var world = new FakeWorld();
+        world.SetQuestTargets(world.AddMinimap(0f), 7, _ => true, (1, 1, 1, 6), (2, 2, 2, 7));
+
+        Assert.Equal([2], Read(world).Select(target => target.Id));
+    }
+
+    [Fact]
+    public void ZeroAreaGivesNoTargets()
+    {
+        var world = new FakeWorld();
+        world.SetQuestTargets(world.AddMinimap(0f), 0, (1, 1, 1));
+
+        Assert.Empty(Read(world));
+    }
+
+    [Fact]
     public void NoWidgetGivesNoTargets() => Assert.Empty(Read(new FakeWorld()));
 }
