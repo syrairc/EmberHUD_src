@@ -144,4 +144,49 @@ public sealed class RenderTests
 
     [Test]
     public void ShowOffDrawsNothing() => Check.Equal(0, Drawn(Scene(Looking, 1), s => s.General.Show = false, Minimap()));
+
+    [Test]
+    public void StreakAndChevronDrawFilledGeometry()
+    {
+        foreach (var shape in new[] { GroundShape.Streak, GroundShape.Chevron })
+            Check.That(Drawn(Scene(Looking, 1), s =>
+            {
+                OnlyGround(s);
+                s.GroundShape = shape;
+                s.GroundStyle.BaseLine = 0;
+            }) > 0, shape.ToString());
+    }
+
+    [Test]
+    public void DotShapeMatchesTheOldDotCount()
+    {
+        var dots = Drawn(Scene(Looking, 1), s =>
+        {
+            OnlyGround(s);
+            s.GroundShape = GroundShape.Dot;
+            s.GroundStyle.BaseLine = 0;
+        });
+
+        Check.That(dots > 0, "dots draw");
+        Check.That(dots != Drawn(Scene(Looking, 1), s =>
+        {
+            OnlyGround(s);
+            s.GroundShape = GroundShape.Streak;
+            s.GroundStyle.BaseLine = 0;
+        }), "streak differs from dots");
+    }
+
+    [Test]
+    public void GroundShapeDoesNotChangeTheMinimap()
+    {
+        int Count(GroundShape shape) => Drawn(Scene(null, 1), s =>
+        {
+            OnlyMinimap(s);
+            s.GroundShape = shape;
+        }, Minimap());
+
+        Check.That(Count(GroundShape.Dot) > 0, "minimap draws");
+        Check.Equal(Count(GroundShape.Dot), Count(GroundShape.Streak));
+        Check.Equal(Count(GroundShape.Dot), Count(GroundShape.Chevron));
+    }
 }

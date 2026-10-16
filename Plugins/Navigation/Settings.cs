@@ -4,6 +4,8 @@ using EmberHUD.Ui;
 
 namespace NavigationPlugin;
 
+public enum GroundShape { Streak, Chevron, Dot }
+
 public sealed class GeneralTab
 {
     public bool Show = true;
@@ -52,6 +54,7 @@ public sealed class LabelsTab
 public sealed class Settings : PluginSettings
 {
     public GeneralTab General = new();
+    public GroundShape GroundShape = GroundShape.Streak;
     public SurfaceStyle GroundStyle = new() { Size = 25, Spacing = 250, Speed = 400, Trail = 200, BaseLine = 2 };
     public SurfaceStyle MinimapStyle = new();
     public LegendTab Legend = new();
@@ -65,7 +68,11 @@ public sealed class Settings : PluginSettings
         ("Labels", DrawLabels),
         ("Hotkeys", Controls.PluginHotkeys));
 
-    internal void DrawGround() => DrawStyle("Ground", GroundStyle, "Particle radius in world units");
+    internal void DrawGround()
+    {
+        Setting.Choice("Shape", ref GroundShape, "Streak = glowing comet, Chevron = flat arrowhead, Dot = round particle. All lie flat on the ground", id: "GroundShape");
+        DrawStyle("Ground", GroundStyle, "Size of the shape in world units");
+    }
 
     internal void DrawMinimap() => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels");
 

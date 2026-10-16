@@ -10,6 +10,9 @@ namespace NavigationPlugin;
 public sealed class Main : Plugin<Settings>
 {
     const int TrailDots = 3;
+    const float TangentSpan = 20;
+    const float HaloWidth = 2.5f;
+    const float HaloAlpha = 0.25f;
 
     readonly Overlay _panel = new();
 
@@ -114,8 +117,33 @@ public sealed class Main : Plugin<Settings>
     void DrawGround(PathState path, Vector2[] points, double seconds)
     {
         var style = Settings.GroundStyle;
-        if (style.BaseLine > 0) Ground.Polyline(points, Faded(style.ColourFor(path), style.Opacity * 0.4f), style.BaseLine);
-        Dots(path, points, style, seconds, (at, scale, alpha) => Ground.Dot(at, style.Size * scale, Faded(style.ColourFor(path), style.Opacity * alpha)));
+        var colour = style.ColourFor(path);
+        if (style.BaseLine > 0) Ground.Polyline(points, Faded(colour, style.Opacity * 0.4f), style.BaseLine);
+        if (Settings.GroundShape == GroundShape.Dot)
+        {
+            Dots(path, points, style, seconds, (at, scale, alpha) => Ground.Dot(at, style.Size * scale, Faded(colour, style.Opacity * alpha)));
+            return;
+        }
+
+        var length = style.Trail > 0 ? style.Trail : style.Size * 4;
+        Span<Vector2> polygon = stackalloc Vector2[3];
+        var count = Particles.Positions(points, path.Length, style.Spacing, style.Speed, seconds, _particles);
+        for (var i = 0; i < count; i++)
+        {
+            var head = _particles[i];
+            var behind = Particles.PointAt(points, Math.Max(Particles.Wrap(i * style.Spacing + style.Speed * seconds, path.Length) - TangentSpan, 0));
+            var direction = head - behind;
+            if (direction == Vector2.Zero) continue;
+            direction = Vector2.Normalize(direction);
+            if (Settings.GroundShape == GroundShape.Chevron)
+            {
+                if (Shapes.Chevron(head, direction, style.Size, polygon) == 3) Ground.PolygonFilled(polygon, Faded(colour, style.Opacity));
+                continue;
+            }
+
+            if (Shapes.Streak(head, direction, length, style.Size * HaloWidth, polygon) == 3) Ground.PolygonFilled(polygon, Faded(colour, style.Opacity * HaloAlpha));
+            if (Shapes.Streak(head, direction, length, style.Size, polygon) == 3) Ground.PolygonFilled(polygon, Faded(colour, style.Opacity));
+        }
     }
 
     void DrawMinimap(PathState path, Vector2[] points, double seconds, MapView map, float height)
