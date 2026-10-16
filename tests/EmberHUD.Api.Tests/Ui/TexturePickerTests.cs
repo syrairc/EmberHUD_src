@@ -84,23 +84,26 @@ public class TexturePickerTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void PreviewDrawsIntoThePopupListNotTheBackground(bool tinted)
+    public void PreviewQuadLandsInThePopupListAndNotTheBackground(bool tinted)
     {
         names = ["a", "b"];
         value = "a";
         tint = tinted ? Color.Red : null;
-        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
-        var previewed = 0;
-        var inPopupList = true;
+        var uv0 = new Vector2(0.3125f, 0.8125f);
+        var uv1 = new Vector2(0.6875f, 0.9375f);
+        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, uv0, uv1);
+        ImDrawListPtr popupList = default;
+        ImDrawListPtr backgroundList = default;
         preview = _ =>
         {
-            previewed++;
-            inPopupList &= !ImGui.GetWindowDrawList().Equals(ImGui.GetBackgroundDrawList());
+            popupList = ImGui.GetWindowDrawList();
+            backgroundList = ImGui.GetBackgroundDrawList();
             return sprite;
         };
         Open();
         Idle();
-        Assert.True(previewed >= 2);
-        Assert.True(inPopupList);
+        bool IsPreviewVertex(ImDrawVert v) => v.Uv == uv0 || v.Uv == uv1;
+        Assert.Equal(2 * names.Length, UiFrame.Verts(popupList).Count(IsPreviewVertex));
+        Assert.DoesNotContain(UiFrame.Verts(backgroundList), IsPreviewVertex);
     }
 }
