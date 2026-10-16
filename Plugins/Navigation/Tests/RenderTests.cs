@@ -56,13 +56,38 @@ public sealed class RenderTests
     [Test]
     public void NoCameraSkipsGround() => Check.Equal(0, Drawn(Scene(null, 1), OnlyGround));
 
-    [Test]
-    public void HiddenBehindFullScreenPanel()
-    {
-        var full = new GameUi([new GamePanel("Map", PanelKind.WorldMap, default, new Vector2(100, 100), true)]);
+    static GameUi FullScreenPanel => new([new GamePanel("Map", PanelKind.WorldMap, default, new Vector2(100, 100), true)]);
 
-        Check.Equal(0, Drawn(Scene(Looking, 1, full), view: Minimap()));
-        Check.That(Drawn(Scene(Looking, 1), view: Minimap()) > 0, "draws without the panel");
+    [Test]
+    public void GroundHiddenBehindFullScreenPanel()
+    {
+        Check.Equal(0, Drawn(Scene(Looking, 1, FullScreenPanel), OnlyGround));
+        Check.That(Drawn(Scene(Looking, 1), OnlyGround) > 0, "draws without the panel");
+    }
+
+    [Test]
+    public void MinimapStillDrawsBehindFullScreenPanel() =>
+        Check.That(Drawn(Scene(null, 1, FullScreenPanel), OnlyMinimap, Minimap()) > 0, "minimap");
+
+    [Test]
+    public void HidingStopsTheWorkAndShowingRecomputes()
+    {
+        TestGame.Set(Scene(Looking, 1));
+        Map.View = null;
+        var calls = 0;
+        var main = new Main { Seconds = () => 1 };
+        main.Paths.Runner = job => job();
+        main.Paths.Finder = (_, from, to) =>
+        {
+            calls++;
+            return [from, to];
+        };
+        main.Settings.General.Show = false;
+        main.Tick();
+        Check.Equal(0, calls);
+        main.Settings.General.Show = true;
+        main.Tick();
+        Check.Equal(1, calls);
     }
 
     [Test]

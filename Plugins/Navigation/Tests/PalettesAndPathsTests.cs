@@ -65,11 +65,11 @@ public sealed class PalettesAndPathsTests
     public void ColourIsStableWhileTheTargetExists()
     {
         var paths = Sync();
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         var first = paths.Current[0].Colour;
         for (var step = 1; step < 20; step++)
         {
-            paths.Update(Open1(At(50 + step * 200, 50), Target(1, 500, 500)), step * 100);
+            paths.Update(Open1(At(50 + step * 200, 50), Target(1, 500, 500)));
             Check.Equal(first, paths.Current[0].Colour);
         }
     }
@@ -80,35 +80,22 @@ public sealed class PalettesAndPathsTests
         for (var seed = 0; seed < 30; seed++)
         {
             var paths = Sync(new Random(seed));
-            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 800, 800), Target(3, 200, 900)), 0);
+            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 800, 800), Target(3, 200, 900)));
             Check.Equal(3, paths.Current.Select(p => p.Colour).Distinct().Count());
         }
-    }
-
-    [Test]
-    public void AreaChangeResetsColours()
-    {
-        var paths = Sync();
-        paths.Update(State(Open, At(50, 50), 1, Target(1, 500, 500)), 0);
-        Check.Equal(1, paths.Current.Count);
-        paths.Update(State(Open, At(50, 50), 2), 100);
-        Check.Equal(0, paths.Current.Count);
-        paths.Update(State(Open, At(50, 50), 3, Target(1, 500, 500)), 200);
-        Check.Equal(1, paths.Current.Count);
-        Check.That(paths.Current[0].Points is not null, "pathed from scratch");
     }
 
     [Test]
     public void RemovedTargetDropsOutAndFreesItsColour()
     {
         var paths = Sync();
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 800, 800)), 0);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 800, 800)));
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.Equal(1, paths.Current.Count);
         Check.Equal(1, paths.Current[0].Id);
 
         var crowd = Enumerable.Range(0, 29).Select(i => Target(100 + i, 3000 + i * 1000, 3000)).Prepend(Target(1, 500, 500)).ToArray();
-        paths.Update(Open1(At(50, 50), crowd), 200);
+        paths.Update(Open1(At(50, 50), crowd));
         Check.Equal(30, paths.Current.Select(p => p.Colour).Distinct().Count());
     }
 
@@ -116,7 +103,7 @@ public sealed class PalettesAndPathsTests
     public void UnnamedTargetIsObjectN()
     {
         var paths = Sync();
-        paths.Update(Open1(At(50, 50), Target(9, 800, 800), Target(4, 500, 500), Target(7, 200, 900, "Boss")), 0);
+        paths.Update(Open1(At(50, 50), Target(9, 800, 800), Target(4, 500, 500), Target(7, 200, 900, "Boss")));
         var byId = paths.Current.ToDictionary(p => p.Id);
         Check.Equal("Objective 1", byId[4].Name);
         Check.Equal("Boss", byId[7].Name);
@@ -124,13 +111,39 @@ public sealed class PalettesAndPathsTests
     }
 
     [Test]
+    public void SurvivorKeepsItsObjectNumberWhenAnEarlierOneCompletes()
+    {
+        var paths = Sync();
+        paths.Update(Open1(At(50, 50), Target(4, 500, 500), Target(9, 800, 800)));
+        paths.Update(Open1(At(50, 50), Target(9, 800, 800)));
+        Check.Equal("Objective 2", paths.Current[0].Name);
+    }
+
+    [Test]
+    public void ObjectNumbersRestartInANewArea()
+    {
+        var paths = Sync();
+        paths.Update(State(Open, At(50, 50), 1, Target(4, 500, 500), Target(9, 800, 800)));
+        paths.Update(State(Open, At(50, 50), 2, Target(9, 800, 800)));
+        Check.Equal("Objective 1", paths.Current[0].Name);
+    }
+
+    [Test]
+    public void DefaultQuestTargetDoesNotThrowAndIsNamedByNumber()
+    {
+        var paths = Sync();
+        paths.Update(Open1(At(50, 50), default(QuestTarget)));
+        Check.Equal("Objective 1", paths.Current[0].Name);
+    }
+
+    [Test]
     public void NoRecomputeWhileStillClose()
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
-        paths.Update(Open1(At(60, 55), Target(1, 500, 500)), 100);
-        paths.Update(Open1(At(50 + Paths.RecomputeDistance / 2, 50), Target(1, 502, 500)), 200);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(Open1(At(60, 55), Target(1, 500, 500)));
+        paths.Update(Open1(At(50 + Paths.RecomputeDistance / 2, 50), Target(1, 502, 500)));
         Check.Equal(1, calls.Count);
     }
 
@@ -139,8 +152,8 @@ public sealed class PalettesAndPathsTests
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
-        paths.Update(Open1(At(50 + Paths.RecomputeDistance + 1, 50), Target(1, 500, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(Open1(At(50 + Paths.RecomputeDistance + 1, 50), Target(1, 500, 500)));
         Check.Equal(2, calls.Count);
         Check.Equal(new Vector2(50 + Paths.RecomputeDistance + 1, 50), calls[1].Item1);
     }
@@ -150,10 +163,10 @@ public sealed class PalettesAndPathsTests
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
-        paths.Update(Open1(At(50, 50), Target(1, 505, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(Open1(At(50, 50), Target(1, 505, 500)));
         Check.Equal(1, calls.Count);
-        paths.Update(Open1(At(50, 50), Target(1, 520, 500)), 200);
+        paths.Update(Open1(At(50, 50), Target(1, 520, 500)));
         Check.Equal(2, calls.Count);
     }
 
@@ -162,9 +175,9 @@ public sealed class PalettesAndPathsTests
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         var reloaded = new Terrain(100, 100, 10f, Vector2.Zero, new BitArray(10000, true));
-        paths.Update(State(reloaded, At(50, 50), 1, Target(1, 500, 500)), 100);
+        paths.Update(State(reloaded, At(50, 50), 1, Target(1, 500, 500)));
         Check.Equal(2, calls.Count);
     }
 
@@ -173,8 +186,8 @@ public sealed class PalettesAndPathsTests
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 900, 900)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 900, 900)));
         Check.That(calls.Any(c => c.Item2 == new Vector2(900, 900)), "new target pathed");
     }
 
@@ -184,19 +197,19 @@ public sealed class PalettesAndPathsTests
         Action? pending = null;
         var paths = new Paths(new Random(1)) { Runner = job => pending = job, Finder = (_, from, to) => [from, to] };
 
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.That(paths.Current.Count == 0 || paths.Current[0].Points is null, "nothing landed yet");
         pending!();
         pending = null;
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         var old = paths.Current[0].Points;
         Check.Equal(new Vector2(50, 50), old![0]);
 
-        paths.Update(Open1(At(400, 50), Target(1, 500, 500)), 200);
+        paths.Update(Open1(At(400, 50), Target(1, 500, 500)));
         Check.That(pending is not null, "job handed to the worker");
         Check.That(ReferenceEquals(old, paths.Current[0].Points), "old points kept");
         pending!();
-        paths.Update(Open1(At(400, 50), Target(1, 500, 500)), 300);
+        paths.Update(Open1(At(400, 50), Target(1, 500, 500)));
         Check.Equal(new Vector2(400, 50), paths.Current[0].Points![0]);
     }
 
@@ -207,11 +220,11 @@ public sealed class PalettesAndPathsTests
         Action? pending = null;
         var paths = new Paths(new Random(1)) { Runner = job => { started++; pending = job; }, Finder = (_, from, to) => [from, to] };
 
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
-        paths.Update(Open1(At(900, 50), Target(1, 500, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(Open1(At(900, 50), Target(1, 500, 500)));
         Check.Equal(1, started);
         pending!();
-        paths.Update(Open1(At(900, 50), Target(1, 500, 500)), 200);
+        paths.Update(Open1(At(900, 50), Target(1, 500, 500)));
         Check.Equal(2, started);
     }
 
@@ -222,11 +235,11 @@ public sealed class PalettesAndPathsTests
         foreach (var gap in new[] { State(Open, null, 1, targets), State(null, At(50, 50), 1, targets) })
         {
             var paths = Sync();
-            paths.Update(Open1(At(50, 50), targets), 0);
+            paths.Update(Open1(At(50, 50), targets));
             var before = paths.Current.ToDictionary(p => p.Id, p => p.Colour);
-            paths.Update(gap, 100);
+            paths.Update(gap);
             Check.Equal(0, paths.Current.Count);
-            paths.Update(Open1(At(50, 50), targets), 200);
+            paths.Update(Open1(At(50, 50), targets));
             Check.Equal(5, paths.Current.Count);
             foreach (var path in paths.Current) Check.Equal(before[path.Id], path.Colour);
         }
@@ -237,8 +250,8 @@ public sealed class PalettesAndPathsTests
     {
         var calls = new List<(Vector2, Vector2)>();
         var paths = Sync(calls: calls);
-        paths.Update(State(Open, At(50, 50), 1, Target(1, 500, 500)), 0);
-        paths.Update(State(Open, At(50, 50), 2, Target(1, 500, 500)), 100);
+        paths.Update(State(Open, At(50, 50), 1, Target(1, 500, 500)));
+        paths.Update(State(Open, At(50, 50), 2, Target(1, 500, 500)));
         Check.Equal(2, calls.Count);
     }
 
@@ -246,7 +259,7 @@ public sealed class PalettesAndPathsTests
     public void DuplicateIdsDoNotThrow()
     {
         var paths = Sync();
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(1, 900, 900), Target(2, 700, 100)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(1, 900, 900), Target(2, 700, 100)));
         Check.Equal(2, paths.Current.Count);
         Check.Equal(new Vector2(500, 500), paths.Current[0].Target);
     }
@@ -261,10 +274,10 @@ public sealed class PalettesAndPathsTests
             if (throwing) throw new InvalidOperationException("no threads");
             job();
         };
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.Equal(0, paths.Current.Count);
         throwing = false;
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 100);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.Equal(1, paths.Current.Count);
     }
 
@@ -272,7 +285,7 @@ public sealed class PalettesAndPathsTests
     public void UnreachableTargetHasNullPoints()
     {
         var paths = new Paths(new Random(1)) { Runner = job => job(), Finder = (_, _, _) => null };
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.Equal(1, paths.Current.Count);
         Check.That(paths.Current[0].Points is null, "unreachable");
     }
@@ -281,7 +294,7 @@ public sealed class PalettesAndPathsTests
     public void ArrivedSinglePointPathKeepsPointsAndHasZeroLength()
     {
         var paths = new Paths(new Random(1)) { Runner = job => job(), Finder = (_, from, _) => [from] };
-        paths.Update(Open1(At(50, 50), Target(1, 52, 52)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 52, 52)));
         Check.Equal(1, paths.Current[0].Points!.Length);
         Check.Equal(0f, paths.Current[0].Length);
     }
@@ -290,7 +303,7 @@ public sealed class PalettesAndPathsTests
     public void LengthIsTheSumOfSegments()
     {
         var paths = new Paths(new Random(1)) { Runner = job => job(), Finder = (_, from, to) => [from, new Vector2(from.X, to.Y), to] };
-        paths.Update(Open1(At(0, 0), Target(1, 30, 40)), 0);
+        paths.Update(Open1(At(0, 0), Target(1, 30, 40)));
         Check.Equal(70f, paths.Current[0].Length);
     }
 
@@ -298,12 +311,12 @@ public sealed class PalettesAndPathsTests
     public void NullTerrainOrPlayerYieldsNoPaths()
     {
         var paths = Sync();
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 0);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
         Check.Equal(1, paths.Current.Count);
-        paths.Update(State(null, At(50, 50), 1, Target(1, 500, 500)), 100);
+        paths.Update(State(null, At(50, 50), 1, Target(1, 500, 500)));
         Check.Equal(0, paths.Current.Count);
-        paths.Update(Open1(At(50, 50), Target(1, 500, 500)), 200);
-        paths.Update(State(Open, null, 1, Target(1, 500, 500)), 300);
+        paths.Update(Open1(At(50, 50), Target(1, 500, 500)));
+        paths.Update(State(Open, null, 1, Target(1, 500, 500)));
         Check.Equal(0, paths.Current.Count);
     }
 
@@ -313,10 +326,10 @@ public sealed class PalettesAndPathsTests
         for (var seed = 0; seed < 30; seed++)
         {
             var paths = Sync(new Random(seed));
-            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 2000, 2000)), 0);
+            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 2000, 2000)));
             var colours = paths.Current.ToDictionary(p => p.Id, p => p.Colour);
 
-            paths.Update(Open1(At(50, 50), Target(5, 560, 520), Target(2, 2000, 2000)), 100);
+            paths.Update(Open1(At(50, 50), Target(5, 560, 520), Target(2, 2000, 2000)));
             var after = paths.Current.ToDictionary(p => p.Id, p => p.Colour);
             Check.Equal(colours[1], after[5]);
             Check.Equal(colours[2], after[2]);
@@ -329,10 +342,10 @@ public sealed class PalettesAndPathsTests
         for (var seed = 0; seed < 30; seed++)
         {
             var paths = Sync(new Random(seed));
-            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 2000, 2000)), 0);
+            paths.Update(Open1(At(50, 50), Target(1, 500, 500), Target(2, 2000, 2000)));
             var kept = paths.Current.First(p => p.Id == 2).Colour;
 
-            paths.Update(Open1(At(50, 50), Target(2, 2000, 2000), Target(3, 5000, 5000)), 100);
+            paths.Update(Open1(At(50, 50), Target(2, 2000, 2000), Target(3, 5000, 5000)));
             var fresh = paths.Current.First(p => p.Id == 3).Colour;
             Check.That(fresh != kept, "never the colour of a live target");
             Check.Equal(2, paths.Current.Select(p => p.Colour).Distinct().Count());

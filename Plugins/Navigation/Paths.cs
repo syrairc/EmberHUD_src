@@ -20,6 +20,7 @@ internal sealed class Paths(Random random)
         public int Id = id;
         public Color Colour = colour;
         public Vector2 Target = target;
+        public int Number;
         public string Name = "";
         public Vector2? Planned;
         public bool Resolved;
@@ -31,6 +32,7 @@ internal sealed class Paths(Random random)
 
     readonly List<Tracked> tracked = [];
     int area;
+    int nextNumber;
     bool busy;
     bool dirty;
     Terrain? plannedTerrain;
@@ -43,7 +45,7 @@ internal sealed class Paths(Random random)
 
     public IReadOnlyList<PathState> Current { get; private set; } = [];
 
-    public void Update(GameState state, long nowMilliseconds)
+    public void Update(GameState state)
     {
         Land();
         if (state.AreaId != area) Reset(state.AreaId);
@@ -65,6 +67,7 @@ internal sealed class Paths(Random random)
     void Reset(int newArea)
     {
         area = newArea;
+        nextNumber = 0;
         tracked.Clear();
         plannedTerrain = null;
         dirty = true;
@@ -90,15 +93,14 @@ internal sealed class Paths(Random random)
         tracked.RemoveAll(vanished.Contains);
         foreach (var target in ordered)
             if (!known.Contains(target.Id))
-                tracked.Add(new Tracked(target.Id, Palette.Pick(tracked.Select(t => t.Colour).ToHashSet(), random), target.Position));
+                tracked.Add(new Tracked(target.Id, Palette.Pick(tracked.Select(t => t.Colour).ToHashSet(), random), target.Position) { Number = ++nextNumber });
         tracked.Sort((a, b) => a.Id.CompareTo(b.Id));
 
         var byId = ordered.ToDictionary(t => t.Id);
-        for (var rank = 0; rank < tracked.Count; rank++)
+        foreach (var item in tracked)
         {
-            var item = tracked[rank];
             var source = byId[item.Id];
-            var name = source.Name.Length > 0 ? source.Name : $"Objective {rank + 1}";
+            var name = source.Name is { Length: > 0 } ? source.Name : $"Objective {item.Number}";
             if (item.Name != name || item.Target != source.Position) dirty = true;
             item.Name = name;
             item.Target = source.Position;

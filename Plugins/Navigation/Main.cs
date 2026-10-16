@@ -10,7 +10,6 @@ namespace NavigationPlugin;
 public sealed class Main : Plugin<Settings>
 {
     const int TrailDots = 3;
-    const float Gap = 4;
 
     readonly Overlay _panel = new();
 
@@ -20,7 +19,10 @@ public sealed class Main : Plugin<Settings>
 
     public override void Initialize() => RegisterHotkey("Toggle paths", "Shows or hides the quest paths, legend and labels", () => Settings.General.Show = !Settings.General.Show);
 
-    public override void Tick() => Paths.Update(Game.State, Environment.TickCount64);
+    public override void Tick()
+    {
+        if (Settings.General.Show) Paths.Update(Game.State);
+    }
 
     internal static bool LegendHidden(Settings settings, GameState state) =>
         !settings.Legend.Show || settings.Legend.HideBehindPanels && state.Ui.AnyFullScreen;
@@ -62,11 +64,11 @@ public sealed class Main : Plugin<Settings>
         var state = Game.State;
         var general = Settings.General;
         if (!general.Show || Paths.Current.Count == 0) return;
-        if (!state.Ui.AnyFullScreen) DrawPaths(state);
+        DrawPaths(state, state.Ui.AnyFullScreen);
         if (!LegendHidden(Settings, state)) DrawLegend();
     }
 
-    void DrawPaths(GameState state)
+    void DrawPaths(GameState state, bool coveredByPanel)
     {
         var general = Settings.General;
         var seconds = Seconds();
@@ -74,9 +76,9 @@ public sealed class Main : Plugin<Settings>
         foreach (var path in Paths.Current)
         {
             if (path.Points is not { Length: > 1 } points) continue;
-            if (general.Ground && state.Camera is not null) DrawGround(path, points, seconds);
+            if (!coveredByPanel && general.Ground && state.Camera is not null) DrawGround(path, points, seconds);
             if (general.Minimap && Map.View is { } map) DrawMinimap(path, points, seconds, map, height);
-            if (Settings.Labels.Show && state.Camera is { } camera && state.Player is { } player) DrawLabel(path, camera, player.Position);
+            if (!coveredByPanel && Settings.Labels.Show && state.Camera is { } camera && state.Player is { } player) DrawLabel(path, camera, player.Position);
         }
     }
 
@@ -95,8 +97,7 @@ public sealed class Main : Plugin<Settings>
     {
         var legend = Settings.Legend;
         var rows = Legend.Rows(Paths.Current);
-        var rowHeight = Draw.MeasureText("Ag", legend.Text).Y + Gap;
-        var swatch = rowHeight - Gap;
+        var rowHeight = Draw.RowHeight(legend.Text);
 
         _panel.Locked = legend.Lock;
         _panel.MoveHeld = legend.MoveKey.Key != Key.None && Input.IsDown(legend.MoveKey.Key);
@@ -106,24 +107,15 @@ public sealed class Main : Plugin<Settings>
         if (hovered || active) Overlay.ClickBlocker("navigation", origin, size);
 
         var at = origin;
-        foreach (var row in rows)
-        {
-            var fade = row.Dimmed ? 0.45f : 1;
-            var text = legend.Text.Clone();
-            text.Color = Faded(text.Color, fade);
-            Draw.RectFilled(at, at + new Vector2(swatch, swatch), Faded(row.Colour, fade));
-            Draw.Text(row.Name, at + new Vector2(swatch + Gap, 0), text);
-            Draw.Text(row.Distance, new Vector2(at.X + size.X, at.Y), text, Align.Right);
-            at.Y += rowHeight;
-        }
+        foreach (var row in rows) at.Y += Draw.Row(at, size.X, row.Name, row.Distance, legend.Text, row.Colour, row.Dimmed);
         if (_panel.Movable) Overlay.DragHint(origin, origin + size, active, hovered, edge);
     }
 
     void DrawGround(PathState path, Vector2[] points, double seconds)
     {
         var style = Settings.GroundStyle;
-        if (style.BaseLine > 0) Ground.Polyline(points, Faded(path.Colour, style.Opacity * 0.4f), style.BaseLine);
-        Dots(path, points, style, seconds, (at, scale, alpha) => Ground.Dot(at, style.Size * scale, Faded(path.Colour, style.Opacity * alpha)));
+        if (style.BaseLine > 0) Ground.Polyline(points, Faded(style.ColourFor(path), style.Opacity * 0.4f), style.BaseLine);
+        Dots(path, points, style, seconds, (at, scale, alpha) => Ground.Dot(at, style.Size * scale, Faded(style.ColourFor(path), style.Opacity * alpha)));
     }
 
     void DrawMinimap(PathState path, Vector2[] points, double seconds, MapView map, float height)
@@ -135,14 +127,14 @@ public sealed class Main : Plugin<Settings>
         {
             var screen = new Vector2[points.Length];
             for (var i = 0; i < points.Length; i++) screen[i] = map.ToScreen(new Vector3(points[i], height));
-            Draw.Polyline(screen, Faded(path.Colour, style.Opacity * 0.4f), style.BaseLine);
+            Draw.Polyline(screen, Faded(style.ColourFor(path), style.Opacity * 0.4f), style.BaseLine);
         }
         Dots(path, points, style, seconds, (world, scale, alpha) =>
         {
             var at = map.ToScreen(new Vector3(world, height));
             var radius = style.Size * scale;
             if (at.X < -radius || at.Y < -radius || at.X > viewport.X + radius || at.Y > viewport.Y + radius) return;
-            Draw.CircleFilled(at, radius, Faded(path.Colour, style.Opacity * alpha), 12);
+            Draw.CircleFilled(at, radius, Faded(style.ColourFor(path), style.Opacity * alpha), 12);
         });
     }
 

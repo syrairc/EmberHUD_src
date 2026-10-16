@@ -30,6 +30,17 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetStateListsTheFirstTenQuestTargets()
+    {
+        TestGame.Set(GameState.Empty with { QuestTargets = [.. Enumerable.Range(1, 12).Select(i => new QuestTarget(i, new Vector2(i, -i)))] });
+        var targets = Wire.Run(Tools, "get_state")["questTargets"]!;
+        Check.Equal(12, (int)targets["count"]!);
+        Check.Equal(10, targets["first"]!.AsArray().Count);
+        Check.Equal(3, (int)targets["first"]![2]!["id"]!);
+        Check.Equal(-3d, (double)targets["first"]![2]!["y"]!, "y");
+    }
+
+    [Test]
     public void StatusReportsServerAndGame()
     {
         TestMemory.Clear();

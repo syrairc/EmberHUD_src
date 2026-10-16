@@ -1,3 +1,4 @@
+using System.Drawing;
 using EmberHUD;
 using EmberHUD.Ui;
 
@@ -18,6 +19,10 @@ public sealed class SurfaceStyle
     public float Opacity = 0.9f;
     public float Trail = 150;
     public float BaseLine = 1;
+    public bool OverrideColour;
+    public Color Colour = Color.White;
+
+    internal Color ColourFor(PathState path) => OverrideColour ? Colour : path.Colour;
 }
 
 public sealed class LegendTab
@@ -100,5 +105,6 @@ public sealed class Settings : PluginSettings
         Setting.Slider("Opacity", ref style.Opacity, 0.05f, 1, "How solid the particles and line are", id: name + "Opacity");
         Setting.Slider("Trail", ref style.Trail, 0, 1000, "Length in world units of the fading tail behind each particle, 0 = off", id: name + "Trail");
         Setting.Slider("Base line", ref style.BaseLine, 0, 10, "Thickness in pixels of the faint line under the particles, 0 = off", id: name + "BaseLine");
+        Controls.OverrideRow(name + "Colour", "Colour", ref style.OverrideColour, () => Controls.Color("##colour", ref style.Colour, name + "ColourPick", alpha: false), "Draw every path in this one colour instead of its own. Opacity still applies.");
     }
 }

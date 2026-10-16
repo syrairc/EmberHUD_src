@@ -262,6 +262,19 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void PublishesTheQuestTargetsAndNoneWithoutThem()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        ReaderFor(world).TryRead(out var without, out _);
+        Assert.Empty(without.QuestTargets);
+
+        world.SetQuestTargets(world.AddMinimap(0f), 7, (1, 3450f, -1710f), (2, -8040f, -4950f));
+        ReaderFor(world).TryRead(out var with, out _);
+        Assert.Equal([new QuestTarget(1, new Vector2(3450, -1710)), new QuestTarget(2, new Vector2(-8040, -4950))], with.QuestTargets);
+    }
+
+    [Fact]
     public void PublishesTheGamesExploredTrailAndCountsItInTheStatus()
     {
         var world = new FakeWorld();
