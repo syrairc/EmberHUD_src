@@ -22,6 +22,8 @@ public static class BarTextures
 
     public static string Fallback => "Flat";
 
+    public static string DropInFolder { get; } = Path.Combine(AppContext.BaseDirectory, "Config", "Nameplates", "Textures");
+
     public static void Load(string dropInFolder)
     {
         foreach (var name in BuiltIns)

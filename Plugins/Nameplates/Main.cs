@@ -7,7 +7,7 @@ namespace NameplatesPlugin;
 
 public sealed class Main : Plugin<Settings>
 {
-    public override void Initialize() => BarTextures.Load(Path.Combine(AppContext.BaseDirectory, "Config", "Nameplates", "Textures"));
+    public override void Initialize() => BarTextures.Load(BarTextures.DropInFolder);
 
     public override void Render()
     {
