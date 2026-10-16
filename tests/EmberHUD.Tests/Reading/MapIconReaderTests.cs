@@ -22,7 +22,7 @@ public class MapIconReaderTests
     private static MapIcon[] Read((MinimapReader Minimap, MapIconReader Icons) readers, IReadOnlyDictionary<int, Vector2>? positions = null, int generation = 1)
     {
         readers.Minimap.ReadRotationDegrees(generation);
-        return readers.Icons.Read(readers.Minimap, generation, positions ?? NoEntities, _ => null);
+        return readers.Icons.Read(readers.Minimap, positions ?? NoEntities, _ => null);
     }
 
     [Fact]
@@ -70,27 +70,10 @@ public class MapIconReaderTests
     }
 
     [Fact]
-    public void ATaskTypeListReadDuringLoadIsReadAgainWhenTheAreaChanges()
+    public void OtherAreasAndNonPositiveTypesAreSkipped()
     {
         var world = new FakeWorld();
         var minimap = world.AddMinimap(0f);
-        world.SetTaskTypes(minimap, [], [], []);
-        world.SetMapIcons(minimap, 7, new FakeIcon(1001, 1, 1), new FakeIcon(11, 2, 2));
-        var readers = ReadersFor(world);
-        Assert.Equal([1001, 11], Read(readers, generation: 1).Select(icon => icon.Type));
-
-        world.SetTaskTypes(minimap, [1001], [], []);
-        Assert.Equal([1001, 11], Read(readers, generation: 1).Select(icon => icon.Type));
-
-        Assert.Equal([11], Read(readers, generation: 2).Select(icon => icon.Type));
-    }
-
-    [Fact]
-    public void OtherAreasTaskTypesAndNonPositiveTypesAreSkipped()
-    {
-        var world = new FakeWorld();
-        var minimap = world.AddMinimap(0f);
-        world.SetTaskTypes(minimap, [1001], [], [1003]);
         world.SetMapIcons(minimap, 7,
             new FakeIcon(10, 1, 1, Area: 6),
             new FakeIcon(0, 1, 1),
@@ -99,7 +82,7 @@ public class MapIconReaderTests
             new FakeIcon(1003, 1, 1),
             new FakeIcon(11, 1, 1));
 
-        Assert.Equal([11], Read(ReadersFor(world)).Select(icon => icon.Type));
+        Assert.Equal([1001, 1003, 11], Read(ReadersFor(world)).Select(icon => icon.Type));
     }
 
     [Fact]
@@ -425,21 +408,6 @@ public class MapIconReaderTests
     }
 
     [Fact]
-    public void ABadTaskTypeListRetriesOnTheNextRead()
-    {
-        var world = new FakeWorld();
-        var minimap = world.AddMinimap(0f);
-        world.SetTaskTypes(minimap, [1001], [], []);
-        world.SetMapIcons(minimap, 1, new FakeIcon(1001, 1, 1), new FakeIcon(10, 1, 1));
-        world.Memory.Write(minimap.Widget + Offsets.MinimapTaskTypesA + Offsets.TArrayNum, Offsets.MaxTaskTypes + 1);
-        var readers = ReadersFor(world);
-
-        Assert.Equal([1001, 10], Read(readers).Select(icon => icon.Type));
-        world.Memory.Write(minimap.Widget + Offsets.MinimapTaskTypesA + Offsets.TArrayNum, 1);
-        Assert.Equal([10], Read(readers).Select(icon => icon.Type));
-    }
-
-    [Fact]
     public void AFollowIconForAnEntityWeDontTrackUsesTheLookedUpPosition()
     {
         var world = new FakeWorld();
@@ -449,7 +417,7 @@ public class MapIconReaderTests
         var readers = ReadersFor(world);
         readers.Minimap.ReadRotationDegrees(1);
 
-        var icons = readers.Icons.Read(readers.Minimap, 1, NoEntities, id => id == 72 ? new Vector2(-625, -24197) : null);
+        var icons = readers.Icons.Read(readers.Minimap, NoEntities, id => id == 72 ? new Vector2(-625, -24197) : null);
 
         Assert.Equal([new MapIcon(2642, "", new Vector2(-625, -24197), 1, 0, 72)], icons);
     }

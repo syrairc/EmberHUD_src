@@ -16,6 +16,12 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private Vector3? _lastPlayerPosition;
     private nint _lastScene;
     private int _tornTicks;
+    private nint _playerRole;
+    private nint _lastPlayerRole;
+
+    internal readonly record struct Vitals(double Life, double MaxLife, double Shield, double MaxShield);
+
+    public Vitals PlayerVitals { get; private set; }
 
     private readonly (int Map, EntityKind Kind)[] KindMaps =
     [
@@ -67,11 +73,13 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         {
             _lastEntities = [];
             _lastPlayerPosition = null;
+            _lastPlayerRole = 0;
             _tornTicks = 0;
             _lastScene = scene;
         }
 
         _seen.Clear();
+        _playerRole = 0;
         var kinds = ReadKinds();
         var hasPawn = TryReadLocalPawn(out var pawn);
         var localPlayerId = hasPawn && memory.TryRead(pawn + Offsets.UObjectEntityId, out int id) && kinds.TryGetValue(id, out var playerKind) && playerKind.Kind == EntityKind.Player ? id : (int?)null;
@@ -90,7 +98,10 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             if (!TryReadHeader(entity, header)) return;
 
             if (entityId == localPlayerId)
+            {
                 playerPosition = TryReadPosition(header, out var position) && position.Z < Offsets.ParkedZ ? position : playerPosition;
+                _playerRole = (nint)BitConverter.ToInt64(header[Offsets.EntityRole..]);
+            }
             else if (mapped)
             {
                 if (TryReadEntity(header, entity, entityId, kind.Kind, kind.Value, out var result))
@@ -110,10 +121,13 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             (_known, _seen) = (_seen, _known);
             _lastEntities = [.. entities];
             _lastPlayerPosition = playerPosition;
+            _lastPlayerRole = _playerRole;
+            PlayerVitals = ReadVitals(_playerRole);
             _tornTicks = 0;
             return (playerPosition, _lastEntities, pawn);
         }
 
+        if (_tornTicks < Offsets.MaxTornReuseTicks) PlayerVitals = ReadVitals(_lastPlayerRole);
         return ++_tornTicks <= Offsets.MaxTornReuseTicks ? (playerPosition ?? _lastPlayerPosition, _lastEntities, pawn) : (playerPosition, [], pawn);
     }
 
@@ -241,9 +255,10 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             return false;
 
         var rarity = Rarity.Normal;
+        var role = (nint)0;
         if (kind == EntityKind.Monster)
         {
-            var role = (nint)BitConverter.ToInt64(header[Offsets.EntityRole..]);
+            role = (nint)BitConverter.ToInt64(header[Offsets.EntityRole..]);
             if (_known.TryGetValue(id, out var known) && known.Entity == entity && known.Value == value && TryGetTier((uint)known.CfgId, out var knownTier))
             {
                 _seen[id] = known;
@@ -259,7 +274,33 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             }
         }
 
-        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity };
+        var life = 0d;
+        var maxLife = 0d;
+        if (kind == EntityKind.Monster)
+            TryReadStat(role, Offsets.RoleLifeMax, false, out life, out maxLife);
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife };
+        return true;
+    }
+
+    private Vitals ReadVitals(nint role)
+    {
+        TryReadStat(role, Offsets.RoleLifeMax, false, out var life, out var maxLife);
+        TryReadStat(role, Offsets.RoleShieldMax, true, out var shield, out var maxShield);
+        return new Vitals(life, maxLife, shield, maxShield);
+    }
+
+    private bool TryReadStat(nint role, int maxOffset, bool zeroMaxAllowed, out double current, out double max)
+    {
+        current = max = 0;
+        Span<double> pair = stackalloc double[2];
+        if (role == 0 || !memory.TryRead(role + maxOffset, pair))
+            return false;
+
+        var (m, c) = (pair[0], pair[1]);
+        if (!double.IsFinite(m) || !double.IsFinite(c) || m < 0 || m > Offsets.MaxStatValue || m == 0 && !zeroMaxAllowed || c < 0 || c > m * 1.001)
+            return false;
+
+        (max, current) = (m, Math.Min(c, m));
         return true;
     }
 

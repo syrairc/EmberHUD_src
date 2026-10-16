@@ -68,12 +68,24 @@ public sealed record GameState
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
 {
+    public double Life { get; init; }
+
+    public double MaxLife { get; init; }
+
+    public double Shield { get; init; }
+
+    public double MaxShield { get; init; }
+
     public float FlatDistance(Vector3 at) => Vector2.Distance(new Vector2(Position.X, Position.Y), new Vector2(at.X, at.Y));
 }
 
 public readonly record struct Entity(int Id, int CfgId, Vector3 Position, EntityKind Kind, Rarity Rarity)
 {
     public nint Address { get; init; }
+
+    public double Life { get; init; }
+
+    public double MaxLife { get; init; }
 }
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)

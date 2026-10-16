@@ -99,12 +99,9 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
         if (ImGui.BeginChild("body"))
         {
-            plugins.DrawSettings(slot);
             if (slot.Initialized && slot.Instance is { Hotkeys.Count: > 0 } instance)
-            {
-                Controls.Section("Hotkeys");
-                Controls.HotkeyTable(instance);
-            }
+                Layout.TabBar("plugin", ("Settings", () => plugins.DrawSettings(slot)), ("Hotkeys", () => Controls.HotkeyTable(instance)));
+            else plugins.DrawSettings(slot);
         }
         ImGui.EndChild();
         ImGui.PopID();

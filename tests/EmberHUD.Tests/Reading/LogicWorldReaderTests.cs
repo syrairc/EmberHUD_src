@@ -549,9 +549,9 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
-    public void AKnownMonsterCostsItsNodeHeaderPositionAndRole()
+    public void AKnownMonsterCostsItsNodeHeaderPositionRoleAndLife()
     {
-        Assert.Equal(4 * 10, SecondTickReads(11) - SecondTickReads(1));
+        Assert.Equal(5 * 10, SecondTickReads(11) - SecondTickReads(1));
     }
 
     [Fact]

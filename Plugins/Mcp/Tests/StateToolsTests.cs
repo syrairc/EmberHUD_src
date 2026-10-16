@@ -52,7 +52,7 @@ public sealed class StateToolsTests
         {
             Status = "playing",
             AreaId = 12,
-            Player = new Player(new Vector3(1, 2, 3), new Vector2(0, 1)),
+            Player = new Player(new Vector3(1, 2, 3), new Vector2(0, 1)) { Life = 100.5, MaxLife = 200, Shield = 30, MaxShield = 40 },
             Entities = [Mob(1, 5, 10), Mob(2, 5, 20, rarity: Rarity.Rare), Mob(3, 9, 30, EntityKind.Portal)],
             Camera = new Camera(new Vector3(1, 2, 3), new Vector3(-45, 90, 0), 80),
         };
@@ -65,6 +65,8 @@ public sealed class StateToolsTests
         Check.Equal(2, (int)result["byRarity"]!["Normal"]!);
         Check.Equal(3d, (double)result["player"]!["z"]!, "z");
         Check.Equal(1d, (double)result["player"]!["forwardY"]!, "forwardY");
+        Check.Equal(100.5, (double)result["player"]!["life"]!, "life");
+        Check.Equal(40d, (double)result["player"]!["maxShield"]!, "maxShield");
         Check.Equal(80d, (double)result["camera"]!["fov"]!, "fov");
         Check.Equal(90d, (double)result["camera"]!["yaw"]!, "yaw");
         Check.Equal(false, (bool)result["hasTerrain"]!);
@@ -130,6 +132,16 @@ public sealed class StateToolsTests
         Check.Equal(2, (int)result["returned"]!);
         Check.Equal("2,3", string.Join(',', result["entities"]!.AsArray().Select(row => (int)row!["id"]!)));
         Check.Equal(10d, (double)result["entities"]![0]!["distance"]!, "distance");
+    }
+
+    [Test]
+    public void EntityRowsCarryLife()
+    {
+        Use(Mob(1, 5, 10) with { Life = 137.996, MaxLife = 165 }, Mob(2, 5, 20));
+        var rows = Entities(new JsonObject());
+        Check.Equal(138d, (double)rows[0]!["life"]!, "life");
+        Check.Equal(165d, (double)rows[0]!["maxLife"]!, "maxLife");
+        Check.Equal(0d, (double)rows[1]!["maxLife"]!, "unknown");
     }
 
     [Test]

@@ -37,8 +37,8 @@ internal static class StateTools
     public static Tool[] Create(Func<Status> status) =>
     [
         new("get_status", "Connection and freshness: whether memory is attached, the game status string and area id, how many ms since Game.State last changed, server url and in-flight requests, watch count, recording flag.", Schema.Of([]), _ => GetStatus(status())),
-        new("get_state", "Summary of Game.State: status, area id, player position and forward, entity counts by kind and rarity, terrain / map icon presence, minimap rotation, open game panels, camera, a map block when there is one (name, monster level, remaining enemies, XP gain, isTown, content rows with name / icon / state / done / total, leftover modifier lines), and the market trade page (page, cellsPerPage, priceIcon, first 10 listings) when open.", Schema.Of([]), _ => GetState()),
-        new("get_entities", "Entities from Game.State, nearest to the player first. Filters combine: kind, rarity, cfgId, id, address (hex), radius (world units around the player). limit defaults to 100, max 1000.",
+        new("get_state", "Summary of Game.State: status, area id, player position, forward, life and shield, entity counts by kind and rarity, terrain / map icon presence, minimap rotation, open game panels, camera, a map block when there is one (name, monster level, remaining enemies, XP gain, isTown, content rows with name / icon / state / done / total, leftover modifier lines), and the market trade page (page, cellsPerPage, priceIcon, first 10 listings) when open.", Schema.Of([]), _ => GetState()),
+        new("get_entities", "Entities from Game.State (life / maxLife, 0 = unknown), nearest to the player first. Filters combine: kind, rarity, cfgId, id, address (hex), radius (world units around the player). limit defaults to 100, max 1000.",
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
@@ -55,6 +55,8 @@ internal static class StateTools
             ["x"] = Num.F(entity.Position.X),
             ["y"] = Num.F(entity.Position.Y),
             ["z"] = Num.F(entity.Position.Z),
+            ["life"] = Math.Round(entity.Life, 1),
+            ["maxLife"] = Math.Round(entity.MaxLife, 1),
         };
         if (player is not null) row["distance"] = Num.F(player.FlatDistance(entity.Position));
         if (entity.Address != 0) row["address"] = Hex.Of(entity.Address);
@@ -71,6 +73,8 @@ internal static class StateTools
         Num.Write(json, "x", entity.Position.X);
         Num.Write(json, "y", entity.Position.Y);
         Num.Write(json, "z", entity.Position.Z);
+        Num.Write(json, "life", entity.Life);
+        Num.Write(json, "maxLife", entity.MaxLife);
         if (entity.Address != 0) json.WriteString("address", Hex.Of(entity.Address));
         json.WriteEndObject();
     }
@@ -114,7 +118,7 @@ internal static class StateTools
             })]),
         };
         if (state.Player is { } player)
-            result["player"] = new JsonObject { ["x"] = Num.F(player.Position.X), ["y"] = Num.F(player.Position.Y), ["z"] = Num.F(player.Position.Z), ["forwardX"] = Num.F(player.Forward.X), ["forwardY"] = Num.F(player.Forward.Y) };
+            result["player"] = new JsonObject { ["x"] = Num.F(player.Position.X), ["y"] = Num.F(player.Position.Y), ["z"] = Num.F(player.Position.Z), ["forwardX"] = Num.F(player.Forward.X), ["forwardY"] = Num.F(player.Forward.Y), ["life"] = Math.Round(player.Life, 1), ["maxLife"] = Math.Round(player.MaxLife, 1), ["shield"] = Math.Round(player.Shield, 1), ["maxShield"] = Math.Round(player.MaxShield, 1) };
         if (state.Camera is { } camera)
             result["camera"] = new JsonObject { ["x"] = Num.F(camera.Location.X), ["y"] = Num.F(camera.Location.Y), ["z"] = Num.F(camera.Location.Z), ["pitch"] = Num.F(camera.Rotation.X), ["yaw"] = Num.F(camera.Rotation.Y), ["roll"] = Num.F(camera.Rotation.Z), ["fov"] = Num.F(camera.Fov) };
         if (state.Area is { } map)

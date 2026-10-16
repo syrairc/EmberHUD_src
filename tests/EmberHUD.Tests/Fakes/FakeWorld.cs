@@ -64,7 +64,7 @@ internal sealed class FakeWorld
 
     public List<nint> Nodes { get; } = [];
 
-    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null)
+    public FakeEntity AddEntity(uint id, uint cfgId, bool alive, double x, double y, double z, bool hasPosition = true, int? mapOffset = null, uint? monsterCfgId = null, int? role = null, (double Max, double Cur)? life = null, (double Max, double Cur)? shield = null)
     {
         var map = mapOffset ?? Offsets.FightMapMonster;
         var entity = Alloc(0x400);
@@ -74,11 +74,13 @@ internal sealed class FakeWorld
         Memory.Write(entity + Offsets.EntityHasPosition, (byte)(hasPosition ? 1 : 0));
         Memory.Write(entity + Offsets.EntityPosition, block);
         Memory.WriteArray(block + Offsets.PositionX, new[] { x, y, z });
-        if (role is { } roleValue)
+        if (role is not null || life is not null || shield is not null)
         {
-            var roleBlock = Alloc(0x80);
+            var roleBlock = Alloc(0x100);
             Memory.Write(entity + Offsets.EntityRole, roleBlock);
-            Memory.Write(roleBlock + Offsets.RoleRarity, roleValue);
+            Memory.Write(roleBlock + Offsets.RoleRarity, role ?? 0);
+            if (life is { } l) Memory.WriteArray(roleBlock + Offsets.RoleLifeMax, new[] { l.Max, l.Cur });
+            if (shield is { } sh) Memory.WriteArray(roleBlock + Offsets.RoleShieldMax, new[] { sh.Max, sh.Cur });
         }
 
         var value = map == Unregistered ? 0 : Alloc(0x400);
@@ -268,17 +270,6 @@ internal sealed class FakeWorld
 
         Memory.Write(minimap.Widget + Offsets.MinimapIconList, data);
         Memory.Write(minimap.Widget + Offsets.MinimapIconList + Offsets.TArrayNum, icons.Length);
-    }
-
-    public void SetTaskTypes(FakeMinimap minimap, int[] a, int[] b, int[] c)
-    {
-        foreach (var (offset, types) in new[] { (Offsets.MinimapTaskTypesA, a), (Offsets.MinimapTaskTypesB, b), (Offsets.MinimapTaskTypesC, c) })
-        {
-            var data = Alloc(Math.Max(1, types.Length) * sizeof(int));
-            if (types.Length > 0) Memory.WriteArray(data, types);
-            Memory.Write(minimap.Widget + offset, data);
-            Memory.Write(minimap.Widget + offset + Offsets.TArrayNum, types.Length);
-        }
     }
 
     public void SetFollowIcons(FakeMinimap minimap, params (int Id, uint Type, uint Area)[] follows)

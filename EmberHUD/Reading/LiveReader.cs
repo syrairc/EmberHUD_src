@@ -54,7 +54,13 @@ internal sealed class LiveReader
         if (Game.TakeMinimapRescan()) _minimap.Reset();
         var rotation = _minimap.ReadRotationDegrees(_terrain.Generation);
         var heading = _minimap.ReadHeadingDegrees();
-        var player = playerPosition is { } position ? new Player(position, Forward(UpdateForward(position), heading)) : null;
+        var player = playerPosition is { } position ? new Player(position, Forward(UpdateForward(position), heading))
+        {
+            Life = _world.PlayerVitals.Life,
+            MaxLife = _world.PlayerVitals.MaxLife,
+            Shield = _world.PlayerVitals.Shield,
+            MaxShield = _world.PlayerVitals.MaxShield,
+        } : null;
         if (player is null)
             _anchor = null;
 
@@ -66,7 +72,7 @@ internal sealed class LiveReader
             if (entity.Kind == EntityKind.Monster) monsters++;
         }
 
-        var icons = _icons.Read(_minimap, _terrain.Generation, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
+        var icons = _icons.Read(_minimap, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
         var explored = _explored.Read(_minimap.Widget, geometry, _terrain.Generation);
         var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Count)}{(_minimap.Scans > 0 ? $", scans {_minimap.Scans}" : "")}";
         state = new GameState

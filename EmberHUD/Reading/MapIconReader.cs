@@ -5,7 +5,6 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names names, Func<long>? clockMilliseconds = null)
 {
-    private static readonly HashSet<int> NoTaskTypes = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<int, string> _textures = [];
     private readonly Dictionary<int, string> _names = [];
@@ -16,14 +15,12 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
     private readonly Dictionary<int, uint> _followTypes = [];
     private readonly Dictionary<int, uint> _followAreas = [];
     private readonly HashSet<int> _followIds = [];
-    private HashSet<int>? _taskTypes;
     private nint _widget;
-    private int? _generation;
     private long _nextIconMapRead;
     private bool _missingNames;
     private bool _missingTextures;
 
-    public MapIcon[] Read(MinimapReader minimap, int generation, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?> findPosition)
+    public MapIcon[] Read(MinimapReader minimap, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?> findPosition)
     {
         var widget = minimap.Widget;
         if (widget != _widget)
@@ -32,23 +29,15 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
             _textures.Clear();
             _names.Clear();
             _textureNames.Clear();
-            _taskTypes = null;
             _nextIconMapRead = 0;
-        }
-
-        if (generation != _generation)
-        {
-            _generation = generation;
-            _taskTypes = null;
         }
 
         if (widget == 0 || !memory.TryRead(widget + Offsets.MinimapIconArea, out uint area))
             return [];
 
-        _taskTypes ??= ReadTaskTypes(widget);
         _missingNames = false;
         _missingTextures = false;
-        if (!TryReadList(widget, area, _taskTypes ?? NoTaskTypes, positions))
+        if (!TryReadList(widget, area, positions))
             return [];
 
         AddFollowIcons(widget, area, positions, findPosition);
@@ -65,7 +54,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
         return new MapIcon(type, texture ?? "", position, size, rotation, entityId) { Name = name ?? "" };
     }
 
-    private bool TryReadList(nint widget, uint area, HashSet<int> taskTypes, IReadOnlyDictionary<int, Vector2> positions)
+    private bool TryReadList(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions)
     {
         _icons.Clear();
         if (!memory.TryRead(widget + Offsets.MinimapIconList + Offsets.TArrayNum, out int count) || count < 0 || count > Offsets.MaxMapIcons)
@@ -80,7 +69,7 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
         {
             var at = i * Offsets.IconEntryStride;
             var type = BitConverter.ToInt32(bytes, at + Offsets.IconEntryType);
-            if (type <= 0 || BitConverter.ToUInt32(bytes, at + Offsets.IconEntryArea) != area || taskTypes.Contains(type))
+            if (type <= 0 || BitConverter.ToUInt32(bytes, at + Offsets.IconEntryArea) != area)
                 continue;
 
             var id = (long)BitConverter.ToInt32(bytes, at + Offsets.IconEntryKey) - (long)type * Offsets.IconKeyStride;
@@ -109,23 +98,6 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
     private static bool Plausible(Vector2 position) =>
         float.IsFinite(position.X) && float.IsFinite(position.Y) &&
         MathF.Abs(position.X) <= Offsets.MaxIconCoordinate && MathF.Abs(position.Y) <= Offsets.MaxIconCoordinate;
-
-    private HashSet<int>? ReadTaskTypes(nint widget)
-    {
-        var types = new HashSet<int>();
-        foreach (var list in (ReadOnlySpan<int>)[Offsets.MinimapTaskTypesA, Offsets.MinimapTaskTypesB, Offsets.MinimapTaskTypesC])
-        {
-            if (!memory.TryRead(widget + list + Offsets.TArrayNum, out int count) || count < 0 || count > Offsets.MaxTaskTypes)
-                return null;
-            if (count == 0)
-                continue;
-            if (!memory.TryReadPtr(widget + list, out var data) || !memory.TryReadArray(data, count, out int[] values))
-                return null;
-            types.UnionWith(values);
-        }
-
-        return types;
-    }
 
     private void AddFollowIcons(nint widget, uint area, IReadOnlyDictionary<int, Vector2> positions, Func<int, Vector2?> findPosition)
     {

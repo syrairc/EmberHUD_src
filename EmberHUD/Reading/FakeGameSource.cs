@@ -43,7 +43,13 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         var angle = MathF.Tau * (float)(now / (double)Stopwatch.Frequency % LapSeconds / LapSeconds);
         var player = new Player(
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
-            new Vector2(-MathF.Sin(angle), MathF.Cos(angle)));
+            new Vector2(-MathF.Sin(angle), MathF.Cos(angle)))
+        {
+            Life = 207 * (0.75 + 0.25 * Math.Sin(angle)),
+            MaxLife = 207,
+            Shield = 133 * (0.5 + 0.5 * Math.Cos(angle)),
+            MaxShield = 133,
+        };
         state = new GameState
         {
             Status = "fake game",
@@ -146,7 +152,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         void Add(Vector2 offset, EntityKind kind, Rarity rarity)
         {
             var index = entities.Count;
-            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity));
+            var maxLife = kind == EntityKind.Monster ? rarity switch { Rarity.Normal => 120d, Rarity.Magic => 300, Rarity.Rare => 900, _ => 12000 } : 0;
+            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife });
         }
 
         Rarity[] rarities = [Rarity.Normal, Rarity.Magic, Rarity.Rare];

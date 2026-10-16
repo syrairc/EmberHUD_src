@@ -24,6 +24,8 @@ public sealed class Main : Plugin<Settings>
     readonly HashSet<int> _iconEntities = [];
     MapIcon[]? _indexedIcons;
     internal const float MarkerRadius = 4;
+    internal const int TaskRingType = 1002;
+    static readonly Color TaskRingColour = Color.FromArgb(0xFF, 0xD8, 0x40);
     const float GameIconSize = 24;
 
     bool WallsStyle => Settings.Map.DrawStyle == MapStyle.Walls;
@@ -223,6 +225,11 @@ public sealed class Main : Plugin<Settings>
         if (icon.EntityId != 0 && _overridden.Contains(icon.EntityId)) return;
         var at = map.ToScreen(icon.Position);
         if (!Visible(at, at, viewport)) return;
+        if (icon.Type == TaskRingType)
+        {
+            DrawTaskRing(at, zoomScale);
+            return;
+        }
         var icons = Settings.Icons;
         var row = icons.FoundFor(icon.Texture);
         if (row is { Show: false }) return;
@@ -236,6 +243,12 @@ public sealed class Main : Plugin<Settings>
         }
         else if (name.Length == 0) Draw.Marker(at, size / 4, GameColors.MinimapMarker, FallbackShape(icon.Type));
         else Draw.Icon(name, at, size / 2, colour);
+    }
+
+    void DrawTaskRing(Vector2 at, float zoomScale)
+    {
+        var pulse = 0.5f + 0.5f * MathF.Sin(Clock() % 1000 / 1000f * MathF.Tau);
+        Draw.Circle(at, GameIconSize * 0.6f * zoomScale * (1 + 0.15f * pulse), Color.FromArgb((int)(90 + 165 * pulse), TaskRingColour), 2.5f);
     }
 
     void DrawPlayer(Vector2 at, Vector2 forward, Vector2 viewport, float zoomScale)

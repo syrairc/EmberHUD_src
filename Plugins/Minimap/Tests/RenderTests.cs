@@ -549,6 +549,18 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void TheTaskTrackingCircleIsAPulsingRingNotAFallbackMarker()
+    {
+        var scene = OneCellScene(Portal with { Type = Main.TaskRingType, Texture = "" });
+        var gold = Packed(GameColors.MinimapMarker);
+        var low = Colours(scene, main => main.Clock = () => 0);
+        var high = Colours(scene, main => main.Clock = () => 250);
+
+        Check.That(!low.Contains(gold) && !high.Contains(gold), "no fallback marker");
+        Check.That(!low.SetEquals(high), "the ring changes with the clock");
+    }
+
+    [Test]
     public void GameIconSizeMultipliesBaseGameSizeGlobalScaleAndRowScale()
     {
         TestGame.UseGameIcons(name => name == "T" ? Ready : null);

@@ -66,6 +66,8 @@ internal static class Num
         if (float.IsFinite(value)) json.WriteNumber(name, Math.Round(value, 2));
         else json.WriteNull(name);
     }
+
+    public static void Write(Utf8JsonWriter json, string name, double value) => json.WriteNumber(name, Math.Round(value, 1));
 }
 
 internal static class Schema
