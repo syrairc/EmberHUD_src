@@ -184,6 +184,8 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         return Geometry(page, origin);
     }
 
+    internal Vector2? TryOrigin() => TryOverlay(out _, out var origin) ? origin : null;
+
     private bool TryOverlay(out nint overlay, out Vector2 origin)
     {
         overlay = 0;

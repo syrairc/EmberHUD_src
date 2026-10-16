@@ -1,3 +1,4 @@
+using System.Numerics;
 using EmberHUD.Host;
 
 namespace EmberHUD.Tests;
@@ -20,6 +21,32 @@ public class LiveReaderTests
         Assert.Equal(77, Assert.Single(state.Entities).CfgId);
         Assert.Null(state.Player);
         Assert.Equal("live - no local player - entities 1, map icons 0, explored off", state.Status);
+    }
+
+    [Fact]
+    public void MonstersWithAShownHpBarCarryTheGameBar()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        var ui = new FakeUi(world, new Vector2(100, 50));
+        var monster = world.AddEntity(5, 77, true, 0, 0, 0, monsterCfgId: 77) with { Value = world.Alloc(0x800) };
+        ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalTrack, new Vector2(1745.5f, 499.1f), new Vector2(255.36f, 23.04f), 0.2464f, 0.383f);
+        world.PublishEntities(monster);
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryRead(out var state, out _));
+        var entity = Assert.Single(state.Entities);
+        Assert.True(entity.HasGameBar);
+        Assert.Equal(new Vector2(1645.5f, 449.1f), entity.GameBar!.Value.Min);
+    }
+
+    [Fact]
+    public void MonstersWithoutAHpBarHaveNoGameBar()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities(world.AddEntity(5, 77, true, 0, 0, 0));
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.False(Assert.Single(state.Entities).HasGameBar);
     }
 
     [Fact]

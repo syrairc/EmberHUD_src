@@ -61,6 +61,7 @@ internal static class StateTools
         if (player is not null) row["distance"] = Num.F(player.FlatDistance(entity.Position));
         if (entity.Name.Length > 0) row["name"] = entity.Name;
         if (entity.Address != 0) row["address"] = Hex.Of(entity.Address);
+        if (entity.GameBar is { } bar) row["bar"] = new JsonArray(Num.F(bar.Min.X), Num.F(bar.Min.Y), Num.F(bar.Width), Num.F(bar.Height));
         return row;
     }
 
@@ -78,6 +79,18 @@ internal static class StateTools
         Num.Write(json, "maxLife", entity.MaxLife);
         if (entity.Name.Length > 0) json.WriteString("name", entity.Name);
         if (entity.Address != 0) json.WriteString("address", Hex.Of(entity.Address));
+        if (entity.GameBar is { } bar)
+        {
+            json.WriteStartArray("bar");
+            foreach (var value in (float[])[bar.Min.X, bar.Min.Y, bar.Width, bar.Height])
+            {
+                if (float.IsFinite(value)) json.WriteNumberValue(Math.Round(value, 2));
+                else json.WriteNullValue();
+            }
+
+            json.WriteEndArray();
+        }
+
         json.WriteEndObject();
     }
 
