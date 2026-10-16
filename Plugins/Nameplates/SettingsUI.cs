@@ -10,6 +10,8 @@ static class SettingsUI
 {
     const string Tokens = "{name} {hp} {hpmax} {hp%} {dist} {rarity} {type}";
 
+    internal static bool OpenAllBuckets;
+
     internal static readonly HashSet<StyleOverride> OpenEditors = [];
 
     public static void Draw(Settings s)
@@ -23,6 +25,7 @@ static class SettingsUI
         {
             var bucket = s.Buckets[i];
             var id = $"bucket{i}";
+            if (OpenAllBuckets) ImGui.SetNextItemOpen(true);
             if (!ImGui.CollapsingHeader($"{(Bucket)i}##{id}")) continue;
             ImGui.PushID(id);
             Setting.Checkbox("Show", ref bucket.Show);

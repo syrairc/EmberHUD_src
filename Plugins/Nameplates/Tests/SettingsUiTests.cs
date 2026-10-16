@@ -5,12 +5,20 @@ namespace NameplatesPlugin;
 
 public sealed class SettingsUiTests
 {
-    static void Page(Settings s) => TestFrame.Run(() =>
+    static void Page(Settings s)
     {
-        ImGui.Begin("nameplates settings");
-        s.Draw();
-        ImGui.End();
-    });
+        SettingsUI.OpenAllBuckets = true;
+        try
+        {
+            TestFrame.Run(() =>
+            {
+                ImGui.Begin("nameplates settings");
+                s.Draw();
+                ImGui.End();
+            });
+        }
+        finally { SettingsUI.OpenAllBuckets = false; }
+    }
 
     [Test]
     public void TheSettingsPageDraws() => Page(new Settings());
