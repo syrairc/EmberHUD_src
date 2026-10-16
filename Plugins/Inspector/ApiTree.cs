@@ -75,6 +75,7 @@ internal sealed class ApiTree(Action<object> pin)
         new("Player", s => s.Player),
         new("Entities", s => s.Entities),
         new("Map icons", s => s.MapIcons),
+        new("Quest targets", s => s.QuestTargets),
         new("Terrain", s => s.Terrain),
         new("Explored", s => s.Explored),
         new("Camera", s => s.Camera),

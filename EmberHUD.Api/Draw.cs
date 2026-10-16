@@ -27,6 +27,10 @@ public static class Draw
 
     const int MaxPolylinePoints = 8000;
 
+    const float RowGap = 4;
+
+    const float DimmedOpacity = 0.45f;
+
     internal const int GlowSegments = 32;
 
     internal const int Layers = 3;
@@ -64,6 +68,26 @@ public static class Draw
     public static Vector2 MeasureText(string text, float size = 0, FontFace face = FontFace.Regular) => Place(text, Vector2.Zero, Align.TopLeft, size, face).Measured;
 
     public static Vector2 MeasureText(string text, Ui.TextStyle style) => MeasureText(text, SizeOf(style), style.Face);
+
+    public static float RowHeight(Ui.TextStyle style) => MeasureText("Ag", style).Y + RowGap;
+
+    public static float Row(Vector2 pos, float width, string left, string right, Ui.TextStyle style, Color? swatch = null, bool dimmed = false, ImDrawListPtr? list = null)
+    {
+        var rowHeight = RowHeight(style);
+        var fade = dimmed ? DimmedOpacity : 1f;
+        var text = style.Clone();
+        text.Color = Color.FromArgb((int)(style.Color.A * fade), style.Color);
+        var textX = pos.X;
+        if (swatch is { } colour)
+        {
+            var side = rowHeight - RowGap;
+            RectFilled(pos, pos + new Vector2(side, side), Color.FromArgb((int)(colour.A * fade), colour), list: list);
+            textX += rowHeight;
+        }
+        Text(left, new Vector2(textX, pos.Y), text, list: list);
+        Text(right, new Vector2(pos.X + width, pos.Y), text, Align.Right, list);
+        return rowHeight;
+    }
 
     public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, ImDrawListPtr? list = null) => (list ?? Background).AddLine(a, b, EColor.U32(color), thickness);
 

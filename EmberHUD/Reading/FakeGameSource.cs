@@ -13,6 +13,10 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const int Cells = 80;
     private const float CellSize = 25f;
     private const float TrailRadius = 250f;
+    private const float QuestOrbitSeconds = 40f;
+    private const float QuestOrbitRadius = 250f;
+    private const int QuestBlinkSeconds = 60;
+    private const int QuestBlinkOnSeconds = 30;
     private static readonly Vector2 Center = new(1000, 1000);
     private const float UiCycleSeconds = 10f;
     private const float InventoryOpenSeconds = 4f;
@@ -66,6 +70,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Trade = TradeAt(now),
             WoodStake = WoodStakeAt(now),
             Combat = CombatAt(now),
+            QuestTargets = QuestTargetsAt(now),
         };
         failure = null;
         return true;
@@ -78,6 +83,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         const long Average = 6_200_000_000_000;
         const long Cap = 5_000_000_000_000;
         return new WoodStakeStats(true, (int)(seconds % 60), Cap, Math.Min(unlimited, Cap), Cap, unlimited, 8_500_000_000_000, Average);
+    }
+
+    internal static QuestTarget[] QuestTargetsAt(long now)
+    {
+        var seconds = now / (double)Stopwatch.Frequency;
+        var angle = MathF.Tau * (float)(seconds % QuestOrbitSeconds / QuestOrbitSeconds);
+        var targets = new List<QuestTarget>
+        {
+            new(1, Center + QuestOrbitRadius * new Vector2(MathF.Cos(angle), MathF.Sin(angle))) { Name = "Fake orbiting quest" },
+            new(2, Center + new Vector2(0, 300)) { Name = "Fake quest north" },
+            new(3, Center + new Vector2(-400, 0)) { Name = "Fake quest west" },
+        };
+        if (seconds % QuestBlinkSeconds < QuestBlinkOnSeconds)
+            targets.Add(new(4, Center + new Vector2(0, -500)) { Name = "Fake blinking quest" });
+        return [.. targets];
     }
 
     internal static CombatStats CombatAt(long now)

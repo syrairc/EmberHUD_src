@@ -144,6 +144,23 @@ public sealed class GroundTests
     public void ACircleInViewDraws() => Assert.True(Vertices(Looking, () => Ground.Circle(Vector2.Zero, 200, Color.Red)) > 0);
 
     [Fact]
+    public void ADotInViewDrawsFarFewerVerticesThanACircleFilled()
+    {
+        var dot = Vertices(Looking, () => Ground.Dot(Vector2.Zero, 20, Color.Red));
+        var circle = Vertices(Looking, () => Ground.CircleFilled(Vector2.Zero, 20, Color.Red));
+
+        Assert.True(dot > 0);
+        Assert.True(dot * 3 < circle);
+    }
+
+    [Fact]
+    public void ADotWithoutACameraOrBehindItDrawsNothing()
+    {
+        Assert.Equal(0, Vertices(null, () => Ground.Dot(Vector2.Zero, 20, Color.Red)));
+        Assert.Equal(0, Vertices(Forward, () => Ground.Dot(new Vector2(-1000, 0), 20, Color.Red, z: 0)));
+    }
+
+    [Fact]
     public void NothingDrawsWithoutACamera()
     {
         Assert.Equal(0, Vertices(null, () => Ground.Circle(Vector2.Zero, 200, Color.Red)));

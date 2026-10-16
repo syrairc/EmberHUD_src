@@ -10,6 +10,7 @@ internal sealed class LiveReader
     private readonly TerrainReader _terrain;
     private readonly MinimapReader _minimap;
     private readonly MapIconReader _icons;
+    private readonly QuestTargetReader _questTargets;
     private readonly ExploredReader _explored;
     private readonly GameUiReader _ui;
     private readonly MapInfoReader _mapInfo;
@@ -29,6 +30,7 @@ internal sealed class LiveReader
         _terrain = new TerrainReader(memory, firstAreaId);
         _minimap = new MinimapReader(memory, moduleBase, names);
         _icons = new MapIconReader(memory, moduleBase, names);
+        _questTargets = new QuestTargetReader(memory);
         _explored = new ExploredReader(memory);
         _ui = new GameUiReader(memory, moduleBase, names);
         _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
@@ -87,6 +89,7 @@ internal sealed class LiveReader
             Terrain = terrain,
             MinimapRotation = rotation,
             MapIcons = icons,
+            QuestTargets = _questTargets.Read(_minimap),
             Explored = explored,
             Camera = pawn != 0 ? _world.ReadCamera(pawn) : null,
             Ui = _ui.Read(),

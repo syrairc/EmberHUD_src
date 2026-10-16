@@ -272,6 +272,44 @@ public sealed class DrawTests
     }
 
     [Fact]
+    public void RowWithASwatchDrawsMoreVerticesAndTheSwatchColour() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var style = TextStyle.Hud();
+        var plain = list.VtxBuffer.Size;
+        Draw.Row(Centre, 200, "Name", "12", style);
+        var withoutSwatch = list.VtxBuffer.Size - plain;
+        var start = list.VtxBuffer.Size;
+        Draw.Row(Centre, 200, "Name", "12", style, Color.Red);
+        Assert.Equal(withoutSwatch + 4, list.VtxBuffer.Size - start);
+        Assert.Equal(EColor.U32(Color.Red), list.VtxBuffer[start].Col);
+    });
+
+    [Fact]
+    public void DimmedRowFadesTheSwatch() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var start = list.VtxBuffer.Size;
+        Draw.Row(Centre, 200, "Name", "12", TextStyle.Hud(), Color.FromArgb(200, 255, 0, 0), dimmed: true);
+        Assert.Equal(EColor.U32(Color.FromArgb(90, 255, 0, 0)), list.VtxBuffer[start].Col);
+    });
+
+    [Fact]
+    public void RowReturnsTheAdvanceTheLegendSizesFrom() => TestFrame.Run(() =>
+    {
+        var style = TextStyle.Hud();
+        Assert.Equal(Draw.RowHeight(style), Draw.Row(Centre, 200, "Name", "12", style));
+        Assert.True(Draw.RowHeight(style) > Draw.MeasureText("Ag", style).Y);
+    });
+
+    [Theory]
+    [InlineData("", "", 200f)]
+    [InlineData("Name", "12", 0f)]
+    [InlineData("Name", "12", -5f)]
+    public void RowSurvivesEmptyTextAndTinyWidth(string left, string right, float width) => TestFrame.Run(() =>
+        Draw.Row(Centre, width, left, right, TextStyle.Hud(), Color.Blue, true));
+
+    [Fact]
     public void GlowIsSolidInsideTheInnerRadiusAndFadesToClearAtTheEdge() => TestFrame.Run(() =>
     {
         var list = Draw.Background;

@@ -61,7 +61,7 @@ public sealed class ApiTreeTests
 
     [Test]
     public void SectionNamesAreTheFixedList() =>
-        Check.That(ApiTree.All.Select(s => s.Name).SequenceEqual(["Player", "Entities", "Map icons", "Terrain", "Explored", "Camera", "Game UI", "Map view"]), "section list changed");
+        Check.That(ApiTree.All.Select(s => s.Name).SequenceEqual(["Player", "Entities", "Map icons", "Quest targets", "Terrain", "Explored", "Camera", "Game UI", "Map view"]), "section list changed");
 
     [Test]
     public void SelectedAndHoveredRowsHighlightAtTheirPosition()
