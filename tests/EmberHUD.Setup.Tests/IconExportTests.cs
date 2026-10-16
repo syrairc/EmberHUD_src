@@ -192,15 +192,6 @@ public class IconExportTests
 
     // config_map_icon_ChunkA0.bin's content format changed (encrypted/obfuscated, not the plaintext rows IconExport expects) -
     // these only resolve through that config, not the MiniMap/NoAtlasMap/AtlasMap folder scan, so they're missing until it's decoded.
-    static readonly HashSet<string> MissingUntilConfigMapIconIsDecoded = new(StringComparer.Ordinal)
-    {
-        "UI_Common_IconTeam00", "UI_Common_IconTeam01", "UI_Fight_IconElite04", "UI_Fight_MICONdiankuang", "UI_Fight_MICONfanwei",
-        "UI_Fight_MICONfashu", "UI_Fight_MICONjiahaoda", "UI_Fight_MICONjiahaoxiao", "UI_Fight_MICONjiaodoushi", "UI_Fight_MICONjiasu",
-        "UI_Fight_MICONjingjichang", "UI_Fight_MICONsuoxiao", "UI_Fight_MICONtongzi", "UI_Fight_MICONwudi",
-        "UI_HeroCharacter_Carino02_Bullet_Red", "UI_MiniMap_S10Fighting2", "UI_MiniMap_S10Fighting3", "UI_Mystic_Card06",
-        "UI_Settings_Dacontroller01", "UI_Settings_Dacontroller01_x", "UI_Task_ICONpotal",
-    };
-
     [Fact]
     public void ExtractMatchesTheCheckedInIconsWhenTheGameIsSet()
     {
@@ -219,7 +210,7 @@ public class IconExportTests
         {
             if (!icons.TryGetProperty(icon.Name, out var mine))
             {
-                if (!MissingUntilConfigMapIconIsDecoded.Contains(icon.Name)) differences.Add($"{icon.Name} missing");
+                differences.Add($"{icon.Name} missing");
                 continue;
             }
             if (mine.GetProperty("pak").GetString()!.EndsWith("_P.pak", StringComparison.OrdinalIgnoreCase)) continue;

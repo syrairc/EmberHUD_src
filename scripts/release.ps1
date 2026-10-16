@@ -44,6 +44,7 @@ $ship = @(
     'ooz.dll'
     'BCnEncoder.dll'
     'Microsoft.Toolkit.HighPerformance.dll'
+    'ZstdSharp.dll'
 )
 $assets = @(
     @{ Dir = 'Fonts'; Include = '*.ttf', 'OFL*.txt' }

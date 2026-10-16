@@ -96,20 +96,36 @@ internal static class AssetBuilder
 
     public static byte[] MapIconConfig(params MapIconRow[] rows)
     {
-        var writer = new BinaryWriter(new MemoryStream());
-        writer.Write(847);
-        writer.Write(rows.Length);
-        foreach (var row in rows)
+        using var compressor = new ZstdSharp.Compressor();
+        var chunks = rows.Chunk(2).Select(group =>
         {
-            writer.Write(row.Id);
-            writer.Write(row.Id);
-            FString(writer, row.Key, Encoding.UTF8);
-            FString(writer, row.Label, Encoding.UTF8);
-            FString(writer, row.Texture, Encoding.UTF8);
-            writer.Write(row.Priority);
-            writer.Write((byte)1);
+            var writer = new BinaryWriter(new MemoryStream());
+            writer.Write(group.Length);
+            foreach (var row in group)
+            {
+                writer.Write(row.Id);
+                writer.Write(row.Id);
+                FString(writer, row.Key, Encoding.UTF8);
+                FString(writer, row.Label, Encoding.UTF8);
+                FString(writer, row.Texture, Encoding.UTF8);
+                writer.Write(row.Priority);
+                writer.Write((byte)1);
+            }
+            var raw = ((MemoryStream)writer.BaseStream).ToArray();
+            return (Raw: raw.Length, Packed: compressor.Wrap(raw).ToArray());
+        }).ToList();
+        var output = new BinaryWriter(new MemoryStream());
+        output.Write(chunks.Count);
+        output.Write(rows.Length);
+        var offset = 0;
+        foreach (var chunk in chunks)
+        {
+            output.Write(offset);
+            output.Write(chunk.Raw);
+            offset += chunk.Packed.Length;
         }
-        return ((MemoryStream)writer.BaseStream).ToArray();
+        foreach (var chunk in chunks) output.Write(chunk.Packed);
+        return ((MemoryStream)output.BaseStream).ToArray();
     }
 
     public static byte[] Bc7Solid(byte r, byte g, byte b, byte a)

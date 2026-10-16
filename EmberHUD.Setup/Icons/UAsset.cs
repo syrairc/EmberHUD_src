@@ -113,17 +113,38 @@ internal static class UAsset
 
     public static List<MapIconRow> MapIconConfig(byte[] data)
     {
+        var header = new Cursor(data);
+        var chunkCount = header.I32();
+        header.Take(4);
+        if (chunkCount is < 1 or > 4096) throw new InvalidDataException($"config_map_icon has {chunkCount} chunks");
+        var chunks = Enumerable.Range(0, chunkCount).Select(_ => (Offset: header.I32(), Raw: header.I32())).ToArray();
+        var dataStart = header.At;
+        using var zstd = new ZstdSharp.Decompressor();
         List<MapIconRow> rows = [];
-        var cursor = new Cursor(data, 8);
-        while (!cursor.AtEnd)
+        for (var i = 0; i < chunkCount; i++)
         {
-            var id = cursor.I32();
-            cursor.Take(4);
-            var key = cursor.FString();
-            var label = cursor.FString();
-            var texture = cursor.FString();
-            rows.Add(new MapIconRow(id, key, label, texture, cursor.I32()));
-            cursor.At += 1;
+            var end = i + 1 < chunkCount ? chunks[i + 1].Offset : data.Length - dataStart;
+            byte[] raw;
+            try
+            {
+                raw = zstd.Unwrap(data.AsSpan(dataStart + chunks[i].Offset, end - chunks[i].Offset)).ToArray();
+            }
+            catch (ZstdSharp.ZstdException ex)
+            {
+                throw new InvalidDataException($"config_map_icon chunk {i} did not decode - {ex.Message}", ex);
+            }
+            if (raw.Length != chunks[i].Raw) throw new InvalidDataException($"config_map_icon chunk {i} decoded to {raw.Length} bytes, expected {chunks[i].Raw}");
+            var cursor = new Cursor(raw);
+            for (var count = cursor.I32(); count > 0; count--)
+            {
+                var id = cursor.I32();
+                cursor.Take(4);
+                var key = cursor.FString();
+                var label = cursor.FString();
+                var texture = cursor.FString();
+                rows.Add(new MapIconRow(id, key, label, texture, cursor.I32()));
+                cursor.At += 1;
+            }
         }
         return rows;
     }

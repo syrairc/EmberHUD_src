@@ -65,7 +65,7 @@ public class UAssetTests
     [Fact]
     public void MapIconConfigReadsEveryRow()
     {
-        MapIconRow[] rows = [new(1, "wanjia", "玩家", "UI_MiniMap_Player1", 0), new(2542, "S12Door3", "S12叠界门箭头", "UI_MiniMap_S12_Door3", 99)];
+        MapIconRow[] rows = [new(1, "wanjia", "玩家", "UI_MiniMap_Player1", 0), new(2542, "S12Door3", "S12叠界门箭头", "UI_MiniMap_S12_Door3", 99), new(7, "chilun4", "S7齿轮橙", "UI_Minimap_S7gear_orange", 99)];
         Assert.Equal(rows, UAsset.MapIconConfig(AssetBuilder.MapIconConfig(rows)));
     }
 
