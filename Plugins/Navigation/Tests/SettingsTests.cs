@@ -24,6 +24,15 @@ public sealed class SettingsTests
     [Test]
     public void CompassIsOnByDefault() => Check.That(new Settings().Compass.Show, "compass on");
 
+    [Test]
+    public void GeneralTabShowsTheObstacleControls()
+    {
+        var settings = new Settings();
+        Check.That(settings.General.AvoidMapObjects, "on by default");
+        Check.Equal(110f, settings.General.ObjectRadius);
+        Check.That(TestFrame.Vertices(settings.DrawGeneral, inWindow: true) > 0, "general draws");
+    }
+
     static float Height(Action tab)
     {
         var height = 0f;

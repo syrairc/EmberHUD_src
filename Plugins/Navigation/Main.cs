@@ -25,7 +25,9 @@ public sealed class Main : Plugin<Settings>
 
     public override void Tick()
     {
-        if (Settings.General.Show) Paths.Update(Game.State);
+        if (!Settings.General.Show) return;
+        Paths.ObstacleRadius = Settings.General.AvoidMapObjects ? Settings.General.ObjectRadius : 0;
+        Paths.Update(Game.State);
     }
 
     internal static bool LegendHidden(Settings settings, GameState state) =>

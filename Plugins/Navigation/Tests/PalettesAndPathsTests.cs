@@ -136,6 +136,94 @@ public sealed class PalettesAndPathsTests
         Check.Equal("Objective 1", paths.Current[0].Name);
     }
 
+    static Terrain Strip(int rows, Func<int, bool> rowOpen)
+    {
+        const int cols = 30;
+        var bits = new BitArray(cols * rows);
+        for (var row = 0; row < rows; row++)
+            for (var col = 0; col < cols; col++)
+                bits[row * cols + col] = rowOpen(row);
+        return new Terrain(cols, rows, 10f, Vector2.Zero, bits);
+    }
+
+    static Entity MapObject(int id, float x, float y) => new(id, 37, new Vector3(x, y, 0), EntityKind.MapObject, Rarity.Normal);
+
+    static GameState WithObjects(Terrain terrain, Player player, QuestTarget target, params Entity[] objects) =>
+        new() { AreaId = 1, Terrain = terrain, Player = player, QuestTargets = [target], Entities = objects };
+
+    [Test]
+    public void MapObjectsBlockTheRoute()
+    {
+        var paths = new Paths(new Random(1)) { Runner = job => job(), ObstacleRadius = 15 };
+        paths.Update(WithObjects(Strip(7, _ => true), At(5, 35), Target(1, 295, 35), MapObject(1, 150, 35)));
+        var points = paths.Current[0].Points!;
+        Check.That(points.Length > 2, "detours");
+        foreach (var point in points) Check.That(Vector2.Distance(point, new Vector2(150, 35)) >= 15, $"{point} too close");
+    }
+
+    [Test]
+    public void FallsBackToThePlainGridWhenStampedPathIsBlocked()
+    {
+        var paths = new Paths(new Random(1)) { Runner = job => job(), ObstacleRadius = 30 };
+        paths.Update(WithObjects(Strip(3, row => row == 1), At(5, 15), Target(1, 295, 15), MapObject(1, 150, 15)));
+        Check.That(paths.Current[0].Points is not null, "plain grid route");
+        Check.That(paths.Current[0].Length > 0, "has length");
+    }
+
+    [Test]
+    public void ChangingTheMapObjectsRecomputes()
+    {
+        var calls = new List<(Vector2, Vector2)>();
+        var paths = Sync(calls: calls);
+        paths.ObstacleRadius = 50;
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500)));
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        Check.Equal(2, calls.Count);
+    }
+
+    [Test]
+    public void NoRecomputeWhenTheMapObjectsAreUnchanged()
+    {
+        var calls = new List<(Vector2, Vector2)>();
+        var paths = Sync(calls: calls);
+        paths.ObstacleRadius = 50;
+        for (var i = 0; i < 3; i++) paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        Check.Equal(1, calls.Count);
+    }
+
+    [Test]
+    public void ChangingTheRadiusRecomputes()
+    {
+        var calls = new List<(Vector2, Vector2)>();
+        var paths = Sync(calls: calls);
+        paths.ObstacleRadius = 50;
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        paths.ObstacleRadius = 80;
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        Check.Equal(2, calls.Count);
+    }
+
+    [Test]
+    public void TheStampedTerrainIsReusedWhileNothingChanges()
+    {
+        var seen = new List<Terrain>();
+        var paths = new Paths(new Random(1)) { Runner = job => job(), ObstacleRadius = 50, Finder = (terrain, from, to) => { seen.Add(terrain); return [from, to]; } };
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        paths.Update(WithObjects(Open, At(50 + Paths.RecomputeDistance + 1, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        Check.Equal(2, seen.Count);
+        Check.That(!ReferenceEquals(Open, seen[0]), "stamped");
+        Check.That(ReferenceEquals(seen[0], seen[1]), "reused");
+    }
+
+    [Test]
+    public void RadiusZeroIgnoresMapObjects()
+    {
+        Terrain? seen = null;
+        var paths = new Paths(new Random(1)) { Runner = job => job(), Finder = (terrain, from, to) => { seen = terrain; return [from, to]; } };
+        paths.Update(WithObjects(Open, At(50, 50), Target(1, 500, 500), MapObject(1, 300, 300)));
+        Check.That(ReferenceEquals(Open, seen), "plain grid");
+    }
+
     [Test]
     public void NoRecomputeWhileStillClose()
     {

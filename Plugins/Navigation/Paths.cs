@@ -37,11 +37,19 @@ internal sealed class Paths(Random random)
     bool dirty;
     Terrain? plannedTerrain;
     Vector2 plannedStart;
+    Vector2[] plannedCentres = [];
+    float plannedRadius;
+    Terrain? stampSource;
+    Vector2[] stampCentres = [];
+    float stampRadius;
+    Terrain? stamped;
     volatile Result? done;
 
     public Func<Terrain, Vector2, Vector2, Vector2[]?> Finder { get; set; } = PathFinder.Find;
 
     public Action<Action> Runner { get; set; } = job => Task.Run(job);
+
+    public float ObstacleRadius { get; set; }
 
     public IReadOnlyList<PathState> Current { get; private set; } = [];
 
@@ -59,7 +67,8 @@ internal sealed class Paths(Random random)
             return;
         }
         Follow(state.QuestTargets);
-        Dispatch(terrain, new Vector2(player.Position.X, player.Position.Y));
+        var centres = state.Entities.Where(e => e.Kind == EntityKind.MapObject).Select(e => new Vector2(e.Position.X, e.Position.Y)).ToArray();
+        Dispatch(terrain, new Vector2(player.Position.X, player.Position.Y), centres);
         Land();
         if (dirty) Publish();
     }
@@ -70,6 +79,7 @@ internal sealed class Paths(Random random)
         nextNumber = 0;
         tracked.Clear();
         plannedTerrain = null;
+        stamped = null;
         dirty = true;
     }
 
@@ -108,16 +118,34 @@ internal sealed class Paths(Random random)
         dirty |= changed;
     }
 
-    void Dispatch(Terrain terrain, Vector2 start)
+    Terrain Stamped(Terrain terrain, Vector2[] centres, float radius)
+    {
+        if (stamped is null || !ReferenceEquals(terrain, stampSource) || radius != stampRadius || !centres.AsSpan().SequenceEqual(stampCentres))
+        {
+            stamped = Obstacles.Stamp(terrain, centres, radius);
+            stampSource = terrain;
+            stampCentres = centres;
+            stampRadius = radius;
+        }
+        return stamped;
+    }
+
+    void Dispatch(Terrain terrain, Vector2 start, Vector2[] centres)
     {
         if (busy || tracked.Count == 0) return;
+        var radius = ObstacleRadius;
         var due = !ReferenceEquals(terrain, plannedTerrain)
+            || radius != plannedRadius
+            || !centres.AsSpan().SequenceEqual(plannedCentres)
             || Vector2.Distance(start, plannedStart) >= RecomputeDistance
             || tracked.Any(t => t.Planned is not { } planned || Vector2.Distance(planned, t.Target) > terrain.CellSize);
         if (!due) return;
 
         plannedTerrain = terrain;
         plannedStart = start;
+        plannedCentres = centres;
+        plannedRadius = radius;
+        var routing = Stamped(terrain, centres, radius);
         busy = true;
         var work = tracked.Select(t => (Tracked: t, Target: t.Target)).ToArray();
         foreach (var (item, target) in work) item.Planned = target;
@@ -132,7 +160,8 @@ internal sealed class Paths(Random random)
                     var length = 0f;
                     try
                     {
-                        points = Finder(terrain, start, work[i].Target);
+                        points = Finder(routing, start, work[i].Target);
+                        if (points is null && !ReferenceEquals(routing, terrain)) points = Finder(terrain, start, work[i].Target);
                         if (points is not null) length = PathFinder.Length(points);
                     }
                     catch (Exception)

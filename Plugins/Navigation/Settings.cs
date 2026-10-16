@@ -11,6 +11,8 @@ public sealed class GeneralTab
     public bool Show = true;
     public bool Ground = true;
     public bool Minimap = true;
+    public bool AvoidMapObjects = true;
+    public float ObjectRadius = 110;
 }
 
 public sealed class SurfaceStyle
@@ -94,7 +96,7 @@ public sealed class Settings : PluginSettings
         Setting.Slider("Radius", ref Compass.Radius, 50, 1000, "World units from you to the arrows, also the distance from an objective where its arrow hides", id: "CompassRadius");
         Setting.Slider("Size", ref Compass.Size, 10, 300, "Length of each arrow in world units", id: "CompassSize");
         Setting.Slider("Opacity", ref Compass.Opacity, 0.05f, 1, "How solid the arrows are", id: "CompassOpacity");
-        Setting.Slider("Lookahead", ref Compass.Lookahead, 0, 3000, "World units along the route the arrows aim at, so they follow bends instead of pointing straight at the objective", id: "CompassLookahead");
+        Setting.Slider("Lookahead", ref Compass.Lookahead, 1, 3000, "World units along the route the arrows aim at, so they follow bends instead of pointing straight at the objective", id: "CompassLookahead");
     }
 
     internal void DrawGeneral()
@@ -102,6 +104,8 @@ public sealed class Settings : PluginSettings
         Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and compass included", id: "GeneralShow");
         Setting.Checkbox("Ground", ref General.Ground, "Particles flow along the path on the ground in the game world");
         Setting.Checkbox("Minimap", ref General.Minimap, "Particles flow along the path on the Minimap plugin's map");
+        Setting.Checkbox("Avoid map objects", ref General.AvoidMapObjects, "Map objects such as the road blockers are invisible to the walkability grid, so each one is treated as a disc the route goes around. Off = ignore them", id: "AvoidMapObjects");
+        Setting.Slider("Object radius", ref General.ObjectRadius, 0, 400, "How wide the disc around each map object is, in world units. 0 = ignore map objects", id: "ObjectRadius");
     }
 
     static void DrawStyle(string name, SurfaceStyle style, string sizeTip)
