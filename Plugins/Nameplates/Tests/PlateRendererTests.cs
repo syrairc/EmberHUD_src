@@ -107,6 +107,24 @@ public sealed class PlateRendererTests
     }
 
     [Test]
+    public void OnBarTextIsSkippedWithoutABar()
+    {
+        var style = Style();
+        style.OnBar = new TextLine { Enabled = true, Template = "{hp%}%", Style = new TextStyle { Color = NameColour } };
+        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(0, 0), style, Anchor)).Count);
+        Check.Equal(0, Drawn(NameColour, () => DrawPlate(Data(double.NaN, 100), style, Anchor)).Count);
+        Check.That(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, Anchor)).Count > 0);
+    }
+
+    [Test]
+    public void ANaNAnchorDrawsNothing()
+    {
+        var style = Style(name: true);
+        Check.That(!PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(float.NaN, 300), Viewport));
+        Check.That(!PlateRenderer.DrawPlate(Data(50, 100), style, new Vector2(500, float.NaN), Viewport));
+    }
+
+    [Test]
     public void LifeAboveMaxClampsToAFullBar() =>
         Check.Equal((450f, 550f), Across(Drawn(Fill, () => DrawPlate(Data(500, 100), Style(), Anchor))));
 

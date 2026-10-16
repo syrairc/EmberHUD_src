@@ -38,8 +38,8 @@ public static class Resolver
     public static PlateStyle? ResolveBucket(Settings settings, Bucket bucket, string name, int cfgId, double life, double maxLife, float distance)
     {
         var bucketSettings = settings.Buckets[(int)bucket];
-        if (!bucketSettings.Show || distance > settings.MaxDistance) return null;
-        if (bucketSettings.DamagedOnly && (maxLife <= 0 || life >= maxLife)) return null;
+        if (!bucketSettings.Show || !(distance <= settings.MaxDistance)) return null;
+        if (bucketSettings.DamagedOnly && (!(maxLife > 0) || !(life < maxLife))) return null;
 
         var overrides = settings.Overrides;
         for (var i = 0; i < overrides.Count; i++)

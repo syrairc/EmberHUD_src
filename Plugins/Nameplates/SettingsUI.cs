@@ -17,7 +17,8 @@ static class SettingsUI
     public static void Draw(Settings s)
     {
         Controls.Section("General");
-        Setting.Slider("Max distance", ref s.MaxDistance, 100, 10000, "Plates beyond this distance from the player are not drawn");
+        Setting.Slider("Distance unit", ref s.DistanceUnit, 1, 1000, "World units per displayed distance unit, 100 = metres", log: true);
+        Setting.Slider("Max distance", ref s.MaxDistance, 1, 10000, "In distance units, plates beyond this distance from the player are not drawn", log: true);
         Setting.Checkbox("Hide behind full-screen panels", ref s.HideBehindPanels);
 
         Controls.Section("Buckets");
@@ -35,7 +36,7 @@ static class SettingsUI
         }
 
         Controls.Section("Overrides");
-        ListEditor.Compact("overrides", s.Overrides, DrawOverrideRow, AddSource<StyleOverride>.Button(() => NewOverride(s), "+ Add override"));
+        ListEditor.Compact("overrides", s.Overrides, DrawOverrideRow, AddSource<StyleOverride>.Button(() => NewOverride(s), "+ Add override"), reorderable: true);
         for (var i = 0; i < s.Overrides.Count; i++)
         {
             var row = s.Overrides[i];

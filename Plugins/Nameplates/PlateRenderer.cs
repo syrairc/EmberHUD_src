@@ -19,11 +19,12 @@ public static class PlateRenderer
         var half = new Vector2(bar.Width, bar.Height) / 2;
         var min = centre - half;
         var max = centre + half;
-        if (max.X < 0 || max.Y < 0 || min.X > viewport.X || min.Y > viewport.Y) return false;
+        if (!(max.X >= 0 && max.Y >= 0 && min.X <= viewport.X && min.Y <= viewport.Y)) return false;
 
-        if (data.MaxLife > 0 && !double.IsNaN(data.Life)) DrawBar(bar, min, max, (float)Math.Clamp(data.Life / data.MaxLife, 0, 1));
+        var hasBar = data.MaxLife > 0 && !double.IsNaN(data.Life);
+        if (hasBar) DrawBar(bar, min, max, (float)Math.Clamp(data.Life / data.MaxLife, 0, 1));
         DrawLine(style.Above, data, min, max, new Vector2(0, min.Y - TextGap), Align.Bottom);
-        DrawLine(style.OnBar, data, min, max, new Vector2(0, centre.Y), Align.Middle);
+        if (hasBar) DrawLine(style.OnBar, data, min, max, new Vector2(0, centre.Y), Align.Middle);
         DrawLine(style.Below, data, min, max, new Vector2(0, max.Y + TextGap), Align.TopLeft);
         return true;
     }
@@ -47,8 +48,8 @@ public static class PlateRenderer
         if (!line.Enabled) return;
         var text = TemplateFor(line.Template).Render(data);
         if (text.Length == 0) return;
-        var horizontal = line.Align & (Align.Center | Align.Right);
-        at.X = horizontal == Align.Right ? max.X : horizontal == Align.Center ? (min.X + max.X) / 2 : min.X;
+        var horizontal = line.Align switch { HAlign.Right => Align.Right, HAlign.Center => Align.Center, _ => Align.TopLeft };
+        at.X = line.Align switch { HAlign.Right => max.X, HAlign.Center => (min.X + max.X) / 2, _ => min.X };
         Draw.Text(text, at, line.Style, horizontal | vertical);
     }
 

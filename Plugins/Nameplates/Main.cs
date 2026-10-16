@@ -7,7 +7,11 @@ namespace NameplatesPlugin;
 
 public sealed class Main : Plugin<Settings>
 {
-    public override void Initialize() => BarTextures.Load(BarTextures.DropInFolder);
+    public override void Initialize()
+    {
+        Settings.Normalize();
+        BarTextures.Load(BarTextures.DropInFolder);
+    }
 
     public override void Render()
     {
@@ -19,7 +23,7 @@ public sealed class Main : Plugin<Settings>
         for (var i = 0; i < entities.Length; i++)
         {
             ref readonly var entity = ref entities[i];
-            var distance = player?.FlatDistance(entity.Position) ?? 0;
+            var distance = Settings.Displayed(player?.FlatDistance(entity.Position) ?? 0);
             if (Resolver.Resolve(Settings, entity, distance) is not { } style) continue;
             if (camera.ToScreen(entity.Position, viewport) is not { } anchor) continue;
             var data = new PlateData(entity.Name, entity.Life, entity.MaxLife, distance, entity.Rarity.ToString(), entity.Kind.ToString());

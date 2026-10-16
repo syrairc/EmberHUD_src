@@ -9,13 +9,17 @@ public readonly record struct PlateData(string Name, double Life, double MaxLife
 
 public static class NumberFormat
 {
+    static readonly string[] Suffixes = ["", "K", "M", "B"];
+
     public static string Abbrev(double value)
     {
-        var abs = Math.Abs(value);
-        if (abs >= 1e9) return (value / 1e9).ToString("0.#", CultureInfo.InvariantCulture) + "B";
-        if (abs >= 1e6) return (value / 1e6).ToString("0.#", CultureInfo.InvariantCulture) + "M";
-        if (abs >= 1e3) return (value / 1e3).ToString("0.#", CultureInfo.InvariantCulture) + "K";
-        return Math.Round(value).ToString("0", CultureInfo.InvariantCulture);
+        var step = 0;
+        while (step < Suffixes.Length - 1 && Math.Abs(value) >= (step == 0 ? 999.5 : 999.95))
+        {
+            value /= 1000;
+            step++;
+        }
+        return value.ToString(step == 0 ? "0" : "0.#", CultureInfo.InvariantCulture) + Suffixes[step];
     }
 }
 

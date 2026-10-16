@@ -49,6 +49,17 @@ public class TexturePickerTests : IDisposable
     }
 
     [Fact]
+    public void ValueMatchesCaseInsensitively()
+    {
+        names = ["a", "b", "c"];
+        value = "B";
+        Open();
+        PickRow(1);
+        Assert.False(changed);
+        Assert.Equal("B", value);
+    }
+
+    [Fact]
     public void UnknownValueDoesNotThrowAndKeepsTheValue()
     {
         names = ["a", "b"];

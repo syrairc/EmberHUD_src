@@ -12,12 +12,14 @@ public enum TextRow { Above, OnBar, Below }
 
 public enum MatchKind { Name, CfgId }
 
+public enum HAlign { Left, Center, Right }
+
 public sealed class TextLine
 {
     public bool Enabled;
     public string Template = "";
     public TextStyle Style = TextStyle.Hud();
-    public Align Align = Align.Center;
+    public HAlign Align = HAlign.Center;
 
     public TextLine Clone()
     {
@@ -73,7 +75,8 @@ public sealed class Settings : PluginSettings
     static readonly Color Friendly = Color.FromArgb(0xFF, 0x3C, 0xB4, 0x50);
     static readonly Color Neutral = Color.FromArgb(0xFF, 0x96, 0x96, 0x96);
 
-    public float MaxDistance = 2500;
+    public float DistanceUnit = 100;
+    public float MaxDistance = 25;
     public bool HideBehindPanels = true;
     public BucketSettings[] Buckets = DefaultBuckets();
     public List<StyleOverride> Overrides = new();
@@ -99,6 +102,40 @@ public sealed class Settings : PluginSettings
         bucket.Style.Bar.Height = height;
         bucket.Style.Bar.Fill = fill;
         return bucket;
+    }
+
+    internal float Displayed(float worldDistance) => worldDistance / (DistanceUnit > 0 ? DistanceUnit : 100);
+
+    internal void Normalize()
+    {
+        var defaults = DefaultBuckets();
+        var buckets = new BucketSettings[defaults.Length];
+        for (var i = 0; i < buckets.Length; i++) buckets[i] = Buckets is not null && i < Buckets.Length && Buckets[i] is { } bucket ? bucket : defaults[i];
+        Buckets = buckets;
+        foreach (var bucket in Buckets) bucket.Style = Normalize(bucket.Style);
+        Overrides ??= new();
+        Overrides.RemoveAll(row => row is null);
+        foreach (var row in Overrides)
+        {
+            row.Name ??= "";
+            row.Style = Normalize(row.Style);
+        }
+    }
+
+    static PlateStyle Normalize(PlateStyle? style)
+    {
+        style ??= new();
+        style.Bar ??= new();
+        style.Bar.Texture ??= "";
+        style.Above ??= new();
+        style.OnBar ??= new();
+        style.Below ??= new();
+        foreach (var line in new[] { style.Above, style.OnBar, style.Below })
+        {
+            line.Template ??= "";
+            line.Style ??= TextStyle.Hud();
+        }
+        return style;
     }
 
     public override void Draw() => SettingsUI.Draw(this);

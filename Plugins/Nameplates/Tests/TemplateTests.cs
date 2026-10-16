@@ -19,6 +19,16 @@ public sealed class TemplateTests
     }
 
     [Test]
+    public void AbbreviationRollsOverInsteadOfPrinting1000()
+    {
+        Check.Equal("1M", NumberFormat.Abbrev(999_960));
+        Check.Equal("1K", NumberFormat.Abbrev(999.7));
+        Check.Equal("999.9K", NumberFormat.Abbrev(999_949));
+        Check.Equal("1B", NumberFormat.Abbrev(999_960_000));
+        Check.Equal("-1M", NumberFormat.Abbrev(-999_960));
+    }
+
+    [Test]
     public void PercentIsZeroWhenMaxLifeIsZero() => Check.Equal("0", Render("{hp%}", 50, 0));
 
     [Test]

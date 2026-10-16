@@ -63,6 +63,29 @@ public sealed class ResolverTests
     }
 
     [Test]
+    public void NaNDistanceGivesNull() => Check.That(Resolver.Resolve(new Settings(), Make(), float.NaN) is null);
+
+    [Test]
+    public void NaNLifeCountsAsNotDamaged()
+    {
+        var settings = new Settings();
+        settings.Buckets[(int)Bucket.Normal].DamagedOnly = true;
+        Check.That(Resolver.Resolve(settings, Make(life: double.NaN, maxLife: 100), 0) is null);
+        Check.That(Resolver.Resolve(settings, Make(life: 50, maxLife: double.NaN), 0) is null);
+    }
+
+    [Test]
+    public void DistanceIsShownInUnits()
+    {
+        var settings = new Settings { DistanceUnit = 50 };
+        Check.Equal(2f, settings.Displayed(100));
+        settings.DistanceUnit = 0;
+        Check.Equal(1f, settings.Displayed(100));
+        settings.DistanceUnit = float.NaN;
+        Check.Equal(1f, settings.Displayed(100));
+    }
+
+    [Test]
     public void DamagedOnlyHidesFullAndUnknownHealth()
     {
         var settings = new Settings();

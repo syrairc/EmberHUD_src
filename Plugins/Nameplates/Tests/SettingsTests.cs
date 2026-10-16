@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Numerics;
 using EmberHUD.Ui;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -52,6 +53,30 @@ public sealed class SettingsTests
         Check.Equal(Color.FromArgb(1, 2, 3, 4), ov.Style.Bar.Fill);
         Check.Equal("!{name}", ov.Style.Above.Template);
         Check.Equal(1.5f, ov.Style.Above.Style.Scale);
+    }
+
+    [Test]
+    public void NormalizeFillsAShortOrNullSettingsObject()
+    {
+        var s = new Settings();
+        s.Buckets = [null!, new BucketSettings { Style = null! }];
+        s.Buckets[1].Show = false;
+        s.Overrides.Add(null!);
+        s.Overrides.Add(new StyleOverride { Name = null!, Style = null! });
+        var line = new PlateStyle { Bar = null!, Above = new TextLine { Template = null!, Style = null! }, OnBar = null!, Below = null! };
+        s.Buckets[1].Style = line;
+        s.Normalize();
+        Check.Equal(Enum.GetValues<Bucket>().Length, s.Buckets.Length);
+        Check.That(!s.Buckets[1].Show);
+        foreach (var bucket in s.Buckets)
+        {
+            Check.That(bucket.Style.Bar != null && bucket.Style.OnBar != null && bucket.Style.Below != null);
+            Check.That(bucket.Style.Above.Template != null && bucket.Style.Above.Style != null);
+        }
+        Check.Equal(1, s.Overrides.Count);
+        Check.Equal("", s.Overrides[0].Name);
+        Check.That(s.Overrides[0].Style.Bar != null);
+        Check.That(Resolver.Resolve(s, new Entity(1, 1, Vector3.Zero, EntityKind.Monster, Rarity.Boss) { Life = 1, MaxLife = 2 }, 0) is not null);
     }
 
     [Test]
