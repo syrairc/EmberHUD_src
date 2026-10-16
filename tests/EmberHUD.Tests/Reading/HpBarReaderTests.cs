@@ -112,7 +112,21 @@ public class HpBarReaderTests
         var monster = rig.Monster(1);
         var (_, widget, _) = rig.Normal(monster);
         rig.World.SetObjectSerial(widget, 6);
-        Assert.Null(rig.Apply(monster).GameBar);
+        var entity = rig.Apply(monster);
+        Assert.True(entity.HasGameBar);
+        Assert.Null(entity.GameBar);
+    }
+
+    [Fact]
+    public void NullWeakWidgetHasBarButNoRect()
+    {
+        var rig = new Rig();
+        var monster = rig.Monster(1);
+        var (component, _, _) = rig.Normal(monster);
+        rig.World.Memory.Write(component + Offsets.HpBarWidgetWeak, 0L);
+        var entity = rig.Apply(monster);
+        Assert.True(entity.HasGameBar);
+        Assert.Null(entity.GameBar);
     }
 
     [Fact]
@@ -253,5 +267,6 @@ public class HpBarReaderTests
 
         var entity = rig.Reader.Apply([new Entity(1, 100, Vector3.Zero, EntityKind.Monster, Rarity.Normal)]).Single();
         Assert.Null(entity.GameBar);
+        Assert.Equal(broken is "slate" or "track", entity.HasGameBar);
     }
 }

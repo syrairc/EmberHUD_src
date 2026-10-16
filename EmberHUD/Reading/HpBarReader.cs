@@ -54,7 +54,7 @@ internal sealed class HpBarReader(IReadBackend memory, nint moduleBase, Names na
             !TryWidget(component, out var widget, out var trackOffset))
             return false;
 
-        if (screenOrigin is { } at && Visible(widget) && memory.TryReadPtr(widget + trackOffset, out var track) && track != 0 && Visible(track) &&
+        if (widget != 0 && screenOrigin is { } at && Visible(widget) && memory.TryReadPtr(widget + trackOffset, out var track) && track != 0 && Visible(track) &&
             _slate.TryWeak(track + Offsets.UWidgetSlate, out var slate) && _slate.TryRect(slate, at, out var rect))
             bar = new ScreenRect(rect.Min, rect.Max);
         return true;
@@ -84,10 +84,13 @@ internal sealed class HpBarReader(IReadBackend memory, nint moduleBase, Names na
         widget = 0;
         trackOffset = 0;
         if (!memory.TryRead(component + Offsets.HpBarWidgetWeak, out uint index) ||
-            !memory.TryRead(component + Offsets.HpBarWidgetWeak + Offsets.WeakPtrSerial, out int serial) || serial == 0 ||
-            !memory.TryReadGObject(moduleBase, index, out widget, out var itemSerial) || itemSerial != serial ||
-            !names.TryReadClassName(widget, out var className))
+            !memory.TryRead(component + Offsets.HpBarWidgetWeak + Offsets.WeakPtrSerial, out int serial))
             return false;
+        if (serial == 0) return true;
+        if (!memory.TryReadGObject(moduleBase, index, out var found, out var itemSerial)) return false;
+        if (itemSerial != serial) return true;
+        if (!names.TryReadClassName(found, out var className)) return false;
+        widget = found;
 
         if (className == Offsets.HpBarNormalClassName) trackOffset = Offsets.HpBarNormalTrack;
         else if (className == Offsets.HpBarEliteClassName) trackOffset = Offsets.HpBarEliteTrack;
