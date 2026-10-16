@@ -31,11 +31,11 @@ internal sealed class FakeUi
 
     public nint Overlay { get; }
 
-    public nint Slate(Vector2 position, Vector2 size, float scale = 1)
+    public nint Slate(Vector2 position, Vector2 size, float scale = 1, float? scaleY = null)
     {
         var widget = _world.Alloc(0x1000);
         _world.Memory.WriteArray(widget + Offsets.SWidgetSize, new[] { size.X, size.Y });
-        _world.Memory.WriteArray(widget + Offsets.SWidgetTransform, new[] { scale, 0, 0, scale, position.X, position.Y });
+        _world.Memory.WriteArray(widget + Offsets.SWidgetTransform, new[] { scale, 0, 0, scaleY ?? scale, position.X, position.Y });
         return widget;
     }
 
@@ -57,6 +57,21 @@ internal sealed class FakeUi
         _world.Memory.Write(widget + Offsets.UWidgetVisibility, visibility);
         WeakPtr(widget + Offsets.UWidgetSlate, Slate(position, size));
         return widget;
+    }
+
+    public (nint Component, nint Widget, nint Track) AddHpBar(FakeEntity monster, string widgetClass, int trackOffset, Vector2 position, Vector2 size, float scaleX, float scaleY, byte widgetVisibility = 4, byte trackVisibility = 3)
+    {
+        var component = _world.AddComponents(monster.Value, Offsets.HpBarComponentClassName)[0];
+        _world.Memory.Write(component + Offsets.ComponentEntity, monster.Value);
+        var widget = _world.AddObject(_world.AddClass(widgetClass), "HpBar");
+        _world.Memory.Write(widget + Offsets.UWidgetVisibility, widgetVisibility);
+        var track = Widget(_world.AddClass("Image"), "Track", position, size, trackVisibility);
+        WeakPtr(track + Offsets.UWidgetSlate, Slate(position, size, scaleX, scaleY));
+        _world.Memory.Write(widget + trackOffset, track);
+        _world.SetObjectSerial(widget, 5);
+        _world.Memory.Write(component + Offsets.HpBarWidgetWeak, _world.ObjectIndex(widget));
+        _world.Memory.Write(component + Offsets.HpBarWidgetWeak + Offsets.WeakPtrSerial, 5);
+        return (component, widget, track);
     }
 
     public void AddRoot(nint userWidget)

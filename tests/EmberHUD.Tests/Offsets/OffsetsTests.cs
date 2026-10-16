@@ -175,6 +175,18 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void TheHpBarKeysAreTheProbedValues()
+    {
+        Assert.Equal("ERoleUIComponent", Offsets.HpBarComponentClassName);
+        Assert.Equal(0xC0, Offsets.ComponentEntity);
+        Assert.Equal(0x128, Offsets.HpBarWidgetWeak);
+        Assert.Equal("HpBarMonster_C", Offsets.HpBarNormalClassName);
+        Assert.Equal("HpBarMonsterElite_C", Offsets.HpBarEliteClassName);
+        Assert.Equal(0x308, Offsets.HpBarNormalTrack);
+        Assert.Equal(0x2E0, Offsets.HpBarEliteTrack);
+    }
+
+    [Fact]
     public void NpcNameKeyIsTheNpcNameLocPrefix()
     {
         Assert.Equal("npc|name|", Offsets.NpcNameKey);

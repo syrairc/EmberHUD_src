@@ -184,6 +184,15 @@ internal sealed class FakeWorld
         return _chunkTable;
     }
 
+    public uint ObjectIndex(nint obj) => (uint)_objects.Single(o => o.Value == obj).Key;
+
+    public void SetObjectSerial(nint obj, int serial)
+    {
+        var index = _objects.Single(o => o.Value == obj).Key;
+        _serials[index] = serial;
+        PlaceObject(index, obj);
+    }
+
     public (nint Object, nint Chunks) SetLocalPlayer(uint entityId, uint index = 77)
     {
         var manager = Alloc(0x100);
