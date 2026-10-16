@@ -12,7 +12,9 @@ public static class BarTextures
     const int Height = 32;
     static readonly string[] BuiltIns = ["Flat", "Gradient", "Gloss", "Bevel"];
     static readonly HashSet<string> Warned = [];
+    static readonly string FallbackKey = Key("Flat");
     static List<string> _names = [.. BuiltIns];
+    static Dictionary<string, string> _keys = Index(BuiltIns);
 
     internal static Func<string, string, bool> PngLoader { get; set; } = Textures.LoadPng;
 
@@ -34,14 +36,18 @@ public static class BarTextures
             if (PngLoader(Key(name), path)) names.Add(name);
             else if (Warned.Add(path)) Log.Warn($"Nameplates: skipped unreadable texture {path}");
         }
+        _keys = Index(names);
         _names = names;
     }
 
     public static Sprite? Get(string name)
     {
-        var known = _names.FirstOrDefault(candidate => candidate.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? Fallback;
-        return Textures.TryGet(Key(known), out var sprite) ? sprite : null;
+        if (!_keys.TryGetValue(name, out var key)) key = FallbackKey;
+        return Textures.TryGet(key, out var sprite) ? sprite : null;
     }
+
+    static Dictionary<string, string> Index(IEnumerable<string> names) =>
+        names.ToDictionary(name => name, Key, StringComparer.OrdinalIgnoreCase);
 
     internal static string[] Scan(string folder)
     {

@@ -80,6 +80,24 @@ public sealed class BarTexturesTests
     }
 
     [Test]
+    public void GetIsCaseInsensitiveForKnownNamesAndFallsBackForUnknown()
+    {
+        var gloss = new Sprite(default, new Vector2(3, 3), Vector2.One);
+        var flat = new Sprite(default, new Vector2(7, 7), Vector2.One);
+        TestGame.UseTextures(null, key => key == "nameplates/Gloss" ? gloss : key == "nameplates/Flat" ? flat : null);
+        try
+        {
+            WithFolder(folder => BarTextures.Load(folder));
+            Check.Equal(gloss, BarTextures.Get("gLOSS"));
+            Check.Equal(flat, BarTextures.Get("missing"));
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
+    }
+
+    [Test]
     public void DropInFolderPngsAreListedAfterTheBuiltIns() => WithFolder(folder =>
     {
         BarTextures.Load(folder);
