@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Obfuscator>
+  <Var name="InPath" value="%EMBERHUD_PUBLISH%" />
+  <Var name="OutPath" value="%EMBERHUD_OBFUSCATED%" />
+  <Var name="KeepPublicApi" value="true" />
+  <Var name="HidePrivateApi" value="true" />
+  <Var name="RenameFields" value="true" />
+  <Var name="RenameProperties" value="true" />
+  <Var name="RenameEvents" value="true" />
+  <Var name="HideStrings" value="false" />
+  <Var name="OptimizeMethods" value="false" />
+  <Var name="SkipGenerated" value="true" />
+  <Var name="UseUnicodeNames" value="false" />
+  <Var name="ReuseNames" value="true" />
+  <AssemblySearchPath path="%EMBERHUD_FRAMEWORK%" />
+  <Module file="$(InPath)\Ember.dll" />
+  <Module file="$(InPath)\EmberSetup.dll" />
+  <Module file="$(InPath)\EmberLauncher.dll" />
+</Obfuscator>

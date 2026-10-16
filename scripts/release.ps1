@@ -1,9 +1,14 @@
-param([string]$Out = (Join-Path $PSScriptRoot '..\..\dist'))
+param([string]$Out, [switch]$Public)
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
+$outName = $Public ? 'release' : 'dist'
+if (-not $Out) { $Out = Join-Path $PSScriptRoot "..\..\$outName" }
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
+$skipPlugins = 'bin', 'obj'
+if ($Public) { $skipPlugins += 'Inspector', 'Sample', 'Mcp' }
 $work = Join-Path ([IO.Path]::GetTempPath()) "emberhud-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
+$obfuscated = Join-Path $work 'obfuscated'
 $ship = @(
     'Ember.exe'
     'Ember.dll'
@@ -43,15 +48,17 @@ $assets = @(
 
 if ($Out.StartsWith('\\')) { throw "$Out is a UNC or device path - refusing to wipe it" }
 if ($Out -ieq $src -or "$src\".StartsWith("$Out\", [StringComparison]::OrdinalIgnoreCase)) { throw "$Out is the src dir or an ancestor of it - refusing to wipe it" }
-if ((Split-Path $Out -Leaf) -ine 'dist') { throw "$Out is not named dist - refusing to wipe it" }
-if (-not (Test-Path -LiteralPath (Join-Path $Out '.git'))) { throw "$Out is not a git repo root - refusing to wipe it" }
+if ((Split-Path $Out -Leaf) -ine $outName) { throw "$Out is not named $outName - refusing to wipe it" }
+if ($Public) { [IO.Directory]::CreateDirectory($Out) | Out-Null }
+elseif (-not (Test-Path -LiteralPath (Join-Path $Out '.git'))) { throw "$Out is not a git repo root - refusing to wipe it" }
+if ($Public -and -not (Test-Path -LiteralPath "$src/scripts/README.release.md")) { throw "$src/scripts/README.release.md is missing" }
 
 foreach ($asset in $assets) {
     foreach ($pattern in $asset.Include) {
         if (-not (Get-ChildItem (Join-Path "$src/$($asset.Dir)" $pattern) -File -ErrorAction SilentlyContinue)) { throw "nothing matching $pattern in $src/$($asset.Dir)" }
     }
 }
-if (-not (Get-ChildItem "$src/Plugins" -Directory -ErrorAction SilentlyContinue | Where-Object Name -notin 'bin', 'obj')) { throw "no plugin sources under $src/Plugins" }
+if (-not (Get-ChildItem "$src/Plugins" -Directory -ErrorAction SilentlyContinue | Where-Object Name -notin $skipPlugins)) { throw "no plugin sources under $src/Plugins" }
 
 $userData = 'Config', 'Cache', 'Logs', 'imgui.ini', 'GameIcons'
 $assertWipeable = {
@@ -64,6 +71,9 @@ $assertWipeable = {
     if ((Get-ChildItem -LiteralPath $Out -File -Force | Where-Object { $_.Name -like '*.slnx' -or $_.Name -like '*.csproj' }) -or (Test-Path -LiteralPath (Join-Path $Out 'scripts\release.ps1'))) { throw "$Out looks like a source tree - refusing to wipe it" }
 }
 & $assertWipeable
+$envNames = 'EMBERHUD_PUBLISH', 'EMBERHUD_OBFUSCATED', 'EMBERHUD_FRAMEWORK'
+$savedEnv = @{}
+foreach ($name in $envNames) { $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name) }
 $findPrivate = {
     param($items, $root)
     @($items | Where-Object {
@@ -86,10 +96,11 @@ try {
 
     $plugins = Join-Path $publish 'Plugins'
     Remove-Item $plugins -Recurse -Force -ErrorAction SilentlyContinue
-    foreach ($plugin in Get-ChildItem "$src/Plugins" -Directory | Where-Object Name -notin 'bin', 'obj') {
+    foreach ($plugin in Get-ChildItem "$src/Plugins" -Directory | Where-Object Name -notin $skipPlugins) {
         foreach ($file in Get-ChildItem $plugin.FullName -Recurse -File) {
             $relative = $file.FullName.Substring($plugin.FullName.Length)
             if ($relative -match '[\\/](bin|obj)[\\/]') { continue }
+            if ($Public -and $relative -match '^[\\/]Tests[\\/]') { continue }
             if ($file.Extension -ne '.cs' -and $file.Name -ne 'defaults.json' -and $relative -notmatch '^[\\/]Icons[\\/][^\\/]+\.svg$') { continue }
             $target = Join-Path $plugins "$($plugin.Name)$relative"
             New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
@@ -107,6 +118,42 @@ try {
             if (-not $found) { throw "nothing matching $pattern in $src/$($asset.Dir)" }
             $found | Copy-Item -Destination $target
         }
+    }
+
+    $dlls = 'Ember.dll', 'EmberSetup.dll', 'EmberLauncher.dll'
+    $plainHashes = @{}
+    $obfuscatedHashes = @{}
+    foreach ($name in $dlls) { $plainHashes[$name] = (Get-FileHash (Join-Path $publish $name)).Hash }
+
+    $dotnet = Split-Path (Get-Command dotnet).Source
+    $framework = Get-ChildItem "$dotnet/packs/Microsoft.NETCore.App.Ref" -Directory | Where-Object Name -match '^10\.0\.\d+$' | Sort-Object { [version]$_.Name } | Select-Object -Last 1
+    if (-not $framework) { throw "no .NET 10 reference pack under $dotnet/packs" }
+    $env:EMBERHUD_PUBLISH = $publish
+    $env:EMBERHUD_OBFUSCATED = $obfuscated
+    $env:EMBERHUD_FRAMEWORK = Join-Path $framework.FullName 'ref\net10.0'
+    if (-not (Test-Path $env:EMBERHUD_FRAMEWORK)) { throw "missing $env:EMBERHUD_FRAMEWORK" }
+    $obfuscarXml = Join-Path $work 'obfuscar.generated.xml'
+    (Get-Content "$src/scripts/obfuscar.xml" -Raw).
+        Replace('%EMBERHUD_PUBLISH%', $publish).
+        Replace('%EMBERHUD_OBFUSCATED%', $obfuscated).
+        Replace('%EMBERHUD_FRAMEWORK%', $env:EMBERHUD_FRAMEWORK) |
+        Set-Content -LiteralPath $obfuscarXml
+    Push-Location $src
+    try {
+        dotnet tool restore
+        if ($LASTEXITCODE) { throw "dotnet tool restore failed (exit $LASTEXITCODE)" }
+        dotnet tool run obfuscar.console $obfuscarXml
+        if ($LASTEXITCODE) { throw "obfuscar failed (exit $LASTEXITCODE)" }
+    }
+    finally { Pop-Location }
+
+    foreach ($name in $dlls) {
+        $obfuscatedDll = Join-Path $obfuscated $name
+        if (-not (Test-Path $obfuscatedDll)) { throw "obfuscar wrote no $name to $obfuscated" }
+        $obfuscatedHash = (Get-FileHash $obfuscatedDll).Hash
+        if ($obfuscatedHash -eq $plainHashes[$name]) { throw "obfuscar output for $name is byte-identical to its input" }
+        $obfuscatedHashes[$name] = $obfuscatedHash
+        Copy-Item $obfuscatedDll (Join-Path $publish $name) -Force
     }
 
     $folders = @('Plugins') + $assets.Dir
@@ -133,17 +180,24 @@ try {
 
     & $assertWipeable
     [IO.Directory]::CreateDirectory($Out) | Out-Null
-    Get-ChildItem -LiteralPath $Out -Force | Where-Object { $_.Name -notin @('.git', '.gitignore', 'README.md') + $userData -and -not (-not $_.PSIsContainer -and $_.Name -in 'LICENSE', 'LICENSE.md', 'LICENSE.txt') } | Remove-Item -Recurse -Force
+    $keep = if ($Public) { '.git', '.gitignore' } else { @('.git', '.gitignore', 'README.md') + $userData }
+    Get-ChildItem -LiteralPath $Out -Force | Where-Object { $_.Name -notin $keep -and -not (-not $Public -and -not $_.PSIsContainer -and $_.Name -in 'LICENSE', 'LICENSE.md', 'LICENSE.txt') } | Remove-Item -Recurse -Force
     $files | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } } | Copy-Item -Destination $Out
     foreach ($dir in $folders) { Copy-Item (Join-Path $publish $dir) $Out -Recurse }
     Copy-Item "$src/scripts/steam/*.reg" $Out
+    if ($Public) { Copy-Item "$src/scripts/README.release.md" (Join-Path $Out 'README.md') }
 
     $root = (Resolve-Path -LiteralPath $Out).Path
     $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and ($_.FullName.Substring($root.Length + 1) -split '[\\/]')[0] -notin $userData }) $root
     if ($private) { throw "private files in $root - $($private.FullName -join ', ')" }
 
-    Write-Host "release ready in $root"
+    foreach ($name in $dlls) {
+        if ((Get-FileHash -LiteralPath (Join-Path $root $name)).Hash -ne $obfuscatedHashes[$name]) { throw "$root/$name is not the obfuscated build" }
+    }
+
+    Write-Host "release ready in $root - the obfuscation map was at $obfuscated\Mapping.txt, already deleted with the temp work dir"
 }
 finally {
+    foreach ($name in $envNames) { [Environment]::SetEnvironmentVariable($name, $savedEnv[$name]) }
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 }
