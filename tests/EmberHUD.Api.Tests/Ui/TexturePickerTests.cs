@@ -1,3 +1,4 @@
+using System.Drawing;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
@@ -7,6 +8,8 @@ public class TexturePickerTests : IDisposable
 {
     const string Window = "texpicker";
 
+    Func<string, Sprite?> preview = _ => null;
+    Color? tint;
     string value = "";
     bool changed;
     string[] names = [];
@@ -15,7 +18,7 @@ public class TexturePickerTests : IDisposable
     void Body()
     {
         origin = ImGui.GetCursorScreenPos();
-        changed |= TexturePicker.Combo("Icon", ref value, names, _ => null, "icon");
+        changed |= TexturePicker.Combo("Icon", ref value, names, preview, "icon", tint);
     }
 
     void Idle() => UiFrame.Run(Window, Body);
@@ -65,5 +68,39 @@ public class TexturePickerTests : IDisposable
         Idle();
         Assert.False(changed);
         Assert.Equal("x", value);
+    }
+
+    [Fact]
+    public void PickingFirstNameWhileValueIsUnknownChanges()
+    {
+        names = ["a", "b"];
+        value = "zzz";
+        Open();
+        PickRow(0);
+        Assert.True(changed);
+        Assert.Equal("a", value);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreviewDrawsIntoThePopupListNotTheBackground(bool tinted)
+    {
+        names = ["a", "b"];
+        value = "a";
+        tint = tinted ? Color.Red : null;
+        var sprite = new Sprite(new ImTextureRef { TexID = new ImTextureID(1ul) }, Vector2.Zero, Vector2.One);
+        var previewed = 0;
+        var inPopupList = true;
+        preview = _ =>
+        {
+            previewed++;
+            inPopupList &= !ImGui.GetWindowDrawList().Equals(ImGui.GetBackgroundDrawList());
+            return sprite;
+        };
+        Open();
+        Idle();
+        Assert.True(previewed >= 2);
+        Assert.True(inPopupList);
     }
 }

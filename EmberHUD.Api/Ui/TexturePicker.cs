@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Numerics;
 using Hexa.NET.ImGui;
 
@@ -7,7 +8,7 @@ public static class TexturePicker
 {
     const float PreviewWidth = 48f;
 
-    public static bool Combo(string label, ref string value, IReadOnlyList<string> names, Func<string, Sprite?> preview, string? id = null)
+    public static bool Combo(string label, ref string value, IReadOnlyList<string> names, Func<string, Sprite?> preview, string? id = null, Color? tint = null)
     {
         var changed = false;
         var shown = names.Contains(value) ? value : names.Count > 0 ? names[0] : "";
@@ -19,7 +20,7 @@ public static class TexturePicker
                 var selected = ImGui.Selectable(name + "##" + name, name == shown);
                 var min = ImGui.GetItemRectMin();
                 var max = ImGui.GetItemRectMax();
-                if (preview(name) is { } sprite) Draw.Image(sprite, new Vector2(max.X - PreviewWidth, min.Y), max);
+                if (preview(name) is { } sprite) Draw.Image(sprite, new Vector2(max.X - PreviewWidth, min.Y), max, tint, ImGui.GetWindowDrawList());
                 if (!selected || name == value) continue;
                 value = name;
                 changed = true;
