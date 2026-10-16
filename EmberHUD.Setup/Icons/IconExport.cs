@@ -36,7 +36,17 @@ internal static partial class IconExport
         try
         {
             var files = OpenPaks(paks, key, opened, progress);
-            var config = UAsset.MapIconConfig(Read(files, "UE_game/Content/Script/Data/ConfigView/config_map_icon.bin") ?? throw new InvalidDataException("config_map_icon.bin not found in the paks - game patched?"));
+            var configBytes = Read(files, "UE_game/Content/Script/Data/ConfigView/config_map_icon_ChunkA0.bin") ?? throw new InvalidDataException("config_map_icon_ChunkA0.bin not found in the paks - game patched?");
+            List<MapIconRow> config;
+            try
+            {
+                config = UAsset.MapIconConfig(configBytes);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or OverflowException or IndexOutOfRangeException or ArgumentOutOfRangeException)
+            {
+                progress($"config_map_icon_ChunkA0.bin layout changed, skipping ({ex.GetType().Name}) - icons under MiniMap/NoAtlasMap/AtlasMap still export");
+                config = [];
+            }
             var (byShort, wanted) = FindWanted(files, config);
 
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
