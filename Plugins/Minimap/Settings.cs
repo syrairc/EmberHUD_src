@@ -136,16 +136,28 @@ public sealed class IconsTab
         foreach (var icon in icons)
         {
             if (string.IsNullOrEmpty(icon.Texture)) continue;
+            var name = IconPresets.NameFor(icon.Texture) ?? icon.Name;
             if (FoundFor(icon.Texture) is { } existing)
             {
-                if (existing.Name == existing.Key && !string.IsNullOrEmpty(icon.Name)) existing.Name = icon.Name;
+                if ((existing.Name == existing.Key || existing.Name == icon.Name) && !string.IsNullOrEmpty(name)) existing.Name = name;
                 continue;
             }
-            var row = new IconStyle { Key = icon.Texture, Name = string.IsNullOrEmpty(icon.Name) ? icon.Texture : icon.Name, Icon = EmberHUD.Draw.GameIconPrefix + icon.Texture };
-            Found.Add(row);
-            _found[row.Key] = row;
-            _foundCount = Found.Count;
+            AddFound(icon.Texture, string.IsNullOrEmpty(name) ? icon.Texture : name);
         }
+    }
+
+    public void SeedPresets()
+    {
+        foreach (var (texture, name) in IconPresets.All)
+            if (FoundFor(texture) is null) AddFound(texture, name);
+    }
+
+    void AddFound(string texture, string name)
+    {
+        var row = new IconStyle { Key = texture, Name = name, Icon = EmberHUD.Draw.GameIconPrefix + texture };
+        Found.Add(row);
+        _found[row.Key] = row;
+        _foundCount = Found.Count;
     }
 }
 
@@ -210,6 +222,7 @@ public sealed class Settings : PluginSettings
     internal bool DrawIcons()
     {
         var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
+        Icons.SeedPresets();
         changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
         changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
         changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");

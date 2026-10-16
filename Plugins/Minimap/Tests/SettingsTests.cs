@@ -47,12 +47,12 @@ public sealed class SettingsTests
     public void DiscoveryAddsEachTextureOnceAndSkipsEmptyOnes()
     {
         var s = new Settings();
-        s.Icons.Discover([Icon("UI_MiniMap_Portal", "Portal"), Icon(""), Icon("UI_MiniMap_Portal", "Portal"), Icon("UI_MiniMap_BOSS")]);
+        s.Icons.Discover([Icon("Tex1", "Portal"), Icon(""), Icon("Tex1", "Portal"), Icon("Tex2")]);
         Check.Equal(2, s.Icons.Found.Count);
-        var portal = s.Icons.FoundFor("UI_MiniMap_Portal")!;
+        var portal = s.Icons.FoundFor("Tex1")!;
         Check.Equal("Portal", portal.Name);
-        Check.Equal("game:UI_MiniMap_Portal", portal.Icon);
-        Check.Equal("UI_MiniMap_BOSS", s.Icons.FoundFor("UI_MiniMap_BOSS")!.Name);
+        Check.Equal("game:Tex1", portal.Icon);
+        Check.Equal("Tex2", s.Icons.FoundFor("Tex2")!.Name);
         Check.That(s.Icons.FoundFor("") is null);
     }
 
@@ -65,6 +65,35 @@ public sealed class SettingsTests
         s.Icons.Discover([Icon("A", "S15MonsterNormal"), Icon("B", "Chest")]);
         Check.Equal("S15MonsterNormal", s.Icons.FoundFor("A")!.Name);
         Check.Equal("My chest", s.Icons.FoundFor("B")!.Name);
+    }
+
+    [Test]
+    public void APresetNameBeatsTheGamesInternalName()
+    {
+        var s = new Settings();
+        s.Icons.Discover([Icon("UI_MiniMap_cangku", "wanjiacangku")]);
+        Check.Equal("Player Stash / Stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
+        s.Icons.Found = [new IconStyle { Key = "UI_MiniMap_cangku", Name = "wanjiacangku" }];
+        s.Icons.Discover([Icon("UI_MiniMap_cangku", "wanjiacangku")]);
+        Check.Equal("Player Stash / Stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
+        s.Icons.FoundFor("UI_MiniMap_cangku")!.Name = "My stash";
+        s.Icons.Discover([Icon("UI_MiniMap_cangku", "wanjiacangku")]);
+        Check.Equal("My stash", s.Icons.FoundFor("UI_MiniMap_cangku")!.Name);
+    }
+
+    [Test]
+    public void SeedingAddsEveryPresetOnceAndKeepsRenamedRows()
+    {
+        var s = new Settings();
+        s.Icons.Found = [new IconStyle { Key = "UI_MiniMap_Portal", Name = "Mine", Show = false }];
+        s.Icons.SeedPresets();
+        var count = s.Icons.Found.Count;
+        s.Icons.SeedPresets();
+        Check.Equal(count, s.Icons.Found.Count);
+        Check.Equal(IconPresets.All.Length, count);
+        Check.Equal("Mine", s.Icons.FoundFor("UI_MiniMap_Portal")!.Name);
+        Check.That(!s.Icons.FoundFor("UI_MiniMap_Portal")!.Show);
+        Check.Equal("game:UI_MiniMap_BOSS", s.Icons.FoundFor("UI_MiniMap_BOSS")!.Icon);
     }
 
     [Test]
