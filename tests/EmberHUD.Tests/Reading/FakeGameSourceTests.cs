@@ -241,6 +241,39 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void QuestTargetsAreSeveralWalkableCellsAllCycle()
+    {
+        var terrain = At(0).Terrain!;
+        Assert.True(FakeGameSource.QuestTargetsAt(0).Length >= 3);
+        foreach (var second in Enumerable.Range(0, 60))
+            Assert.All(FakeGameSource.QuestTargetsAt(second * Stopwatch.Frequency), target =>
+                Assert.True(terrain.IsWalkable((int)(target.Position.X / terrain.CellSize), (int)(target.Position.Y / terrain.CellSize))));
+    }
+
+    [Fact]
+    public void OneQuestTargetMoves()
+    {
+        var first = FakeGameSource.QuestTargetsAt(0);
+        var later = FakeGameSource.QuestTargetsAt(10 * Stopwatch.Frequency);
+        Assert.Contains(first, a => later.Any(b => b.Id == a.Id && b.Position != a.Position));
+    }
+
+    [Fact]
+    public void OneQuestTargetComesAndGoes()
+    {
+        var present = Enumerable.Range(0, 60).Select(s => FakeGameSource.QuestTargetsAt(s * Stopwatch.Frequency).Select(t => t.Id).ToHashSet()).ToList();
+        var ids = present.SelectMany(p => p).Distinct();
+        Assert.Contains(ids, id => present.Any(p => p.Contains(id)) && present.Any(p => !p.Contains(id)));
+    }
+
+    [Fact]
+    public void TryReadPublishesTheFakeQuestTargets()
+    {
+        var now = 5 * Stopwatch.Frequency;
+        Assert.Equal(FakeGameSource.QuestTargetsAt(now), At(now).QuestTargets);
+    }
+
+    [Fact]
     public void SomeLapsOfPageOneHaveASoldListingAndSomeDoNot()
     {
         var second = Stopwatch.Frequency;

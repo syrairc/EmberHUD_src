@@ -64,6 +64,13 @@ public sealed record GameState
     public WoodStakeStats? WoodStake { get; init; }
 
     public CombatStats? Combat { get; init; }
+
+    public QuestTarget[] QuestTargets { get; init; } = [];
+}
+
+public readonly record struct QuestTarget(int Id, Vector2 Position)
+{
+    public string Name { get; init; } = "";
 }
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
