@@ -26,10 +26,33 @@ public class EntityNamerTests
     }
 
     [Fact]
-    public void AllyUsesTheSameKey()
+    public void AllyUsesTheServantKey()
     {
-        var world = WorldWith((Offsets.NpcNameKey + 5, "Helper"));
-        Assert.Equal("Helper", NamerFor(world).Apply([Make(EntityKind.Ally, 5)])[0].Name);
+        var world = WorldWith((Offsets.ServantNameKey + 5320, "Traveling Lizard - Flower"), (Offsets.NpcNameKey + 5320, "Wrong"));
+        Assert.Equal("Traveling Lizard - Flower", NamerFor(world).Apply([Make(EntityKind.Ally, 5320)])[0].Name);
+    }
+
+    [Fact]
+    public void NpcUsesTheNpcViewKey()
+    {
+        var world = WorldWith((Offsets.NpcViewNameKey + 4250, "Aria"), (Offsets.NpcNameKey + 4250, "Wrong"));
+        Assert.Equal("Aria", NamerFor(world).Apply([Make(EntityKind.Npc, 4250)])[0].Name);
+    }
+
+    [Fact]
+    public void AMissInOneTableDoesNotHideTheSameIdInAnother()
+    {
+        var world = WorldWith((Offsets.NpcViewNameKey + 5, "Aria"));
+        var named = NamerFor(world).Apply([Make(EntityKind.Monster, 5, 1), Make(EntityKind.Npc, 5, 2)]);
+        Assert.Equal(("", "Aria"), (named[0].Name, named[1].Name));
+    }
+
+    [Fact]
+    public void PlayerNamesFromTheReaderAreKept()
+    {
+        var world = WorldWith((Offsets.NpcNameKey + 54, "Wrong"));
+        var player = Make(EntityKind.Player, 54) with { Name = "Terayen#8674" };
+        Assert.Equal("Terayen#8674", NamerFor(world).Apply([player])[0].Name);
     }
 
     [Fact]

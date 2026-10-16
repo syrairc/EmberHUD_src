@@ -222,6 +222,26 @@ internal sealed class FakeWorld
         return obj;
     }
 
+    public nint[] AddComponents(nint actor, params string[] classNames)
+    {
+        var components = classNames.Select(name =>
+        {
+            var component = Alloc(0x400);
+            Memory.Write(component + Offsets.UObjectClass, AddClass(name));
+            return component;
+        }).ToArray();
+        WriteMapAt(actor + Offsets.EntityComponents, [.. components.Select((c, i) => ((int, nint)?)(i + 1, c))]);
+        return components;
+    }
+
+    public void WriteFString(nint at, string text)
+    {
+        var chars = Alloc((text.Length + 1) * sizeof(char));
+        Memory.WriteArray(chars, (text + "\0").ToCharArray());
+        Memory.Write(at, chars);
+        Memory.Write(at + Offsets.FStringNum, text.Length + 1);
+    }
+
     public FakeMinimap AddMinimap(float? rotate, string className = "MiniMap_C", string objectName = "MiniMap_C", bool placeInTable = true)
     {
         var widget = Alloc(0x900);

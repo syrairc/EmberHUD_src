@@ -2,7 +2,7 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class EntityNamer(LocText loc)
 {
-    private readonly HashSet<int> _missing = [];
+    private readonly HashSet<(string Table, int Id)> _missing = [];
     private byte _language = byte.MaxValue;
 
     public Entity[] Apply(Entity[] entities)
@@ -14,19 +14,26 @@ internal sealed class EntityNamer(LocText loc)
             _language = language;
         }
 
-        Dictionary<int, string> frame = [];
+        Dictionary<(string, int), string> frame = [];
         var named = false;
         var result = entities;
         for (var i = 0; i < entities.Length; i++)
         {
             var entity = entities[i];
-            if (entity.Kind is not (EntityKind.Monster or EntityKind.Ally) || entity.CfgId <= 0 || _missing.Contains(entity.CfgId)) continue;
-            if (!frame.TryGetValue(entity.CfgId, out var name))
+            var table = entity.Kind switch
             {
-                var readable = loc.TryGet(Offsets.NpcNameKey + entity.CfgId, out var text);
-                if (readable && text is null) _missing.Add(entity.CfgId);
+                EntityKind.Monster => Offsets.NpcNameKey,
+                EntityKind.Npc => Offsets.NpcViewNameKey,
+                EntityKind.Ally => Offsets.ServantNameKey,
+                _ => null,
+            };
+            if (table is null || entity.CfgId <= 0 || _missing.Contains((table, entity.CfgId))) continue;
+            if (!frame.TryGetValue((table, entity.CfgId), out var name))
+            {
+                var readable = loc.TryGet(table + entity.CfgId, out var text);
+                if (readable && text is null) _missing.Add((table, entity.CfgId));
                 name = text ?? "";
-                frame[entity.CfgId] = name;
+                frame[(table, entity.CfgId)] = name;
             }
             if (name.Length == 0) continue;
             if (!named)

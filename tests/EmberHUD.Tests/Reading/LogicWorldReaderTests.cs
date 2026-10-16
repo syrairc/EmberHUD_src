@@ -89,6 +89,64 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void NpcsUseTheNpcIdFromTheirNpcComponent()
+    {
+        var world = new FakeWorld();
+        var npc = world.AddEntity(1, 51, true, 1, 1, 0, mapOffset: Offsets.FightMapNpc);
+        var components = world.AddComponents(npc.Value, "ECfgComponent", Offsets.NpcComponentClassName);
+        world.Memory.Write(components[1] + Offsets.NpcComponentNpcId, 4250);
+        world.PublishEntities(npc);
+        Assert.Equal(4250, Assert.Single(Read(world)).CfgId);
+    }
+
+    [Fact]
+    public void AlliesUseTheRecordCfgId()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(1, 61, true, 1, 1, 0, mapOffset: Offsets.FightMapServant, monsterCfgId: 5320));
+        Assert.Equal(5320, Assert.Single(Read(world)).CfgId);
+    }
+
+    [Fact]
+    public void OtherPlayersCarryTheirCharacterName()
+    {
+        var world = new FakeWorld();
+        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
+        var components = world.AddComponents(player.Value, "ECfgComponent", Offsets.PlayerComponentClassName);
+        world.WriteFString(components[1] + Offsets.PlayerComponentName, "Terayen#8674");
+        world.PublishEntities(player);
+        var entity = Assert.Single(Read(world));
+        Assert.Equal(("Terayen#8674", 54), (entity.Name, entity.CfgId));
+    }
+
+    [Fact]
+    public void UnreadablePlayerNameLeavesTheNameEmpty()
+    {
+        var world = new FakeWorld();
+        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
+        var components = world.AddComponents(player.Value, Offsets.PlayerComponentClassName);
+        world.Memory.Write(components[0] + Offsets.PlayerComponentName, FakeWorld.Unmapped);
+        world.Memory.Write(components[0] + Offsets.PlayerComponentName + Offsets.FStringNum, 5);
+        world.PublishEntities(player);
+        Assert.Equal("", Assert.Single(Read(world)).Name);
+    }
+
+    [Fact]
+    public void ComponentsAreReadOncePerEntity()
+    {
+        var world = new FakeWorld();
+        var npc = world.AddEntity(1, 51, true, 1, 1, 0, mapOffset: Offsets.FightMapNpc);
+        var components = world.AddComponents(npc.Value, Offsets.NpcComponentClassName);
+        world.Memory.Write(components[0] + Offsets.NpcComponentNpcId, 4250);
+        world.PublishEntities(npc);
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        reader.ReadWorld(scene, 0);
+        world.Memory.Write(npc.Value + Offsets.EntityComponents + Offsets.TArrayNum, 0);
+        Assert.Equal(4250, Assert.Single(reader.ReadWorld(scene, 0).Entities).CfgId);
+    }
+
+    [Fact]
     public void WalksEveryChainIncludingCollidingKeys()
     {
         var world = new FakeWorld();
