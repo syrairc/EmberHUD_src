@@ -424,7 +424,7 @@ public sealed class RenderTests
 
             Check.Equal(walls + 4, drawn);
             Check.Equal("svg:elite", asked[^1].Icon);
-            Check.Equal(12, asked[^1].Pixels);
+            Check.Equal(24, asked[^1].Pixels);
             Check.Equal(Color.DeepSkyBlue.ToArgb(), asked[^1].Colour.ToArgb());
         }
         finally
@@ -579,8 +579,8 @@ public sealed class RenderTests
                 var list = Draw.Background;
                 main.Render();
                 var quad = Enumerable.Range(list.VtxBuffer.Size - 4, 4).Select(i => list.VtxBuffer[i].Pos).ToArray();
-                Check.Equal(72f, quad.Max(p => p.X) - quad.Min(p => p.X));
-                Check.Equal(72f, quad.Max(p => p.Y) - quad.Min(p => p.Y));
+                Check.Equal(144f, quad.Max(p => p.X) - quad.Min(p => p.X));
+                Check.Equal(144f, quad.Max(p => p.Y) - quad.Min(p => p.Y));
             });
         }
         finally
@@ -609,7 +609,7 @@ public sealed class RenderTests
                 var list = Draw.Background;
                 main.Render();
                 var quads = Enumerable.Range(0, list.VtxBuffer.Size / 4).Select(q => Enumerable.Range(q * 4, 4).Select(i => list.VtxBuffer[i].Pos).ToArray());
-                Check.That(quads.Any(quad => MathF.Abs(quad.Max(p => p.X) - quad.Min(p => p.X) - 48f) < 0.01f), "a 48px icon quad at twice the default zoom");
+                Check.That(quads.Any(quad => MathF.Abs(quad.Max(p => p.X) - quad.Min(p => p.X) - 96f) < 0.01f), "a 96px icon quad at twice the default zoom");
             });
         }
         finally

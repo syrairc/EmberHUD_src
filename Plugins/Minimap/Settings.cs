@@ -75,15 +75,15 @@ public sealed class IconsTab
     public float ZoomScaleFactor = 0.5f;
     public float ZoomScaleMin = 0.5f;
     public float ZoomScaleMax = 2;
-    public IconStyle NormalMonsters = Row("Normal monsters", "marker:Dot", 0xEBEBEB, 0.75f);
-    public IconStyle MagicMonsters = Row("Magic monsters", "marker:Dot", 0x598CFF, 0.75f);
-    public IconStyle RareMonsters = Row("Rare monsters", "svg:elite", 0xFFD933, 1.25f);
-    public IconStyle Bosses = Row("Bosses", "svg:elite", 0xD94DFF, 1.75f);
-    public IconStyle Minions = Row("Minions", "marker:Dot", 0x4DE64D, 0.75f, false);
-    public IconStyle Npcs = Row("NPCs", "marker:Square", 0x4DFF4D, 1.25f);
+    public IconStyle NormalMonsters = Row("Normal monsters", "marker:Dot", 0xEBEBEB, 1);
+    public IconStyle MagicMonsters = Row("Magic monsters", "marker:Dot", 0x598CFF, 1);
+    public IconStyle RareMonsters = Row("Rare monsters", "svg:elite", 0xFFD933, 1);
+    public IconStyle Bosses = Row("Bosses", "svg:elite", 0xD94DFF, 1);
+    public IconStyle Minions = Row("Minions", "marker:Dot", 0x4DE64D, 1, false);
+    public IconStyle Npcs = Row("NPCs", "marker:Square", 0x4DFF4D, 1);
     public IconStyle OtherPlayers = Row("Other players", "marker:Dot", 0x4DE6FF, 1);
-    public IconStyle MapObjects = Row("Map objects", "marker:Diamond", 0xC0C0C0, 0.75f);
-    public IconStyle Destructibles = Row("Destructibles", "marker:Triangle", 0xA0703C, 0.75f);
+    public IconStyle MapObjects = Row("Map objects", "marker:Diamond", 0xC0C0C0, 1);
+    public IconStyle Destructibles = Row("Destructibles", "marker:Triangle", 0xA0703C, 1);
     public List<IconStyle> Found = [];
 
     Dictionary<string, IconStyle> _found = new(StringComparer.Ordinal);
@@ -221,10 +221,10 @@ public sealed class Settings : PluginSettings
 
     internal bool DrawIcons()
     {
-        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         Icons.SeedPresets();
         changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
         changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
+        var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
         changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
         changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
@@ -268,7 +268,7 @@ public sealed class Settings : PluginSettings
         ImGui.TableNextColumn();
         changed |= ImGui.Checkbox("##show", ref row.Show);
         ImGui.TableNextColumn();
-        changed |= Controls.IconPicker("icon", ref row.Icon, ref row.Colour, ref row.Scale, resetIcon: fixedDefault?.Icon ?? EmberHUD.Draw.GameIconPrefix + row.Key, resetColour: fixedDefault?.Colour, resetScale: fixedDefault?.Scale ?? 1, baseSize: fixedRow ? Main.MarkerRadius * 2 : 24);
+        changed |= Controls.IconPicker("icon", ref row.Icon, ref row.Colour, ref row.Scale, 0.1f, 10f, resetIcon: fixedDefault?.Icon ?? EmberHUD.Draw.GameIconPrefix + row.Key, resetColour: fixedDefault?.Colour, resetScale: fixedDefault?.Scale ?? 1, baseSize: fixedRow ? Main.MarkerRadius * 2 : 48);
         using (Layout.Dim(!row.Show))
         {
             ImGui.TableNextColumn();

@@ -23,10 +23,10 @@ public sealed class Main : Plugin<Settings>
     readonly HashSet<int> _overridden = [];
     readonly HashSet<int> _iconEntities = [];
     MapIcon[]? _indexedIcons;
-    internal const float MarkerRadius = 4;
+    internal const float MarkerRadius = 8;
     internal const int TaskRingType = 1002;
     static readonly Color TaskRingColour = Color.FromArgb(0xFF, 0xD8, 0x40);
-    const float GameIconSize = 24;
+    const float GameIconSize = 48;
 
     bool WallsStyle => Settings.Map.DrawStyle == MapStyle.Walls;
 
