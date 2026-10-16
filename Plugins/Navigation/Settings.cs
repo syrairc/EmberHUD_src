@@ -54,12 +54,17 @@ public sealed class Settings : PluginSettings
 
     public override void Draw() => Layout.TabBar("navigation",
         ("General", DrawGeneral),
-        ("Ground", () => DrawStyle("Ground", GroundStyle, "Particle radius in world units")),
-        ("Minimap", () => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels")),
+        ("Ground", DrawGround),
+        ("Minimap", DrawMinimap),
         ("Legend", DrawLegend),
-        ("Labels", DrawLabels));
+        ("Labels", DrawLabels),
+        ("Hotkeys", Controls.PluginHotkeys));
 
-    void DrawLegend()
+    internal void DrawGround() => DrawStyle("Ground", GroundStyle, "Particle radius in world units");
+
+    internal void DrawMinimap() => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels");
+
+    internal void DrawLegend()
     {
         Setting.Checkbox("Show", ref Legend.Show, "A movable list of every path with its colour, name and distance", id: "LegendShow");
         Setting.Checkbox("Lock", ref Legend.Lock, "A locked panel ignores the mouse - hold the move key to drag or resize it anyway");
@@ -71,7 +76,7 @@ public sealed class Settings : PluginSettings
         Setting.Style("Text", Legend.Text);
     }
 
-    void DrawLabels()
+    internal void DrawLabels()
     {
         Setting.Checkbox("Show", ref Labels.Show, "A name tag floating beside each path on the ground", id: "LabelsShow");
         Setting.Slider("Along distance", ref Labels.AlongDistance, 0, 3000, "World units along the path from you", id: "LabelsAlong");
@@ -80,9 +85,9 @@ public sealed class Settings : PluginSettings
         Setting.Style("Label", Labels.Label);
     }
 
-    void DrawGeneral()
+    internal void DrawGeneral()
     {
-        Setting.Checkbox("Show", ref General.Show);
+        Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and labels included", id: "GeneralShow");
         Setting.Checkbox("Ground", ref General.Ground, "Particles flow along the path on the ground in the game world");
         Setting.Checkbox("Minimap", ref General.Minimap, "Particles flow along the path on the Minimap plugin's map");
     }
@@ -92,7 +97,7 @@ public sealed class Settings : PluginSettings
         Setting.Slider("Size", ref style.Size, 0.5f, 100, sizeTip, id: name + "Size");
         Setting.Slider("Spacing", ref style.Spacing, 20, 2000, "World units between particles", id: name + "Spacing");
         Setting.Slider("Speed", ref style.Speed, 0, 2000, "World units per second", id: name + "Speed");
-        Setting.Slider("Opacity", ref style.Opacity, 0.05f, 1, id: name + "Opacity");
+        Setting.Slider("Opacity", ref style.Opacity, 0.05f, 1, "How solid the particles and line are", id: name + "Opacity");
         Setting.Slider("Trail", ref style.Trail, 0, 1000, "Length in world units of the fading tail behind each particle, 0 = off", id: name + "Trail");
         Setting.Slider("Base line", ref style.BaseLine, 0, 10, "Thickness in pixels of the faint line under the particles, 0 = off", id: name + "BaseLine");
     }

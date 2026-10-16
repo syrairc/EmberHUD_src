@@ -18,6 +18,8 @@ public sealed class Main : Plugin<Settings>
     internal Func<double> Seconds = () => Environment.TickCount64 / 1000.0;
     readonly Vector2[] _particles = new Vector2[256];
 
+    public override void Initialize() => RegisterHotkey("Toggle paths", "Shows or hides the quest paths, legend and labels", () => Settings.General.Show = !Settings.General.Show);
+
     public override void Tick() => Paths.Update(Game.State, Environment.TickCount64);
 
     internal static bool LegendHidden(Settings settings, GameState state) =>
