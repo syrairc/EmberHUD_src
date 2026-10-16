@@ -172,6 +172,12 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void NpcNameKeyIsTheNpcNameLocPrefix()
+    {
+        Assert.Equal("npc|name|", Offsets.NpcNameKey);
+    }
+
+    [Fact]
     public void EmbeddedTableDecryptsToEveryWantFileString()
     {
         var want = WantEntries().Where(entry => entry.Value.StartsWith('"')).ToDictionary(entry => entry.Key, entry => entry.Value.Trim('"'));
