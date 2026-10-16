@@ -1,0 +1,160 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Numerics;
+using System.Threading.Tasks;
+using EmberHUD;
+
+namespace NavigationPlugin;
+
+internal sealed record PathState(int Id, string Name, Color Colour, Vector2 Target, Vector2[]? Points, float Length);
+
+internal sealed class Paths(Random random)
+{
+    public const float RecomputeDistance = 150f;
+    public const float MatchDistance = 500f;
+
+    sealed class Tracked(int id, Color colour, Vector2 target)
+    {
+        public int Id = id;
+        public Color Colour = colour;
+        public Vector2 Target = target;
+        public string Name = "";
+        public Vector2? Planned;
+        public bool Resolved;
+        public Vector2[]? Points;
+        public float Length;
+    }
+
+    sealed record Result(int Generation, (Tracked Tracked, Vector2[]? Points, float Length)[] Items);
+
+    readonly List<Tracked> tracked = [];
+    int area;
+    int generation;
+    bool busy;
+    bool dirty;
+    Terrain? plannedTerrain;
+    Vector2 plannedStart;
+    volatile Result? done;
+
+    public Func<Terrain, Vector2, Vector2, Vector2[]?> Finder { get; set; } = PathFinder.Find;
+
+    public Action<Action> Runner { get; set; } = job => Task.Run(job);
+
+    public IReadOnlyList<PathState> Current { get; private set; } = [];
+
+    public void Update(GameState state, long nowMilliseconds)
+    {
+        Land();
+        if (state.AreaId != area || state.Terrain is null || state.Player is null) Reset(state.AreaId);
+        if (state.Terrain is { } terrain && state.Player is { } player)
+        {
+            Follow(state.QuestTargets);
+            Dispatch(terrain, new Vector2(player.Position.X, player.Position.Y));
+            Land();
+        }
+        if (dirty) Publish();
+    }
+
+    void Reset(int newArea)
+    {
+        if (newArea == area && tracked.Count == 0) return;
+        area = newArea;
+        generation++;
+        tracked.Clear();
+        plannedTerrain = null;
+        dirty = true;
+    }
+
+    void Follow(QuestTarget[] targets)
+    {
+        var ordered = targets.OrderBy(t => t.Id).ToArray();
+        var live = ordered.Select(t => t.Id).ToHashSet();
+        var vanished = tracked.Where(t => !live.Contains(t.Id)).ToList();
+        var known = tracked.Select(t => t.Id).ToHashSet();
+        var changed = vanished.Count > 0;
+        foreach (var target in ordered)
+        {
+            if (known.Contains(target.Id)) continue;
+            changed = true;
+            var inherit = vanished.OrderBy(v => Vector2.Distance(v.Target, target.Position)).FirstOrDefault(v => Vector2.Distance(v.Target, target.Position) <= MatchDistance);
+            if (inherit is null) continue;
+            vanished.Remove(inherit);
+            inherit.Id = target.Id;
+            known.Add(target.Id);
+        }
+        tracked.RemoveAll(vanished.Contains);
+        foreach (var target in ordered)
+            if (!known.Contains(target.Id))
+                tracked.Add(new Tracked(target.Id, Palette.Pick(tracked.Select(t => t.Colour).ToHashSet(), random), target.Position));
+        tracked.Sort((a, b) => a.Id.CompareTo(b.Id));
+
+        var byId = ordered.ToDictionary(t => t.Id);
+        for (var rank = 0; rank < tracked.Count; rank++)
+        {
+            var item = tracked[rank];
+            var source = byId[item.Id];
+            var name = source.Name.Length > 0 ? source.Name : $"Objective {rank + 1}";
+            if (item.Name != name || item.Target != source.Position) dirty = true;
+            item.Name = name;
+            item.Target = source.Position;
+        }
+        dirty |= changed;
+    }
+
+    void Dispatch(Terrain terrain, Vector2 start)
+    {
+        if (busy || tracked.Count == 0) return;
+        var due = !ReferenceEquals(terrain, plannedTerrain)
+            || Vector2.Distance(start, plannedStart) >= RecomputeDistance
+            || tracked.Any(t => t.Planned is not { } planned || Vector2.Distance(planned, t.Target) > terrain.CellSize);
+        if (!due) return;
+
+        plannedTerrain = terrain;
+        plannedStart = start;
+        busy = true;
+        var jobGeneration = generation;
+        var work = tracked.Select(t => (Tracked: t, Target: t.Target)).ToArray();
+        foreach (var (item, target) in work) item.Planned = target;
+        Runner(() =>
+        {
+            var items = new (Tracked, Vector2[]?, float)[work.Length];
+            for (var i = 0; i < work.Length; i++)
+            {
+                Vector2[]? points = null;
+                try
+                {
+                    points = Finder(terrain, start, work[i].Target);
+                }
+                catch (Exception)
+                {
+                }
+                items[i] = (work[i].Tracked, points, points is null ? 0 : PathFinder.Length(points));
+            }
+            done = new Result(jobGeneration, items);
+        });
+    }
+
+    void Land()
+    {
+        var result = done;
+        if (result is null) return;
+        done = null;
+        busy = false;
+        if (result.Generation != generation) return;
+        foreach (var (item, points, length) in result.Items)
+        {
+            item.Points = points;
+            item.Length = length;
+            item.Resolved = true;
+        }
+        dirty = true;
+    }
+
+    void Publish()
+    {
+        dirty = false;
+        Current = tracked.Where(t => t.Resolved).Select(t => new PathState(t.Id, t.Name, t.Colour, t.Target, t.Points, t.Length)).ToArray();
+    }
+}
