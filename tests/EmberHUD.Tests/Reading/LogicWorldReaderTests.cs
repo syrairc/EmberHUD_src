@@ -146,6 +146,72 @@ public class LogicWorldReaderTests
         Assert.Equal(4250, Assert.Single(reader.ReadWorld(scene, 0).Entities).CfgId);
     }
 
+    private static (Entity First, Entity Second) TwoFrames(FakeWorld world, Action between)
+    {
+        var reader = ReaderFor(world);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+        var first = Assert.Single(reader.ReadWorld(scene, 0).Entities);
+        between();
+        return (first, Assert.Single(reader.ReadWorld(scene, 0).Entities));
+    }
+
+    [Fact]
+    public void UnreadableNpcComponentsAreRetriedNextFrame()
+    {
+        var world = new FakeWorld();
+        var npc = world.AddEntity(1, 51, true, 1, 1, 0, mapOffset: Offsets.FightMapNpc);
+        var components = world.AddComponents(npc.Value, Offsets.NpcComponentClassName);
+        world.Memory.Write(components[0] + Offsets.NpcComponentNpcId, 4250);
+        world.PublishEntities(npc);
+        world.Memory.TryReadPtr(npc.Value + Offsets.EntityComponents, out var data);
+        world.Memory.Write(npc.Value + Offsets.EntityComponents, FakeWorld.Unmapped);
+
+        var (first, second) = TwoFrames(world, () => world.Memory.Write(npc.Value + Offsets.EntityComponents, data));
+        Assert.Equal((51, ""), (first.CfgId, first.Name));
+        Assert.Equal(4250, second.CfgId);
+    }
+
+    [Fact]
+    public void UnreadableServantRecordIsRetriedNextFrame()
+    {
+        var world = new FakeWorld();
+        var servant = world.AddEntity(1, 61, true, 1, 1, 0, mapOffset: Offsets.FightMapServant, monsterCfgId: 5320);
+        world.PublishEntities(servant);
+        world.Memory.TryReadPtr(servant.Value + Offsets.MonsterRecord, out var record);
+        world.Memory.Write(servant.Value + Offsets.MonsterRecord, FakeWorld.Unmapped);
+
+        var (first, second) = TwoFrames(world, () => world.Memory.Write(servant.Value + Offsets.MonsterRecord, record));
+        Assert.Equal((61, ""), (first.CfgId, first.Name));
+        Assert.Equal(5320, second.CfgId);
+    }
+
+    [Fact]
+    public void UnreadablePlayerNameIsRetriedNextFrame()
+    {
+        var world = new FakeWorld();
+        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
+        var name = world.AddComponents(player.Value, Offsets.PlayerComponentClassName)[0] + Offsets.PlayerComponentName;
+        world.WriteFString(name, "Terayen#8674");
+        world.PublishEntities(player);
+        world.Memory.TryReadPtr(name, out var chars);
+        world.Memory.Write(name, FakeWorld.Unmapped);
+
+        var (first, second) = TwoFrames(world, () => world.Memory.Write(name, chars));
+        Assert.Equal("", first.Name);
+        Assert.Equal("Terayen#8674", second.Name);
+    }
+
+    [Fact]
+    public void ZeroNpcIdIsRejected()
+    {
+        var world = new FakeWorld();
+        var npc = world.AddEntity(1, 51, true, 1, 1, 0, mapOffset: Offsets.FightMapNpc);
+        world.AddComponents(npc.Value, Offsets.NpcComponentClassName);
+        world.PublishEntities(npc);
+        var entity = Assert.Single(Read(world));
+        Assert.Equal((51, ""), (entity.CfgId, entity.Name));
+    }
+
     [Fact]
     public void WalksEveryChainIncludingCollidingKeys()
     {
