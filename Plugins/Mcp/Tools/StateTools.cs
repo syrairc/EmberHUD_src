@@ -83,10 +83,7 @@ internal static class StateTools
         {
             json.WriteStartArray("bar");
             foreach (var value in (float[])[bar.Min.X, bar.Min.Y, bar.Width, bar.Height])
-            {
-                if (float.IsFinite(value)) json.WriteNumberValue(Math.Round(value, 2));
-                else json.WriteNullValue();
-            }
+                Num.WriteValue(json, value);
 
             json.WriteEndArray();
         }

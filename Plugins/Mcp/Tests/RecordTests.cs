@@ -140,6 +140,27 @@ public sealed class RecordTests
     }
 
     [Test]
+    public void RecordedRowsCarryTheGameBarOnlyWhenSet()
+    {
+        using var rig = new Rig();
+        var file = Start(rig);
+        var barred = Mob(1, 5, 1) with { GameBar = new ScreenRect(new Vector2(10, 20), new Vector2(110.555f, 30)) };
+        var broken = Mob(2, 6, 1) with { GameBar = new ScreenRect(new Vector2(float.NaN, 20), new Vector2(110, 30)) };
+        Frame(rig, 0, State(0, barred, broken, Mob(3, 7, 1)));
+        Wire.Run(rig.Tools, "record_stop");
+        var line = File.ReadAllLines(Path.Combine(rig.Directory, file))[0];
+        foreach (var entity in new[] { barred, broken, Mob(3, 7, 1) })
+        {
+            var row = StateTools.Row(entity, null).ToJsonString();
+            Check.That(line.Contains(row), row);
+        }
+
+        Check.That(line.Contains("\"bar\":[10,20,100.56,10]"), "bar values");
+        Check.That(line.Contains("\"bar\":[null,"), "NaN item is null");
+        Check.Equal(2, line.Split("\"bar\"").Length - 1, "bar count");
+    }
+
+    [Test]
     public void TheStatusFlagsNeverWaitOnTheWriteLock()
     {
         using var rig = new Rig();
