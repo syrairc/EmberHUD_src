@@ -2,6 +2,11 @@ param([string]$Out, [switch]$Public)
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $outName = $Public ? 'release' : 'dist'
+$versionFile = Join-Path $src 'version.txt'
+if (-not $Out -and -not $Public) {
+    $v = [version](Get-Content $versionFile -Raw).Trim()
+    Set-Content $versionFile "$($v.Major).$($v.Minor).$($v.Build + 1)" -NoNewline
+}
 if (-not $Out) { $Out = Join-Path $PSScriptRoot "..\..\$outName" }
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
 $skipPlugins = 'bin', 'obj'
@@ -71,9 +76,6 @@ $assertWipeable = {
     if ((Get-ChildItem -LiteralPath $Out -File -Force | Where-Object { $_.Name -like '*.slnx' -or $_.Name -like '*.csproj' }) -or (Test-Path -LiteralPath (Join-Path $Out 'scripts\release.ps1'))) { throw "$Out looks like a source tree - refusing to wipe it" }
 }
 & $assertWipeable
-$envNames = 'EMBERHUD_PUBLISH', 'EMBERHUD_OBFUSCATED', 'EMBERHUD_FRAMEWORK'
-$savedEnv = @{}
-foreach ($name in $envNames) { $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name) }
 $findPrivate = {
     param($items, $root)
     @($items | Where-Object {
@@ -128,15 +130,13 @@ try {
     $dotnet = Split-Path (Get-Command dotnet).Source
     $framework = Get-ChildItem "$dotnet/packs/Microsoft.NETCore.App.Ref" -Directory | Where-Object Name -match '^10\.0\.\d+$' | Sort-Object { [version]$_.Name } | Select-Object -Last 1
     if (-not $framework) { throw "no .NET 10 reference pack under $dotnet/packs" }
-    $env:EMBERHUD_PUBLISH = $publish
-    $env:EMBERHUD_OBFUSCATED = $obfuscated
-    $env:EMBERHUD_FRAMEWORK = Join-Path $framework.FullName 'ref\net10.0'
-    if (-not (Test-Path $env:EMBERHUD_FRAMEWORK)) { throw "missing $env:EMBERHUD_FRAMEWORK" }
+    $frameworkRef = Join-Path $framework.FullName 'ref\net10.0'
+    if (-not (Test-Path $frameworkRef)) { throw "missing $frameworkRef" }
     $obfuscarXml = Join-Path $work 'obfuscar.generated.xml'
     (Get-Content "$src/scripts/obfuscar.xml" -Raw).
         Replace('%EMBERHUD_PUBLISH%', $publish).
         Replace('%EMBERHUD_OBFUSCATED%', $obfuscated).
-        Replace('%EMBERHUD_FRAMEWORK%', $env:EMBERHUD_FRAMEWORK) |
+        Replace('%EMBERHUD_FRAMEWORK%', $frameworkRef) |
         Set-Content -LiteralPath $obfuscarXml
     Push-Location $src
     try {
@@ -198,6 +198,5 @@ try {
     Write-Host "release ready in $root - the obfuscation map was at $obfuscated\Mapping.txt, already deleted with the temp work dir"
 }
 finally {
-    foreach ($name in $envNames) { [Environment]::SetEnvironmentVariable($name, $savedEnv[$name]) }
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 }

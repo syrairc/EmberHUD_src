@@ -120,7 +120,8 @@ string LogLine(LogLevel level, string? plugin, string message) => $"{level} {(pl
 
 void Frame()
 {
-    Input.NewFrame(suppressed: !overlay.IsOverlayActive || overlay.WantTextInput);
+    overlay.InteractiveOutOfFocus = sdk.InteractiveOutOfFocus;
+    Input.NewFrame(suppressed: !overlay.HasFocus || overlay.WantTextInput);
     if (Input.Pressed(sdk.Hotkeys.Quit, ignoreSuppression: true))
     {
         overlay.Stop();

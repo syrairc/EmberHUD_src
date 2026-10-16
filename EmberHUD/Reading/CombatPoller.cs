@@ -1,8 +1,16 @@
+using System.Runtime.InteropServices;
+
 namespace EmberHUD.Host.Reading;
 
-internal sealed class CombatPoller : IDisposable
+internal sealed partial class CombatPoller : IDisposable
 {
     private static readonly TimeSpan JoinTimeout = TimeSpan.FromSeconds(2);
+
+    [LibraryImport("winmm.dll")]
+    private static partial uint timeBeginPeriod(uint milliseconds);
+
+    [LibraryImport("winmm.dll")]
+    private static partial uint timeEndPeriod(uint milliseconds);
 
     private readonly Action _poll;
     private readonly Func<bool> _wanted;
@@ -19,6 +27,19 @@ internal sealed class CombatPoller : IDisposable
     }
 
     private void Run()
+    {
+        timeBeginPeriod(1);
+        try
+        {
+            Loop();
+        }
+        finally
+        {
+            timeEndPeriod(1);
+        }
+    }
+
+    private void Loop()
     {
         while (!_stop.IsSet)
         {

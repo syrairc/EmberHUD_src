@@ -218,13 +218,13 @@ public sealed class MapInfoTests
     }
 
     [Test]
-    public void RegistersTheToggleHotkeyUnbound()
+    public void RegistersTheToggleHotkeyOnF4()
     {
         var plugin = new Main();
         plugin.Initialize();
         var binding = plugin.Hotkeys.Single();
         Check.Equal("Toggle panel", binding.Id);
-        Check.Equal(Key.None, binding.Default.Key);
+        Check.Equal(Key.F4, binding.Default.Key);
     }
 
     [Test]

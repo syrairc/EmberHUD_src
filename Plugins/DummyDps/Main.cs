@@ -52,7 +52,7 @@ public sealed class Main : Plugin<Settings>
         stats is not null && (stats.Running || keepAfterStop && stats.Seconds > 0 && areaId == keptArea);
 
     internal static bool CombatVisible(GameState state, CombatTab combat, bool hideBehindPanels) =>
-        combat.Show && !(combat.HideInTown && state.Area is { IsTown: true }) && !(hideBehindPanels && state.Ui.AnyFullScreen);
+        combat.Show && !(combat.HideInTown && state.Area is { IsTown: true } && state.WoodStake is not { Running: true }) && !(hideBehindPanels && state.Ui.AnyFullScreen);
 
     internal static List<Row> CombatRows(CombatMeter meter, bool exact)
     {
@@ -90,8 +90,8 @@ public sealed class Main : Plugin<Settings>
 
     public override void Initialize()
     {
-        RegisterHotkey("Toggle panel", "Shows or hides the dummy DPS panel", () => Settings.General.Show = !Settings.General.Show);
-        RegisterHotkey("Toggle combat panel", "Shows or hides the combat DPS panel", () => Settings.Combat.Show = !Settings.Combat.Show);
+        RegisterHotkey("Toggle panel", "Shows or hides the dummy DPS panel", () => Settings.General.Show = !Settings.General.Show, new Hotkey(Key.F2));
+        RegisterHotkey("Toggle combat panel", "Shows or hides the combat DPS panel", () => Settings.Combat.Show = !Settings.Combat.Show, new Hotkey(Key.F3));
     }
 
     public override void Render()

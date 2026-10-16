@@ -26,13 +26,22 @@ if ($a[0] -eq 'publish') {
 elseif ($a[0] -eq 'tool' -and $a[1] -eq 'restore') { exit 0 }
 elseif ($a[0] -eq 'tool' -and $a[1] -eq 'run' -and $a[2] -eq 'obfuscar.console') {
     if ($stage -eq 'obfuscate') { exit 1 }
-    New-Item -ItemType Directory -Force $env:EMBERHUD_OBFUSCATED | Out-Null
-    foreach ($name in 'Ember.dll', 'EmberSetup.dll', 'EmberLauncher.dll') {
-        $target = Join-Path $env:EMBERHUD_OBFUSCATED $name
-        Copy-Item (Join-Path $env:EMBERHUD_PUBLISH $name) $target
+    $raw = Get-Content -LiteralPath $a[3] -Raw
+    if ($raw -match '%[A-Za-z_]+%') { Write-Error "obfuscar config has unsubstituted token $($Matches[0])"; exit 1 }
+    [xml]$config = $raw
+    $modules = @($config.Obfuscator.Module)
+    if (-not $modules) { Write-Error 'obfuscar config has no Module elements'; exit 1 }
+    $inPath = @($config.Obfuscator.Var | Where-Object name -eq 'InPath')[0].value
+    $outPath = @($config.Obfuscator.Var | Where-Object name -eq 'OutPath')[0].value
+    New-Item -ItemType Directory -Force $outPath | Out-Null
+    foreach ($module in $modules) {
+        $modulePath = $module.file.Replace('$(InPath)', $inPath)
+        if (-not (Test-Path -LiteralPath $modulePath)) { Write-Error "obfuscar config module file not found: $modulePath"; exit 1 }
+        $target = Join-Path $outPath (Split-Path $modulePath -Leaf)
+        Copy-Item -LiteralPath $modulePath $target
         if ($stage -ne 'obfuscate-samehash') { [IO.File]::AppendAllText($target, 'x') }
     }
-    Set-Content (Join-Path $env:EMBERHUD_OBFUSCATED 'Mapping.txt') x
+    Set-Content (Join-Path $outPath 'Mapping.txt') x
 }
 exit 0
 '@

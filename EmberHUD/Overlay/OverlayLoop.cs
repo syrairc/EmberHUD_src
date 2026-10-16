@@ -18,7 +18,9 @@ internal sealed class OverlayLoop : IDisposable
     bool _disposed;
 
     public nint TargetHandle => _target.Handle;
+    public bool HasFocus { get; private set; }
     public bool IsOverlayActive { get; private set; }
+    public bool InteractiveOutOfFocus { get; set; }
     public TextureStore Textures { get; } = new();
     public bool WantTextInput => _imgui.WantTextInput;
 
@@ -79,14 +81,15 @@ internal sealed class OverlayLoop : IDisposable
 
             if (_target.Poll() && _target.Handle != 0) FollowTarget();
 
-            IsOverlayActive = _target.IsVisibleTarget || _source.IsForeground(_window.Handle);
+            HasFocus = _target.IsVisibleTarget || _source.IsForeground(_window.Handle);
+            IsOverlayActive = HasFocus || InteractiveOutOfFocus && _target.Handle != 0 && !_target.IsMinimized;
             while (_beforeFrame.TryDequeue(out var action)) action();
 
             _imgui.NewFrame(_gd.Width, _gd.Height);
             onFrame();
             _imgui.Render();
             afterRender();
-            _window.SetClickable(_imgui.WantCaptureMouse);
+            _window.SetClickable(IsOverlayActive && _imgui.WantCaptureMouse);
 
             _gd.Context.ClearRenderTargetView(_gd.BackBufferView, new Color4(0f, 0f, 0f, 0f));
             if (IsOverlayActive)

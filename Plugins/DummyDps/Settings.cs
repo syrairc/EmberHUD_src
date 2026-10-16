@@ -68,7 +68,7 @@ public sealed class Settings : PluginSettings
     void DrawCombat()
     {
         Setting.Checkbox("Show", ref Combat.Show);
-        Setting.Checkbox("Hide in town", ref Combat.HideInTown, "Hides the overlay in Ember's Rest and stops reading combat data there");
+        Setting.Checkbox("Hide in town", ref Combat.HideInTown, "Hides the overlay in Ember's Rest and stops reading combat data there - stays on while the training dummy is running");
         Setting.Checkbox("Count overkill", ref Combat.CountOverkill, "Count the damage a hit does beyond the monster's remaining HP");
         Setting.Checkbox("Exact numbers", ref Combat.Exact, "Full digits instead of K / M / B / T / Qa");
         Setting.Slider("Window seconds", ref Combat.Window, 1, 30);

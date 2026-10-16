@@ -111,6 +111,13 @@ public sealed class DummyDpsTests
     }
 
     [Test]
+    public void CombatVisibleStaysOnAtTheRunningDummyInTown()
+    {
+        var atDummy = GameState.Empty with { Area = Town, WoodStake = new WoodStakeStats(true, 5, 0, 0, 0, 0, 0, 0) };
+        Check.That(Main.CombatVisible(atDummy, new CombatTab { HideInTown = true }, false), "dummy running shows in town");
+    }
+
+    [Test]
     public void CombatVisibleHidesBehindFullScreenPanels()
     {
         var full = GameState.Empty with { Ui = new GameUi([new GamePanel("Map", PanelKind.WorldMap, default, default, true)]) };

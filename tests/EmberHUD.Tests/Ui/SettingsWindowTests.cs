@@ -339,8 +339,12 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         var window = Window(host);
         OpenTab(window, 0);
 
-        Assert.False(_fixture.Sdk.AutoReload);
+        Assert.False(_fixture.Sdk.InteractiveOutOfFocus);
         Click(window, Checkbox(Settled(window)).Centre);
+        Assert.True(_fixture.Sdk.InteractiveOutOfFocus);
+
+        Assert.False(_fixture.Sdk.AutoReload);
+        Click(window, Frames(Settled(window)).Where(quad => Math.Abs(quad.Width - quad.Height) < 1).ElementAt(1).Centre);
         Assert.True(_fixture.Sdk.AutoReload);
 
         Assert.True(File.Exists(dll));

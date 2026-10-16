@@ -13,4 +13,5 @@
   <Project Path="EmberHUD/EmberHUD.csproj" />
   <Project Path="EmberHUD.Launcher/EmberHUD.Launcher.csproj" />
   <Project Path="EmberHUD.Setup/EmberHUD.Setup.csproj" />
+  <Project Path="Plugins/Plugins.csproj" />
 </Solution>

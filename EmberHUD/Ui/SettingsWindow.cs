@@ -97,7 +97,15 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         if (Layout.ConfirmModal("reset", $"Reset {slot.Name} to its defaults?", out var confirmed) && confirmed) plugins.ResetSettings(slot);
         ImGui.Separator();
 
-        if (ImGui.BeginChild("body")) plugins.DrawSettings(slot);
+        if (ImGui.BeginChild("body"))
+        {
+            plugins.DrawSettings(slot);
+            if (slot.Initialized && slot.Instance is { Hotkeys.Count: > 0 } instance)
+            {
+                Controls.Section("Hotkeys");
+                Controls.HotkeyTable(instance);
+            }
+        }
         ImGui.EndChild();
         ImGui.PopID();
     }
@@ -124,6 +132,9 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
     {
         Controls.Section("Game");
         ImGui.TextUnformatted(Game.State.Status);
+
+        Controls.Section("Overlay");
+        ImGui.Checkbox("Make HUD interactive when game is out of focus", ref sdk.InteractiveOutOfFocus);
 
         Controls.Section("Plugins");
         ImGui.Checkbox("Reload plugins when their source changes", ref sdk.AutoReload);

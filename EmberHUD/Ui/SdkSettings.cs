@@ -8,6 +8,7 @@ internal sealed class SdkSettings : PluginSettings
     public SdkHotkeys Hotkeys = new();
     public string Theme = ThemeStore.DefaultTheme;
     public bool AutoReload;
+    public bool InteractiveOutOfFocus;
     public string GameIconsDirectory = "";
     public Dictionary<string, PluginState> Plugins = [];
     public Dictionary<string, Dictionary<string, Hotkey>> PluginHotkeys = [];
