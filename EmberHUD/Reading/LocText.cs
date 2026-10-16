@@ -8,6 +8,8 @@ internal sealed class LocText(IReadBackend memory, nint moduleBase)
     private readonly Dictionary<string, string> _cache = [];
     private byte _language = byte.MaxValue;
 
+    internal bool TryReadLanguage(out byte language) => memory.TryRead(moduleBase + Offsets.LanguageRva, out language);
+
     public string? Get(string key)
     {
         if (!memory.TryRead(moduleBase + Offsets.LanguageRva, out byte language)) return null;
