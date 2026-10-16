@@ -20,16 +20,65 @@ public sealed class SurfaceStyle
     public float BaseLine = 1;
 }
 
+public sealed class LegendTab
+{
+    internal const int MinWidth = 120;
+    internal const int MaxWidth = 800;
+
+    public bool Show = true;
+    public bool Lock = true;
+    public Hotkey MoveKey = new(Key.Alt);
+    public bool HideBehindPanels = true;
+    public int X = 40;
+    public int Y = 400;
+    public int Width = 240;
+    public TextStyle Text = TextStyle.Hud();
+}
+
+public sealed class LabelsTab
+{
+    public bool Show;
+    public float AlongDistance = 600;
+    public float SideOffset = 120;
+    public bool ShowDistance = true;
+    public TextStyle Label = TextStyle.WorldLabel();
+}
+
 public sealed class Settings : PluginSettings
 {
     public GeneralTab General = new();
     public SurfaceStyle GroundStyle = new() { Size = 25, Spacing = 250, Speed = 400, Trail = 200, BaseLine = 2 };
     public SurfaceStyle MinimapStyle = new();
+    public LegendTab Legend = new();
+    public LabelsTab Labels = new();
 
     public override void Draw() => Layout.TabBar("navigation",
         ("General", DrawGeneral),
         ("Ground", () => DrawStyle("Ground", GroundStyle, "Particle radius in world units")),
-        ("Minimap", () => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels")));
+        ("Minimap", () => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels")),
+        ("Legend", DrawLegend),
+        ("Labels", DrawLabels));
+
+    void DrawLegend()
+    {
+        Setting.Checkbox("Show", ref Legend.Show, "A movable list of every path with its colour, name and distance", id: "LegendShow");
+        Setting.Checkbox("Lock", ref Legend.Lock, "A locked panel ignores the mouse - hold the move key to drag or resize it anyway");
+        Setting.Hotkey("Move key", ref Legend.MoveKey, "Hold to move or resize a locked panel");
+        Setting.Checkbox("Hide behind full-screen panels", ref Legend.HideBehindPanels, "Nothing draws while the game has a full-screen panel open, e.g. the big map");
+        Setting.Slider("X", ref Legend.X, 0, 7680, id: "LegendX");
+        Setting.Slider("Y", ref Legend.Y, 0, 4320, id: "LegendY");
+        Setting.Slider("Width", ref Legend.Width, LegendTab.MinWidth, LegendTab.MaxWidth, id: "LegendWidth");
+        Setting.Style("Text", Legend.Text);
+    }
+
+    void DrawLabels()
+    {
+        Setting.Checkbox("Show", ref Labels.Show, "A name tag floating beside each path on the ground", id: "LabelsShow");
+        Setting.Slider("Along distance", ref Labels.AlongDistance, 0, 3000, "World units along the path from you", id: "LabelsAlong");
+        Setting.Slider("Side offset", ref Labels.SideOffset, -500, 500, "World units sideways from the path, negative = other side", id: "LabelsSide");
+        Setting.Checkbox("Show distance", ref Labels.ShowDistance, "Append the path length to the name", id: "LabelsDistance");
+        Setting.Style("Label", Labels.Label);
+    }
 
     void DrawGeneral()
     {

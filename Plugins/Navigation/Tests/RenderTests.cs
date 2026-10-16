@@ -29,6 +29,7 @@ public sealed class RenderTests
         var main = new Main { Seconds = () => 1 };
         main.Paths.Runner = job => job();
         main.Paths.Finder = (_, from, to) => [from, to];
+        main.Settings.Legend.Show = false;
         configure?.Invoke(main.Settings);
         return TestFrame.Vertices(() =>
         {
@@ -69,6 +70,51 @@ public sealed class RenderTests
     {
         Check.That(Drawn(Scene(Looking, 2), OnlyGround) > Drawn(Scene(Looking, 1), OnlyGround), "ground");
         Check.That(Drawn(Scene(null, 2), OnlyMinimap, Minimap()) > Drawn(Scene(null, 1), OnlyMinimap, Minimap()), "minimap");
+    }
+
+    static void OnlyLegend(Settings settings)
+    {
+        settings.General.Ground = false;
+        settings.General.Minimap = false;
+        settings.Legend.Show = true;
+    }
+
+    static void OnlyLabels(Settings settings)
+    {
+        settings.General.Minimap = false;
+        settings.Labels.Show = true;
+    }
+
+    [Test]
+    public void LegendDrawsWhenOnWithPaths() => Check.That(Drawn(Scene(null, 1), OnlyLegend) > 0, "legend");
+
+    [Test]
+    public void LegendDrawsMoreWithMorePaths() => Check.That(Drawn(Scene(null, 2), OnlyLegend) > Drawn(Scene(null, 1), OnlyLegend), "rows");
+
+    [Test]
+    public void LegendNeedsPaths() => Check.Equal(0, Drawn(Scene(null, 0), OnlyLegend));
+
+    [Test]
+    public void LegendHiddenBehindFullScreenPanelUnlessSettingOff()
+    {
+        var full = new GameUi([new GamePanel("Map", PanelKind.WorldMap, default, new Vector2(100, 100), true)]);
+
+        Check.Equal(0, Drawn(Scene(null, 1, full), OnlyLegend));
+        Check.That(Drawn(Scene(null, 1, full), s =>
+        {
+            OnlyLegend(s);
+            s.Legend.HideBehindPanels = false;
+        }) > 0, "draws when setting off");
+    }
+
+    [Test]
+    public void LabelsDrawOnlyWhenShown()
+    {
+        Check.That(Drawn(Scene(Looking, 1), s => OnlyLabels(s)) > Drawn(Scene(Looking, 1), s =>
+        {
+            OnlyLabels(s);
+            s.Labels.Show = false;
+        }), "labels add vertices");
     }
 
     [Test]
