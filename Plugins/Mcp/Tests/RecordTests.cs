@@ -161,6 +161,19 @@ public sealed class RecordTests
     }
 
     [Test]
+    public void RecordedRowsCarryHasBarOnlyWhenSet()
+    {
+        using var rig = new Rig();
+        var file = Start(rig);
+        var shown = Mob(1, 5, 1) with { HasGameBar = true };
+        Frame(rig, 0, State(0, shown, Mob(2, 6, 1)));
+        Wire.Run(rig.Tools, "record_stop");
+        var line = File.ReadAllLines(Path.Combine(rig.Directory, file))[0];
+        Check.That(line.Contains(StateTools.Row(shown, null).ToJsonString()), "row matches");
+        Check.Equal(1, line.Split("\"hasBar\":true").Length - 1, "hasBar count");
+    }
+
+    [Test]
     public void TheStatusFlagsNeverWaitOnTheWriteLock()
     {
         using var rig = new Rig();

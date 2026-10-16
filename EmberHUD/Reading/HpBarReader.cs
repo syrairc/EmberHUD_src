@@ -51,10 +51,12 @@ internal sealed class HpBarReader(IReadBackend memory, nint moduleBase, Names na
     {
         bar = null;
         if (!_monsters.TryGetValue(id, out var monster) || !TryComponent(id, monster, out var component) ||
-            !TryWidget(component, out var widget, out var trackOffset))
+            !TryWidget(component, out var widget, out var canvasOffset, out var trackOffset))
             return false;
 
-        if (widget != 0 && screenOrigin is { } at && Visible(widget) && memory.TryReadPtr(widget + trackOffset, out var track) && track != 0 && Visible(track) &&
+        if (widget != 0 && screenOrigin is { } at && Visible(widget) &&
+            memory.TryReadPtr(widget + canvasOffset, out var canvas) && canvas != 0 && Visible(canvas) &&
+            memory.TryReadPtr(widget + trackOffset, out var track) && track != 0 && Visible(track) &&
             _slate.TryWeak(track + Offsets.UWidgetSlate, out var slate) && _slate.TryRect(slate, at, out var rect))
             bar = new ScreenRect(rect.Min, rect.Max);
         return true;
@@ -79,21 +81,22 @@ internal sealed class HpBarReader(IReadBackend memory, nint moduleBase, Names na
         return false;
     }
 
-    private bool TryWidget(nint component, out nint widget, out int trackOffset)
+    private bool TryWidget(nint component, out nint widget, out int canvasOffset, out int trackOffset)
     {
         widget = 0;
-        trackOffset = 0;
-        if (!memory.TryRead(component + Offsets.HpBarWidgetWeak, out uint index) ||
-            !memory.TryRead(component + Offsets.HpBarWidgetWeak + Offsets.WeakPtrSerial, out int serial))
+        canvasOffset = trackOffset = 0;
+        if (!memory.TryRead(component + Offsets.HpBarWidgetWeak, out ulong weak))
             return false;
+        var index = (uint)weak;
+        var serial = (int)(weak >> 32);
         if (serial == 0) return true;
         if (!memory.TryReadGObject(moduleBase, index, out var found, out var itemSerial)) return false;
         if (itemSerial != serial) return true;
         if (!names.TryReadClassName(found, out var className)) return false;
         widget = found;
 
-        if (className == Offsets.HpBarNormalClassName) trackOffset = Offsets.HpBarNormalTrack;
-        else if (className == Offsets.HpBarEliteClassName) trackOffset = Offsets.HpBarEliteTrack;
+        if (className == Offsets.HpBarNormalClassName) (canvasOffset, trackOffset) = (Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack);
+        else if (className == Offsets.HpBarEliteClassName) (canvasOffset, trackOffset) = (Offsets.HpBarEliteCanvas, Offsets.HpBarEliteTrack);
         return trackOffset != 0;
     }
 

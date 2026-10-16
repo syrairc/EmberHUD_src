@@ -21,11 +21,11 @@ public class HpBarReaderTests
 
         public FakeEntity Monster(uint id) => World.AddEntity(id, 100, true, 0, 0, 0) with { Value = World.Alloc(0x800) };
 
-        public (nint Component, nint Widget, nint Track) Normal(FakeEntity monster, byte widgetVisibility = 4, byte trackVisibility = 3) =>
-            Ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalTrack, new Vector2(1745.5f, 499.1f), new Vector2(255.36f, 23.04f), 0.2464f, 0.383f, widgetVisibility, trackVisibility);
+        public (nint Component, nint Widget, nint Track) Normal(FakeEntity monster, byte widgetVisibility = 4, byte trackVisibility = 3, byte canvasVisibility = 3) =>
+            Ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(1745.5f, 499.1f), new Vector2(255.36f, 23.04f), 0.2464f, 0.383f, widgetVisibility, trackVisibility, canvasVisibility);
 
         public (nint Component, nint Widget, nint Track) Elite(FakeEntity monster) =>
-            Ui.AddHpBar(monster, Offsets.HpBarEliteClassName, Offsets.HpBarEliteTrack, new Vector2(1535.3f, 429.3f), new Vector2(192, 35), 0.4469f, 0.4469f);
+            Ui.AddHpBar(monster, Offsets.HpBarEliteClassName, Offsets.HpBarEliteCanvas, Offsets.HpBarEliteTrack, new Vector2(1535.3f, 429.3f), new Vector2(192, 35), 0.4469f, 0.4469f);
 
         public Entity[] Apply(EntityKind kind, params FakeEntity[] monsters)
         {
@@ -106,6 +106,30 @@ public class HpBarReaderTests
     }
 
     [Fact]
+    public void CollapsedCanvasWithAStaleVisibleTrackHasBarButNoRect()
+    {
+        var rig = new Rig();
+        var monster = rig.Monster(1);
+        rig.Normal(monster, canvasVisibility: 1);
+        var entity = rig.Apply(monster);
+        Assert.True(entity.HasGameBar);
+        Assert.Null(entity.GameBar);
+    }
+
+    [Fact]
+    public void EliteUsesItsOwnCanvasOffset()
+    {
+        var rig = new Rig();
+        var monster = rig.Monster(1);
+        var (_, widget, _) = rig.Elite(monster);
+        rig.World.Memory.Write(widget + Offsets.HpBarNormalCanvas, 0L);
+        Assert.Equal(EliteRect, rig.Apply(monster).GameBar);
+        var canvas = rig.World.Memory.TryReadPtr(widget + Offsets.HpBarEliteCanvas, out var c) ? c : 0;
+        rig.World.Memory.Write(canvas + Offsets.UWidgetVisibility, (byte)1);
+        Assert.Null(rig.Apply(monster).GameBar);
+    }
+
+    [Fact]
     public void ReusedPooledWidgetGivesNoRect()
     {
         var rig = new Rig();
@@ -134,7 +158,7 @@ public class HpBarReaderTests
     {
         var rig = new Rig();
         var monster = rig.Monster(1);
-        rig.Ui.AddHpBar(monster, "HpBarMonsterBoss_C", Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(100, 10), 1, 1);
+        rig.Ui.AddHpBar(monster, "HpBarMonsterBoss_C", Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(100, 10), 1, 1);
         Assert.False(rig.Apply(monster).HasGameBar);
     }
 
@@ -166,7 +190,7 @@ public class HpBarReaderTests
     {
         var rig = new Rig();
         var monster = rig.Monster(1);
-        rig.Ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(width, height), scale, scale);
+        rig.Ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(width, height), scale, scale);
         var entity = rig.Apply(monster);
         Assert.True(entity.HasGameBar);
         Assert.Null(entity.GameBar);

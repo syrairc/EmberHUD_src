@@ -30,7 +30,7 @@ public class LiveReaderTests
         world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
         var ui = new FakeUi(world, new Vector2(100, 50));
         var monster = world.AddEntity(5, 77, true, 0, 0, 0, monsterCfgId: 77) with { Value = world.Alloc(0x800) };
-        ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalTrack, new Vector2(1745.5f, 499.1f), new Vector2(255.36f, 23.04f), 0.2464f, 0.383f);
+        ui.AddHpBar(monster, Offsets.HpBarNormalClassName, Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(1745.5f, 499.1f), new Vector2(255.36f, 23.04f), 0.2464f, 0.383f);
         world.PublishEntities(monster);
         var reader = ReaderFor(world);
         Assert.True(reader.TryRead(out var state, out _));

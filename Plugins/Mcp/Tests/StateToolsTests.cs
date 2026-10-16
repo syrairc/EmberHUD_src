@@ -165,6 +165,16 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void EntityRowsCarryHasBarOnlyForMonstersWithAGameBar()
+    {
+        Use(Mob(1, 5, 10) with { HasGameBar = true }, Mob(2, 5, 20));
+        var rows = Entities(new JsonObject());
+        Check.That((bool?)rows[0]!["hasBar"] == true, "hasBar");
+        Check.That(rows[0]!["bar"] is null, "no rect");
+        Check.That(rows[1]!["hasBar"] is null, "omitted");
+    }
+
+    [Test]
     public void EntityRowsCarryTheNameWhenThereIsOne()
     {
         Use(Mob(1, 5, 10) with { Name = "Crimson Boar" }, Mob(2, 5, 20));

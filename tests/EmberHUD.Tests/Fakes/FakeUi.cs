@@ -59,7 +59,7 @@ internal sealed class FakeUi
         return widget;
     }
 
-    public (nint Component, nint Widget, nint Track) AddHpBar(FakeEntity monster, string widgetClass, int trackOffset, Vector2 position, Vector2 size, float scaleX, float scaleY, byte widgetVisibility = 4, byte trackVisibility = 3)
+    public (nint Component, nint Widget, nint Track) AddHpBar(FakeEntity monster, string widgetClass, int canvasOffset, int trackOffset, Vector2 position, Vector2 size, float scaleX, float scaleY, byte widgetVisibility = 4, byte trackVisibility = 3, byte canvasVisibility = 3)
     {
         var component = _world.AddComponents(monster.Value, Offsets.HpBarComponentClassName)[0];
         _world.Memory.Write(component + Offsets.ComponentEntity, monster.Value);
@@ -67,6 +67,8 @@ internal sealed class FakeUi
         _world.Memory.Write(widget + Offsets.UWidgetVisibility, widgetVisibility);
         var track = Widget(_world.AddClass("Image"), "Track", position, size, trackVisibility);
         WeakPtr(track + Offsets.UWidgetSlate, Slate(position, size, scaleX, scaleY));
+        var canvas = Widget(_world.AddClass("CanvasPanel"), "Canvas", position, size, canvasVisibility);
+        _world.Memory.Write(widget + canvasOffset, canvas);
         _world.Memory.Write(widget + trackOffset, track);
         _world.SetObjectSerial(widget, 5);
         _world.Memory.Write(component + Offsets.HpBarWidgetWeak, _world.ObjectIndex(widget));
