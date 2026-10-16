@@ -81,6 +81,8 @@ public sealed class ResolverTests
         Check.Equal(2f, settings.Displayed(100));
         settings.DistanceUnit = 0;
         Check.Equal(1f, settings.Displayed(100));
+        settings.DistanceUnit = float.PositiveInfinity;
+        Check.Equal(1f, settings.Displayed(100));
         settings.DistanceUnit = float.NaN;
         Check.Equal(1f, settings.Displayed(100));
     }

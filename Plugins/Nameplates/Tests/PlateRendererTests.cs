@@ -116,6 +116,34 @@ public sealed class PlateRendererTests
         Check.That(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, Anchor)).Count > 0);
     }
 
+    static (float Min, float Max) NameExtent(HAlign align)
+    {
+        var style = Style(name: true);
+        style.Above.Align = align;
+        return Across(Drawn(NameColour, () => DrawPlate(Data(50, 100), style, Anchor)));
+    }
+
+    [Test]
+    public void LeftAlignedTextStartsAtTheBarLeftEdge()
+    {
+        var (min, max) = NameExtent(HAlign.Left);
+        Check.That(min >= 449 && min < 460 && max < 500, $"{min}..{max}");
+    }
+
+    [Test]
+    public void CentreAlignedTextIsCentredOnTheBar()
+    {
+        var (min, max) = NameExtent(HAlign.Center);
+        Check.That(min > 450 && max < 550 && Math.Abs((min + max) / 2 - 500) < 5, $"{min}..{max}");
+    }
+
+    [Test]
+    public void RightAlignedTextEndsAtTheBarRightEdge()
+    {
+        var (min, max) = NameExtent(HAlign.Right);
+        Check.That(max <= 551 && max > 540 && min > 500, $"{min}..{max}");
+    }
+
     [Test]
     public void ANaNAnchorDrawsNothing()
     {

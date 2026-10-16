@@ -25,6 +25,7 @@ public sealed class SettingsTests
         boss.Above.Style.Scale = 2;
         boss.Above.Style.BorderEnabled = true;
         boss.OnBar.Template = "{hp}/{hpmax}";
+        boss.Below.Align = HAlign.Right;
         boss.Below.Template = "{dist}m";
         s.Overrides.Add(new StyleOverride
         {
@@ -43,6 +44,7 @@ public sealed class SettingsTests
         Check.That(backBoss.Above.Style.BorderEnabled);
         Check.Equal("{hp}/{hpmax}", backBoss.OnBar.Template);
         Check.Equal("{dist}m", backBoss.Below.Template);
+        Check.Equal(HAlign.Right, backBoss.Below.Align);
         Check.Equal(1, back.Overrides.Count);
         var ov = back.Overrides[0];
         Check.Equal(MatchKind.CfgId, ov.Kind);

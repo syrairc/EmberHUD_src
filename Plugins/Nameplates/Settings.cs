@@ -104,7 +104,7 @@ public sealed class Settings : PluginSettings
         return bucket;
     }
 
-    internal float Displayed(float worldDistance) => worldDistance / (DistanceUnit > 0 ? DistanceUnit : 100);
+    internal float Displayed(float worldDistance) => worldDistance / (float.IsFinite(DistanceUnit) && DistanceUnit > 0 ? DistanceUnit : 100);
 
     internal void Normalize()
     {
