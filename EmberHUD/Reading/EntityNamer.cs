@@ -23,10 +23,10 @@ internal sealed class EntityNamer(LocText loc)
             if (entity.Kind is not (EntityKind.Monster or EntityKind.Ally) || entity.CfgId <= 0 || _missing.Contains(entity.CfgId)) continue;
             if (!frame.TryGetValue(entity.CfgId, out var name))
             {
-                name = loc.Get(Offsets.NpcNameKey + entity.CfgId);
-                if (name is null) _missing.Add(entity.CfgId);
-                frame[entity.CfgId] = name ?? "";
-                name ??= "";
+                var readable = loc.TryGet(Offsets.NpcNameKey + entity.CfgId, out var text);
+                if (readable && text is null) _missing.Add(entity.CfgId);
+                name = text ?? "";
+                frame[entity.CfgId] = name;
             }
             if (name.Length == 0) continue;
             if (!named)

@@ -11,6 +11,8 @@ internal interface IReadBackend
 
 internal delegate bool NodeVisitor(nint node, ReadOnlySpan<byte> bytes);
 
+internal enum HashFind { Found, Absent, Unreadable }
+
 internal static class ReadExtensions
 {
     public static unsafe bool TryRead<T>(this IReadBackend backend, nint address, out T value) where T : unmanaged
@@ -110,25 +112,28 @@ internal static class ReadExtensions
         }
     }
 
-    public static bool TryFindHashNode(this IReadBackend backend, nint countAt, nint bucketsAt, int max, ulong hash, int nextOffset, Func<nint, bool> isMatch, out nint node)
+    public static bool TryFindHashNode(this IReadBackend backend, nint countAt, nint bucketsAt, int max, ulong hash, int nextOffset, Func<nint, bool> isMatch, out nint node) =>
+        backend.FindHashNode(countAt, bucketsAt, max, hash, nextOffset, isMatch, out node) == HashFind.Found;
+
+    public static HashFind FindHashNode(this IReadBackend backend, nint countAt, nint bucketsAt, int max, ulong hash, int nextOffset, Func<nint, bool> isMatch, out nint node)
     {
         node = 0;
         if (!backend.TryReadBucketTable(countAt, bucketsAt, max, out var count, out var array) ||
             !backend.TryRead(array + (nint)(hash % count) * nint.Size, out nint at))
-            return false;
+            return HashFind.Unreadable;
 
         for (var hops = 0; hops < Offsets.MaxChain && at != 0; hops++)
         {
             if (isMatch(at))
             {
                 node = at;
-                return true;
+                return HashFind.Found;
             }
             if (!backend.TryRead(at + nextOffset, out at))
-                return false;
+                return HashFind.Unreadable;
         }
 
-        return false;
+        return at == 0 ? HashFind.Absent : HashFind.Unreadable;
     }
 
     public static bool TryFindHashValue(this IReadBackend backend, nint countAt, nint bucketsAt, uint key, out nint value)

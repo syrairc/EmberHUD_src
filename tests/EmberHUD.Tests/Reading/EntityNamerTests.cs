@@ -102,4 +102,20 @@ public class EntityNamerTests
         world.SetLanguageTable(0, 7, (Offsets.NpcNameKey + 5, "Helfer"));
         Assert.Equal("Helfer", namer.Apply([Make(EntityKind.Monster, 5)])[0].Name);
     }
+
+    [Fact]
+    public void UnreadableTableIsRetriedNextFrame()
+    {
+        var world = WorldWith((Offsets.NpcNameKey + 5, "Helper"));
+        world.Memory.TryReadPtr(FakeWorld.Module + Offsets.LanguageBucketsRva, out var languageBuckets);
+        world.Memory.TryReadPtr(languageBuckets, out var languages);
+        var countAt = languages + Offsets.LanguageNodeMap + Offsets.HashBucketCount;
+        world.Memory.TryRead(countAt, out uint count);
+        var namer = NamerFor(world);
+
+        world.Memory.Write(countAt, 0u);
+        Assert.Equal("", namer.Apply([Make(EntityKind.Monster, 5)])[0].Name);
+        world.Memory.Write(countAt, count);
+        Assert.Equal("Helper", namer.Apply([Make(EntityKind.Monster, 5)])[0].Name);
+    }
 }

@@ -47,8 +47,7 @@ internal sealed class LiveReader
         _memory.TryReadPtr(scene + Offsets.SceneGridModule, out var gridModule);
         var terrain = _terrain.Read(geometry, gridModule);
         var (playerPosition, entities, pawn) = _world.ReadWorld(scene, _terrain.Generation);
-        try { entities = _namer.Apply(entities); }
-        catch (Exception) { }
+        entities = _namer.Apply(entities);
         if (_terrain.Generation != _generation)
         {
             _generation = _terrain.Generation;
