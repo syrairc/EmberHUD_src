@@ -11,6 +11,7 @@ public static class Ground
     internal const float Near = 2;
 
     const int CircleSegments = 48;
+    const int DotSegments = 12;
 
     static readonly List<Vector3> WorldPoints = [];
     static readonly List<Vector3> ClippedPoints = [];
@@ -28,6 +29,17 @@ public static class Ground
         Span<Vector2> ring = stackalloc Vector2[CircleSegments];
         Draw.RegularPoints(ring, centre, radius, 0);
         PolygonFilled(ring, color, z, list);
+    }
+
+    public static void Dot(Vector2 centre, float radius, Color color, float? z = null, ImDrawListPtr? list = null)
+    {
+        if (!TryFrame(out var camera, out var viewport)) return;
+        var height = HeightOrPlayer(z);
+        var at = new Vector3(centre, height);
+        if (camera.Depth(at) < Near || camera.ToScreen(at, viewport) is not { } screen) return;
+        if (camera.ToScreen(at + new Vector3(radius, 0, 0), viewport) is not { } east || camera.ToScreen(at + new Vector3(0, radius, 0), viewport) is not { } north) return;
+        var pixels = (Vector2.Distance(screen, east) + Vector2.Distance(screen, north)) / 2;
+        if (pixels > 0) Draw.CircleFilled(screen, pixels, color, DotSegments, list);
     }
 
     public static void Rect(Vector2 centre, Vector2 size, float rotation, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null)
