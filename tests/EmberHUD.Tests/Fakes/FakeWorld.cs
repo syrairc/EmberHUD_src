@@ -234,14 +234,6 @@ internal sealed class FakeWorld
         return components;
     }
 
-    public void WriteFString(nint at, string text)
-    {
-        var chars = Alloc((text.Length + 1) * sizeof(char));
-        Memory.WriteArray(chars, (text + "\0").ToCharArray());
-        Memory.Write(at, chars);
-        Memory.Write(at + Offsets.FStringNum, text.Length + 1);
-    }
-
     public FakeMinimap AddMinimap(float? rotate, string className = "MiniMap_C", string objectName = "MiniMap_C", bool placeInTable = true)
     {
         var widget = Alloc(0x900);

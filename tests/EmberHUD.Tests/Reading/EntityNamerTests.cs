@@ -48,19 +48,6 @@ public class EntityNamerTests
     }
 
     [Fact]
-    public void PlayerNamesFromTheReaderAreKept()
-    {
-        var world = WorldWith((Offsets.NpcNameKey + 54, "Wrong"));
-        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
-        world.WriteFString(world.AddComponents(player.Value, Offsets.PlayerComponentClassName)[0] + Offsets.PlayerComponentName, "Terayen#8674");
-        world.PublishEntities(player);
-        var reader = new LogicWorldReader(world.Memory, FakeWorld.Module);
-        Assert.True(reader.TryReadScene(out var scene, out _));
-        var named = NamerFor(world).Apply(reader.ReadWorld(scene, 0).Entities);
-        Assert.Equal("Terayen#8674", Assert.Single(named).Name);
-    }
-
-    [Fact]
     public void MissingKeyGivesEmptyName()
     {
         var world = WorldWith((Offsets.NpcNameKey + 5, "Helper"));
@@ -77,6 +64,7 @@ public class EntityNamerTests
     }
 
     [Theory]
+    [InlineData(EntityKind.Player)]
     [InlineData(EntityKind.Portal)]
     [InlineData(EntityKind.Interactive)]
     [InlineData(EntityKind.MapObject)]

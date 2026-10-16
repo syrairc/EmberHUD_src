@@ -6,7 +6,7 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
 {
-    private readonly record struct Known(nint Entity, nint Value, int CfgId, string Name = "");
+    private readonly record struct Known(nint Entity, nint Value, int CfgId);
 
     private readonly Names _names = new(memory, moduleBase);
 
@@ -300,35 +300,33 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             }
         }
 
-        var name = "";
-        if (kind is EntityKind.Npc or EntityKind.Ally or EntityKind.Player)
-            (cfgId, name) = Identity(id, entity, value, kind, cfgId);
+        if (kind is EntityKind.Npc or EntityKind.Ally)
+            cfgId = Identity(id, entity, value, kind, cfgId);
 
         var life = 0d;
         var maxLife = 0d;
         if (kind == EntityKind.Monster)
             TryReadStat(role, Offsets.RoleLifeMax, false, out life, out maxLife);
         var hidden = kind == EntityKind.Monster && memory.TryRead(value + Offsets.ActorFlags, out byte actorFlags) && (actorFlags & Offsets.ActorHiddenMask) != 0;
-        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Name = name, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId), Hidden = hidden };
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId), Hidden = hidden };
         return true;
     }
 
-    private (uint CfgId, string Name) Identity(int id, nint entity, nint value, EntityKind kind, uint cfgId)
+    private uint Identity(int id, nint entity, nint value, EntityKind kind, uint cfgId)
     {
         if (_known.TryGetValue(id, out var known) && known.Entity == entity && known.Value == value)
         {
             _seen[id] = known;
-            return ((uint)known.CfgId, known.Name);
+            return (uint)known.CfgId;
         }
 
-        (uint, string)? read = kind switch
+        var read = kind switch
         {
-            EntityKind.Npc => TryFindComponent(value, Offsets.NpcComponentClassName, out var npc) && memory.TryRead(npc + Offsets.NpcComponentNpcId, out uint npcId) && npcId != 0 ? (npcId, "") : null,
-            EntityKind.Ally => TryReadMonsterCfgId(value, out var servantId) ? (servantId, "") : null,
-            _ => TryFindComponent(value, Offsets.PlayerComponentClassName, out var player) && TryReadFString(player + Offsets.PlayerComponentName, out var text) && text.Length > 0 ? (cfgId, text) : null,
+            EntityKind.Npc => TryFindComponent(value, Offsets.NpcComponentClassName, out var npc) && memory.TryRead(npc + Offsets.NpcComponentNpcId, out uint npcId) && npcId != 0 ? npcId : (uint?)null,
+            _ => TryReadMonsterCfgId(value, out var servantId) ? servantId : (uint?)null,
         };
-        if (read is not { } found) return (cfgId, "");
-        _seen[id] = new Known(entity, value, (int)found.Item1, found.Item2);
+        if (read is not { } found) return cfgId;
+        _seen[id] = new Known(entity, value, (int)found);
         return found;
     }
 
@@ -344,16 +342,6 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
                 return true;
             }
         return false;
-    }
-
-    private bool TryReadFString(nint at, out string text)
-    {
-        text = "";
-        if (!memory.TryReadPtr(at, out var chars) || !memory.TryRead(at + Offsets.FStringNum, out int count) || count <= 0 || count > Offsets.MaxFStringChars ||
-            !memory.TryReadArray(chars, count * sizeof(char), out byte[] bytes))
-            return false;
-        text = System.Text.Encoding.Unicode.GetString(bytes).TrimEnd('\0');
-        return true;
     }
 
     private Vitals ReadVitals(nint role)

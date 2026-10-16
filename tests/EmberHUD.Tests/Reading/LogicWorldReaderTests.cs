@@ -108,30 +108,6 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
-    public void OtherPlayersCarryTheirCharacterName()
-    {
-        var world = new FakeWorld();
-        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
-        var components = world.AddComponents(player.Value, "ECfgComponent", Offsets.PlayerComponentClassName);
-        world.WriteFString(components[1] + Offsets.PlayerComponentName, "Terayen#8674");
-        world.PublishEntities(player);
-        var entity = Assert.Single(Read(world));
-        Assert.Equal(("Terayen#8674", 54), (entity.Name, entity.CfgId));
-    }
-
-    [Fact]
-    public void UnreadablePlayerNameLeavesTheNameEmpty()
-    {
-        var world = new FakeWorld();
-        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
-        var components = world.AddComponents(player.Value, Offsets.PlayerComponentClassName);
-        world.Memory.Write(components[0] + Offsets.PlayerComponentName, FakeWorld.Unmapped);
-        world.Memory.Write(components[0] + Offsets.PlayerComponentName + Offsets.FStringNum, 5);
-        world.PublishEntities(player);
-        Assert.Equal("", Assert.Single(Read(world)).Name);
-    }
-
-    [Fact]
     public void ComponentsAreReadOncePerEntity()
     {
         var world = new FakeWorld();
@@ -183,22 +159,6 @@ public class LogicWorldReaderTests
         var (first, second) = TwoFrames(world, () => world.Memory.Write(servant.Value + Offsets.MonsterRecord, record));
         Assert.Equal((61, ""), (first.CfgId, first.Name));
         Assert.Equal(5320, second.CfgId);
-    }
-
-    [Fact]
-    public void UnreadablePlayerNameIsRetriedNextFrame()
-    {
-        var world = new FakeWorld();
-        var player = world.AddEntity(12, 54, true, 1, 1, 0, mapOffset: Offsets.FightMapPlayer);
-        var name = world.AddComponents(player.Value, Offsets.PlayerComponentClassName)[0] + Offsets.PlayerComponentName;
-        world.WriteFString(name, "Terayen#8674");
-        world.PublishEntities(player);
-        world.Memory.TryReadPtr(name, out var chars);
-        world.Memory.Write(name, FakeWorld.Unmapped);
-
-        var (first, second) = TwoFrames(world, () => world.Memory.Write(name, chars));
-        Assert.Equal("", first.Name);
-        Assert.Equal("Terayen#8674", second.Name);
     }
 
     [Fact]
