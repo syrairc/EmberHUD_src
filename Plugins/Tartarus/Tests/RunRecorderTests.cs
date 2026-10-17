@@ -3,7 +3,7 @@ using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public sealed class RunRecorderTests
 {

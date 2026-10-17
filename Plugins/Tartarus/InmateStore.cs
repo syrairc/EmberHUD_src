@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public sealed record KillEntry(DateTime When, string Area, int CfgId, InmateSpecies? Species, int Step, string Outcome, double LastLife, double MaxLife, float Distance, double SecondsSeen, int? Nameplates, string? Source = null);
 

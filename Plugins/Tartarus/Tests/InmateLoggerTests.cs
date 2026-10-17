@@ -5,9 +5,9 @@ using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
-namespace InmateLog;
+namespace Tartarus;
 
-public sealed class MainTests
+public sealed class InmateLoggerTests
 {
     const int RareWolf = 5027023;
     static readonly string[][] Titles =
@@ -39,12 +39,12 @@ public sealed class MainTests
     {
         public string Directory = TempDir();
         public double Seconds;
-        public Main Plugin;
+        public InmateLogger Plugin;
 
         public Rig()
         {
             UseNames();
-            Plugin = new Main { DataDirectory = Directory, Seconds = () => Seconds, Now = () => new DateTime(2026, 10, 17, 12, 0, 0) };
+            Plugin = new InmateLogger { DataDirectory = Directory, Seconds = () => Seconds, Now = () => new DateTime(2026, 10, 17, 12, 0, 0) };
         }
 
         public string File => Path.Combine(Directory, "inmates.json");
@@ -161,7 +161,7 @@ public sealed class MainTests
     {
         using var rig = new Rig();
         TestGame.Set(GameState.Empty);
-        TestFrame.Run(rig.Plugin.DrawSettings);
+        TestFrame.Run(rig.Plugin.DrawPage);
         Kill(rig, 21, 1);
         Set(7, Wolf(22, 50));
         rig.Tick(3);
@@ -169,7 +169,7 @@ public sealed class MainTests
         rig.Tick(4);
         rig.Plugin.Store.Kills.Add(new(DateTime.Now, "Odd", 5027099, null, 0, "killed", 0, 10, 1, 1, 12));
         rig.Plugin.Store.AddRun(new(DateTime.Now, null, null, 7, [new(1, 2, 3)]));
-        TestFrame.Run(rig.Plugin.DrawSettings);
+        TestFrame.Run(rig.Plugin.DrawPage);
     }
 
     [Test]
@@ -277,7 +277,7 @@ public sealed class MainTests
         using var rig = new Rig();
         TestGame.Set(GameState.Empty);
         rig.Plugin.Store.Kills.Add(new(DateTime.Now, null!, 5027023, (InmateSpecies)99, 2, "killed", 0, 10, 1, 1, null));
-        TestFrame.Run(rig.Plugin.DrawSettings);
+        TestFrame.Run(rig.Plugin.DrawPage);
     }
 
     [Test]

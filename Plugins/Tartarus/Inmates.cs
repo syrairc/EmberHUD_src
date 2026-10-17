@@ -1,6 +1,6 @@
 using System;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public enum InmateSpecies { Mammoth, Lion, Wolf, Rat }
 

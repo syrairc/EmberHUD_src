@@ -2,7 +2,7 @@ using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public sealed class TrackerTests
 {

@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using EmberHUD.Testing;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public sealed class InmateStoreTests
 {

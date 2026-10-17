@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using EmberHUD;
 
-namespace InmateLog;
+namespace Tartarus;
 
-public sealed class Main : Plugin<Settings>
+sealed class InmateLogger
 {
     const double SaveEverySeconds = 5;
     const double RetryLookupSeconds = 10;
@@ -21,7 +21,7 @@ public sealed class Main : Plugin<Settings>
     double _lastSave = double.NegativeInfinity;
     double _lastLoad = double.NegativeInfinity;
 
-    public Main() => _tracker = new(Classify);
+    public InmateLogger() => _tracker = new(Classify);
 
     InmateKind? Classify(int cfgId)
     {
@@ -40,7 +40,7 @@ public sealed class Main : Plugin<Settings>
         return kind;
     }
 
-    internal string DataDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Config", "InmateLog");
+    internal string DataDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Config", "Tartarus");
 
     internal Func<double> Seconds { get; set; } = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
 
@@ -48,7 +48,7 @@ public sealed class Main : Plugin<Settings>
 
     internal InmateStore Store => _store ??= InmateStore.Load(DataDirectory);
 
-    public override void Tick()
+    public void Tick()
     {
         Game.WantInventory();
         Game.WantTartarus();
@@ -93,11 +93,10 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    public override void DrawSettings() => SettingsUI.Draw(Store, Nameplates.Count(Game.State.Inventory), Store.Clear);
+    public void DrawPage() => InmateLogUI.Draw(Store, Nameplates.Count(Game.State.Inventory), Store.Clear);
 
-    public override void Dispose()
+    public void Dispose()
     {
         if (_store is { Dirty: true }) _store.Save(DataDirectory);
-        base.Dispose();
     }
 }
