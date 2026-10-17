@@ -73,7 +73,7 @@ public static class Advisor
         return option.Kind switch
         {
             TartarusOptionKind.Door => Door(state, option, s),
-            TartarusOptionKind.Consume => ConsumeCells(eater, Known(state, option.Cell), s),
+            TartarusOptionKind.Consume => ConsumeCells(eater, Known(state, option.Cell), Capped(state, s), s),
             TartarusOptionKind.Replace => eater is { } e && PriorRange(s.ReplacePrior, s) is { } r
                 ? (new ValueRange(r.Low - Value(e.Tier, s), r.High - Value(e.Tier, s)), "Replace: a random inmate")
                 : (null, "unknown tier"),
@@ -99,17 +99,17 @@ public static class Advisor
         {
             if (!c.DevourTarget) return (new ValueRange(0, 0), $"{Label(c)}: nothing to eat");
             if (c.Tier < 0) return (null, "unknown tier");
-            var low = Consume(c.Tier, c.Tier, s);
+            var low = Consume(c.Tier, c.Tier, Capped(state, s), s);
             return (Chain(low, s), $"{Label(c)} can consume: {Signed(low)}");
         }
-        if (c.Tier >= 0) return (new ValueRange(Value(c.Tier, s), Value(c.Tier, s) + Math.Max(Consume(c.Tier, c.Tier, s), 0)), $"locked, tier {c.Tier}");
+        if (c.Tier >= 0) return (new ValueRange(Value(c.Tier, s), Value(c.Tier, s) + Math.Max(Consume(c.Tier, c.Tier, Capped(state, s), s), 0)), $"locked, tier {c.Tier}");
         return PriorRange(s.DoorPrior, s) is { } prior ? (prior, "locked, unknown") : (null, "unknown tier");
     }
 
-    static (ValueRange? Value, string Reason) ConsumeCells(TartarusCell? eater, TartarusCell? target, Settings s)
+    static (ValueRange? Value, string Reason) ConsumeCells(TartarusCell? eater, TartarusCell? target, bool capped, Settings s)
     {
         if (eater is not { } e || target is not { } t) return (null, "unknown tier");
-        var low = Consume(e.Tier, t.Tier, s);
+        var low = Consume(e.Tier, t.Tier, capped, s);
         return (Chain(low, s), $"{Label(e)} eats {Label(t)}: {Signed(low)}");
     }
 
@@ -117,15 +117,19 @@ public static class Advisor
 
     static double Value(int tier, Settings s) => Math.Pow(s.TierBase, tier);
 
-    static double Rise(int tier, Settings s) => tier + 1 == Chromatic ? Value(Chromatic, s) * s.RainbowMult : tier >= Chromatic ? Value(tier, s) : Value(tier + 1, s);
+    static bool Capped(TartarusState state, Settings s) => state.Chromatics >= s.ChromaticCap;
 
-    static double Consume(int eater, int eaten, Settings s) => Rise(eater, s) - Value(eater, s) - Value(eaten, s);
+    static double Rise(int tier, bool capped, Settings s) =>
+        tier >= Chromatic || (capped && tier + 1 == Chromatic) ? Value(tier, s) : tier + 1 == Chromatic ? Value(Chromatic, s) * s.RainbowMult : Value(tier + 1, s);
+
+    static double Consume(int eater, int eaten, bool capped, Settings s) => Rise(eater, capped, s) - Value(eater, s) - Value(eaten, s);
 
     static (ValueRange? Value, string Reason) Bestow(TartarusState state, Settings s)
     {
         var open = state.Cells.Where(c => c.Index != 0 && c.Open).ToArray();
         if (open.Any(c => c.Tier is < 0 or > Chromatic)) return (null, "unknown tier");
-        var lifts = open.Where(c => c.Tier < Chromatic).Select(c => Rise(c.Tier, s) - Value(c.Tier, s)).ToArray();
+        var capped = Capped(state, s);
+        var lifts = open.Where(c => c.Tier < Chromatic).Select(c => Rise(c.Tier, capped, s) - Value(c.Tier, s)).ToArray();
         if (lifts.Length == 0) return (new ValueRange(0, 0), "office: no inmate to lift");
         var range = new ValueRange(lifts.Min(), lifts.Max());
         return (range, $"office: Bestow lifts one inmate: {Signed(range.Low)} to {Signed(range.High)}");

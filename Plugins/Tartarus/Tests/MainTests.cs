@@ -135,7 +135,7 @@ public sealed class MainTests
     [Test]
     public void SettingsFieldsAreUnchanged()
     {
-        string[] expected = ["ShowPanel", "PanelX", "PanelY", "TierBase", "RainbowMult", "ChainUpside", "CloseMargin", "UnsureWidthRatio", "PriorLowPercentile", "PriorHighPercentile", "LateDays", "StandardDays", "DoorPrior", "ReplacePrior"];
+        string[] expected = ["ShowPanel", "PanelX", "PanelY", "TierBase", "RainbowMult", "ChainUpside", "CloseMargin", "UnsureWidthRatio", "PriorLowPercentile", "PriorHighPercentile", "LateDays", "StandardDays", "ChromaticCap", "DoorPrior", "ReplacePrior"];
         var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
         Array.Sort(expected);
         Array.Sort(actual);

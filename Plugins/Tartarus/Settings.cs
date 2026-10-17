@@ -14,6 +14,7 @@ public sealed class Settings : PluginSettings
     public double UnsureWidthRatio = 1;
     public double PriorLowPercentile = 0.25;
     public double PriorHighPercentile = 0.75;
+    public int ChromaticCap = 10;
     public int LateDays = 2;
     public int StandardDays = 20;
     public double[] DoorPrior = [0.418, 0.359, 0.114, 0.092, 0.018, 0];

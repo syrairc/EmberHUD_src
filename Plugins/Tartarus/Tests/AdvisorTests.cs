@@ -41,6 +41,25 @@ public sealed class AdvisorTests
     }
 
     [Test]
+    public void PastTheChromaticCapReachingItIsWorthNothing()
+    {
+        var cells = new[] { Open(1, 4, true), Locked(2), Locked(3) };
+        var capped = Advisor.Advise(State(Choice(TartarusChoiceKind.Doors, Door(1, 1)), cells) with { Chromatics = Defaults.ChromaticCap }, Defaults);
+        Check.Equal(-81.0, capped.Options[0].Value.Low);
+        var below = Advisor.Advise(State(Choice(TartarusChoiceKind.Doors, Door(1, 1)), cells) with { Chromatics = Defaults.ChromaticCap - 1 }, Defaults);
+        Check.Equal(202.5, below.Options[0].Value.Low);
+    }
+
+    [Test]
+    public void PastTheChromaticCapBestowCannotLiftAnUltimate()
+    {
+        var office = Choice(TartarusChoiceKind.Office, new TartarusOption(1, TartarusOptionKind.Bestow, 0, 0));
+        var capped = Advisor.Advise(State(office, [Open(1, 4), Open(2, 2)]) with { Chromatics = Defaults.ChromaticCap }, Defaults);
+        Check.Equal(0.0, capped.Options[0].Value.Low);
+        Check.Equal(18.0, capped.Options[0].Value.High);
+    }
+
+    [Test]
     public void TwoCloseDoorsBothGlow()
     {
         var advice = Doors([Open(1, 2, true), Open(2, 2, true), Open(3, 2)], 1, 2, 3);

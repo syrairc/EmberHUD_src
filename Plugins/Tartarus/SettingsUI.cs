@@ -18,6 +18,7 @@ static class SettingsUI
         Number("Tier base", ref s.TierBase, 1, 10, "An inmate of tier t is worth base^t");
         Number("Rainbow multiplier", ref s.RainbowMult, 1, 5, "Extra worth of the jump to the top tier");
         Number("Chain upside", ref s.ChainUpside, 0, 3, "How much a good consume is expected to chain on");
+        Setting.Slider("Chromatic cap", ref s.ChromaticCap, 1, 30, "Chromatic inmates allowed per run, past it nothing reaches Chromatic");
         ImGui.SeparatorText("Certainty");
         Number("Close margin", ref s.CloseMargin, 0, 1, "Options within this share of the best still count as best");
         Number("Unsure width ratio", ref s.UnsureWidthRatio, 0, 5, "Ranges wider than this times the best value make the panel say unsure");
