@@ -14,6 +14,8 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         .Select(entry => entry.Split(',', StringSplitOptions.TrimEntries))
         .Select(f => new ContentSpec(f[0], f[1] == "mod", int.Parse(f[2], CultureInfo.InvariantCulture), f[3], f[4], f[5]))];
 
+    private static readonly string[] TarotNameIds = Offsets.TarotNameIds.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
     private readonly record struct StatueSpec(string Class, string NameKey, string Icon, string Component, int ActiveOffset, string ClaimKey);
 
     private static readonly Dictionary<string, StatueSpec> StatueSpecs = Offsets.Statues
@@ -31,6 +33,8 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
     private long _nextAt;
     private Dictionary<int, int> _tarotDone = [];
     private readonly HashSet<int> _tarotSeen = [];
+    private readonly HashSet<int> _fugitiveSeen = [];
+    private int _fugitiveStanding;
 
     public MapInfo? Read(nint scene, int areaId, int aliveMonsters, MapIcon[] icons)
     {
@@ -41,6 +45,8 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         {
             _tarotDone = [];
             _tarotSeen.Clear();
+            _fugitiveSeen.Clear();
+            _fugitiveStanding = 0;
             _statuesSeen.Clear();
             ui.ForgetHud();
         }
@@ -50,7 +56,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
 
     private IEnumerable<MapContent> TarotRows((int Type, nint Record)[] gameplays, MapIcon[] icons)
     {
-        var byType = gameplays.Where(g => g.Type >= Offsets.TarotFirstType && g.Type <= Offsets.TarotLastType).GroupBy(c => c.Type).OrderBy(g => g.Key).ToArray();
+        var byType = gameplays.Where(g => g.Type >= Offsets.TarotFirstType && g.Type < Offsets.TarotFirstType + TarotNameIds.Length).GroupBy(c => c.Type).OrderBy(g => g.Key).ToArray();
         if (byType.Length == 0) return [];
         if (icons.Length > 0)
         {
@@ -63,8 +69,21 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
             var total = g.Count();
             var done = Math.Min(_tarotDone.GetValueOrDefault(g.Key), total);
             var state = done == total ? ContentState.Done : done > 0 ? ContentState.Active : ContentState.Pending;
-            return new MapContent(loc.Get(Offsets.TarotNameKey + (g.Key - Offsets.TarotNameBase)) ?? $"Tarot {g.Key}", Offsets.TarotIcon, state, done, total);
+            return new MapContent(loc.Get(Offsets.TarotNameKey + TarotNameIds[g.Key - Offsets.TarotFirstType]) ?? $"Tarot {g.Key}", Offsets.TarotIcon, state, done, total);
         });
+    }
+
+    private MapContent FugitiveRow(ContentSpec spec, MapIcon[] icons)
+    {
+        if (icons.Length > 0)
+        {
+            var standing = icons.Where(i => i.Type == Offsets.FugitiveIconType).Select(i => i.EntityId).ToHashSet();
+            _fugitiveSeen.UnionWith(standing);
+            _fugitiveStanding = standing.Count;
+        }
+        var total = _fugitiveSeen.Count;
+        var done = total - _fugitiveStanding;
+        return new MapContent(spec.Name, spec.Icon, total == 0 || done == 0 ? ContentState.Pending : done == total ? ContentState.Done : ContentState.Active, done, total);
     }
 
     private MapContent[] StatueRows()
@@ -120,7 +139,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
             remaining,
             XpOf(ui.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent)),
             TownTypes.Contains(sceneType),
-            [.. found.Select(s => new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
+            [.. found.Select(s => s.State == "fugitive" ? FugitiveRow(s, icons) : new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
             [.. ui.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Where(line => !claimed.Contains(line))]);
     }
 

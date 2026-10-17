@@ -41,6 +41,17 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetStateGroupsMapIconsByTypeWithTheirEntityIds()
+    {
+        TestGame.Set(GameState.Empty with { MapIcons = [new MapIcon(2407, "", Vector2.Zero, 1, 0, 103) { Name = "E_S9kapai" }, new MapIcon(11, "", Vector2.Zero, 1, 0, 0), new MapIcon(2407, "", Vector2.Zero, 1, 0, 102) { Name = "E_S9kapai" }] });
+        var icons = Wire.Run(Tools, "get_state")["mapIconTypes"]!.AsArray();
+        Check.Equal(2, icons.Count);
+        Check.Equal(11, (int)icons[0]!["type"]!);
+        Check.Equal("E_S9kapai", (string?)icons[1]!["name"]);
+        Check.Equal("[102,103]", icons[1]!["entityIds"]!.ToJsonString());
+    }
+
+    [Test]
     public void StatusReportsServerAndGame()
     {
         TestMemory.Clear();

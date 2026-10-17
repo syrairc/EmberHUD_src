@@ -188,14 +188,14 @@ public class MapInfoReaderTests
         var world = FakeMapInfo.Demiman();
         world.SetLanguageTable(2, 7,
             (Offsets.LevelNameKey + Map, "Demiman Village"),
-            (Offsets.TarotNameKey + (5011 - Offsets.TarotNameBase), "The Devil"),
-            (Offsets.TarotNameKey + (5010 - Offsets.TarotNameBase), "The Hermit"));
+            (Offsets.TarotNameKey + "1010", "The Devil"),
+            (Offsets.TarotNameKey + "1009", "The Hermit"));
         world.SetGameplays(
             (8100, []),
             (5000, [("finish_count _EventsMember_1", 1)]),
-            (5011, [(Offsets.TarotEntityVar + "_EventsMember_A", 105)]),
+            (5008, [(Offsets.TarotEntityVar + "_EventsMember_A", 105)]),
             (5010, [(Offsets.TarotEntityVar + "_EventsMember_B", 106)]),
-            (5011, [(Offsets.TarotEntityVar + "_EventsMember_A", 107)]));
+            (5008, [(Offsets.TarotEntityVar + "_EventsMember_A", 107)]));
         return world;
     }
 
@@ -206,6 +206,30 @@ public class MapInfoReaderTests
         reader.Read(world.Scene, 1, 0, AllCardsStanding);
         _now += Offsets.MapInfoRefreshMilliseconds;
         return reader.Read(world.Scene, 1, 0, icons)!;
+    }
+
+    static MapIcon InmateIcon(int entityId) => new(Offsets.FugitiveIconType, "UI_MiniMap_S16jingying", default, 1, 0, entityId);
+
+    [Fact]
+    public void FugitiveInmatesCountDoneFromVanishedIcons()
+    {
+        var world = FakeMapInfo.Demiman();
+        world.SetModifiers(5111003, 2320008);
+        var reader = ReaderFor(world);
+        MapContent Row(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!.Content.Single(c => c.Name == "Fugitive Inmates");
+        }
+
+        var none = Row();
+        Assert.Equal((0, 0, ContentState.Pending), (none.Done, none.Total, none.State));
+        var fresh = Row(InmateIcon(71), InmateIcon(72), InmateIcon(73));
+        Assert.Equal((0, 3, ContentState.Pending), (fresh.Done, fresh.Total, fresh.State));
+        var some = Row(InmateIcon(72));
+        Assert.Equal((2, 3, ContentState.Active), (some.Done, some.Total, some.State));
+        var all = Row();
+        Assert.Equal((3, 3, ContentState.Done), (all.Done, all.Total, all.State));
     }
 
     [Fact]
@@ -278,7 +302,7 @@ public class MapInfoReaderTests
     public void ACardWithoutAnEntityIdCountsButIsNeverDone()
     {
         var world = TarotMap();
-        world.SetGameplays((5011, [("something_else_X", 1)]));
+        world.SetGameplays((5008, [("something_else_X", 1)]));
         var devil = ReaderFor(world).Read(world.Scene, 1, 0, [PortalIcon])!.Content.Single(c => c.Name == "The Devil");
         Assert.Equal((0, 1, ContentState.Pending), (devil.Done, devil.Total, devil.State));
     }
