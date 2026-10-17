@@ -396,6 +396,9 @@ public class OffsetsTests
         Assert.Equal(0x2B0, Offsets.HpBarEliteCanvas);
         Assert.Equal(0x308, Offsets.HpBarNormalTrack);
         Assert.Equal(0x2E0, Offsets.HpBarEliteTrack);
+        Assert.Equal("HpBarMonsterBoss_C", Offsets.HpBarBossClassName);
+        Assert.Equal(0x298, Offsets.HpBarBossCanvas);
+        Assert.Equal(0x330, Offsets.HpBarBossTrack);
     }
 
     [Fact]

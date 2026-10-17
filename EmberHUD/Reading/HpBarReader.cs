@@ -97,6 +97,7 @@ internal sealed class HpBarReader(IReadBackend memory, nint moduleBase, Names na
 
         if (className == Offsets.HpBarNormalClassName) (canvasOffset, trackOffset) = (Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack);
         else if (className == Offsets.HpBarEliteClassName) (canvasOffset, trackOffset) = (Offsets.HpBarEliteCanvas, Offsets.HpBarEliteTrack);
+        else if (className == Offsets.HpBarBossClassName) (canvasOffset, trackOffset) = (Offsets.HpBarBossCanvas, Offsets.HpBarBossTrack);
         return trackOffset != 0;
     }
 

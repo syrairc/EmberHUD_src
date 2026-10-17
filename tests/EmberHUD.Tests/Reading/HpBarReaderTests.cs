@@ -27,6 +27,9 @@ public class HpBarReaderTests
         public (nint Component, nint Widget, nint Track) Elite(FakeEntity monster) =>
             Ui.AddHpBar(monster, Offsets.HpBarEliteClassName, Offsets.HpBarEliteCanvas, Offsets.HpBarEliteTrack, new Vector2(1535.3f, 429.3f), new Vector2(192, 35), 0.4469f, 0.4469f);
 
+        public (nint Component, nint Widget, nint Track) Boss(FakeEntity monster) =>
+            Ui.AddHpBar(monster, Offsets.HpBarBossClassName, Offsets.HpBarBossCanvas, Offsets.HpBarBossTrack, new Vector2(1525.6f, 309.6f), new Vector2(160, 16), 1, 1);
+
         public Entity[] Apply(EntityKind kind, params FakeEntity[] monsters)
         {
             World.PublishEntities(monsters);
@@ -61,6 +64,17 @@ public class HpBarReaderTests
         var entity = rig.Apply(monster);
         Assert.True(entity.HasGameBar);
         Assert.Equal(EliteRect, entity.GameBar);
+    }
+
+    [Fact]
+    public void ShownBossBarIsTheImageBgRect()
+    {
+        var rig = new Rig();
+        var monster = rig.Monster(1);
+        rig.Boss(monster);
+        var entity = rig.Apply(monster);
+        Assert.True(entity.HasGameBar);
+        Assert.Equal(Rect(1525.6f, 309.6f, 160, 16, 1, 1), entity.GameBar);
     }
 
     [Fact]
@@ -154,11 +168,11 @@ public class HpBarReaderTests
     }
 
     [Fact]
-    public void WidgetClassThatIsNeitherNormalNorEliteHasNoBar()
+    public void UnknownWidgetClassHasNoBar()
     {
         var rig = new Rig();
         var monster = rig.Monster(1);
-        rig.Ui.AddHpBar(monster, "HpBarMonsterBoss_C", Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(100, 10), 1, 1);
+        rig.Ui.AddHpBar(monster, "HpBarMonsterWoodStake_C", Offsets.HpBarNormalCanvas, Offsets.HpBarNormalTrack, new Vector2(10, 10), new Vector2(100, 10), 1, 1);
         Assert.False(rig.Apply(monster).HasGameBar);
     }
 
