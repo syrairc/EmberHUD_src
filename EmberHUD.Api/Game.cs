@@ -13,6 +13,7 @@ public static class Game
     static long _groundHazardsAsked;
     static long _characterAsked;
     static long _tartarusAsked;
+    static long _groundItemsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -122,6 +123,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantGroundItems() => Interlocked.Exchange(ref _groundItemsAsked, Stopwatch.GetTimestamp());
+
+    internal static long GroundItemsAsked
+    {
+        get => Interlocked.Read(ref _groundItemsAsked);
+        set => Interlocked.Exchange(ref _groundItemsAsked, value);
+    }
+
+    internal static bool GroundItemsWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _groundItemsAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -178,6 +193,8 @@ public sealed record GameState
     public InventoryItem[]? Inventory { get; init; }
 
     public TartarusState? Tartarus { get; init; }
+
+    public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }
 
