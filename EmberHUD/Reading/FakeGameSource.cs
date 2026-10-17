@@ -80,6 +80,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
+            GameMinimap = new GameMinimap(true, 51892f),
         };
         failure = null;
         return true;

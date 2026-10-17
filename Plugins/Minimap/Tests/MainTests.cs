@@ -85,6 +85,79 @@ public sealed class MainTests
         Check.That(view?.Scale > 0 && view?.Scale != 10.5f, "fits the rotated bounds");
     }
 
+    static Settings GameMode()
+    {
+        var settings = new Settings();
+        settings.General.UseGameMinimap = true;
+        return settings;
+    }
+
+    static MapView? GameView(Settings settings, GameMinimap? game, Vector2? viewport = null, float? rotation = -30) =>
+        Main.ViewFor(settings, new Vector3(4, 7, 0), Walls.Empty, viewport ?? Screen, rotation, game);
+
+    [Test]
+    public void GameMinimapViewUsesTheGameZoomAndRotation()
+    {
+        var settings = GameMode();
+        settings.General.Rotation = 45;
+        settings.General.Zoom = 3;
+        settings.General.VerticalScale = 0.5f;
+        settings.General.FollowPlayer = false;
+        settings.General.OffsetX = 100;
+        settings.General.OffsetY = 100;
+        settings.General.GameOffsetX = 10;
+        settings.General.GameOffsetY = -5;
+
+        var view = GameView(settings, new GameMinimap(true, 3840));
+
+        Check.Equal<float?>(0.5f, view?.Scale);
+        Check.Equal<float?>(-30f, view?.RotationDegrees);
+        Check.Equal<float?>(1f, view?.VerticalScale);
+        Check.Equal<Vector2?>(new Vector2(970, 535), view?.ToScreen(new Vector3(4, 7, 0)));
+    }
+
+    [Test]
+    public void GameMinimapViewIsNullWhileTheGameMapIsClosedOrMissing()
+    {
+        Check.That(GameView(GameMode(), new GameMinimap(false, 3840)) is null);
+        Check.That(GameView(GameMode(), null) is null);
+    }
+
+    [Test]
+    public void GameMinimapViewIsNullForBadWidths()
+    {
+        Check.That(GameView(GameMode(), new GameMinimap(true, 3840), Vector2.Zero) is null);
+        Check.That(GameView(GameMode(), new GameMinimap(true, 0)) is null);
+        Check.That(GameView(GameMode(), new GameMinimap(true, -5)) is null);
+        Check.That(GameView(GameMode(), new GameMinimap(true, float.NaN)) is null);
+        Check.That(GameView(GameMode(), new GameMinimap(true, float.PositiveInfinity)) is null);
+    }
+
+    [Test]
+    public void GameMinimapStateIsIgnoredWhileTheToggleIsOff()
+    {
+        var view = GameView(new Settings(), new GameMinimap(false, 3840), rotation: null);
+
+        Check.Equal<float?>(0.037f, view?.Scale);
+    }
+
+    [Test]
+    public void TickShowsTheViewOnlyWhileTheGameMapIsOpen()
+    {
+        var main = Scene.Plugin();
+        main.Settings.General.UseGameMinimap = true;
+        var inArea = InArea();
+        Map.View = null;
+
+        TestGame.Set(inArea with { GameMinimap = new GameMinimap(false, 3840) });
+        TestFrame.Run(main.Tick);
+        Check.That(Map.View is null);
+
+        TestGame.Set(inArea with { GameMinimap = new GameMinimap(true, 3840) });
+        TestFrame.Run(main.Tick);
+        Check.That(Map.View is not null);
+    }
+
     [Test]
     public void TheGameMinimapRotationIsUsedForTheView()
     {
@@ -312,6 +385,35 @@ public sealed class MainTests
         TestFrame.Run(main.Tick);
 
         Check.That(Map.View is null);
+    }
+
+    [Test]
+    public void GameModeBuildsTheRegionWithATransparentExploredFillAndRebuildsWhenToggled()
+    {
+        List<byte[]> built = [];
+        try
+        {
+            TestGame.UseTextures((_, rgba, _, _) => built.Add(rgba.ToArray()), null);
+            var main = Scene.Plugin();
+            main.Clock = () => _now;
+            const int centreAlpha = (1 * 3 + 1) * 4 + 3;
+
+            TickTwiceAt(main, 0, Scene.State(terrain: _cell));
+            main.Settings.General.UseGameMinimap = true;
+            TickTwiceAt(main, 1000, Scene.State(terrain: _cell));
+            main.Settings.General.UseGameMinimap = false;
+            TickTwiceAt(main, 2000, Scene.State(terrain: _cell));
+            TickTwiceAt(main, 5000, Scene.State(terrain: _cell));
+
+            Check.Equal(3, built.Count, "one build per toggle state, none when nothing changed");
+            Check.That(built[0][centreAlpha] > 0, "explored fill shows with the toggle off");
+            Check.Equal((byte)0, built[1][centreAlpha], "transparent in game mode");
+            Check.That(built[2][centreAlpha] > 0, "and back");
+        }
+        finally
+        {
+            TestGame.UseTextures(null, null);
+        }
     }
 
     [Test]

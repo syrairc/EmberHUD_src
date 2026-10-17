@@ -26,6 +26,13 @@ public class GameStateTests
     }
 
     [Fact]
+    public void GameMinimapDefaultsToNullAndIsCarried()
+    {
+        Assert.Null(GameState.Empty.GameMinimap);
+        Assert.Equal(new GameMinimap(true, 51892f), new GameState { GameMinimap = new GameMinimap(true, 51892f) }.GameMinimap);
+    }
+
+    [Fact]
     public void FlatDistanceIgnoresHeight()
     {
         var player = new Player(new Vector3(0, 0, 500), Vector2.UnitX);

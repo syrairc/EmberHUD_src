@@ -85,12 +85,16 @@ public sealed record GameState
     public QuestTarget[] QuestTargets { get; init; } = [];
 
     public InventoryItem[]? Inventory { get; init; }
+
+    public GameMinimap? GameMinimap { get; init; }
 }
 
 public readonly record struct QuestTarget(int Id, Vector2 Position)
 {
     public string Name { get; init; } = "";
 }
+
+public sealed record GameMinimap(bool Open, float WorldWidth);
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
 {

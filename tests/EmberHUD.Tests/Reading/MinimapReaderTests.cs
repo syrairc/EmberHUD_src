@@ -289,6 +289,47 @@ public class MinimapReaderTests
         Assert.Equal(37.5f, reader.ReadHeadingDegrees());
     }
 
+    [Theory]
+    [InlineData((byte)1, true)]
+    [InlineData((byte)0, false)]
+    public void ReadsTheGameMinimapOpenStateAndWorldWidth(byte mode, bool open)
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, mode, 6.2086f, 34304);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        var result = reader.ReadGameMinimap();
+        Assert.Equal(open, result!.Open);
+        Assert.Equal(212989f, result.WorldWidth, 20f);
+    }
+
+    [Theory]
+    [InlineData((byte)1, float.NaN, 34304)]
+    [InlineData((byte)1, 0f, 34304)]
+    [InlineData((byte)1, -6.2f, 34304)]
+    [InlineData((byte)1, 6.2086f, 0)]
+    [InlineData((byte)1, 6.2086f, -5)]
+    [InlineData((byte)2, 6.2086f, 34304)]
+    [InlineData((byte)255, 6.2086f, 34304)]
+    public void GarbageGameMinimapReadsGiveNull(byte mode, float zoom, int side)
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, mode, zoom, side);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        Assert.Null(reader.ReadGameMinimap());
+    }
+
+    [Fact]
+    public void NoWidgetGivesNoGameMinimap()
+    {
+        var reader = ReaderFor(new FakeWorld());
+        reader.ReadRotationDegrees(1);
+        Assert.Null(reader.ReadGameMinimap());
+    }
+
     [Fact]
     public void ANonFiniteHeadingOrNoWidgetGivesNull()
     {

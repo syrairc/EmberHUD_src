@@ -17,8 +17,8 @@ public static class Scene
 
     public static Entity Entity(EntityKind kind, Vector3 at, Rarity rarity = Rarity.Normal) => new(1, 1000, at, kind, rarity);
 
-    public static GameState State(Player? player = null, Entity[]? entities = null, Terrain? terrain = null, int area = 1, float? rotation = null, MapIcon[]? icons = null, ExploredTrail? explored = null) =>
-        new() { Status = "test", AreaId = area, Player = player, Entities = entities ?? [], Terrain = terrain, MinimapRotation = rotation, MapIcons = icons ?? [], Explored = explored };
+    public static GameState State(Player? player = null, Entity[]? entities = null, Terrain? terrain = null, int area = 1, float? rotation = null, MapIcon[]? icons = null, ExploredTrail? explored = null, GameMinimap? gameMinimap = null) =>
+        new() { Status = "test", AreaId = area, Player = player, Entities = entities ?? [], Terrain = terrain, MinimapRotation = rotation, MapIcons = icons ?? [], Explored = explored, GameMinimap = gameMinimap };
 
     public static Main Plugin()
     {

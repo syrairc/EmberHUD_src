@@ -95,6 +95,7 @@ internal sealed class LiveReader
             Entities = entities,
             Terrain = terrain,
             MinimapRotation = rotation,
+            GameMinimap = _minimap.ReadGameMinimap(),
             MapIcons = icons,
             QuestTargets = _questTargets.Read(_minimap),
             Explored = explored,

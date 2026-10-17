@@ -383,6 +383,22 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void StateCarriesTheGameMinimapOrNullWithoutAWidget()
+    {
+        var (world, _) = WorldWithPlayerAt(0, 0);
+        var none = ReaderFor(world);
+        none.TryRead(out var without, out _);
+        Assert.Null(without.GameMinimap);
+
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, 1, 6.2086f, 34304);
+        var reader = ReaderFor(world);
+        reader.TryRead(out var state, out _);
+        Assert.True(state.GameMinimap!.Open);
+        Assert.Equal(212989f, state.GameMinimap.WorldWidth, 20f);
+    }
+
+    [Fact]
     public void WithoutAHeadingForwardStillFollowsMovement()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);

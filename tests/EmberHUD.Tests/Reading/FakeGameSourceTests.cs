@@ -17,6 +17,14 @@ public class FakeGameSourceTests
     public void ReportsTheMinimapRotationTheFakeOverlayLooksRightWith() => Assert.Equal(-90f, At(0).MinimapRotation);
 
     [Fact]
+    public void ReportsAnOpenGameMinimapThatZoomsAboutPointZeroThreeSevenAt1920()
+    {
+        var minimap = At(0).GameMinimap;
+        Assert.True(minimap!.Open);
+        Assert.InRange(1920f / minimap.WorldWidth, 0.036f, 0.038f);
+    }
+
+    [Fact]
     public void SameClockGivesTheSameState() => Assert.Equal(At(5_000).Player, At(5_000).Player);
 
     [Fact]

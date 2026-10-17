@@ -128,6 +128,7 @@ internal static class StateTools
                 ["first"] = new JsonArray([.. state.QuestTargets.Take(10).Select(t => (JsonNode)new JsonObject { ["id"] = t.Id, ["x"] = Num.F(t.Position.X), ["y"] = Num.F(t.Position.Y) })]),
             },
             ["minimapRotation"] = state.MinimapRotation is { } rotation ? Num.F(rotation) : null,
+            ["gameMinimap"] = state.GameMinimap is { } gameMinimap ? new JsonObject { ["open"] = gameMinimap.Open, ["worldWidth"] = Num.F(gameMinimap.WorldWidth) } : null,
             ["panels"] = new JsonArray([.. state.Ui.Panels.Select(panel => (JsonNode)new JsonObject
             {
                 ["name"] = panel.Name,

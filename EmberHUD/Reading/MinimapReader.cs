@@ -25,6 +25,14 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Names 
     public float? ReadHeadingDegrees() =>
         _widget != 0 && memory.TryRead(_widget + Offsets.MinimapHeading, out float heading) && float.IsFinite(heading) ? heading : null;
 
+    public GameMinimap? ReadGameMinimap() =>
+        _widget != 0
+        && memory.TryRead(_widget + Offsets.MinimapMode, out byte mode) && mode <= 1
+        && memory.TryRead(_widget + Offsets.MinimapBigZoom, out float zoom) && float.IsFinite(zoom) && zoom > 0
+        && memory.TryRead(_widget + Offsets.MinimapMapSide, out int side) && side > 0
+            ? new GameMinimap(mode == 1, zoom * side)
+            : null;
+
     public float? ReadRotationDegrees(int generation)
     {
         var bound = BoundWidget();
