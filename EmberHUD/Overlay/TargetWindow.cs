@@ -59,6 +59,8 @@ internal sealed class TargetWindow(ITargetSource source, Func<long>? clock = nul
 
     public bool IsVisibleTarget => Handle != 0 && IsForeground && !IsMinimized;
 
+    public bool GameIsForeground() => Handle != 0 && source.IsForeground(Handle) && !source.IsMinimized(Handle);
+
     public bool Poll()
     {
         var found = Locate();

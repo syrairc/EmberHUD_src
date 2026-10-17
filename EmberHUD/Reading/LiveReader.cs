@@ -18,16 +18,21 @@ internal sealed class LiveReader
     private readonly WoodStakeReader _woodStake;
     private readonly CombatReader? _combat;
     private readonly InventoryReader? _inventory;
+    private readonly CharacterReader? _character;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
     private readonly ProjectileReader _projectiles;
     private readonly HpBarReader _hpBars;
+    private readonly PausedReader _paused;
+    private readonly Func<long> _clock;
+    private long? _chatSeenAt;
     private int _generation;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, Func<long>? clockMilliseconds = null)
     {
+        _character = character;
         _memory = memory;
         _combat = combat;
         _inventory = inventory;
@@ -45,6 +50,8 @@ internal sealed class LiveReader
         _projectiles = new ProjectileReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
+        _clock = clockMilliseconds ?? (() => Environment.TickCount64);
+        _paused = new PausedReader(memory, moduleBase, _clock);
         _generation = firstAreaId;
     }
 
@@ -92,6 +99,11 @@ internal sealed class LiveReader
         var icons = _icons.Read(_minimap, positions, id => _world.TryReadEntityPosition(scene, id, out var at) ? new Vector2(at.X, at.Y) : null);
         var explored = _explored.Read(_minimap.Widget, geometry, _terrain.Generation);
         var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Count)}{(_minimap.Scans > 0 ? $", scans {_minimap.Scans}" : "")}";
+        var uiClean = _ui.TryRead(out var ui, out var chatSeen);
+        var now = _clock();
+        var chatHeld = _chatSeenAt is { } seenAt && now - seenAt < Offsets.ChatHoldMilliseconds;
+        bool? chatOpen = chatSeen || chatHeld ? true : uiClean ? false : null;
+        if (chatSeen || !uiClean) _chatSeenAt = now;
         state = new GameState
         {
             Status = status,
@@ -106,12 +118,16 @@ internal sealed class LiveReader
             QuestTargets = _questTargets.Read(_minimap),
             Explored = explored,
             Camera = pawn != 0 ? _world.ReadCamera(pawn) : null,
-            Ui = _ui.Read(),
+            Ui = ui,
+            ChatOpen = chatOpen,
+            Paused = _paused.Read(),
             Trade = _ui.ReadTrade(),
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
             Combat = _combat?.Snapshot,
             Inventory = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _inventory?.Read() : null,
+            Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
+            Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
         };
         return true;
     }

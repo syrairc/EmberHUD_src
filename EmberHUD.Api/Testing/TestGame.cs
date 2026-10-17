@@ -14,6 +14,13 @@ public static class TestGame
         return Game.CombatAsked != 0;
     }
 
+    public static bool CharacterAskedDuring(Action run)
+    {
+        Game.CharacterAsked = 0;
+        run();
+        return Game.CharacterAsked != 0;
+    }
+
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver is null ? null : texture => resolver(texture.ToString());
     public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
 

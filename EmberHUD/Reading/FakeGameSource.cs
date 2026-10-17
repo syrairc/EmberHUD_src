@@ -37,6 +37,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
     private static readonly MapIcon[] SceneIcons = BuildIcons();
+    private static readonly Buff[] FakeBuffs =
+    [
+        new(15010, "Bull's Rage", 1, 1),
+        new(400, "Affliction", 2.5, 4),
+        new(320, "Euphoria", 6, 10),
+    ];
+
+    private static readonly Skill[] FakeSkills =
+    [
+        new(2300, 0, 0, 0, 1, 1),
+        new(2040, 1, 0, 0, 3, 3),
+        new(1230, 3, 5.03, 8.197, 0, 0),
+        new(80000, -1, 0, 0, 0, 0),
+    ];
+
     private static readonly InventoryItem[] FakeInventory =
     [
         new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0),
@@ -77,12 +92,16 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now),
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
             Ui = UiAt(now),
+            ChatOpen = false,
+            Paused = false,
             Area = MapAt(now),
             Trade = TradeAt(now),
             WoodStake = WoodStakeAt(now),
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
+            Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
+            Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
             GameMinimap = new GameMinimap(true, 51892f),
         };
         failure = null;
