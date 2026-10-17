@@ -232,7 +232,7 @@ public sealed class MapInfoTests
         TestGame.Set(GameState.Empty with { Area = Rainforest });
         TestInput.Hold();
         TestFrame.Vertices(plugin.Render);
-        Check.Equal(40, plugin.Settings.General.X);
+        Check.Equal(1520, plugin.Settings.General.X);
         Check.Equal(360, plugin.Settings.General.Width);
         TestGame.Set(GameState.Empty);
     }

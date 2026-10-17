@@ -34,8 +34,8 @@ public sealed class LegendTab
     public bool Lock = true;
     public Hotkey MoveKey = new(Key.Alt);
     public bool HideBehindPanels = true;
-    public int X = 40;
-    public int Y = 400;
+    public int X = 1640;
+    public int Y = 520;
     public int Width = 240;
     public TextStyle Text = TextStyle.Hud();
 }

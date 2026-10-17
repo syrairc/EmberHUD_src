@@ -13,8 +13,8 @@ public sealed class GeneralTab
     public bool Lock = true;
     public Hotkey MoveKey = new(Key.Alt);
     public bool HideBehindPanels = true;
-    public int X = 40;
-    public int Y = 220;
+    public int X = 1520;
+    public int Y = 300;
     public int Width = 360;
 }
 
