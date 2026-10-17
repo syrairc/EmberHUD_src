@@ -22,14 +22,18 @@ public sealed class SettingsUiTests
     [Test]
     public void NormalizePadsTiersAndClampsSliders()
     {
-        var settings = new Settings { Tiers = null!, GemSize = 50, GemSpacing = float.NaN, AnchorY = -3 };
+        var settings = new Settings { Tiers = null!, GlobalScale = 50, GemSpacing = float.NaN, AnchorY = -3 };
         settings.Normalize();
         Check.Equal(10, settings.Tiers.Count);
         settings.Tiers = [new TierStyle { Icon = "marker:circle", Scale = 3, Color = System.Drawing.Color.Red }];
         settings.Normalize();
         Check.Equal(10, settings.Tiers.Count);
         Check.Equal("marker:circle", settings.Tiers[0].Icon);
-        Check.That(settings.GemSize <= 1 && settings.AnchorY >= 0 && float.IsFinite(settings.GemSpacing));
+        Check.Equal(3f, settings.GlobalScale);
+        settings.GlobalScale = float.NaN;
+        settings.Normalize();
+        Check.Equal(1f, settings.GlobalScale);
+        Check.That(settings.AnchorY >= 0 && float.IsFinite(settings.GemSpacing));
     }
 
     [Test]

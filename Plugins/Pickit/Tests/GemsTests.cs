@@ -176,4 +176,21 @@ public sealed class GemsTests
         var before = Gems.Layout(Item([1], []), new Settings())[0].Radius;
         Check.Equal(before * 2, Gems.Layout(Item([1], []), new Settings { GroundScale = 2 })[0].Radius);
     }
+
+    [Test]
+    public void GlobalScaleScalesGroundAndCellRadii()
+    {
+        var ground = Gems.Layout(Item([1], []), new Settings())[0].Radius;
+        var cell = Cell([1], [])[0].Radius;
+        var settings = new Settings { GlobalScale = 2 };
+        Check.Equal(ground * 2, Gems.Layout(Item([1], []), settings)[0].Radius);
+        Check.Equal(cell * 2, Cell([1], [], settings)[0].Radius);
+    }
+
+    [Test]
+    public void GlobalScaleAndGroundScaleMultiply()
+    {
+        var radius = Gems.Layout(Item([1], []), new Settings { GlobalScale = 2, GroundScale = 0.5f })[0].Radius;
+        Check.Equal(Gems.Layout(Item([1], []), new Settings())[0].Radius, radius);
+    }
 }

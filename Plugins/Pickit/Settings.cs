@@ -29,7 +29,7 @@ public sealed class Settings : PluginSettings
     public Hotkey PickupKey = new(Key.A);
     public bool GemsEnabled = true;
     public List<TierStyle> Tiers = DefaultTiers();
-    public float GemSize = 0.33f;
+    public float GlobalScale = 1;
     public float GemSpacing = 0.1f;
     public float AnchorY = 0;
     public float InsetX = 0;
@@ -53,7 +53,7 @@ public sealed class Settings : PluginSettings
     public void Normalize()
     {
         NearRadius = float.IsFinite(NearRadius) ? Math.Clamp(NearRadius, 50, 3000) : 500;
-        GemSize = Clamp(GemSize, 0.1f, 1, 0.33f);
+        GlobalScale = Clamp(GlobalScale, 0.25f, 3, 1);
         GemSpacing = Clamp(GemSpacing, 0, 2, 0.1f);
         AnchorY = Clamp(AnchorY, 0, 1, 0);
         InsetX = Clamp(InsetX, 0, 200, 0);

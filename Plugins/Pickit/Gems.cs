@@ -8,6 +8,8 @@ namespace Pickit;
 
 static class Gems
 {
+    const float GroundSize = 0.33f;
+
     public readonly record struct Gem(Vector2 Centre, float Radius, int Tier, bool Prefix);
 
     public static Gem[] Layout(GroundItem item, Settings s)
@@ -25,7 +27,7 @@ static class Gems
             foreach (var id in ordered.Take(GroundItem.MaxAffixes))
             {
                 var tier = GroundItem.Tier(id);
-                var radius = s.GemSize * height / 2 * s.GroundScale * s.Tiers[Math.Clamp(tier, 0, s.Tiers.Count - 1)].Scale;
+                var radius = GroundSize * height / 2 * s.GlobalScale * s.GroundScale * s.Tiers[Math.Clamp(tier, 0, s.Tiers.Count - 1)].Scale;
                 gems.Add(new Gem(new Vector2(x, item.LabelMin.Y + s.AnchorY * height), radius, tier, prefix));
                 x += direction * radius * 2 * (1 + s.GemSpacing);
             }
@@ -44,7 +46,7 @@ static class Gems
         void Side(int[] ids, bool prefix)
         {
             var tiers = ids.Select(GroundItem.Tier).Order().Take(GroundItem.MaxAffixes).ToArray();
-            var radii = tiers.Select(t => 0.16f * height / 2 * s.InventoryScale * s.Tiers[Math.Clamp(t, 0, s.Tiers.Count - 1)].Scale).ToArray();
+            var radii = tiers.Select(t => 0.16f * height / 2 * s.GlobalScale * s.InventoryScale * s.Tiers[Math.Clamp(t, 0, s.Tiers.Count - 1)].Scale).ToArray();
             var y = 0f;
             var ys = new float[tiers.Length];
             for (var i = 0; i < tiers.Length; i++)
