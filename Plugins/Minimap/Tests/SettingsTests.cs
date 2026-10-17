@@ -13,12 +13,12 @@ public sealed class SettingsTests
     static MapIcon Icon(string texture, string name = "", int type = 1, int entity = 0) => new(type, texture, Vector2.Zero, 1, 0, entity) { Name = name };
 
     [Test]
-    public void GameMinimapSettingsDefaultOffWithNoOffset()
+    public void GameMinimapSettingsDefaultOffWithMeasuredVerticalOffset()
     {
         var general = new Settings().General;
         Check.That(!general.UseGameMinimap);
         Check.Equal(0f, general.GameOffsetX);
-        Check.Equal(0f, general.GameOffsetY);
+        Check.Equal(-35f, general.GameOffsetY);
     }
 
     [Test]
