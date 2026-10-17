@@ -19,7 +19,7 @@ static class SettingsUI
         Grid(store);
         ImGui.TextUnformatted($"Unclassified: {store.Unclassified}   Unsure: {store.Unsure}");
         ImGui.SeparatorText("Last kills");
-        if (Tables.Begin("kills", [("Time", 70), ("Area", 0), ("Inmate", 0), ("Outcome", 60)]))
+        if (Tables.Begin("kills", [("Time", 70), ("Area", 0), ("Inmate", 0), ("Outcome", 130)]))
         {
             var shown = store.Kills.AsEnumerable().Reverse().Take(20).ToArray();
             for (var i = 0; i < shown.Length; i++)
@@ -30,7 +30,7 @@ static class SettingsUI
                     Cell(kill.When.ToString("HH:mm:ss"));
                     Cell(kill.Area ?? "");
                     Cell(kill.Species is { } species && Enum.IsDefined(species) && kill.Step is >= 1 and <= 4 ? $"{Inmates.SpeciesName(species)} {Steps[kill.Step - 1]}" : kill.CfgId.ToString());
-                    Cell(kill.Outcome);
+                    Cell(kill.Source is null ? kill.Outcome : $"{kill.Outcome} ({kill.Source})");
                 }
             }
             Tables.End();

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using EmberHUD;
 
 namespace InmateLog;
@@ -61,7 +62,14 @@ public sealed class Main : Plugin<Settings>
 
         var seconds = Seconds();
         var nameplates = Nameplates.Count(state.Inventory);
-        foreach (var sighting in _tracker.Update(state, seconds))
+        Dictionary<int, SceneEntity>? scene = null;
+        bool? SceneAlive(int id, int cfgId)
+        {
+            scene ??= Scene.Entities().GroupBy(entity => entity.Id).ToDictionary(group => group.Key, group => group.First());
+            return scene.TryGetValue(id, out var entry) && entry.CfgId == cfgId ? entry.Alive : null;
+        }
+
+        foreach (var sighting in _tracker.Update(state, seconds, SceneAlive))
         {
             Store.Add(sighting, state.Area?.Name ?? "", nameplates, Now());
         }

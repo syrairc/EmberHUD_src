@@ -135,6 +135,64 @@ public sealed class TrackerTests
     }
 
     [Test]
+    public void SceneDeadEndsAsKilled()
+    {
+        var tracker = InmatesOnly();
+        tracker.Update(State(7, Mob(41, 55, 90)), 1);
+        var events = tracker.Update(State(7), 2, (_, _) => false);
+        Check.Equal(SightingEnd.Killed, events[0].End);
+        Check.Equal(SightingSource.SceneDead, events[0].Source);
+        Check.Equal(55.0, events[0].LastLife);
+    }
+
+    [Test]
+    public void SceneAliveEndsAsUnsure()
+    {
+        var tracker = InmatesOnly();
+        tracker.Update(State(7, Mob(42, 0, 90)), 1);
+        var events = tracker.Update(State(7), 2, (_, _) => true);
+        Check.Equal(SightingEnd.Unsure, events[0].End);
+        Check.Equal(SightingSource.SceneAlive, events[0].Source);
+    }
+
+    [Test]
+    public void UnknownSceneFallsBackToLife()
+    {
+        var tracker = InmatesOnly();
+        tracker.Update(State(7, Mob(43, 0, 90), Mob(44, 40, 90)), 1);
+        var events = tracker.Update(State(7), 2, (_, _) => null);
+        Check.Equal(2, events.Length);
+        Check.Equal(SightingEnd.Killed, events[0].End);
+        Check.Equal(SightingSource.Life, events[0].Source);
+        Check.Equal(SightingEnd.Unsure, events[1].End);
+        Check.Equal(SightingSource.Life, events[1].Source);
+    }
+
+    [Test]
+    public void LookupOnlyCalledWhenAnInmateEnds()
+    {
+        var tracker = InmatesOnly();
+        var calls = 0;
+        bool? Count(int id, int cfgId) { calls++; return null; }
+        tracker.Update(State(7, Mob(45, 40, 90)), 1, Count);
+        tracker.Update(State(7, Mob(45, 40, 90)), 1.2, Count);
+        tracker.Update(State(7), 1.4, Count);
+        Check.Equal(0, calls);
+        tracker.Update(State(7), 2, Count);
+        Check.Equal(1, calls);
+    }
+
+    [Test]
+    public void LookupGetsTheIdAndCfgIdOfTheEndingInmate()
+    {
+        var tracker = InmatesOnly();
+        tracker.Update(State(7, Mob(46, 40, 90)), 1);
+        (int, int)? asked = null;
+        tracker.Update(State(7), 2, (id, cfgId) => { asked = (id, cfgId); return null; });
+        Check.Equal((46, 5027023), asked);
+    }
+
+    [Test]
     public void GoneForLessThanHalfASecondIsNotEndedYet()
     {
         var tracker = InmatesOnly();

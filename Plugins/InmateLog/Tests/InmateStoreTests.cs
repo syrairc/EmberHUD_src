@@ -111,6 +111,29 @@ public sealed class InmateStoreTests
     }
 
     [Test]
+    public void SourceIsStoredAndShown()
+    {
+        InTemp(dir =>
+        {
+            var store = new InmateStore();
+            store.Add(Seen(InmateSpecies.Wolf, 3) with { Source = SightingSource.SceneDead }, "Ward", null, Now);
+            store.Add(Seen(InmateSpecies.Wolf, 3, SightingEnd.Unsure) with { Source = SightingSource.SceneAlive }, "Ward", null, Now);
+            store.Add(Seen(InmateSpecies.Wolf, 3), "Ward", null, Now);
+            Check.Equal("scene-dead", store.Kills[0].Source);
+            Check.Equal("scene-alive", store.Kills[1].Source);
+            Check.Equal("life", store.Kills[2].Source);
+            store.Save(dir);
+            Check.Equal("scene-alive", InmateStore.Load(dir).Kills[1].Source);
+
+            var old = "{\"Grid\":[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]],\"Unclassified\":0,\"Unsure\":0,\"Kills\":[{\"When\":\"2026-10-17T12:00:00Z\",\"Area\":\"Old\",\"CfgId\":5027023,\"Species\":2,\"Step\":3,\"Outcome\":\"killed\",\"LastLife\":0,\"MaxLife\":90,\"Distance\":1,\"SecondsSeen\":2,\"Nameplates\":null}],\"Runs\":[]}";
+            File.WriteAllText(Path.Combine(dir, "inmates.json"), old);
+            var loaded = InmateStore.Load(dir);
+            Check.Equal(1, loaded.Kills.Count);
+            Check.That(loaded.Kills[0].Source is null, "old entry has no source");
+        });
+    }
+
+    [Test]
     public void CorruptFileLoadsEmptyAndKeepsTheBadFile()
     {
         InTemp(dir =>
