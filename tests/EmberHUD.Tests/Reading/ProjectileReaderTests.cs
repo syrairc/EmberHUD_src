@@ -34,7 +34,7 @@ public class ProjectileReaderTests
         Assert.Equal(new Vector2(4127.27f, 4389.85f), projectile.Position);
         Assert.Equal(new Vector2(3825.37f, 4523.12f), projectile.Origin);
         Assert.Equal(240, projectile.Radius);
-        Assert.Equal(2102, projectile.Speed);
+        Assert.Equal(1200, projectile.Speed);
         Assert.Equal(1, projectile.Direction.Length(), 3);
         Assert.Equal(0.914f / MathF.Sqrt(0.914f * 0.914f + 0.405f * 0.405f), projectile.Direction.X, 3);
     }
@@ -67,7 +67,7 @@ public class ProjectileReaderTests
         world.AddBullet(53, 7, Position, Direction, Origin, radius: Offsets.MaxProjectileRadius + 1);
         world.AddBullet(54, 7, Position, Direction, Origin, speed: Offsets.MaxProjectileSpeed + 1);
         var noOwner = world.AddBullet(55, 7, Position, Direction, Origin);
-        world.Memory.Write(noOwner.Transform + Offsets.TransformOwner, (nint)0);
+        world.Memory.Write(noOwner.Attachment + Offsets.AttachmentOwnerId, 0u);
         var projectile = Assert.Single(reader.Read([Owner()]));
         Assert.Equal(50, projectile.Id);
         Assert.NotEqual(0, good.Bullet);

@@ -130,13 +130,13 @@ internal sealed class FakeWorld
         Memory.Write(FightWorld + Offsets.FightWorldEntityBucketCount, 4u);
     }
 
-    private void WriteTable(nint table, int slotCap, nint[] slots, byte[] index)
+    private void WriteTable(nint table, nint[] slots, byte[] index)
     {
         var indexAt = Alloc(index.Length);
         var slotsAt = Alloc(slots.Length * 8);
         Memory.WriteArray(indexAt, index);
         Memory.WriteArray(slotsAt, slots);
-        Memory.Write(table + Offsets.FightTableSlotCap, slotCap);
+        Memory.Write(table + Offsets.FightTableSlotCap, slots.Length - 1);
         Memory.Write(table + Offsets.FightTableIndex, indexAt);
         Memory.Write(table + Offsets.FightTableSlots, slotsAt);
     }
@@ -151,14 +151,14 @@ internal sealed class FakeWorld
             index[Offsets.SkillComponentId] = 1;
             if (direct)
             {
-                WriteTable(entity + Offsets.FightEntityDirectTable, 4, [0, component], index);
+                WriteTable(entity + Offsets.FightEntityDirectTable, [0, component], index);
             }
             else
             {
                 var entry = Alloc(0x40);
                 Memory.Write(entry + Offsets.FightEntryComponent, component);
-                WriteTable(entity + Offsets.FightEntityDirectTable, 4, [0, 0], index);
-                WriteTable(entity + Offsets.FightEntityEntryTable, 4, [0, entry], index);
+                WriteTable(entity + Offsets.FightEntityDirectTable, [0, 0], index);
+                WriteTable(entity + Offsets.FightEntityEntryTable, [0, entry], index);
             }
 
             fighter = new FakeFighter(entity, component, []);
@@ -186,32 +186,32 @@ internal sealed class FakeWorld
         return new FakeCast(skill, timer, timing);
     }
 
-    internal readonly record struct FakeBullet(nint Bullet, nint Shape, nint Move, nint Transform);
+    internal readonly record struct FakeBullet(nint Bullet, nint Shape, nint Move, nint Transform, nint Attachment);
 
-    public FakeBullet AddBullet(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (double X, double Y) origin, float radius = 240, float speed = 2102)
+    public FakeBullet AddBullet(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (double X, double Y) origin, float radius = 240, double speed = 1200)
     {
         var entity = Alloc(0x200);
+        var attachment = Alloc(0x100);
         var bullet = Alloc(0x100);
         var shape = Alloc(0x100);
         var move = Alloc(0x100);
         var transform = Alloc(0x100);
-        var owner = Alloc(0x100);
-        Memory.Write(owner + Offsets.FightEntityId, ownerId);
-        Memory.Write(transform + Offsets.TransformOwner, owner);
+        Memory.Write(attachment + Offsets.AttachmentOwnerId, ownerId);
         Memory.WriteArray(transform + Offsets.TransformPosition, new[] { position.X, position.Y });
         Memory.WriteArray(transform + Offsets.TransformDirection, new[] { direction.X, direction.Y });
         Memory.WriteArray(bullet + Offsets.BulletOrigin, new[] { origin.X, origin.Y });
         Memory.Write(shape + Offsets.ShapeRadius, (uint)radius);
         Memory.Write(move + Offsets.MoveSpeed, speed);
         var index = new byte[153];
-        index[Offsets.BulletComponentId] = 1;
-        index[Offsets.ShapeComponentId] = 2;
+        index[Offsets.AttachmentComponentId] = 1;
+        index[Offsets.BulletComponentId] = 2;
         index[Offsets.MoveComponentId] = 3;
-        index[Offsets.TransformComponentId] = 4;
-        WriteTable(entity + Offsets.FightEntityDirectTable, 8, [0, bullet, shape, move, transform], index);
+        index[Offsets.ShapeComponentId] = 4;
+        index[Offsets.TransformComponentId] = 5;
+        WriteTable(entity + Offsets.FightEntityDirectTable, [0, attachment, bullet, move, shape, transform], index);
         _fighters[id] = new FakeFighter(entity, bullet, []);
         PublishFighters();
-        return new FakeBullet(bullet, shape, move, transform);
+        return new FakeBullet(bullet, shape, move, transform, attachment);
     }
 
     public void SetFightFrame(uint frame) => Memory.Write(FightMsg + Offsets.FightMsgFrame, frame);
@@ -233,7 +233,7 @@ internal sealed class FakeWorld
             slots[i + 1] = components[i].Address;
         }
 
-        WriteTable(entity + Offsets.FightEntityDirectTable, slots.Length, slots, index);
+        WriteTable(entity + Offsets.FightEntityDirectTable, slots, index);
         _fighters[(uint)id] = new FakeFighter(entity, 0, []);
         PublishFighters();
         return entity;

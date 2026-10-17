@@ -88,4 +88,25 @@ public sealed class GeometryTests
 
         Assert.All(points, point => Assert.Equal(5, Vector2.Distance(point, new Vector2(10, 10)), 0.001f));
     }
+
+    [Fact]
+    public void OrientedRectAlongXIsAxisAligned()
+    {
+        var corners = new Vector2[4];
+        Geometry.OrientedRect(new Vector2(10, 20), Vector2.UnitX, 4, 100, corners);
+
+        Assert.Equal([new(-40, 18), new(60, 18), new(60, 22), new(-40, 22)], corners);
+    }
+
+    [Fact]
+    public void OrientedRectContainsItsCentreButNotPastItsEnd()
+    {
+        var corners = new Vector2[4];
+        Geometry.OrientedRect(Vector2.Zero, Vector2.Normalize(new Vector2(1, 1)), 10, 100, corners);
+
+        Assert.True(Geometry.Contains(corners, Vector2.Zero));
+        Assert.True(Geometry.Contains(corners, new Vector2(30, 30)));
+        Assert.False(Geometry.Contains(corners, new Vector2(40, 40)));
+        Assert.False(Geometry.Contains(corners, new Vector2(10, -10)));
+    }
 }

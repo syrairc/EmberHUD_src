@@ -25,6 +25,7 @@ public sealed class ProjectileLineTests
         LineColour = Line,
         DangerColour = Danger,
         AnimationSpeed = 100,
+        ShowHitWidth = false,
     };
 
     static Projectile Shot(Vector2? direction = null, float radius = 100) => new(1, 1, Rarity.Rare, new Vector2(0, 500), new Vector2(0, 500), direction ?? Vector2.UnitX, radius, 600);
@@ -125,5 +126,39 @@ public sealed class ProjectileLineTests
     public void NoCameraStillReportsInside()
     {
         Check.Equal(0, Drawn(null, Shot(), Configured(), new Vector2(500, 500), 0, inside: true).Count);
+    }
+
+    [Test]
+    public void HitWidthIsOnByDefault()
+    {
+        Check.That(new Settings().ShowHitWidth, "hit width off by default");
+    }
+
+    [Test]
+    public void HitWidthDrawsAFaintBandInTheLineColour()
+    {
+        var settings = Configured();
+        var plain = Drawn(Forward, Shot(), settings, Far, 0);
+        settings.ShowHitWidth = true;
+        var banded = Drawn(Forward, Shot(), settings, Far, 0, inside: false);
+        Check.That(banded.Count > plain.Count, "no band drawn");
+        Check.That(banded.Any(v => v.Col == EColor.U32(Color.FromArgb(Line.A / 4, Line))), "no faint line coloured band");
+    }
+
+    [Test]
+    public void HitWidthBandTurnsDangerWhenInside()
+    {
+        var settings = Configured();
+        settings.ShowHitWidth = true;
+        var hit = Drawn(Forward, Shot(), settings, new Vector2(500, 500), 0, inside: true);
+        Check.That(hit.Any(v => v.Col == EColor.U32(Color.FromArgb(Danger.A / 4, Danger))), "band not danger coloured");
+    }
+
+    [Test]
+    public void ZeroRadiusDrawsNoBand()
+    {
+        var settings = Configured();
+        settings.ShowHitWidth = true;
+        Check.Equal(Drawn(Forward, Shot(radius: 0), Configured(), Far, 0).Count, Drawn(Forward, Shot(radius: 0), settings, Far, 0).Count);
     }
 }

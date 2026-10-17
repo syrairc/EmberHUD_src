@@ -19,6 +19,7 @@
   "LineLength": 1500,
   "LineWidth": 4,
   "RadiusScale": 0.25,
+  "ShowHitWidth": true,
   "LineColour": "#3CDCFFE6",
   "AnimationSpeed": 600,
   "DangerColour": "#FF2878FF",

@@ -26,6 +26,7 @@ public sealed partial class Settings
         Setting.Slider("Line length", ref LineLength, 200, 5000);
         Setting.Slider("Line width", ref LineWidth, 1, 20);
         Setting.Slider("Radius scale", ref RadiusScale, 0, 1, "Multiplier on the projectile radius that sizes the danger zone around the line");
+        Setting.Checkbox("Show hit width", ref ShowHitWidth, "Faint band under each line, as wide as its danger zone (projectile radius x Radius scale)");
         Setting.Color("Line colour", ref LineColour);
         Setting.Slider("Animation speed", ref AnimationSpeed, 50, 3000, "Only used by the Animated style");
 

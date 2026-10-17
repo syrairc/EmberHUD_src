@@ -39,6 +39,16 @@ public static class Geometry
 
     public static void RegularPolygon(Vector2 centre, float radius, Span<Vector2> into) => Draw.RegularPoints(into, centre, radius, 0);
 
+    public static void OrientedRect(Vector2 centre, Vector2 direction, float width, float length, Span<Vector2> into)
+    {
+        var along = direction * (length / 2);
+        var across = new Vector2(-direction.Y, direction.X) * (width / 2);
+        into[0] = centre - along - across;
+        into[1] = centre + along - across;
+        into[2] = centre + along + across;
+        into[3] = centre - along + across;
+    }
+
     public static bool Contains(ReadOnlySpan<Vector2> convex, Vector2 point)
     {
         if (convex.Length < 3 || !float.IsFinite(point.X) || !float.IsFinite(point.Y)) return false;

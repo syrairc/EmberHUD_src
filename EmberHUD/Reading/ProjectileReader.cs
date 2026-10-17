@@ -39,15 +39,15 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
             !memory.TryRead(transform + Offsets.TransformDirection, pair) || !IsFinite(pair, out var direction) ||
             !memory.TryRead(bullet + Offsets.BulletOrigin, pair) || !IsFinite(pair, out var origin) ||
             !memory.TryRead(shape + Offsets.ShapeRadius, out uint radius) || radius == 0 || radius > Offsets.MaxProjectileRadius ||
-            !memory.TryRead(move + Offsets.MoveSpeed, out float speed) || !float.IsFinite(speed) || speed < 0 || speed > Offsets.MaxProjectileSpeed ||
-            !memory.TryReadPtr(transform + Offsets.TransformOwner, out var owner) || owner == 0 ||
-            !memory.TryRead(owner + Offsets.FightEntityId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity))
+            !memory.TryRead(move + Offsets.MoveSpeed, out double speed) || !double.IsFinite(speed) || speed < 0 || speed > Offsets.MaxProjectileSpeed ||
+            !_fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) || attachment == 0 ||
+            !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity))
             return false;
 
         var length = direction.Length();
         if (!float.IsFinite(length) || length < 0.5f) return false;
 
-        projectile = new Projectile(id, ownerId, rarity, position, origin, direction / length, radius, speed);
+        projectile = new Projectile(id, ownerId, rarity, position, origin, direction / length, radius, (float)speed);
         return true;
     }
 

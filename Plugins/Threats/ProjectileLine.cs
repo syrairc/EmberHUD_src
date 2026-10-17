@@ -18,13 +18,14 @@ public static class ProjectileLine
 
     static float Length(Settings settings) => float.IsFinite(settings.LineLength) ? Math.Max(settings.LineLength, 0) : 0;
 
+    static float HalfWidth(in Projectile projectile, Settings settings) => MathF.Abs(projectile.Radius) * (float.IsFinite(settings.RadiusScale) ? Math.Max(settings.RadiusScale, 0) : 0);
+
     static Vector2 End(in Projectile projectile, Settings settings) => projectile.Position + Vector2.Normalize(projectile.Direction) * Length(settings);
 
     public static bool Inside(in Projectile projectile, Settings settings, Vector2 player)
     {
         if (!Valid(projectile) || !float.IsFinite(player.X) || !float.IsFinite(player.Y)) return false;
-        var scale = float.IsFinite(settings.RadiusScale) ? Math.Max(settings.RadiusScale, 0) : 0;
-        return Geometry.DistanceToSegment(projectile.Position, End(projectile, settings), player) <= MathF.Abs(projectile.Radius) * scale + Slack;
+        return Geometry.DistanceToSegment(projectile.Position, End(projectile, settings), player) <= HalfWidth(projectile, settings) + Slack;
     }
 
     public static bool Draw(in Projectile projectile, Settings settings, Vector2 player, double seconds)
@@ -34,6 +35,14 @@ public static class ProjectileLine
         if (Game.State.Camera is null) return inside;
         var end = End(projectile, settings);
         var colour = inside ? settings.DangerColour : settings.LineColour;
+        var halfWidth = HalfWidth(projectile, settings);
+        if (settings.ShowHitWidth && halfWidth > 0)
+        {
+            Span<Vector2> band = stackalloc Vector2[4];
+            Geometry.OrientedRect((projectile.Position + end) / 2, Vector2.Normalize(projectile.Direction), halfWidth * 2, Length(settings), band);
+            Ground.PolygonFilled(band, Color.FromArgb(colour.A / 4, colour));
+        }
+
         var width = float.IsFinite(settings.LineWidth) ? Math.Clamp(settings.LineWidth, 0.5f, 64f) : 1f;
         switch (settings.Style)
         {

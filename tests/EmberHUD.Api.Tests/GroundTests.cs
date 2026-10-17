@@ -288,6 +288,26 @@ public sealed class GroundTests
     }
 
     [Fact]
+    public void TextRasterisesAtItsScreenSize()
+    {
+        Vector2[] Uvs(float worldHeight)
+        {
+            TestGame.Set(new GameState { Camera = Looking });
+            Vector2[] result = [];
+            TestFrame.Run(() =>
+            {
+                var list = ImGui.GetBackgroundDrawList();
+                var before = list.VtxBuffer.Size;
+                Ground.Text("M", Vector2.Zero, worldHeight, 0, Color.White, 0);
+                result = [.. Enumerable.Range(before, list.VtxBuffer.Size - before).Select(i => list.VtxBuffer[i].Uv)];
+            });
+            return result;
+        }
+
+        Assert.NotEqual(Uvs(100), Uvs(400));
+    }
+
+    [Fact]
     public void TextBehindTheCameraDrawsNothing()
     {
         var drawn = true;

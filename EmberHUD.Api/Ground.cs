@@ -104,9 +104,13 @@ public static class Ground
             return true;
         }
 
-        if (!TryProject(Vector2.Zero, out _) || !TryProject(new Vector2(size.X, 0), out _) || !TryProject(size, out _) || !TryProject(new Vector2(0, size.Y), out _)) return false;
+        if (!TryProject(Vector2.Zero, out var top) || !TryProject(new Vector2(size.X, 0), out _) || !TryProject(size, out _) || !TryProject(new Vector2(0, size.Y), out var bottom)) return false;
+        var px = Math.Clamp(MathF.Round(Vector2.Distance(top, bottom)), 8, 256);
+        size = Draw.MeasureText(text, px);
+        if (size.Y <= 0) return false;
+        scale = worldHeight / size.Y;
         var vertices = target.VtxBuffer.Size;
-        Draw.Text(text, Vector2.Zero, color, Align.TopLeft, list: target);
+        Draw.Text(text, Vector2.Zero, color, Align.TopLeft, px, list: target);
         var raw = target.Handle;
         for (var i = vertices; i < raw->VtxBuffer.Size; i++)
         {

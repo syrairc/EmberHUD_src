@@ -30,6 +30,7 @@ public sealed partial class Settings : PluginSettings
     public float LineLength = 1500;
     public float LineWidth = 4;
     public float RadiusScale = 0.25f;
+    public bool ShowHitWidth = true;
     public Color LineColour = Color.FromArgb(230, 60, 220, 255);
     public float AnimationSpeed = 600;
 

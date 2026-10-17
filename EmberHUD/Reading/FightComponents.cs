@@ -31,7 +31,7 @@ internal sealed class FightComponents(IReadBackend memory, nint moduleBase)
         slot = 0;
         return memory.TryRead(table + Offsets.FightTableSlotCap, out int slotCap) &&
                memory.TryReadPtr(table + Offsets.FightTableIndex, out var index) &&
-               memory.TryRead(index + componentId, out byte at) && at < slotCap &&
+               memory.TryRead(index + componentId, out byte at) && at <= slotCap &&
                memory.TryReadPtr(table + Offsets.FightTableSlots, out var slots) &&
                memory.TryRead(slots + at * nint.Size, out slot);
     }
