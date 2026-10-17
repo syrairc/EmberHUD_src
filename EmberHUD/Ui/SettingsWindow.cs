@@ -155,18 +155,27 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.TextUnformatted($"Installed: v{updates.Installed}");
         Wrapped(updates.Status);
         ImGui.BeginDisabled(!updates.Enabled);
-        if (ImGui.Button("Check now")) Task.Run(async () =>
-            {
-                try
-                {
-                    await updates.CheckOnce();
-                }
-                catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
-                {
-                }
-            });
+        if (ImGui.Button("Check now")) Check(false);
+        ImGui.SameLine();
+        if (ImGui.Button("Force update")) Check(true);
+        Text.Tip("Downloads the latest release even if it is the installed version, then applies it like a normal update");
         ImGui.EndDisabled();
+        DrawUpdateNotice();
         return false;
+    }
+
+    void Check(bool force)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                await updates.CheckOnce(force);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+            {
+            }
+        });
     }
 
     bool DrawGeneral()

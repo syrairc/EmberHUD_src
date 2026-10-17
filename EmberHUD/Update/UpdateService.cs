@@ -101,12 +101,12 @@ internal sealed class UpdateService : IDisposable
         }
     }
 
-    public async Task CheckOnce()
+    public async Task CheckOnce(bool force = false)
     {
         if (!Enabled || !await checking.WaitAsync(0)) return;
         try
         {
-            await Check(stop.Token);
+            await Check(force, stop.Token);
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
@@ -122,7 +122,7 @@ internal sealed class UpdateService : IDisposable
         }
     }
 
-    private async Task Check(CancellationToken ct)
+    private async Task Check(bool force, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, LatestUrl);
         request.Headers.UserAgent.ParseAdd("EmberHUD-Updater");
@@ -139,7 +139,7 @@ internal sealed class UpdateService : IDisposable
             Fail($"update check ignored the release - {problem}");
             return;
         }
-        if (release.Version <= installed)
+        if (release.Version < installed || release.Version == installed && !force)
         {
             Available = null;
             if (Staged is null) Status = $"up to date ({installed})";
