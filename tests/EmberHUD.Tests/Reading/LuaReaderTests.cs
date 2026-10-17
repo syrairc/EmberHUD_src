@@ -249,7 +249,7 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        var entries = reader.Entries(table, 100, out var total);
+        var entries = reader.Entries(table, 100, 0, "", out var total);
 
         Assert.Equal(8, total);
         Assert.Equal(new LuaEntryRow("[1]", "int", "11"), entries[0]);
@@ -272,7 +272,7 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        var entries = reader.Entries(table, 3, out var total);
+        var entries = reader.Entries(table, 3, 0, "", out var total);
 
         Assert.Equal(5, total);
         Assert.Equal(3, entries.Length);
@@ -287,7 +287,7 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        var entries = reader.Entries(table, 10, out var total);
+        var entries = reader.Entries(table, 10, 0, "", out var total);
 
         Assert.Equal(1, total);
         Assert.Equal("long", entries[0].Key);
@@ -305,7 +305,7 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        var byKey = reader.Entries(table, 10, out _).ToDictionary(e => e.Key);
+        var byKey = reader.Entries(table, 10, 0, "", out _).ToDictionary(e => e.Key);
 
         Assert.Equal("false", byKey["off"].Value);
         Assert.Equal("true", byKey["on"].Value);
@@ -320,7 +320,7 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        var entries = reader.Entries(table, 10, out var total);
+        var entries = reader.Entries(table, 10, 0, "", out var total);
 
         Assert.Equal(1, total);
         Assert.Equal(new LuaEntryRow("<tag 0x45>", "int", "5"), entries[0]);
@@ -335,7 +335,74 @@ public class LuaReaderTests
         Assert.True(reader.TryOpen(out var globals));
         Assert.True(reader.TryGetTable(globals, "t", out var table));
 
-        Assert.Empty(reader.Entries(table, 10, out var total));
+        Assert.Empty(reader.Entries(table, 10, 0, "", out var total));
         Assert.Equal(0, total);
+    }
+
+    private static (LuaReader Reader, LuaTable Table) Filterable()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 2, 3);
+        lua.SetIntKey(t, 1, 11, Offsets.LuaTagInt);
+        lua.SetIntKey(t, 2, 22, Offsets.LuaTagInt);
+        lua.SetInt(t, "GoldCount", 1);
+        lua.SetInt(t, "goldValue", 2);
+        lua.SetInt(t, "silver", 3);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+        return (reader, table);
+    }
+
+    [Fact]
+    public void FilterKeepsMatchingKeysCaseInsensitivelyAndTotalIsFiltered()
+    {
+        var (reader, table) = Filterable();
+
+        var entries = reader.Entries(table, 10, 0, "GOLD", out var total);
+
+        Assert.Equal(2, total);
+        Assert.Equal(["GoldCount", "goldValue"], entries.Select(e => e.Key).Order());
+    }
+
+    [Fact]
+    public void FilterMatchesArrayKeyText()
+    {
+        var (reader, table) = Filterable();
+
+        var entries = reader.Entries(table, 10, 0, "[2]", out var total);
+
+        Assert.Equal(1, total);
+        Assert.Equal(new LuaEntryRow("[2]", "int", "22"), Assert.Single(entries));
+    }
+
+    [Fact]
+    public void SkipDropsTheFirstMatchesAndMaxCutsAfterIt()
+    {
+        var (reader, table) = Filterable();
+
+        var all = reader.Entries(table, 10, 0, "", out _);
+        var entries = reader.Entries(table, 2, 1, "", out var total);
+
+        Assert.Equal(5, total);
+        Assert.Equal(all.Skip(1).Take(2), entries);
+    }
+
+    [Fact]
+    public void SkipPastTheEndIsEmptyWithTheTrueTotal()
+    {
+        var (reader, table) = Filterable();
+
+        var entries = reader.Entries(table, 10, 99, "", out var total);
+
+        Assert.Empty(entries);
+        Assert.Equal(5, total);
+    }
+
+    [Fact]
+    public void NegativeSkipActsAsZero()
+    {
+        var (reader, table) = Filterable();
+
+        Assert.Equal(reader.Entries(table, 10, 0, "", out _), reader.Entries(table, 10, -3, "", out _));
     }
 }

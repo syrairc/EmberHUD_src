@@ -86,14 +86,14 @@ internal sealed class LiveGameSource : IGameSource
         Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
         Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
         Scene.Lister = () => Guarded(sceneGate, () => world.TryReadScene(out var scene, out _) ? world.ListScene(scene, names) : [], []);
-        Lua.Dumper = (path, max) => Guarded(luaGate, () => DumpLua(luaReader, path, max), new LuaDump(false, "", [], 0));
+        Lua.Dumper = (path, max, skip, filter) => Guarded(luaGate, () => DumpLua(luaReader, path, max, skip, filter), new LuaDump(false, "", [], 0));
     }
 
-    private static LuaDump DumpLua(LuaReader reader, string path, int max)
+    private static LuaDump DumpLua(LuaReader reader, string path, int max, int skip, string filter)
     {
         var failedAt = "";
         if (!reader.TryOpen(out var globals) || !reader.TryResolve(globals, path, out var table, out failedAt)) return new LuaDump(false, failedAt, [], 0);
-        var rows = reader.Entries(table, max, out var total);
+        var rows = reader.Entries(table, max, skip, filter, out var total);
         return new LuaDump(true, "", [.. rows.Select(row => new LuaEntry(row.Key, row.Type, row.Value))], total);
     }
 

@@ -156,7 +156,7 @@ public sealed class MemoryToolsTests
 
     static LuaEntry[] Entries(int count) => Enumerable.Range(0, count).Select(i => new LuaEntry($"k{i}", "number", i.ToString())).ToArray();
 
-    static JsonObject RunLua(Func<string, int, LuaDump?> hook, JsonObject args)
+    static JsonObject RunLua(Func<string, int, int, string, LuaDump?> hook, JsonObject args)
     {
         TestGame.UseLua(hook);
         try { return Wire.Run(Tools, "lua_get", args); }
@@ -166,7 +166,7 @@ public sealed class MemoryToolsTests
     [Test]
     public void LuaGetListsEntriesAndEchoesThePath()
     {
-        var result = RunLua((path, _) => path == "ItemMgr.ItemList.100" ? new LuaDump(true, "", [new("0", "string", "sword"), new("@meta", "table", "table: 0x1")], 2) : null, new JsonObject { ["path"] = "ItemMgr.ItemList.100" });
+        var result = RunLua((path, _, _, _) => path == "ItemMgr.ItemList.100" ? new LuaDump(true, "", [new("0", "string", "sword"), new("@meta", "table", "table: 0x1")], 2) : null, new JsonObject { ["path"] = "ItemMgr.ItemList.100" });
         Check.Equal("ItemMgr.ItemList.100", (string?)result["path"]);
         Check.That((bool)result["resolved"]!, "resolved");
         Check.That(result["failedAt"] is null, "failedAt null");
@@ -177,7 +177,7 @@ public sealed class MemoryToolsTests
     [Test]
     public void LuaGetMaxCapsEntriesAndTotalStaysTrue()
     {
-        Func<string, int, LuaDump?> hook = (_, max) => new LuaDump(true, "", Entries(300).Take(max).ToArray(), 300);
+        Func<string, int, int, string, LuaDump?> hook = (_, max, _, _) => new LuaDump(true, "", Entries(300).Take(max).ToArray(), 300);
         var capped = RunLua(hook, new JsonObject { ["max"] = 5 });
         Check.Equal(5, capped["entries"]!.AsArray().Count);
         Check.Equal(300, (int)capped["total"]!);
@@ -186,9 +186,27 @@ public sealed class MemoryToolsTests
     }
 
     [Test]
+    public void LuaGetPassesFilterAndSkipToTheHook()
+    {
+        (string, int, int, string) seen = default;
+        RunLua((path, max, skip, filter) => { seen = (path, max, skip, filter); return new LuaDump(true, "", [], 0); }, new JsonObject { ["skip"] = 7, ["filter"] = "gold" });
+        Check.Equal("|100|7|gold", $"{seen.Item1}|{seen.Item2}|{seen.Item3}|{seen.Item4}");
+        RunLua((path, max, skip, filter) => { seen = (path, max, skip, filter); return new LuaDump(true, "", [], 0); }, new JsonObject());
+        Check.Equal("|100|0|", $"{seen.Item1}|{seen.Item2}|{seen.Item3}|{seen.Item4}");
+    }
+
+    [Test]
+    public void LuaGetNegativeSkipIsAToolError()
+    {
+        TestGame.UseLua((_, _, _, _) => new LuaDump(true, "", [], 0));
+        try { Check.That(Wire.Fails(Tools, "lua_get", new JsonObject { ["skip"] = -1 }).Contains("between"), "skip"); }
+        finally { TestGame.UseLua(null); }
+    }
+
+    [Test]
     public void LuaGetMaxOutOfRangeIsAToolError()
     {
-        TestGame.UseLua((_, _) => new LuaDump(true, "", [], 0));
+        TestGame.UseLua((_, _, _, _) => new LuaDump(true, "", [], 0));
         try
         {
             Check.That(Wire.Fails(Tools, "lua_get", new JsonObject { ["max"] = 0 }).Contains("between"), "min");
@@ -200,7 +218,7 @@ public sealed class MemoryToolsTests
     [Test]
     public void LuaGetUnresolvedPathIsAResultNotAnError()
     {
-        var result = RunLua((_, _) => new LuaDump(false, "ItemMgr.Nope", [], 0), new JsonObject { ["path"] = "ItemMgr.Nope.x" });
+        var result = RunLua((_, _, _, _) => new LuaDump(false, "ItemMgr.Nope", [], 0), new JsonObject { ["path"] = "ItemMgr.Nope.x" });
         Check.That(!(bool)result["resolved"]!, "unresolved");
         Check.Equal("ItemMgr.Nope", (string?)result["failedAt"]);
         Check.Equal(0, result["entries"]!.AsArray().Count);

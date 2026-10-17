@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using EmberHUD;
 
 namespace Mcp;
@@ -42,7 +43,7 @@ internal static class StateTools
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
-        new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory - ready is false until the reader has run, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
+        new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
     ];
 
@@ -192,6 +193,11 @@ internal static class StateTools
         var bag = EntityFilter.Parse<InventoryBag>(args, "bag");
         Game.WantInventory();
         var items = Game.State.Inventory;
+        for (var waited = 0; items is null && waited < 1000; waited += 50)
+        {
+            Thread.Sleep(50);
+            items = Game.State.Inventory;
+        }
         return new JsonObject
         {
             ["ready"] = items is not null,

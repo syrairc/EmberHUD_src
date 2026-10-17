@@ -32,7 +32,7 @@ public static class TestGame
 
     public static void UseScene(Func<SceneEntity[]>? list) => Scene.Lister = list;
 
-    public static void UseLua(Func<string, int, LuaDump?>? dump) => Lua.Dumper = dump;
+    public static void UseLua(Func<string, int, int, string, LuaDump?>? dump) => Lua.Dumper = dump;
 
     public static void UseTextures(Action<string, byte[], int, int>? upload, Func<string, Sprite?>? resolve, Action<string>? release = null)
     {

@@ -20,8 +20,8 @@ internal static class MemoryTools
             Schema.Of(["address", "length"], ("address", "string", "hex address"), ("length", "integer", "bytes to read, 1 to 65536")), args => ReadBytes(args, maxRead())),
         new("read_typed", "Read count values of one type at address, stride bytes apart (default the type size). Types: i8 u8 bool i16 u16 i32 u32 f32 i64 u64 ptr f64. 64-bit integers come back as decimal strings, ptr as hex. Unreadable slots are null.",
             Schema.Of(["address", "type"], ("address", "string", "hex address"), ("type", "string", "i8 u8 bool i16 u16 i32 u32 f32 i64 u64 ptr f64"), ("count", "integer", "1 to 4096, default 1"), ("stride", "integer", "bytes between values, 1 to 65536")), ReadTyped),
-        new("lua_get", "List the entries of a Lua table in the game. path is dotted from the Lua globals, empty = the globals table, a digit-only segment is an integer key (e.g. ItemMgr.ItemList.100.0), @meta = the table's metatable. Returns up to max entries (1 to 1024, default 100) with the true total. resolved false + failedAt shows where the chain breaks.",
-            Schema.Of([], ("path", "string", "dotted path from the Lua globals, empty = globals"), ("max", "integer", "entries to return, 1 to 1024, default 100")), LuaGet),
+        new("lua_get", "List the entries of a Lua table in the game. path is dotted from the Lua globals, empty = the globals table, a digit-only segment is an integer key (e.g. ItemMgr.ItemList.100.0), @meta = the table's metatable. Returns up to max entries (1 to 1024, default 100) after skipping the first skip matches (default 0), keeping only keys containing filter (case-insensitive, array keys are [n]); total is the count of matching entries. resolved false + failedAt shows where the chain breaks.",
+            Schema.Of([], ("path", "string", "dotted path from the Lua globals, empty = globals"), ("max", "integer", "entries to return, 1 to 1024, default 100"), ("skip", "integer", "matching entries to skip, default 0"), ("filter", "string", "only keys containing this text, case-insensitive, default all")), LuaGet),
         new("find_pointer_offset", "Scan range bytes from base for 8-byte aligned pointers equal to target (or inside target..target+within). Returns the offsets, hex.",
             Schema.Of(["base", "target"], ("base", "string", "hex address to scan from"), ("target", "string", "hex pointer value to look for"), ("range", "integer", "bytes to scan, 8 to 65536, default 4096"), ("within", "integer", "also match pointers up to this many bytes past target, default 0")), FindPointerOffset),
     ];
@@ -104,7 +104,7 @@ internal static class MemoryTools
     {
         var path = args.OptStr("path") ?? "";
         var max = args.Int("max", 100, 1, 1024);
-        if (Lua.Dump(path, max) is not { } dump)
+        if (Lua.Dump(path, max, args.Int("skip", 0, 0, int.MaxValue), args.OptStr("filter") ?? "") is not { } dump)
         {
             Live.Require();
             throw new ToolError("lua is not available");
