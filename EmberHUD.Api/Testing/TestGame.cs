@@ -21,6 +21,13 @@ public static class TestGame
         return Game.CharacterAsked != 0;
     }
 
+    public static bool TartarusAskedDuring(Action run)
+    {
+        Game.TartarusAsked = 0;
+        run();
+        return Game.TartarusAsked != 0;
+    }
+
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver is null ? null : texture => resolver(texture.ToString());
     public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
 

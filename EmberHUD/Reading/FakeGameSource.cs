@@ -61,6 +61,17 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         new(InventoryBag.Other, 0, "1500_fake-0005", 1500, 1, 0, 0, 1, 1, 0),
     ];
 
+    private const float TartarusChoiceSeconds = 3f;
+    private static readonly TartarusCell[] FakeTartarusCells =
+    [
+        .. Enumerable.Range(0, 16).Select(i => i % 4 == 0
+            ? new TartarusCell(i, true, i % 3 + 1, (TartarusBeast)(i % 4 + 1), i == 4, i == 8)
+            : new TartarusCell(i, false, i % 4 == 2 ? i % 3 + 1 : -1, TartarusBeast.Unknown, false, false)),
+    ];
+
+    private static readonly TartarusOption[] FakeDoors = [new(1, TartarusOptionKind.Door, 1, 1), new(2, TartarusOptionKind.Door, 2, 2), new(3, TartarusOptionKind.Door, 3, 3)];
+    private static readonly TartarusOption[] FakeOperations = [new(4, TartarusOptionKind.Consume, 4, 0), new(5, TartarusOptionKind.Replace, 5, 0)];
+
     private readonly List<Vector2> _trail = [];
     private ExploredTrail _published = new([], TrailRadius);
     private int _trailArea = -1;
@@ -100,6 +111,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
+            Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
             GameMinimap = new GameMinimap(true, 51892f),
@@ -130,6 +142,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         if (seconds % QuestBlinkSeconds < QuestBlinkOnSeconds)
             targets.Add(new(4, Center + new Vector2(0, -500)) { Name = "Fake blinking quest" });
         return [.. targets];
+    }
+
+    internal static TartarusState TartarusAt(long now)
+    {
+        var doors = now / (double)Stopwatch.Frequency % (2 * TartarusChoiceSeconds) < TartarusChoiceSeconds;
+        return new TartarusState(5, 16, 7, 20, FakeTartarusCells,
+            doors ? new TartarusChoice(1, TartarusChoiceKind.Doors, FakeDoors, true) : new TartarusChoice(2, TartarusChoiceKind.Operation, FakeOperations, true),
+            [], 0);
     }
 
     internal static CombatStats CombatAt(long now)

@@ -338,4 +338,58 @@ public class LuaReaderTests
         Assert.Empty(reader.Entries(table, 10, out var total));
         Assert.Equal(0, total);
     }
+
+    [Fact]
+    public void TryGetBoolReadsTrueAndFalse()
+    {
+        var (_, lua, reader) = Fixture();
+        lua.SetBool(lua.Globals, "a", true);
+        lua.SetBool(lua.Globals, "b", false);
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.True(reader.TryGetBool(globals, "a", out var a));
+        Assert.True(reader.TryGetBool(globals, "b", out var b));
+        Assert.Equal((true, false), (a, b));
+    }
+
+    [Fact]
+    public void TryGetBoolRejectsAnInt()
+    {
+        var (_, lua, reader) = Fixture();
+        lua.SetInt(lua.Globals, "n", 1);
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.False(reader.TryGetBool(globals, "n", out _));
+    }
+
+    [Fact]
+    public void TryGetIntAtReadsArrayAndNodePart()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 3, 2);
+        lua.SetIntKey(t, 2, 22, Offsets.LuaTagInt);
+        lua.SetIntKey(t, 0, 10, Offsets.LuaTagInt);
+        lua.SetIntKey(t, 40, 40, Offsets.LuaTagInt);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        Assert.True(reader.TryGetIntAt(table, 2, out var two));
+        Assert.True(reader.TryGetIntAt(table, 0, out var zero));
+        Assert.True(reader.TryGetIntAt(table, 40, out var forty));
+        Assert.Equal((22, 10, 40), (two, zero, forty));
+    }
+
+    [Fact]
+    public void TryGetIntAtRejectsATableValue()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 3, 2);
+        lua.SetIntKeyTable(t, 2, lua.NewTable(0, 0));
+        lua.SetIntKeyTable(t, 40, lua.NewTable(0, 0));
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        Assert.False(reader.TryGetIntAt(table, 2, out _));
+        Assert.False(reader.TryGetIntAt(table, 40, out _));
+    }
 }

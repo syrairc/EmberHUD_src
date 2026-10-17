@@ -11,6 +11,7 @@ public static class Game
     static long _castsAsked;
     static long _projectilesAsked;
     static long _characterAsked;
+    static long _tartarusAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -86,6 +87,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantTartarus() => Interlocked.Exchange(ref _tartarusAsked, Stopwatch.GetTimestamp());
+
+    internal static long TartarusAsked
+    {
+        get => Interlocked.Read(ref _tartarusAsked);
+        set => Interlocked.Exchange(ref _tartarusAsked, value);
+    }
+
+    internal static bool TartarusWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _tartarusAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -132,6 +147,8 @@ public sealed record GameState
     public QuestTarget[] QuestTargets { get; init; } = [];
 
     public InventoryItem[]? Inventory { get; init; }
+
+    public TartarusState? Tartarus { get; init; }
 
     public Buff[]? Buffs { get; init; }
 
