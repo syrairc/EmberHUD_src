@@ -642,6 +642,38 @@ public sealed class RenderTests
         Check.Equal(bare, Drawn(GameScene([Portal with { Type = Main.TaskRingType, Texture = "" }]), configure: GameMode));
     }
 
+    static float MarkerWidth(bool gameMode, bool scaleWithZoom)
+    {
+        var width = 0f;
+        var scene = GameScene(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)]);
+        TestGame.Set(scene);
+        Map.View = null;
+        var main = Scene.Plugin();
+        FixedRare(main);
+        main.Settings.General.UseGameMinimap = gameMode;
+        main.Settings.General.Zoom = GeneralTab.DefaultZoom * 2;
+        main.Settings.Icons.ZoomScaleFactor = 1;
+        main.Settings.Icons.ScaleWithZoom = scaleWithZoom;
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            main.Tick();
+            var list = Draw.Background;
+            var first = list.VtxBuffer.Size;
+            main.Render();
+            var xs = Enumerable.Range(first, list.VtxBuffer.Size - first).Where(i => list.VtxBuffer[i].Col == Packed(FixedColour)).Select(i => list.VtxBuffer[i].Pos.X).ToArray();
+            width = xs.Max() - xs.Min();
+        });
+        return width;
+    }
+
+    [Test]
+    public void GameModeIgnoresTheZoomScaleSettingsForFallbackMarkers()
+    {
+        Check.Equal(MarkerWidth(true, false), MarkerWidth(true, true));
+        Check.That(MarkerWidth(false, true) > MarkerWidth(false, false), "toggle off, the marker follows the zoom");
+    }
+
     [Test]
     public void GameModeSkipsAnEntityWithAGameIconEvenWithOverrideGameIcon()
     {
