@@ -6,6 +6,14 @@ public readonly record struct GroundItem(int DropId, Vector2 LabelMin, Vector2 L
 {
     public bool Legendary { get; init; }
 
+    public int BaseId { get; init; }
+
+    public int Count { get; init; } = 1;
+
+    public int RareValue { get; init; }
+
+    public bool Equipment { get; init; }
+
     public const int MaxAffixes = 12;
 
     // unchecked against the tooltip

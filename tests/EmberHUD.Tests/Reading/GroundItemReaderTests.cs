@@ -25,18 +25,21 @@ public class GroundItemReaderTests
 
         public GroundItemReader Reader() => new(Memory, Module);
 
-        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true, int specialId = 0, string? uniqueId = null)
+        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true, int specialId = 0, string? uniqueId = null, string? baseId = null, int count = 0, int rareValue = 0)
         {
             var entry = Lua.NewTable(0, 4);
             var drop = Lua.NewTable(0, 2);
             if (withDropId) Lua.SetInt(drop, Offsets.LuaGroundDropId, key);
             if (withTables)
             {
-                var item = Lua.NewTable(0, 2);
+                var item = Lua.NewTable(0, baseId is null && count == 0 && rareValue == 0 ? 2 : 8);
                 Lua.SetTable(item, Offsets.LuaGroundPrefix, Affixes(prefixes));
                 Lua.SetTable(item, Offsets.LuaGroundSuffix, Affixes(suffixes));
                 if (specialId != 0) Lua.SetInt(item, Offsets.LuaGroundSpecialId, specialId);
                 if (uniqueId is not null) Lua.SetString(item, Offsets.LuaGroundUniqueId, uniqueId);
+                if (baseId is not null) Lua.SetString(item, Offsets.LuaGroundBaseId, baseId);
+                if (count != 0) Lua.SetInt(item, Offsets.LuaGroundCount, count);
+                if (rareValue != 0) Lua.SetInt(item, Offsets.LuaGroundRareValue, rareValue);
                 Lua.SetTable(drop, Offsets.LuaGroundItem, item);
             }
 
@@ -92,6 +95,34 @@ public class GroundItemReaderTests
         f.Drop(1, [1], [], uniqueId: uniqueId);
 
         Assert.Equal(legendary, Assert.Single(f.Reader().ReadLua()).Legendary);
+    }
+
+    [Fact]
+    public void ReadsBaseIdCountAndRarity()
+    {
+        var f = new Fixture();
+        f.Drop(1, [], [], baseId: "1502", count: 7, rareValue: 100);
+
+        var read = Assert.Single(f.Reader().ReadLua());
+
+        Assert.Equal(1502, read.BaseId);
+        Assert.Equal(7, read.Count);
+        Assert.Equal(100, read.RareValue);
+        Assert.True(read.Equipment);
+    }
+
+    [Fact]
+    public void MissingItemFieldsDefault()
+    {
+        var f = new Fixture();
+        f.Drop(1, [], [], withTables: false);
+
+        var read = Assert.Single(f.Reader().ReadLua());
+
+        Assert.Equal(0, read.BaseId);
+        Assert.Equal(1, read.Count);
+        Assert.Equal(0, read.RareValue);
+        Assert.False(read.Equipment);
     }
 
     [Fact]

@@ -340,6 +340,9 @@ public class OffsetsTests
         Assert.Equal("Suffix", Offsets.LuaGroundSuffix);
         Assert.Equal("ConfigSpecialId", Offsets.LuaGroundSpecialId);
         Assert.Equal("UniqueItmId", Offsets.LuaGroundUniqueId);
+        Assert.Equal("BaseId", Offsets.LuaGroundBaseId);
+        Assert.Equal("Num", Offsets.LuaGroundCount);
+        Assert.Equal("RareValue", Offsets.LuaGroundRareValue);
         Assert.Equal("Id", Offsets.LuaGroundAffixId);
         Assert.Equal(100, Offsets.GroundItemsRefreshMilliseconds);
         Assert.Equal(3, Offsets.GroundItemsWantedSeconds);

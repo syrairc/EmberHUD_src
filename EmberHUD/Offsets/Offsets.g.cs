@@ -2,7 +2,7 @@ namespace EmberHUD.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0x02, 0xE4, 0x6B, 0x28, 0x21, 0x85, 0xC5, 0xC8, 0xAD, 0x9F, 0x97, 0x85, 0xD1, 0x87, 0x25, 0x90, 0x25, 0x83, 0xB1, 0xF8, 0x5C, 0x2B, 0x36, 0x80, 0x35, 0x56, 0xFF, 0x85, 0xB3, 0x44, 0x34, 0x01];
+    internal static ReadOnlySpan<byte> Seed => [0x13, 0x03, 0xEB, 0x42, 0x19, 0xE4, 0x22, 0x6B, 0x8A, 0x1F, 0xDB, 0xCF, 0x1D, 0x60, 0xEF, 0xAB, 0x83, 0xD5, 0x7F, 0x33, 0x5F, 0xA5, 0x44, 0x64, 0xC0, 0x8B, 0x27, 0x3C, 0x93, 0x9E, 0x93, 0x5C];
     internal static int WorldScene => T[0];
     internal static int PlayerMgrEntity => T[1];
     internal static int MiniMapMgrWidget => T[2];
@@ -635,7 +635,10 @@ internal static partial class Offsets
     internal static string LuaGroundSuffix => S[128];
     internal static string LuaGroundSpecialId => S[129];
     internal static string LuaGroundUniqueId => S[130];
-    internal static string LuaGroundAffixId => S[131];
-    internal static string DropMgrClassName => S[132];
+    internal static string LuaGroundBaseId => S[131];
+    internal static string LuaGroundCount => S[132];
+    internal static string LuaGroundRareValue => S[133];
+    internal static string LuaGroundAffixId => S[134];
+    internal static string DropMgrClassName => S[135];
     internal static readonly long[] BuildSizes = [123144120, 124465080, 126258104, 127223224];
 }
