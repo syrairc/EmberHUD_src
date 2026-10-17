@@ -31,9 +31,9 @@ public sealed class Settings : PluginSettings
 
     public const int TierCount = 10;
 
-    static readonly uint[] TierColours = [0xFF4FD8, 0xFFB020, 0x4FD8FF, 0x6FE06F, 0xE0E0E0, 0xC8C8C8, 0xB0B0B0, 0x989898, 0x808080, 0x686868];
+    static readonly uint[] TierColours = [0xFFFF2B2B, 0xFFFF2B2B, 0xFFD44BFF, 0xEBA95CE8, 0xD28A6BC4, 0xFF3DB2FF, 0xD75C86B3, 0xAA5F7185, 0xAA5F7185, 0xAA5F7185];
 
-    public static TierStyle DefaultTier(int tier) => new() { Color = Color.FromArgb((int)(0xFF000000 | TierColours[tier])) };
+    public static TierStyle DefaultTier(int tier) => new() { Color = Color.FromArgb((int)TierColours[tier]) };
 
     static List<TierStyle> DefaultTiers() => [.. Enumerable.Range(0, TierCount).Select(DefaultTier)];
 

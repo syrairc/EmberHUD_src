@@ -27,4 +27,14 @@ public sealed class SettingsUiTests
         Check.Equal("marker:circle", settings.Tiers[0].Icon);
         Check.That(settings.GemSize <= 1 && settings.AnchorY >= 0 && float.IsFinite(settings.GemSpacing));
     }
+
+    [Test]
+    public void DefaultTiersFadeFromT1ToWorse()
+    {
+        var tiers = new Settings().Tiers;
+        Check.Equal(10, tiers.Count);
+        float Strength(int i) => tiers[i].Color.GetSaturation() * tiers[i].Color.A;
+        Check.That(Strength(1) > Strength(6));
+        Check.That(Strength(6) < Strength(5));
+    }
 }
