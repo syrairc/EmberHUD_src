@@ -324,6 +324,24 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void GroundItemKeysExist()
+    {
+        Assert.Equal("GroundMgr", Offsets.LuaGroundManager);
+        Assert.Equal("GroundItems", Offsets.LuaGroundItems);
+        Assert.Equal("DropItem", Offsets.LuaGroundDropItem);
+        Assert.Equal("belongState", Offsets.LuaGroundBelong);
+        Assert.Equal("DropId", Offsets.LuaGroundDropId);
+        Assert.Equal("item", Offsets.LuaGroundItem);
+        Assert.Equal("Prefix", Offsets.LuaGroundPrefix);
+        Assert.Equal("Suffix", Offsets.LuaGroundSuffix);
+        Assert.Equal("Id", Offsets.LuaGroundAffixId);
+        Assert.Equal(100, Offsets.GroundItemsRefreshMilliseconds);
+        Assert.Equal(3, Offsets.GroundItemsWantedSeconds);
+        Assert.Equal(200, Offsets.MaxGroundItems);
+        Assert.Equal(12, Offsets.MaxGroundAffixes);
+    }
+
+    [Fact]
     public void LuaGlobalRvaIsSetForTheCurrentBuild()
     {
         var original = Offsets.Build;

@@ -586,6 +586,19 @@ TartarusWantedSeconds = 3
 MaxTartarusCells = 64
 MaxTartarusOptions = 16
 MaxTartarusRelics = 16
+LuaGroundManager = "GroundMgr"
+LuaGroundItems = "GroundItems"
+LuaGroundDropItem = "DropItem"
+LuaGroundBelong = "belongState"
+LuaGroundDropId = "DropId"
+LuaGroundItem = "item"
+LuaGroundPrefix = "Prefix"
+LuaGroundSuffix = "Suffix"
+LuaGroundAffixId = "Id"
+GroundItemsRefreshMilliseconds = 100
+GroundItemsWantedSeconds = 3
+MaxGroundItems = 200
+MaxGroundAffixes = 12
 
 [build 123144120]
 BuffMap = 216
