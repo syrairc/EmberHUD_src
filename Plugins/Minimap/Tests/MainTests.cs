@@ -417,7 +417,7 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TheRegionRebuildsAtMostOnceASecondAndOnlyWhenTheTrailGrew()
+    public void TheRegionRebuildsAtMostTenTimesASecondAndOnlyWhenTheTrailGrew()
     {
         try
         {
@@ -427,12 +427,12 @@ public sealed class MainTests
 
             TickTwiceAt(main, 0, Scene.State(terrain: _cell, explored: one));
             Check.Equal(1, _uploads.Count, "the first build is at once");
-            TickTwiceAt(main, 125, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(1, _uploads.Count, "grew, but not a second yet");
-            TickTwiceAt(main, 999, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(1, _uploads.Count, "still inside the second");
-            TickTwiceAt(main, 1000, Scene.State(terrain: _cell, explored: two));
-            Check.Equal(2, _uploads.Count, "a second later");
+            TickTwiceAt(main, 50, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "grew, but not 100ms yet");
+            TickTwiceAt(main, 99, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(1, _uploads.Count, "still inside the throttle");
+            TickTwiceAt(main, 100, Scene.State(terrain: _cell, explored: two));
+            Check.Equal(2, _uploads.Count, "100ms later");
             TickTwiceAt(main, 5000, Scene.State(terrain: _cell, explored: two));
             Check.Equal(2, _uploads.Count, "nothing grew, no rebuild");
             Check.That(_uploads.All(key => key == "region-1"), "every rebuild reuses the one texture key so the host can refresh it in place");

@@ -95,6 +95,89 @@ internal sealed class FakeWorld
         return new FakeEntity(id, entity, map, value);
     }
 
+    internal readonly record struct FakeCast(nint Skill, nint Timer, nint Timing);
+
+    private readonly record struct FakeFighter(nint Entity, nint Component, List<(uint Key, nint Skill)> Skills);
+
+    private nint _fightWorld;
+    private readonly Dictionary<uint, FakeFighter> _fighters = [];
+
+    public nint FightWorld => _fightWorld != 0 ? _fightWorld : _fightWorld = BuildFightWorld();
+
+    private nint BuildFightWorld()
+    {
+        var holder = Alloc(0x100);
+        var inner = Alloc(0x100);
+        var world = Alloc(0x800);
+        Memory.Write(FightMgr + Offsets.FightWorldHop1, holder);
+        Memory.Write(holder + Offsets.FightWorldHop2, inner);
+        Memory.Write(inner + Offsets.FightWorldHop3, world);
+        return world;
+    }
+
+    private void PublishFighters()
+    {
+        var (buckets, _) = WriteChains(4, _fighters.Select(f => (f.Key, f.Value.Entity)));
+        Memory.Write(FightWorld + Offsets.FightWorldEntityBuckets, buckets);
+        Memory.Write(FightWorld + Offsets.FightWorldEntityBucketCount, 4u);
+    }
+
+    private void WriteTable(nint table, int slotCap, nint[] slots, byte[] index)
+    {
+        var indexAt = Alloc(index.Length);
+        var slotsAt = Alloc(slots.Length * 8);
+        Memory.WriteArray(indexAt, index);
+        Memory.WriteArray(slotsAt, slots);
+        Memory.Write(table + Offsets.FightTableSlotCap, slotCap);
+        Memory.Write(table + Offsets.FightTableIndex, indexAt);
+        Memory.Write(table + Offsets.FightTableSlots, slotsAt);
+    }
+
+    public FakeCast AddCast(FakeEntity monster, uint stoneCfg, byte state, double remaining, double total, double speed = 1, (double X, double Y) target = default, (double X, double Y) direction = default, uint dynId = 450, int? caster = null, bool direct = false)
+    {
+        if (!_fighters.TryGetValue(monster.Id, out var fighter))
+        {
+            var entity = Alloc(0x200);
+            var component = Alloc(0x600);
+            var index = new byte[153];
+            index[Offsets.SkillComponentId] = 1;
+            if (direct)
+            {
+                WriteTable(entity + Offsets.FightEntityDirectTable, 4, [0, component], index);
+            }
+            else
+            {
+                var entry = Alloc(0x40);
+                Memory.Write(entry + Offsets.FightEntryComponent, component);
+                WriteTable(entity + Offsets.FightEntityDirectTable, 4, [0, 0], index);
+                WriteTable(entity + Offsets.FightEntityEntryTable, 4, [0, entry], index);
+            }
+
+            fighter = new FakeFighter(entity, component, []);
+            _fighters[monster.Id] = fighter;
+        }
+
+        var skill = Alloc(0x400);
+        var timer = Alloc(0x80);
+        var timing = Alloc(0x80);
+        Memory.Write(skill + Offsets.SkillCaster, caster ?? (int)monster.Id);
+        Memory.Write(skill + Offsets.SkillStoneCfg, stoneCfg);
+        Memory.Write(skill + Offsets.SkillState, state);
+        Memory.WriteArray(skill + Offsets.SkillTarget, new[] { target.X, target.Y });
+        Memory.WriteArray(skill + Offsets.SkillDirection, new[] { direction.X, direction.Y });
+        Memory.Write(skill + Offsets.SkillTimer, timer);
+        Memory.Write(skill + Offsets.SkillTiming, timing);
+        Memory.Write(timer + Offsets.TimerPrecastRemaining, remaining);
+        Memory.Write(timer + Offsets.TimerSpeed, speed);
+        Memory.Write(timing + Offsets.TimingPrecastTotal, total);
+        fighter.Skills.Add((dynId + (uint)fighter.Skills.Count, skill));
+        var (buckets, _) = WriteChains(4, fighter.Skills);
+        Memory.Write(fighter.Component + Offsets.SkillActiveBuckets, buckets);
+        Memory.Write(fighter.Component + Offsets.SkillActiveBucketCount, 4u);
+        PublishFighters();
+        return new FakeCast(skill, timer, timing);
+    }
+
     public void WriteMap(int mapOffset, params (int Key, nint Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);
 
     public void WriteMapAt(nint map, params (int Key, nint Value)?[] slots) =>

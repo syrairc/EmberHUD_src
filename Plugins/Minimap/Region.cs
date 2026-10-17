@@ -9,6 +9,8 @@ namespace Minimap;
 
 public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, BitArray Explored, (int Col, int Row)? PlayerCell, Color RegionFill, Color ExploredFill, byte[] Pixels, int Width, int Height, Vector2[] Corners, Polyline[] ExploredOutline)
 {
+    public const float BrushReach = 0.65f;
+
     public static readonly Region Empty = new(-1, null, null, new BitArray(0), null, default, default, [], 0, 0, [], []);
 
     public bool Matches(int areaId, Terrain? terrain) => AreaId == areaId && ReferenceEquals(Source, terrain);
@@ -118,8 +120,9 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
 
         var keep = previous is { Trail: { } old } && ReferenceEquals(previous.Source, terrain) && previous.Explored.Length == cells && old.Radius.Equals(trail.Radius) && old.Count <= trail.Count;
         var explored = keep ? new BitArray(previous!.Explored) : new BitArray(cells);
-        for (var i = keep ? previous!.Trail!.Count : 0; i < trail.Count; i++) Disc(explored, terrain, trail.Buffer[i], trail.Radius);
-        if (player is { } at) Disc(explored, terrain, at, trail.Radius);
+        var reach = trail.Radius * BrushReach;
+        for (var i = keep ? previous!.Trail!.Count : 0; i < trail.Count; i++) Disc(explored, terrain, trail.Buffer[i], reach);
+        if (player is { } at) Disc(explored, terrain, at, reach);
         return explored;
     }
 

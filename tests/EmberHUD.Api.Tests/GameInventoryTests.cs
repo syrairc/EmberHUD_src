@@ -19,3 +19,15 @@ public class GameInventoryTests
         Assert.False(Game.InventoryWanted(now + 4 * Stopwatch.Frequency, 3));
     }
 }
+
+public class GameCastsTests
+{
+    [Fact]
+    public void CastsAreWantedForAWhileAfterAsking()
+    {
+        Game.WantCasts();
+        var now = Stopwatch.GetTimestamp();
+        Assert.True(Game.CastsWanted(now, 3));
+        Assert.False(Game.CastsWanted(now + 4 * Stopwatch.Frequency, 3));
+    }
+}

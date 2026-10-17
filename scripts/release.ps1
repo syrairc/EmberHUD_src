@@ -1,4 +1,4 @@
-param([string]$Out, [switch]$Public)
+param([string]$Out, [switch]$Public, [switch]$SkipTests, [switch]$SkipObfuscar)
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $outName = $Public ? 'release' : 'dist'
@@ -93,8 +93,10 @@ $findPrivate = {
     })
 }
 try {
-    & "$PSScriptRoot/build.ps1"
-    if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
+    if (-not $SkipTests) {
+        & "$PSScriptRoot/build.ps1"
+        if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
+    }
 
     foreach ($project in 'EmberHUD/EmberHUD.csproj', 'EmberHUD.Launcher/EmberHUD.Launcher.csproj', 'EmberHUD.Setup/EmberHUD.Setup.csproj', 'EmberHUD.Updater/EmberHUD.Updater.csproj') {
         dotnet publish "$src/$project" -c Release -o $publish
@@ -137,28 +139,30 @@ try {
     if (-not $framework) { throw "no .NET 10 reference pack under $dotnet/packs" }
     $frameworkRef = Join-Path $framework.FullName 'ref\net10.0'
     if (-not (Test-Path $frameworkRef)) { throw "missing $frameworkRef" }
-    $obfuscarXml = Join-Path $work 'obfuscar.generated.xml'
-    (Get-Content "$src/scripts/obfuscar.xml" -Raw).
-        Replace('%EMBERHUD_PUBLISH%', $publish).
-        Replace('%EMBERHUD_OBFUSCATED%', $obfuscated).
-        Replace('%EMBERHUD_FRAMEWORK%', $frameworkRef) |
-        Set-Content -LiteralPath $obfuscarXml
-    Push-Location $src
-    try {
-        dotnet tool restore
-        if ($LASTEXITCODE) { throw "dotnet tool restore failed (exit $LASTEXITCODE)" }
-        dotnet tool run obfuscar.console $obfuscarXml
-        if ($LASTEXITCODE) { throw "obfuscar failed (exit $LASTEXITCODE)" }
-    }
-    finally { Pop-Location }
+    if (-not $SkipObfuscar) {
+        $obfuscarXml = Join-Path $work 'obfuscar.generated.xml'
+        (Get-Content "$src/scripts/obfuscar.xml" -Raw).
+            Replace('%EMBERHUD_PUBLISH%', $publish).
+            Replace('%EMBERHUD_OBFUSCATED%', $obfuscated).
+            Replace('%EMBERHUD_FRAMEWORK%', $frameworkRef) |
+            Set-Content -LiteralPath $obfuscarXml
+        Push-Location $src
+        try {
+            dotnet tool restore
+            if ($LASTEXITCODE) { throw "dotnet tool restore failed (exit $LASTEXITCODE)" }
+            dotnet tool run obfuscar.console $obfuscarXml
+            if ($LASTEXITCODE) { throw "obfuscar failed (exit $LASTEXITCODE)" }
+        }
+        finally { Pop-Location }
 
-    foreach ($name in $dlls) {
-        $obfuscatedDll = Join-Path $obfuscated $name
-        if (-not (Test-Path $obfuscatedDll)) { throw "obfuscar wrote no $name to $obfuscated" }
-        $obfuscatedHash = (Get-FileHash $obfuscatedDll).Hash
-        if ($obfuscatedHash -eq $plainHashes[$name]) { throw "obfuscar output for $name is byte-identical to its input" }
-        $obfuscatedHashes[$name] = $obfuscatedHash
-        Copy-Item $obfuscatedDll (Join-Path $publish $name) -Force
+        foreach ($name in $dlls) {
+            $obfuscatedDll = Join-Path $obfuscated $name
+            if (-not (Test-Path $obfuscatedDll)) { throw "obfuscar wrote no $name to $obfuscated" }
+            $obfuscatedHash = (Get-FileHash $obfuscatedDll).Hash
+            if ($obfuscatedHash -eq $plainHashes[$name]) { throw "obfuscar output for $name is byte-identical to its input" }
+            $obfuscatedHashes[$name] = $obfuscatedHash
+            Copy-Item $obfuscatedDll (Join-Path $publish $name) -Force
+        }
     }
 
     $folders = @('Plugins') + $assets.Dir
@@ -196,8 +200,10 @@ try {
     $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and ($_.FullName.Substring($root.Length + 1) -split '[\\/]')[0] -notin $userData }) $root
     if ($private) { throw "private files in $root - $($private.FullName -join ', ')" }
 
-    foreach ($name in $dlls) {
-        if ((Get-FileHash -LiteralPath (Join-Path $root $name)).Hash -ne $obfuscatedHashes[$name]) { throw "$root/$name is not the obfuscated build" }
+    if (-not $SkipObfuscar) {
+        foreach ($name in $dlls) {
+            if ((Get-FileHash -LiteralPath (Join-Path $root $name)).Hash -ne $obfuscatedHashes[$name]) { throw "$root/$name is not the obfuscated build" }
+        }
     }
 
     if ($Public) {

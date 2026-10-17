@@ -102,6 +102,22 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeMonstersCastOnlyWhenWanted()
+    {
+        Game.CastsAsked = 0;
+        Assert.All(At(Stopwatch.GetTimestamp()).Entities, e => Assert.Null(e.Cast));
+        try
+        {
+            Game.WantCasts();
+            var casting = At(Stopwatch.GetTimestamp()).Entities.Where(e => e.Cast is not null).ToArray();
+            Assert.NotEmpty(casting);
+            Assert.All(casting, e => Assert.Equal(EntityKind.Monster, e.Kind));
+            Assert.All(casting, e => Assert.InRange(e.Cast!.Value.Progress, 0f, 1f));
+        }
+        finally { Game.CastsAsked = 0; }
+    }
+
+    [Fact]
     public void TerrainHasWalkableAndBlockedCells()
     {
         var terrain = At(0).Terrain!;

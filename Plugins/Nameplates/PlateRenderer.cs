@@ -27,6 +27,15 @@ public static class PlateRenderer
         return true;
     }
 
+    public static void DrawCast(CastBarSettings cast, in PlateData data, float progress, ScreenRect plate)
+    {
+        var centre = (plate.Min.X + plate.Max.X) / 2;
+        var min = new Vector2(centre - cast.Bar.Width / 2, plate.Max.Y + cast.OffsetY);
+        var max = new Vector2(centre + cast.Bar.Width / 2, min.Y + cast.Bar.Height);
+        DrawBar(cast.Bar, min, max, Math.Clamp(progress, 0, 1));
+        DrawLine(cast.Text, data, min, max, new Vector2(0, (min.Y + max.Y) / 2), Align.Middle);
+    }
+
     static void DrawBar(BarStyle bar, Vector2 min, Vector2 max, float fraction)
     {
         Draw.RectFilled(min, max, bar.Back);

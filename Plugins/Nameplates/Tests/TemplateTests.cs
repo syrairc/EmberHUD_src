@@ -8,6 +8,13 @@ public sealed class TemplateTests
         Template.Parse(text).Render(new PlateData("Ichi Militant", life, maxLife, 12.5f, "Rare", "Monster"));
 
     [Test]
+    public void CastTokensRenderTheSkillNameAndSecondsLeft() =>
+        Check.Equal("Spirit Slash 1.3s", Template.Parse("{cast} {left}s").Render(new PlateData("Ghoul", 1, 2, 0, "Rare", "Monster", "Spirit Slash", 1.26f)));
+
+    [Test]
+    public void CastTokensAreEmptyWithoutACast() => Check.Equal(" 0.0s", Template.Parse("{cast} {left}s").Render(new PlateData("Ghoul", 1, 2, 0, "Rare", "Monster")));
+
+    [Test]
     public void NameAndPercent() => Check.Equal("Ichi Militant 50%", Render("{name} {hp%}%"));
 
     [Test]

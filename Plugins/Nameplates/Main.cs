@@ -18,6 +18,7 @@ public sealed class Main : Plugin<Settings>
         var state = Game.State;
         if (Settings.HideBehindPanels && state.Ui.AnyFullScreen || state.Camera is not { } camera) return;
         var viewport = ImGui.GetIO().DisplaySize;
+        if (Settings.CastBar.Enabled) Game.WantCasts();
         var player = state.Player;
         var entities = state.Entities;
         for (var i = 0; i < entities.Length; i++)
@@ -26,8 +27,9 @@ public sealed class Main : Plugin<Settings>
             var distance = Settings.Displayed(player?.FlatDistance(entity.Position) ?? 0);
             if (Resolver.Resolve(Settings, entity, distance) is not { } style) continue;
             if (Anchor.Rect(Settings, entity, style, camera.ToScreen(entity.Position, viewport)) is not { } rect) continue;
-            var data = new PlateData(entity.Name, entity.Life, entity.MaxLife, distance, entity.Rarity.ToString(), entity.Kind.ToString());
-            PlateRenderer.DrawPlate(data, style, rect, viewport);
+            var cast = Settings.CastBar.Enabled ? entity.Cast : null;
+            var data = new PlateData(entity.Name, entity.Life, entity.MaxLife, distance, entity.Rarity.ToString(), entity.Kind.ToString(), cast?.Name ?? "", cast?.SecondsLeft ?? 0);
+            if (PlateRenderer.DrawPlate(data, style, rect, viewport) && cast is { } active) PlateRenderer.DrawCast(Settings.CastBar, data, active.Progress, rect);
         }
         if (player is null) return;
         if (Resolver.ResolveBucket(Settings, Bucket.Self, "", 0, player.Life, player.MaxLife, 0) is not { } selfStyle) return;

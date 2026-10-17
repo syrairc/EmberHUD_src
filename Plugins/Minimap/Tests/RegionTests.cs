@@ -15,7 +15,7 @@ public sealed class RegionTests
 
     static Region Build(Terrain terrain, ExploredTrail? trail, Vector2? player = null, Region? previous = null) => Region.Build(1, terrain, trail, player, Blue, White, previous);
 
-    static ExploredTrail Trail(float radius, params Vector2[] points) => new(points, radius);
+    static ExploredTrail Trail(float radius, params Vector2[] points) => new(points, radius / Region.BrushReach);
 
     static Terrain Row(int cols) => Scene.Cells(cols, 1, [.. Enumerable.Range(0, cols).Select(col => (col, 0))]);
 

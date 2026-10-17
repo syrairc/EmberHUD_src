@@ -19,6 +19,7 @@ internal sealed class LiveReader
     private readonly CombatReader? _combat;
     private readonly InventoryReader? _inventory;
     private readonly EntityNamer _namer;
+    private readonly CastReader _casts;
     private readonly HpBarReader _hpBars;
     private int _generation;
     private Vector3? _anchor;
@@ -39,6 +40,7 @@ internal sealed class LiveReader
         _ui = new GameUiReader(memory, moduleBase, names);
         _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
         _woodStake = new WoodStakeReader(memory, moduleBase);
+        _casts = new CastReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
         _generation = firstAreaId;
@@ -54,6 +56,7 @@ internal sealed class LiveReader
         _memory.TryReadPtr(scene + Offsets.SceneGridModule, out var gridModule);
         var terrain = _terrain.Read(geometry, gridModule);
         var (playerPosition, entities, pawn) = _world.ReadWorld(scene, _terrain.Generation);
+        if (Game.CastsWanted(Stopwatch.GetTimestamp(), Offsets.CastWantedSeconds)) entities = _casts.Apply(entities);
         entities = _namer.Apply(entities);
         entities = _hpBars.Apply(entities);
         if (_terrain.Generation != _generation)

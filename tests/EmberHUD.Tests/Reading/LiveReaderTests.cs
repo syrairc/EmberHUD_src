@@ -127,6 +127,34 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void MonstersCarryTheirCastWhenWanted()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(5, 77, true, 50, 60, 0);
+        world.PublishEntities(monster);
+        world.AddCast(monster, 170203, 1, 0.5, 1);
+        Game.WantCasts();
+        try
+        {
+            Assert.True(ReaderFor(world).TryRead(out var state, out _));
+            Assert.Equal(170203, Assert.Single(state.Entities).Cast?.StoneId);
+        }
+        finally { Game.CastsAsked = 0; }
+    }
+
+    [Fact]
+    public void CastsAreNotReadWhenNobodyAsked()
+    {
+        var world = new FakeWorld();
+        var monster = world.AddEntity(5, 77, true, 50, 60, 0);
+        world.PublishEntities(monster);
+        world.AddCast(monster, 170203, 1, 0.5, 1);
+        Game.CastsAsked = 0;
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Null(Assert.Single(state.Entities).Cast);
+    }
+
+    [Fact]
     public void CombatIsNullWithoutACombatReader()
     {
         var world = new FakeWorld();

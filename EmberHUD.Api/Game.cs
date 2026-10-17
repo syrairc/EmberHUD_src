@@ -8,6 +8,7 @@ public static class Game
     static int _minimapRescans;
     static long _combatAsked;
     static long _inventoryAsked;
+    static long _castsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -38,6 +39,20 @@ public static class Game
     internal static bool InventoryWanted(long now, double seconds)
     {
         var asked = Interlocked.Read(ref _inventoryAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
+    public static void WantCasts() => Interlocked.Exchange(ref _castsAsked, Stopwatch.GetTimestamp());
+
+    internal static long CastsAsked
+    {
+        get => Interlocked.Read(ref _castsAsked);
+        set => Interlocked.Exchange(ref _castsAsked, value);
+    }
+
+    internal static bool CastsWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _castsAsked);
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
@@ -128,6 +143,13 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public ScreenRect? GameBar { get; init; }
 
     public bool HasGameBar { get; init; }
+
+    public Cast? Cast { get; init; }
+}
+
+public readonly record struct Cast(int StoneId, byte State, float Progress, float SecondsLeft, Vector2 Target, Vector2 Direction)
+{
+    public string Name { get; init; } = "";
 }
 
 public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)

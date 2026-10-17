@@ -61,6 +61,14 @@ public sealed class BucketSettings
     public PlateStyle Style = new();
 }
 
+public sealed class CastBarSettings
+{
+    public bool Enabled;
+    public float OffsetY = 4;
+    public BarStyle Bar = new() { Width = 100, Height = 14, Fill = Color.FromArgb(0xFF, 0xFF, 0xA0, 0x28) };
+    public TextLine Text = new() { Enabled = true, Template = "{cast} {left}s" };
+}
+
 public sealed class StyleOverride
 {
     public bool Enabled = true;
@@ -80,6 +88,7 @@ public sealed class Settings : PluginSettings
     public float MaxDistance = 25;
     public bool HideBehindPanels = true;
     public bool AnchorToGameBar;
+    public CastBarSettings CastBar = new();
     public BucketSettings[] Buckets = DefaultBuckets();
     public List<StyleOverride> Overrides = new();
 
@@ -115,6 +124,12 @@ public sealed class Settings : PluginSettings
         for (var i = 0; i < buckets.Length; i++) buckets[i] = Buckets is not null && i < Buckets.Length && Buckets[i] is { } bucket ? bucket : defaults[i];
         Buckets = buckets;
         foreach (var bucket in Buckets) bucket.Style = Normalize(bucket.Style);
+        CastBar ??= new();
+        CastBar.Bar ??= new();
+        CastBar.Bar.Texture ??= "";
+        CastBar.Text ??= new();
+        CastBar.Text.Template ??= "";
+        CastBar.Text.Style ??= TextStyle.Hud();
         Overrides ??= new();
         Overrides.RemoveAll(row => row is null);
         foreach (var row in Overrides)

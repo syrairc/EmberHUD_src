@@ -105,6 +105,33 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void CastBarIsOffByDefault() => Check.That(!new Settings().CastBar.Enabled);
+
+    [Test]
+    public void NormalizeRepairsANullCastBar()
+    {
+        var s = new Settings { CastBar = null! };
+        s.Normalize();
+        Check.That(s.CastBar.Bar != null && s.CastBar.Text != null && s.CastBar.Bar.Texture != null);
+        s.CastBar = new CastBarSettings { Bar = null!, Text = new TextLine { Template = null!, Style = null! } };
+        s.Normalize();
+        Check.That(s.CastBar.Bar != null && s.CastBar.Text.Template != null && s.CastBar.Text.Style != null);
+    }
+
+    [Test]
+    public void CastBarSettingsRoundTripThroughJson()
+    {
+        var s = new Settings();
+        s.CastBar.Enabled = true;
+        s.CastBar.OffsetY = 31;
+        s.CastBar.Bar.Fill = Color.FromArgb(1, 2, 3, 4);
+        var loaded = Load(Serialize(s));
+        Check.That(loaded.CastBar.Enabled);
+        Check.Equal(31f, loaded.CastBar.OffsetY);
+        Check.Equal(Color.FromArgb(1, 2, 3, 4), loaded.CastBar.Bar.Fill);
+    }
+
+    [Test]
     public void EveryBucketHasAStyle()
     {
         var s = new Settings();

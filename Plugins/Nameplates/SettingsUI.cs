@@ -8,7 +8,7 @@ namespace NameplatesPlugin;
 
 static class SettingsUI
 {
-    const string Tokens = "{name} {hp} {hpmax} {hp%} {dist} {rarity} {type}";
+    const string Tokens = "{name} {hp} {hpmax} {hp%} {dist} {rarity} {type} {cast} {left}";
 
     internal static bool OpenAllBuckets;
 
@@ -44,6 +44,18 @@ static class SettingsUI
         Setting.Slider("Max distance", ref s.MaxDistance, 1, 10000, "In distance units, plates beyond this distance from the player are not drawn", log: true);
         Setting.Checkbox("Hide behind full-screen panels", ref s.HideBehindPanels);
         Setting.Checkbox("Anchor to the game's HP bar", ref s.AnchorToGameBar, "Monsters only - the plate sits on the game's own health bar, so the bucket bar width and height are ignored while this is on");
+        ImGui.SeparatorText("Monster cast bar");
+        var cast = s.CastBar;
+        Setting.Checkbox("Show cast bar", ref cast.Enabled, "Monsters only - a bar under the plate that fills while the monster winds up a skill. {cast} and {left} work in any plate text too");
+        Setting.Slider("Cast offset Y", ref cast.OffsetY, -200, 200, "Pixels below the plate bar, negative moves it up over the plate");
+        Setting.Slider("Cast bar width", ref cast.Bar.Width, 10, 400);
+        Setting.Slider("Cast bar height", ref cast.Bar.Height, 2, 80);
+        Setting.Slider("Cast border width", ref cast.Bar.BorderWidth, 0, 8);
+        Setting.Color("Cast fill", ref cast.Bar.Fill);
+        Setting.Color("Cast back", ref cast.Bar.Back);
+        Setting.Color("Cast border", ref cast.Bar.Border);
+        TexturePicker.Combo("Cast texture", ref cast.Bar.Texture, BarTextures.Names, BarTextures.Get, "casttexture", cast.Bar.Fill);
+        EditLine("Cast", cast.Text);
     }
 
     static void DrawOverrides(Settings s)

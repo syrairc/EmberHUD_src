@@ -77,7 +77,7 @@ public sealed class Main : Plugin<Settings>
         var player = state.Player is { } at ? new Vector2(at.Position.X, at.Position.Y) : (Vector2?)null;
         var now = Clock();
         var current = _region.Matches(state.AreaId, terrain);
-        var builtRecently = now - _regionAt < 1000;
+        var builtRecently = now - _regionAt < 100;
         if (current && (builtRecently || !_region.Stale(state.Explored, Region.CellOf(terrain, player), region.Fill, ExploredFillFor(region)))) return;
 
         _regionAt = now;

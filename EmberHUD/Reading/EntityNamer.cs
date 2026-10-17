@@ -15,7 +15,6 @@ internal sealed class EntityNamer(LocText loc)
         }
 
         Dictionary<(string, int), string> frame = [];
-        var named = false;
         var result = entities;
         for (var i = 0; i < entities.Length; i++)
         {
@@ -27,22 +26,21 @@ internal sealed class EntityNamer(LocText loc)
                 EntityKind.Ally => Offsets.ServantNameKey,
                 _ => null,
             };
-            if (table is null || entity.CfgId <= 0 || _missing.Contains((table, entity.CfgId))) continue;
-            if (!frame.TryGetValue((table, entity.CfgId), out var name))
-            {
-                var readable = loc.TryGet(table + entity.CfgId, out var text);
-                if (readable && text is null) _missing.Add((table, entity.CfgId));
-                name = text ?? "";
-                frame[(table, entity.CfgId)] = name;
-            }
-            if (name.Length == 0) continue;
-            if (!named)
-            {
-                result = [.. entities];
-                named = true;
-            }
-            result[i] = entity with { Name = name };
+            var name = table is null ? "" : Lookup(frame, table, entity.CfgId);
+            var castName = entity.Cast is { } cast ? Lookup(frame, Offsets.SkillStoneNameKey, cast.StoneId) : "";
+            if (name.Length == 0 && castName.Length == 0) continue;
+            if (ReferenceEquals(result, entities)) result = [.. entities];
+            result[i] = entity with { Name = name.Length > 0 ? name : entity.Name, Cast = castName.Length > 0 ? entity.Cast!.Value with { Name = castName } : entity.Cast };
         }
         return result;
+    }
+
+    private string Lookup(Dictionary<(string, int), string> frame, string table, int id)
+    {
+        if (id <= 0 || _missing.Contains((table, id))) return "";
+        if (frame.TryGetValue((table, id), out var name)) return name;
+        var readable = loc.TryGet(table + id, out var text);
+        if (readable && text is null) _missing.Add((table, id));
+        return frame[(table, id)] = text ?? "";
     }
 }

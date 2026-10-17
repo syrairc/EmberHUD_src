@@ -75,6 +75,23 @@ public class EntityNamerTests
     }
 
     [Fact]
+    public void NamesTheCastFromItsSkillStone()
+    {
+        var world = WorldWith((Offsets.SkillStoneNameKey + 170203, "Spirit Triple Slash"), (Offsets.NpcNameKey + 5, "Helper"));
+        var cast = new Cast(170203, 1, 0.5f, 1, default, default);
+        var named = NamerFor(world).Apply([Make(EntityKind.Monster, 5) with { Cast = cast }])[0];
+        Assert.Equal(("Helper", "Spirit Triple Slash"), (named.Name, named.Cast?.Name));
+    }
+
+    [Fact]
+    public void UnknownSkillStoneLeavesTheCastNameEmpty()
+    {
+        var world = WorldWith((Offsets.NpcNameKey + 5, "Helper"));
+        var named = NamerFor(world).Apply([Make(EntityKind.Monster, 5) with { Cast = new Cast(9, 1, 0, 1, default, default) }])[0];
+        Assert.Equal("", named.Cast?.Name);
+    }
+
+    [Fact]
     public void OneLookupPerConfigIdPerFrame()
     {
         var world = WorldWith((Offsets.NpcNameKey + 5, "Helper"));

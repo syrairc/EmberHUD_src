@@ -6,6 +6,7 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 {
+    private const float CastSeconds = 3f;
     private const float LapSeconds = 20f;
     private const float WalkRadius = 300f;
     private const float OuterRadius = 900f;
@@ -67,7 +68,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Status = "fake game",
             AreaId = 1,
             Player = player,
-            Entities = SceneEntities,
+            Entities = Game.CastsWanted(now, Offsets.CastWantedSeconds) ? CastingAt(now) : SceneEntities,
             Terrain = SceneTerrain,
             MinimapRotation = -90,
             MapIcons = SceneIcons,
@@ -175,6 +176,15 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             }
         return terrain;
     }
+
+    private static Entity[] CastingAt(long now) =>
+    [.. SceneEntities.Select(e =>
+    {
+        if (e.Kind != EntityKind.Monster || e.Id % 3 != 0) return e;
+        var progress = (float)(now / (double)Stopwatch.Frequency % CastSeconds / CastSeconds);
+        var at = new Vector2(e.Position.X, e.Position.Y);
+        return e with { Cast = new Cast(170203, 1, progress, CastSeconds * (1 - progress), at + new Vector2(150, 0), Vector2.UnitX) { Name = "Fake Slash" } };
+    })];
 
     private static Entity[] BuildEntities()
     {

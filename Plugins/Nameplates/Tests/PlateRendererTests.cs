@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Drawing;
 using System.Numerics;
 using EmberHUD;
@@ -82,6 +83,80 @@ public sealed class PlateRendererTests
         {
             TestGame.Set(GameState.Empty);
         }
+    }
+
+    static CastBarSettings CastBar(float offsetY = 4)
+    {
+        var cast = new CastBarSettings { Enabled = true, OffsetY = offsetY, Text = new TextLine() };
+        cast.Bar.Width = 100;
+        cast.Bar.Height = 8;
+        cast.Bar.BorderWidth = 0;
+        cast.Bar.Fill = Fill;
+        cast.Bar.Back = Back;
+        return cast;
+    }
+
+    static List<(Vector2 Pos, Vector2 Uv)> DrawnCast(CastBarSettings cast, Color colour, float progress) =>
+        Drawn(colour, () => PlateRenderer.DrawCast(cast, Data(50, 100), progress, Anchor.Projected(Style(), At)));
+
+    static (float Min, float Max) Down(List<(Vector2 Pos, Vector2 Uv)> vertices) => (vertices.Min(v => v.Pos.Y), vertices.Max(v => v.Pos.Y));
+
+    [Test]
+    public void TheCastBarFillsItsProgressUnderThePlate()
+    {
+        var cast = CastBar();
+        Check.Equal((450f, 475f), Across(DrawnCast(cast, Fill, 0.25f)));
+        Check.Equal((450f, 550f), Across(DrawnCast(cast, Back, 0.25f)));
+        Check.Equal((310f, 318f), Down(DrawnCast(cast, Back, 0.25f)));
+    }
+
+    [Test]
+    public void TheCastBarOffsetMovesItDown() => Check.Equal((326f, 334f), Down(DrawnCast(CastBar(20), Back, 0.5f)));
+
+    [Test]
+    public void ACastBarAtZeroProgressDrawsOnlyItsBack()
+    {
+        var cast = CastBar();
+        Check.Equal(0, DrawnCast(cast, Fill, 0).Count);
+        Check.That(DrawnCast(cast, Back, 0).Count > 0, "no back drawn");
+    }
+
+    [Test]
+    public void TheCastBarTextIsCentredOnTheBar()
+    {
+        var cast = CastBar();
+        cast.Text = new TextLine { Enabled = true, Template = "{cast}", Style = new TextStyle { Color = NameColour } };
+        var data = new PlateData("Ghoul", 50, 100, 0, "Normal", "Monster", "Slash", 1);
+        var text = Drawn(NameColour, () => PlateRenderer.DrawCast(cast, data, 0.5f, Anchor.Projected(Style(), At)));
+        var (min, max) = Across(text);
+        var (top, bottom) = Down(text);
+        Check.That(min > 450 && max < 550 && Math.Abs((top + bottom) / 2 - 314) < 3, $"{min}..{max} {top}..{bottom}");
+    }
+
+    static GameState Casting(bool casting) => GameState.Empty with
+    {
+        Camera = Forward,
+        Entities = [Ghoul(new Vector3(1000, 0, 0)) with { Cast = casting ? new Cast(1, 1, 0.5f, 1, Vector2.Zero, Vector2.UnitX) { Name = "Slash" } : null }],
+    };
+
+    [Test]
+    public void TheCastBarIsOffByDefaultAndDrawsWhenEnabled()
+    {
+        var plain = Rendered(Casting(false));
+        Check.Equal(plain, Rendered(Casting(true)));
+        Check.That(Rendered(Casting(true), s => s.CastBar.Enabled = true) > plain, "cast bar drew nothing");
+        Check.Equal(plain, Rendered(Casting(false), s => s.CastBar.Enabled = true));
+    }
+
+    [Test]
+    public void AnEnabledCastBarAsksTheHostForCasts()
+    {
+        var asked = typeof(Game).GetProperty("CastsAsked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        asked.SetValue(null, 0L);
+        Rendered(Casting(false));
+        Check.Equal(0L, (long)asked.GetValue(null)!);
+        Rendered(Casting(false), s => s.CastBar.Enabled = true);
+        Check.That((long)asked.GetValue(null)! != 0, "WantCasts was not called");
     }
 
     [Test]

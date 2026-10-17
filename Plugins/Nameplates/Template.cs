@@ -5,7 +5,7 @@ using System.Text;
 
 namespace NameplatesPlugin;
 
-public readonly record struct PlateData(string Name, double Life, double MaxLife, float Distance, string Rarity, string Type);
+public readonly record struct PlateData(string Name, double Life, double MaxLife, float Distance, string Rarity, string Type, string Cast = "", float CastLeft = 0);
 
 public static class NumberFormat
 {
@@ -25,7 +25,7 @@ public static class NumberFormat
 
 public sealed class Template
 {
-    enum Token { Literal, Name, Hp, HpMax, HpPercent, Dist, Rarity, Type }
+    enum Token { Literal, Name, Hp, HpMax, HpPercent, Dist, Rarity, Type, Cast, Left }
 
     static readonly Dictionary<string, Token> Tokens = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -36,6 +36,8 @@ public sealed class Template
         ["dist"] = Token.Dist,
         ["rarity"] = Token.Rarity,
         ["type"] = Token.Type,
+        ["cast"] = Token.Cast,
+        ["left"] = Token.Left,
     };
 
     readonly List<(Token Token, string? Text)> segments = new();
@@ -81,6 +83,8 @@ public sealed class Template
                 case Token.Dist: builder.Append(NumberFormat.Abbrev(data.Distance)); break;
                 case Token.Rarity: builder.Append(data.Rarity); break;
                 case Token.Type: builder.Append(data.Type); break;
+                case Token.Cast: builder.Append(data.Cast); break;
+                case Token.Left: builder.Append(data.CastLeft.ToString("0.0", CultureInfo.InvariantCulture)); break;
             }
         }
         return builder.ToString();
