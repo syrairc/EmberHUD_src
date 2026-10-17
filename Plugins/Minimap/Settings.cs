@@ -37,7 +37,7 @@ public sealed class GeneralTab
     public float OffsetX;
     public float OffsetY = -50;
     public float GameOffsetX;
-    public float GameOffsetY;
+    public float GameOffsetY = -35;
 }
 
 public sealed class RegionLook

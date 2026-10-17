@@ -301,7 +301,7 @@ public class MinimapReaderTests
         reader.ReadRotationDegrees(1);
         var result = reader.ReadGameMinimap();
         Assert.Equal(open, result!.Open);
-        Assert.Equal(212989f, result.WorldWidth, 20f);
+        Assert.Equal(6.2086f * 34304 * 0.64f / 2, result.WorldWidth, 0.5f);
     }
 
     [Theory]
@@ -320,6 +320,33 @@ public class MinimapReaderTests
         var reader = ReaderFor(world);
         reader.ReadRotationDegrees(1);
         Assert.Null(reader.ReadGameMinimap());
+    }
+
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(0f)]
+    [InlineData(-0.64f)]
+    public void GarbageViewportScaleGivesNullGameMinimap(float viewportScale)
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, 1, 6.2086f, 34304, viewportScale);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        Assert.Null(reader.ReadGameMinimap());
+    }
+
+    [Fact]
+    public void ViewportScaleScalesWorldWidthProportionally()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, 1, 6.2086f, 34304, 0.64f);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        var single = reader.ReadGameMinimap()!.WorldWidth;
+        world.SetGameMinimap(minimap, 1, 6.2086f, 34304, 1.28f);
+        Assert.Equal(single * 2, reader.ReadGameMinimap()!.WorldWidth, 0.5f);
     }
 
     [Fact]
