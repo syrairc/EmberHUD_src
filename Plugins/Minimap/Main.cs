@@ -156,15 +156,15 @@ public sealed class Main : Plugin<Settings>
         var gameMode = Settings.General.UseGameMinimap;
         _overridden.Clear();
         IndexIcons(state.MapIcons);
-        var zoomScale = Settings.Icons.ZoomScale(map.Scale);
+        var zoomScale = gameMode ? 1 : Settings.Icons.ZoomScale(map.Scale);
         _ordered.Clear();
         _ordered.AddRange(state.Entities);
         _ordered.Sort(DrawOrder);
         foreach (var entity in _ordered)
         {
-            var row = Settings.Icons.FixedFor(entity);
             if (gameMode && HasIconAt(entity.Position))
                 continue;
+            var row = Settings.Icons.FixedFor(entity);
             if (_iconEntities.Contains(entity.Id))
             {
                 if (gameMode || row is not { OverrideGameIcon: true }) continue;

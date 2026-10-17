@@ -20,7 +20,7 @@ public sealed record Region(int AreaId, Terrain? Source, ExploredTrail? Trail, B
 
     public Polyline[] Unexplored(Polyline[] lines)
     {
-        if (Trail is null || Source is not { } terrain || Explored.Length != terrain.Cols * terrain.Rows) return lines;
+        if (Trail is null || Source is not { } terrain || Explored.Length != terrain.Cols * terrain.Rows || !(terrain.CellSize > 0)) return lines;
 
         var kept = new List<Polyline>();
         var points = new List<Vector2>();

@@ -275,6 +275,17 @@ public sealed class RegionTests
     }
 
     [Test]
+    public void UnexploredReturnsTheLinesUntouchedForABadCellSize()
+    {
+        var lines = Row(4).Outline();
+        foreach (var size in new[] { 0f, float.NaN })
+        {
+            var region = Region.Empty with { Source = new Terrain(4, 1, size, Vector2.Zero, new BitArray(4, true)), Trail = Trail(4, Vector2.Zero), Explored = new BitArray(4, true) };
+            Check.That(ReferenceEquals(lines, region.Unexplored(lines)), $"cell size {size}");
+        }
+    }
+
+    [Test]
     public void UnexploredDropsAFullyExploredLoop() => Check.Equal(0, Build(Row(4), Trail(100, new Vector2(20, 5))).Unexplored(Row(4).Outline()).Length);
 
     [Test]
