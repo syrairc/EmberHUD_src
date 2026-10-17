@@ -8,6 +8,7 @@ public static class Game
     static int _minimapRescans;
     static long _combatAsked;
     static long _inventoryAsked;
+    static long _characterAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -38,6 +39,20 @@ public static class Game
     internal static bool InventoryWanted(long now, double seconds)
     {
         var asked = Interlocked.Read(ref _inventoryAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
+    public static void WantCharacter() => Interlocked.Exchange(ref _characterAsked, Stopwatch.GetTimestamp());
+
+    internal static long CharacterAsked
+    {
+        get => Interlocked.Read(ref _characterAsked);
+        set => Interlocked.Exchange(ref _characterAsked, value);
+    }
+
+    internal static bool CharacterWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _characterAsked);
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
@@ -86,7 +101,33 @@ public sealed record GameState
 
     public InventoryItem[]? Inventory { get; init; }
 
+    public Buff[]? Buffs { get; init; }
+
+    public Skill[]? Skills { get; init; }
+
     public GameMinimap? GameMinimap { get; init; }
+
+    public bool? ChatOpen { get; init; }
+
+    public bool? Paused { get; init; }
+
+    public int CountNear(float radius, Rarity minRarity = Rarity.Normal)
+    {
+        if (Player is not { } player || float.IsNaN(radius) || radius < 0) return 0;
+
+        var reach = radius * radius;
+        var count = 0;
+        foreach (var entity in Entities)
+        {
+            if (entity.Kind != EntityKind.Monster || entity.Friendly || entity.Hidden || entity.Rarity < minRarity) continue;
+
+            var dx = entity.Position.X - player.Position.X;
+            var dy = entity.Position.Y - player.Position.Y;
+            if (dx * dx + dy * dy <= reach) count++;
+        }
+
+        return count;
+    }
 }
 
 public readonly record struct QuestTarget(int Id, Vector2 Position)
@@ -172,6 +213,13 @@ public sealed record WoodStakeStats(bool Running, int Seconds, long Avg, long Cu
 public sealed record CombatStats(long At, double Effective, double Raw, long Hits)
 {
     public double Seconds => At / (double)Stopwatch.Frequency;
+}
+
+public readonly record struct Buff(int Id, string? Name, double Remaining, double Total);
+
+public readonly record struct Skill(int CfgId, int Slot, double CooldownRemaining, double CooldownTotal, int Charges, int MaxCharges)
+{
+    public bool Ready => CooldownRemaining <= 0;
 }
 
 public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type);

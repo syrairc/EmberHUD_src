@@ -122,6 +122,34 @@ public class TargetWindowTests
     }
 
     [Fact]
+    public void GameIsForegroundReQueriesTheSourceAtCallTime()
+    {
+        var src = new FakeTarget { Handle = 42 };
+        var t = Target(src);
+        t.Poll();
+        Assert.True(t.GameIsForeground());
+
+        src.Foreground = false;
+        Assert.False(t.GameIsForeground());
+
+        src.Foreground = true;
+        src.Minimized = true;
+        Assert.False(t.GameIsForeground());
+
+        src.Minimized = false;
+        Assert.True(t.GameIsForeground());
+    }
+
+    [Fact]
+    public void GameIsForegroundIsFalseWithNoTarget()
+    {
+        var t = Target(new FakeTarget());
+        t.Poll();
+
+        Assert.False(t.GameIsForeground());
+    }
+
+    [Fact]
     public void BoundsFailureDoesNotReportFound()
     {
         var src = new FakeTarget { Handle = 42, BoundsReadable = false };

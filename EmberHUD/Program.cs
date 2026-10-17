@@ -84,6 +84,13 @@ var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.Info, fake ? 8 : 33);
 reader.Start();
 using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
+Send.GameForeground = overlay.GameIsForeground;
+Send.ToScreen = (x, y) =>
+{
+    var point = new Win32.Point { X = x, Y = y };
+    return overlay.TargetHandle != 0 && Win32.ClientToScreen(overlay.TargetHandle, ref point) ? (point.X, point.Y) : null;
+};
+if (fake) Send.Sink = _ => { };
 var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
 var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.Textures.TryUpload, overlay.Textures.Resolve);
 Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
@@ -132,6 +139,7 @@ void Frame()
 {
     overlay.InteractiveOutOfFocus = sdk.InteractiveOutOfFocus;
     Input.NewFrame(suppressed: !overlay.HasFocus || overlay.WantTextInput);
+    Send.Tick();
     if (Input.Pressed(sdk.Hotkeys.Quit, ignoreSuppression: true))
     {
         overlay.Stop();
@@ -164,6 +172,7 @@ catch (Exception ex)
     Log.Error(ex, "fatal");
     Environment.ExitCode = 1;
 }
+Send.ReleaseAll();
 updates.Dispose();
 updates.LaunchOnExit();
 return Environment.ExitCode;

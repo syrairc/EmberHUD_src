@@ -176,6 +176,218 @@ public class LiveReaderTests
         finally { Game.InventoryAsked = 0; }
     }
 
+    private static CharacterReader CharacterWith(FakeWorld world)
+    {
+        world.SetLocalPlayer(11);
+        world.AddFightEntity(11, (Offsets.ComponentBuff, world.AddBuffComponent(world.AddBuff(15010, 1, 1))));
+        return new CharacterReader(world.Memory, FakeWorld.Module);
+    }
+
+    [Fact]
+    public void PublishesBuffsWhenWantedAndGivenAReader()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var character = CharacterWith(world);
+        Game.WantCharacter();
+        try
+        {
+            Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, null, character).TryRead(out var state, out _));
+            Assert.Equal(15010, Assert.Single(state.Buffs!).Id);
+        }
+        finally { Game.CharacterAsked = 0; }
+    }
+
+    [Fact]
+    public void BuffsAreNullWhenNobodyAsked()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var character = CharacterWith(world);
+        Game.CharacterAsked = 0;
+        Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, null, character).TryRead(out var state, out _));
+        Assert.Null(state.Buffs);
+    }
+
+    [Fact]
+    public void BuffsAreNullWithoutAReader()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        Game.WantCharacter();
+        try
+        {
+            Assert.True(ReaderFor(world).TryRead(out var state, out _));
+            Assert.Null(state.Buffs);
+        }
+        finally { Game.CharacterAsked = 0; }
+    }
+
+    [Fact]
+    public void ChatOpenIsNullWithoutAUiWalk()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Null(state.ChatOpen);
+    }
+
+    [Fact]
+    public void ChatOpenIsFalseOnACleanWalkWithoutTheChatPage()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        new FakeUi(world).AddPad([1, 2]);
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.False(state.ChatOpen);
+    }
+
+    [Fact]
+    public void ChatOpenIsTrueWhileTheChatPageIsUp()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var ui = new FakeUi(world);
+        ui.AddPad([1, 2]);
+        ui.AddChat();
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.True(state.ChatOpen);
+        Assert.False(state.Ui.AnyFullScreen);
+    }
+
+    private static (FakeWorld World, FakeUi Ui, LiveReader Reader, Func<long> Now, Action<long> Advance) ChatRig()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        long now = 1000;
+        return (world, new FakeUi(world), new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now), () => now, by => now += by);
+    }
+
+    private static bool? ChatOf(LiveReader reader)
+    {
+        reader.TryRead(out var state, out _);
+        return state.ChatOpen;
+    }
+
+    [Fact]
+    public void ChatOpenHoldsTrueForTheWindowAfterTheChatPageVanishes()
+    {
+        var (world, ui, reader, _, advance) = ChatRig();
+        ui.AddPad([1, 2]);
+        var chat = ui.AddChat();
+        Assert.True(ChatOf(reader));
+        world.Memory.Write(chat + Offsets.UWidgetVisibility, (byte)1);
+        advance(Offsets.ChatHoldMilliseconds - 1);
+        Assert.True(ChatOf(reader));
+        advance(1);
+        Assert.False(ChatOf(reader));
+    }
+
+    [Fact]
+    public void TheHoldIsNotExtendedByTicksWithoutTheChatPage()
+    {
+        var (world, ui, reader, _, advance) = ChatRig();
+        ui.AddPad([1, 2]);
+        var chat = ui.AddChat();
+        ChatOf(reader);
+        world.Memory.Write(chat + Offsets.UWidgetVisibility, (byte)1);
+        advance(200);
+        Assert.True(ChatOf(reader));
+        advance(100);
+        Assert.False(ChatOf(reader));
+    }
+
+    [Fact]
+    public void ChatWithAFailedRectReadIsStillOpenOnTheFirstTick()
+    {
+        var (world, ui, reader, _, _) = ChatRig();
+        ui.AddPad([1, 2]);
+        var chat = ui.AddChat();
+        world.Memory.Write(chat + Offsets.UWidgetSlate, 0L);
+        reader.TryRead(out var state, out _);
+        Assert.True(state.ChatOpen);
+        Assert.DoesNotContain(state.Ui.Panels, p => p.Name == Offsets.ChatPageClassName);
+    }
+
+    [Fact]
+    public void ChatWithAnUnreadableVisibilityIsNeverClosed()
+    {
+        var (world, ui, reader, _, advance) = ChatRig();
+        ui.AddPad([1, 2]);
+        var chat = ui.AddChat();
+        world.Memory.MakeUnreadable(chat + Offsets.UWidgetVisibility, 1);
+        foreach (var step in new long[] { 0, 499, 1, 1500 })
+        {
+            advance(step);
+            Assert.NotEqual(false, ChatOf(reader));
+        }
+    }
+
+    [Fact]
+    public void ARootThatFailsToResolveMakesChatUnknownNotClosed()
+    {
+        var (_, ui, reader, _, _) = ChatRig();
+        ui.AddPad([1, 2]);
+        ui.AddRoot(0);
+        Assert.Null(ChatOf(reader));
+    }
+
+    [Fact]
+    public void AnUnresolvedRootInsideTheHoldWindowOfASeenChatIsOpen()
+    {
+        var (world, ui, reader, _, advance) = ChatRig();
+        var chat = ui.AddChat();
+        Assert.True(ChatOf(reader));
+        world.Memory.Write(chat + Offsets.UWidgetVisibility, (byte)1);
+        ui.AddRoot(0);
+        advance(Offsets.ChatHoldMilliseconds - 1);
+        Assert.True(ChatOf(reader));
+    }
+
+    [Fact]
+    public void AnInconclusiveTickHoldsTheNextCleanNoChatTicksForTheWindow()
+    {
+        var (world, ui, reader, _, advance) = ChatRig();
+        ui.AddPad([1, 2]);
+        Assert.False(ChatOf(reader));
+        var slots = ui.Overlay + Offsets.OverlayChildren + Offsets.PanelChildrenSlots + Offsets.TArrayNum;
+        world.Memory.Write(slots, 0);
+        Assert.Null(ChatOf(reader));
+        world.Memory.Write(slots, 1);
+        advance(Offsets.ChatHoldMilliseconds - 1);
+        Assert.True(ChatOf(reader));
+        advance(1);
+        Assert.False(ChatOf(reader));
+    }
+
+    [Fact]
+    public void PausedFollowsTheFrameCounterAndTheClock()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        world.SetFightFrame(100);
+        long now = 1000;
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now);
+        reader.TryRead(out var first, out _);
+        Assert.Null(first.Paused);
+        now += Offsets.PausedAfterMilliseconds;
+        reader.TryRead(out var still, out _);
+        Assert.True(still.Paused);
+        world.SetFightFrame(101);
+        reader.TryRead(out var moving, out _);
+        Assert.False(moving.Paused);
+    }
+
+    [Fact]
+    public void PausedAndChatAreNullWhenTheWorldIsNotLoaded()
+    {
+        var world = new FakeWorld();
+        world.BreakScenePointer();
+        Assert.False(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Null(state.Paused);
+        Assert.Null(state.ChatOpen);
+    }
+
     [Fact]
     public void NoSceneIsAFailureWithTheReason()
     {

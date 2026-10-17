@@ -41,14 +41,14 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
                 }
                 else
                 {
-                    _current = lastGood with { State = lastGood.State with { Status = failure ?? "read failed" } };
+                    _current = lastGood with { State = lastGood.State with { Status = failure ?? "read failed", ChatOpen = null, Paused = null } };
                 }
             }
             catch (Exception ex)
             {
                 var cause = ex.GetBaseException().Message;
                 if (_logged.Add(cause)) log($"reader - {cause}");
-                _current = lastGood with { State = lastGood.State with { Status = $"read failed - {cause}" } };
+                _current = lastGood with { State = lastGood.State with { Status = $"read failed - {cause}", ChatOpen = null, Paused = null } };
             }
 
             _stop.Wait(WaitMilliseconds(tickMilliseconds, Stopwatch.GetElapsedTime(started)));

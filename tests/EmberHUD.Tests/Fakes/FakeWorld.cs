@@ -95,6 +95,135 @@ internal sealed class FakeWorld
         return new FakeEntity(id, entity, map, value);
     }
 
+    private nint _fightWorld;
+    private nint _fightFirst;
+    private nint _fightMsg;
+    private readonly nint[] _fightHeads = new nint[FightBuckets];
+    private const int FightBuckets = 7;
+
+    public nint FightWorld()
+    {
+        if (_fightWorld != 0) return _fightWorld;
+        var first = Alloc(0x100);
+        var second = Alloc(0x100);
+        _fightWorld = Alloc(0x800);
+        _fightFirst = first;
+        _fightMsg = Alloc(0x200);
+        Memory.Write(first + Offsets.FightWorldFightMsg, _fightMsg);
+        Memory.Write(FightMgr + Offsets.FightWorldFirst, first);
+        Memory.Write(first + Offsets.FightWorldSecond, second);
+        Memory.Write(second + Offsets.FightWorldThird, _fightWorld);
+        Memory.Write(_fightWorld + Offsets.FightWorldMapCount, (uint)FightBuckets);
+        Memory.Write(_fightWorld + Offsets.FightWorldMap, Alloc(FightBuckets * 8));
+        return _fightWorld;
+    }
+
+    public void SetFightFrame(uint frame)
+    {
+        FightWorld();
+        Memory.Write(_fightMsg + Offsets.FightMsgFrame, frame);
+    }
+
+    public void SetFightMsgResolvable(bool resolvable)
+    {
+        FightWorld();
+        Memory.Write(_fightFirst + Offsets.FightWorldFightMsg, resolvable ? _fightMsg : 0);
+    }
+
+    public nint AddFightEntity(long id, params (int Component, nint Address)[] components)
+    {
+        var world = FightWorld();
+        var entity = Alloc(0x400);
+        var index = Alloc(160);
+        var slots = Alloc((components.Length + 1) * 8);
+        for (var i = 0; i < components.Length; i++)
+        {
+            Memory.Write(index + components[i].Component, (byte)(i + 1));
+            Memory.Write(slots + (i + 1) * 8, components[i].Address);
+        }
+
+        Memory.Write(entity + Offsets.FightEntityComponentIndex, index);
+        Memory.Write(entity + Offsets.FightEntityComponentSlots, slots);
+        var node = Alloc(0x20);
+        var bucket = (int)(id % FightBuckets);
+        Memory.Write(node + Offsets.FightNodeValue, entity);
+        Memory.Write(node + Offsets.FightNodeKey, id);
+        Memory.Write(node + Offsets.NodeNext, _fightHeads[bucket]);
+        _fightHeads[bucket] = node;
+        Memory.TryReadPtr(world + Offsets.FightWorldMap, out var buckets);
+        Memory.WriteArray(buckets, _fightHeads);
+        return entity;
+    }
+
+    public nint AddBuffComponent(params nint[] instances)
+    {
+        const int bucketCount = 5;
+        var component = Alloc(0x400);
+        var heads = new nint[bucketCount];
+        for (var i = 0; i < instances.Length; i++)
+        {
+            var node = Alloc(0x20);
+            var bucket = i % bucketCount;
+            Memory.Write(node, i + 1);
+            Memory.Write(node + Offsets.FightNodeValue, instances[i]);
+            Memory.Write(node + Offsets.NodeNext, heads[bucket]);
+            heads[bucket] = node;
+        }
+
+        var buckets = Alloc(bucketCount * 8);
+        Memory.WriteArray(buckets, heads);
+        Memory.Write(component + Offsets.BuffMap, buckets);
+        Memory.Write(component + Offsets.BuffMapCount, (uint)bucketCount);
+        return component;
+    }
+
+    public nint AddSkillCfgComponent(int cfgId)
+    {
+        var component = Alloc(0x100);
+        var cfg = Alloc(0x20);
+        Memory.Write(cfg, cfgId);
+        Memory.Write(component + Offsets.SkillCfgPointer, cfg);
+        return component;
+    }
+
+    public nint AddCooldownComponent(params (uint Skill, int Charges, int MaxCharges, double Remaining, double Total)[] records)
+    {
+        const int bucketCount = 5;
+        var component = Alloc(0x400);
+        var heads = new nint[bucketCount];
+        for (var i = 0; i < records.Length; i++)
+        {
+            var node = Alloc(Offsets.CooldownNodeSize);
+            var bucket = i % bucketCount;
+            Memory.Write(node + Offsets.CooldownSkill, records[i].Skill);
+            Memory.Write(node + Offsets.CooldownCharges, records[i].Charges);
+            Memory.Write(node + Offsets.CooldownMaxCharges, records[i].MaxCharges);
+            Memory.Write(node + Offsets.CooldownRemaining, records[i].Remaining);
+            Memory.Write(node + Offsets.CooldownTotal, records[i].Total);
+            Memory.Write(node + Offsets.CooldownNodeNext, heads[bucket]);
+            heads[bucket] = node;
+        }
+
+        var buckets = Alloc(bucketCount * 8);
+        Memory.WriteArray(buckets, heads);
+        Memory.Write(component + Offsets.CooldownMap, buckets);
+        Memory.Write(component + Offsets.CooldownMapCount, (uint)bucketCount);
+        return component;
+    }
+
+    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null)
+    {
+        var buff = Alloc(0x200);
+        Memory.Write(buff + Offsets.BuffTotal, total);
+        Memory.Write(buff + Offsets.BuffRemaining, remaining);
+        Memory.Write(buff + Offsets.BuffId, id);
+        if (!withCfgRow) return buff;
+        var row = Alloc(0x100);
+        Memory.Write(row + Offsets.BuffCfgId, cfgId ?? id);
+        Memory.Write(buff + Offsets.BuffCfgRow, row);
+        return buff;
+    }
+
     public void WriteMap(int mapOffset, params (int Key, nint Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);
 
     public void WriteMapAt(nint map, params (int Key, nint Value)?[] slots) =>

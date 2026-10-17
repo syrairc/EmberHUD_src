@@ -59,6 +59,28 @@ public class ReaderLoopTests
     }
 
     [Fact]
+    public void ReportedFailureClearsChatAndPausedToUnknown()
+    {
+        var good = GameState.Empty with { Status = "ok", ChatOpen = false, Paused = false };
+        using var loop = new ReaderLoop(() => new Scripted(() => good, () => null), _ => { }, 8);
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => loop.Current.State.Status == "read failed", 2000));
+        Assert.Null(loop.Current.State.ChatOpen);
+        Assert.Null(loop.Current.State.Paused);
+    }
+
+    [Fact]
+    public void ThrowingSourceClearsChatAndPausedToUnknown()
+    {
+        var good = GameState.Empty with { Status = "ok", ChatOpen = false, Paused = false };
+        using var loop = new ReaderLoop(() => new Scripted(() => good, () => throw new InvalidOperationException("boom")), _ => { }, 8);
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => loop.Current.State.Status.Contains("boom"), 2000));
+        Assert.Null(loop.Current.State.ChatOpen);
+        Assert.Null(loop.Current.State.Paused);
+    }
+
+    [Fact]
     public void ReportedFailureWithoutTextFallsBackToReadFailed()
     {
         var good = GameState.Empty with { Status = "ok", AreaId = 7 };

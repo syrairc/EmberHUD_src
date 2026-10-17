@@ -18,6 +18,7 @@ internal sealed class OverlayLoop : IDisposable
     bool _disposed;
 
     public nint TargetHandle => _target.Handle;
+    public bool GameIsForeground() => _target.GameIsForeground();
     public bool HasFocus { get; private set; }
     public bool IsOverlayActive { get; private set; }
     public bool InteractiveOutOfFocus { get; set; }

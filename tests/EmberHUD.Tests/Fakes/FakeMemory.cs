@@ -8,7 +8,11 @@ internal sealed class FakeMemory : IReadBackend
     private readonly List<(nint Base, byte[] Bytes)> _regions = [];
     private readonly Lock _gate = new();
 
+    private readonly List<(nint Address, int Length)> _unreadable = [];
+
     public List<(nint Address, int Length)> Reads { get; } = [];
+
+    public void MakeUnreadable(nint address, int length) => _unreadable.Add((address, length));
 
     public void Map(nint address, int size)
     {
@@ -27,6 +31,8 @@ internal sealed class FakeMemory : IReadBackend
     public bool TryRead(nint address, Span<byte> target)
     {
         lock (_gate) Reads.Add((address, target.Length));
+        var length = target.Length;
+        if (_unreadable.Any(r => address < r.Address + r.Length && r.Address < address + length)) return false;
         var at = Locate(address);
         if (at < 0) return false;
         var (start, bytes) = _regions[at];

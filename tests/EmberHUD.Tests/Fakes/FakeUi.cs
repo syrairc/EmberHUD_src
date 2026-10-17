@@ -29,6 +29,8 @@ internal sealed class FakeUi
 
     public nint Engine { get; }
 
+    public nint ChatHost { get; private set; }
+
     public nint Overlay { get; }
 
     public nint Slate(Vector2 position, Vector2 size, float scale = 1, float? scaleY = null)
@@ -148,6 +150,25 @@ internal sealed class FakeUi
         SetChildren(box, [.. items]);
         AddRoot(hosted ? Host(hud) : hud);
         return (box, detailRoot);
+    }
+
+    public nint AddPad(int[] cfgIds, bool hosted = false)
+    {
+        var pad = Widget(UserClass(Offsets.PadPageClassName), Offsets.PadPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var data = _world.Alloc(Math.Max(8, cfgIds.Length * 4));
+        _world.Memory.WriteArray(data, cfgIds);
+        _world.Memory.Write(pad + Offsets.SkillCfgIdsOffset, data);
+        _world.Memory.Write(pad + Offsets.SkillCfgIdsOffset + Offsets.TArrayNum, cfgIds.Length);
+        AddRoot(hosted ? Host(pad) : pad);
+        return pad;
+    }
+
+    public nint AddChat()
+    {
+        var chat = Widget(UserClass(Offsets.ChatPageClassName), Offsets.ChatPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        ChatHost = Host(chat);
+        AddRoot(ChatHost);
+        return chat;
     }
 
     private nint RichLine(nint richClass, int number, string text, byte visibility)

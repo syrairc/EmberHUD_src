@@ -25,6 +25,14 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void ChatIsClosedAndTheGameRunning()
+    {
+        var state = At(0);
+        Assert.False(state.ChatOpen);
+        Assert.False(state.Paused);
+    }
+
+    [Fact]
     public void SameClockGivesTheSameState() => Assert.Equal(At(5_000).Player, At(5_000).Player);
 
     [Fact]
@@ -99,6 +107,45 @@ public class FakeGameSourceTests
             Assert.All(inventory, i => Assert.NotEqual("", i.Id));
         }
         finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
+    public void FakeSkillsFollowTheSameWantAsBuffs()
+    {
+        Game.CharacterAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Skills);
+        try
+        {
+            Game.WantCharacter();
+            var skills = At(Stopwatch.GetTimestamp()).Skills!;
+
+            Assert.Contains(skills, s => !s.Ready);
+            Assert.Contains(skills, s => s.MaxCharges > 0);
+            Assert.Contains(skills, s => s.Slot < 0);
+        }
+        finally { Game.CharacterAsked = 0; }
+    }
+
+    [Fact]
+    public void FakeBuffsAreNullWhenNobodyAsked()
+    {
+        Game.CharacterAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Buffs);
+    }
+
+    [Fact]
+    public void FakeBuffsHaveATimedAndAnUntimedBuffWhenWanted()
+    {
+        try
+        {
+            Game.WantCharacter();
+            var buffs = At(Stopwatch.GetTimestamp()).Buffs!;
+
+            Assert.Contains(buffs, b => b.Remaining < b.Total);
+            Assert.Contains(buffs, b => b.Remaining == b.Total);
+            Assert.All(buffs, b => Assert.NotNull(b.Name));
+        }
+        finally { Game.CharacterAsked = 0; }
     }
 
     [Fact]

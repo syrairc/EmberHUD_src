@@ -24,6 +24,124 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
+    public void TryReadFailsWithoutAnOverlayAndSucceedsWithRoots()
+    {
+        Assert.False(new FakeWorld().UiReader().TryRead(out var none));
+        Assert.Same(GameUi.Empty, none);
+
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        Assert.False(world.UiReader().TryRead(out _));
+        ui.AddPad([1, 2]);
+        Assert.True(world.UiReader().TryRead(out var quiet));
+        Assert.Empty(quiet.Panels);
+    }
+
+    [Fact]
+    public void TryReadFailsWhenNoRootResolves()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddRoot(0);
+        Assert.False(world.UiReader().TryRead(out _));
+    }
+
+    [Fact]
+    public void AnUnresolvedRootStopsCountingAsIncompleteAfterOneRefreshCycle()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddPad([1, 2]);
+        ui.AddRoot(0);
+        long now = 0;
+        var reader = world.UiReader(() => now);
+        Assert.False(reader.TryRead(out _));
+        now = Offsets.UiRootRefreshMilliseconds - 1;
+        Assert.False(reader.TryRead(out _));
+        now = Offsets.UiRootRefreshMilliseconds;
+        Assert.True(reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void AKnownChatRootWithAnUnreadablePageVisibilityNeverReadsClean()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddPad([1, 2]);
+        var chat = ui.AddChat();
+        world.Memory.MakeUnreadable(chat + Offsets.UWidgetVisibility, 1);
+        long now = 0;
+        var reader = world.UiReader(() => now);
+        foreach (var at in new long[] { 0, Offsets.UiRootRefreshMilliseconds - 1, Offsets.UiRootRefreshMilliseconds, 2000 })
+        {
+            now = at;
+            Assert.False(reader.TryRead(out _, out var chatSeen));
+            Assert.False(chatSeen);
+        }
+    }
+
+    [Fact]
+    public void AKnownChatRootWithAnUnreadableWidgetVisibilityNeverReadsClean()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddPad([1, 2]);
+        ui.AddChat();
+        world.Memory.MakeUnreadable(ui.ChatHost + Offsets.UWidgetVisibility, 1);
+        long now = 0;
+        var reader = world.UiReader(() => now);
+        foreach (var at in new long[] { 0, Offsets.UiRootRefreshMilliseconds, 2000 })
+        {
+            now = at;
+            Assert.False(reader.TryRead(out _));
+        }
+    }
+
+    [Fact]
+    public void AnOverlayOutageForgetsEarlierRootFailures()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddPad([1, 2]);
+        ui.AddRoot(0);
+        long now = 0;
+        var reader = world.UiReader(() => now);
+        Assert.False(reader.TryRead(out _));
+        world.Memory.TryRead(ui.Engine + Offsets.EngineGameViewport, out nint viewport);
+        world.Memory.Write(ui.Engine + Offsets.EngineGameViewport, 0L);
+        now = Offsets.UiRootRefreshMilliseconds - 100;
+        Assert.False(reader.TryRead(out _));
+        world.Memory.Write(ui.Engine + Offsets.EngineGameViewport, viewport);
+        now = Offsets.UiRootRefreshMilliseconds + 100;
+        Assert.False(reader.TryRead(out _));
+    }
+
+    [Fact]
+    public void ChatPresenceComesFromTheRootWalkEvenWhenTheRectReadFails()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        var chat = ui.AddChat();
+        world.Memory.Write(chat + Offsets.UWidgetSlate, 0L);
+        var reader = world.UiReader();
+        Assert.False(reader.TryRead(out var panels, out var chatSeen));
+        Assert.True(chatSeen);
+        Assert.Empty(panels.Panels);
+    }
+
+    [Fact]
+    public void TheChatPageIsListedAsAnOtherPanelThatIsNotFullScreen()
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddChat();
+        Assert.True(world.UiReader().TryRead(out var open));
+        var panel = Assert.Single(open.Panels);
+        Assert.Equal((Offsets.ChatPageClassName, PanelKind.Other, false), (panel.Name, panel.Kind, panel.FullScreen));
+        Assert.False(open.AnyFullScreen);
+    }
+
+    [Fact]
     public void HostedNamedPanelReportsKindRectAndFlag()
     {
         var (world, _, page, _, _) = OpenNamedPanel();
@@ -426,6 +544,40 @@ public sealed class GameUiReaderTests
         var reader = world.UiReader();
         Assert.Equal("Map Base XP gain: 100%", reader.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent));
         Assert.Equal(["+60% Drop Quantity", "-6% Max Elemental Resistance for you"], reader.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SkillBarComesFromThePadRootAndThePadIsNotAPanel(bool hosted)
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        ui.AddPad([2300, 2040, 2210, 1230, 1960, 0], hosted);
+        var reader = world.UiReader();
+
+        Assert.Equal([2300, 2040, 2210, 1230, 1960, 0], reader.ReadSkillBar()!);
+        Assert.Empty(reader.Read().Panels);
+    }
+
+    [Fact]
+    public void SkillBarIsNullWithoutAPadAndFoundBesideTheHud()
+    {
+        var (world, ui, _, _) = HudWithMapPanel();
+        Assert.Null(world.UiReader().ReadSkillBar());
+
+        ui.AddPad([1, 2]);
+        Assert.Equal([1, 2], world.UiReader().ReadSkillBar()!);
+    }
+
+    [Fact]
+    public void SkillBarIsNullWhenTheCountIsTorn()
+    {
+        var world = new FakeWorld();
+        var pad = new FakeUi(world).AddPad([1, 2, 3]);
+        world.Memory.Write(pad + Offsets.SkillCfgIdsOffset + Offsets.TArrayNum, Offsets.MaxSkills + 1);
+
+        Assert.Null(world.UiReader().ReadSkillBar());
     }
 
     [Fact]
