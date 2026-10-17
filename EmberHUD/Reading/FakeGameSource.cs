@@ -79,7 +79,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly TartarusCell[] FakeTartarusCells =
     [
         .. Enumerable.Range(0, 16).Select(i => i % 4 == 0
-            ? new TartarusCell(i, true, i % 3 + 1, (TartarusBeast)(i % 4 + 1), i == 4, i == 8)
+            ? new TartarusCell(i, true, i % 3 + 1, (TartarusBeast)(i % 4 + 1), i == 4, i == 8, i + 1)
             : new TartarusCell(i, false, i % 4 == 2 ? i % 3 + 1 : -1, TartarusBeast.Unknown, false, false)),
     ];
 

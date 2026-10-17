@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Diagnostics;
 using EmberHUD.Host.Memory;
 
@@ -158,13 +159,14 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         if (!_lua.TryGetTable(cell, Offsets.LuaTartarusPrisoner, out var prisoner)) return false;
 
         var open = _lua.TryGetString(prisoner, Offsets.LuaTartarusUid, out var uid) && uid.Length > 0;
+        var uidNumber = open && uid.Length > 1 && uid[0] == 'P' && int.TryParse(uid.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0;
         var ratingKnown = open || (TryGetInt(cell, Offsets.LuaTartarusPreviewType, out var preview) && preview == Offsets.TartarusPreviewRating);
         var tier = ratingKnown && TryGetInt(prisoner, Offsets.LuaTartarusRating, out var rating) ? rating - Offsets.TartarusRatingBase : -1;
         var beast = TryGetInt(prisoner, Offsets.LuaTartarusSpecies, out var species) ? species - Offsets.TartarusSpeciesBase + 1 : 0;
         _lua.TryGetBool(cell, Offsets.LuaTartarusDevourTarget, out var devour);
         _lua.TryGetBool(cell, Offsets.LuaTartarusEventMarker, out var marker);
 
-        read = new TartarusCell(index, open, tier is >= 0 and <= 5 ? tier : -1, beast is >= 1 and <= 4 ? (TartarusBeast)beast : TartarusBeast.Unknown, devour, marker);
+        read = new TartarusCell(index, open, tier is >= 0 and <= 5 ? tier : -1, beast is >= 1 and <= 4 ? (TartarusBeast)beast : TartarusBeast.Unknown, devour, marker, uidNumber);
         return true;
     }
 
