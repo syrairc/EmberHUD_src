@@ -22,9 +22,10 @@ internal sealed partial class GameProcess : IDisposable
 
     private readonly SafeProcessHandle _handle;
 
-    private GameProcess(SafeProcessHandle handle, nint moduleBase, NativeReadBackend backend, long exeSize, bool exactBuild)
+    private GameProcess(SafeProcessHandle handle, string exePath, nint moduleBase, NativeReadBackend backend, long exeSize, bool exactBuild)
     {
         _handle = handle;
+        ExePath = exePath;
         ModuleBase = moduleBase;
         Backend = backend;
         ExeSize = exeSize;
@@ -32,6 +33,8 @@ internal sealed partial class GameProcess : IDisposable
     }
 
     public IReadBackend Backend { get; }
+
+    public string ExePath { get; }
 
     public nint ModuleBase { get; }
 
@@ -86,7 +89,7 @@ internal sealed partial class GameProcess : IDisposable
                 return false;
             }
 
-            game = new GameProcess(handle, moduleBase, backend, size, Offsets.SelectBuild(size));
+            game = new GameProcess(handle, path, moduleBase, backend, size, Offsets.SelectBuild(size));
             attached = true;
             failure = null;
             return true;

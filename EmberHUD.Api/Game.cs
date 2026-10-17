@@ -19,6 +19,8 @@ public static class Game
 
     public static nint WindowHandle => WindowSource?.Invoke() ?? 0;
 
+    public static string? ExePath { get; internal set; }
+
     public static void RescanMinimap() => Interlocked.Increment(ref _minimapRescans);
 
     public static void WantCombat() => Interlocked.Exchange(ref _combatAsked, Stopwatch.GetTimestamp());
@@ -141,6 +143,8 @@ public sealed record GameState
     public GameUi Ui { get; init; } = GameUi.Empty;
 
     public TradePage? Trade { get; init; }
+
+    public BagView? Bag { get; init; }
 
     public MapInfo? Area { get; init; }
 
@@ -289,6 +293,10 @@ public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int Ba
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 
 public readonly record struct TradeListing(int Slot, string Name, long Quantity, long Price, string? Status, Vector2 Min, Vector2 Max);
+
+public readonly record struct BagCell(int Slot, Vector2 Min, Vector2 Max);
+
+public sealed record BagView(InventoryBag Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
 
 public sealed record Camera
 {

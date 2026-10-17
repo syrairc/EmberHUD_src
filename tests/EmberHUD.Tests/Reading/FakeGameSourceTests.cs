@@ -132,6 +132,30 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeBagFollowsTheOpenInventory()
+    {
+        var open = Stopwatch.Frequency;
+        var closed = 5 * Stopwatch.Frequency;
+        try
+        {
+            Game.InventoryAsked = closed;
+            Assert.Null(At(closed).Bag);
+
+            Game.InventoryAsked = open;
+            var bag = At(open).Bag!;
+            Assert.Equal(InventoryBag.Commodities, bag.Tab);
+            Assert.Equal(Enumerable.Range(0, 27), bag.Cells.Select(c => c.Slot));
+            Assert.Contains(bag.Cells, c => c.Slot == 0);
+            Assert.Contains(bag.Cells, c => c.Slot == 1);
+            Assert.All(bag.Cells, c => Assert.True(c.Min.X >= 2400 && c.Min.Y >= 200 && c.Max.X <= 3300 && c.Max.Y <= 1200));
+
+            Game.InventoryAsked = 0;
+            Assert.Null(At(open).Bag);
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void FakeMonstersCastOnlyWhenWanted()
     {
         Game.CastsAsked = 0;

@@ -124,6 +124,7 @@ internal sealed class LiveReader
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
             Trade = _ui.ReadTrade(),
+            Bag = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _ui.ReadBag() : null,
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
             Combat = _combat?.Snapshot,

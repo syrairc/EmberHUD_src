@@ -11,6 +11,12 @@ public class GameInventoryTests
     }
 
     [Fact]
+    public void BagIsNullByDefault()
+    {
+        Assert.Null(GameState.Empty.Bag);
+    }
+
+    [Fact]
     public void InventoryIsWantedForAWhileAfterAsking()
     {
         Game.WantInventory();

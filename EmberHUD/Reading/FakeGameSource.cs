@@ -23,6 +23,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float UiCycleSeconds = 10f;
     private const float InventoryOpenSeconds = 4f;
     private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
+    private const int BagColumns = 9;
+    private static readonly BagView FakeBag = BuildBag();
     private const float VigilCycleSeconds = 30f;
     private const float MarketPageSeconds = 15f;
     private const int MarketPageCount = 3;
@@ -90,6 +92,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Shield = 133 * (0.5 + 0.5 * Math.Cos(angle)),
             MaxShield = 133,
         };
+        var ui = UiAt(now);
         state = new GameState
         {
             Status = "fake game",
@@ -102,7 +105,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             MapIcons = SceneIcons,
             Explored = Sample(1, new Vector2(player.Position.X, player.Position.Y), now),
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
-            Ui = UiAt(now),
+            Ui = ui,
+            Bag = ReferenceEquals(ui, InventoryOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeBag : null,
             ChatOpen = false,
             Paused = false,
             Area = MapAt(now),
@@ -203,6 +207,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     public void Dispose()
     {
     }
+
+    private static BagView BuildBag() =>
+        new(InventoryBag.Commodities, new Vector2(2420, 320), new Vector2(3280, 1180),
+            [.. Enumerable.Range(0, 27).Select(slot =>
+            {
+                var min = new Vector2(2430 + 95 * (slot % BagColumns), 330 + 95 * (slot / BagColumns));
+                return new BagCell(slot, min, min + new Vector2(90, 90));
+            })]);
 
     private static Terrain BuildTerrain()
     {
