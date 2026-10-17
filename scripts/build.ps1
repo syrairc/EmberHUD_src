@@ -3,7 +3,7 @@ $src = Split-Path $PSScriptRoot
 $out = Join-Path ([IO.Path]::GetTempPath()) "emberhud-build-$([guid]::NewGuid().ToString('N'))"
 
 try {
-    $projects = @("$src/EmberHUD/EmberHUD.csproj", "$src/EmberHUD.Launcher/EmberHUD.Launcher.csproj", "$src/EmberHUD.Setup/EmberHUD.Setup.csproj", "$src/Plugins/Plugins.csproj")
+    $projects = @("$src/EmberHUD/EmberHUD.csproj", "$src/EmberHUD.Launcher/EmberHUD.Launcher.csproj", "$src/EmberHUD.Setup/EmberHUD.Setup.csproj", "$src/EmberHUD.Updater/EmberHUD.Updater.csproj", "$src/Plugins/Plugins.csproj")
     foreach ($project in $projects) {
         dotnet build $project -o (Join-Path $out ([IO.Path]::GetFileNameWithoutExtension($project)))
         if ($LASTEXITCODE) { exit $LASTEXITCODE }

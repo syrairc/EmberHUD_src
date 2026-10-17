@@ -12,13 +12,14 @@ if ($a[0] -eq 'publish') {
     New-Item -ItemType Directory -Force $dir | Out-Null
     $project = $a[1]
     if ($project -like '*EmberHUD.Launcher*') { foreach ($name in 'EmberLauncher.exe', 'EmberLauncher.dll', 'EmberLauncher.runtimeconfig.json', 'EmberLauncher.deps.json') { Set-Content (Join-Path $dir $name) plain } }
+    elseif ($project -like '*EmberHUD.Updater*') { foreach ($name in 'EmberUpdater.exe', 'EmberUpdater.dll', 'EmberUpdater.runtimeconfig.json', 'EmberUpdater.deps.json') { Set-Content (Join-Path $dir $name) plain } }
     elseif ($project -like '*EmberHUD.Setup*') { foreach ($name in 'EmberSetup.exe', 'EmberSetup.dll', 'EmberSetup.runtimeconfig.json', 'EmberSetup.deps.json', 'EmberLauncher.exe', 'EmberLauncher.dll', 'EmberLauncher.runtimeconfig.json', 'EmberLauncher.deps.json', 'ooz.dll', 'BCnEncoder.dll', 'Microsoft.Toolkit.HighPerformance.dll', 'ZstdSharp.dll', 'EmberHUD.Api.dll', 'Hexa.NET.ImGui.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll') { Set-Content (Join-Path $dir $name) plain } }
     else {
         foreach ($name in 'Ember.exe', 'Ember.dll', 'Ember.runtimeconfig.json', 'Ember.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
         foreach ($name in 'EmberHUD.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
     }
-    if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
-    if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $stage -eq 'swap') {
+    if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $project -notlike '*EmberHUD.Updater*' -and $stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
+    if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $project -notlike '*EmberHUD.Updater*' -and $stage -eq 'swap') {
         Remove-Item -LiteralPath $env:STUB_SWAP_DIST -Recurse -Force
         New-Item -ItemType Junction -Path $env:STUB_SWAP_DIST -Target $env:STUB_SWAP_TARGET | Out-Null
     }
@@ -66,6 +67,7 @@ try {
     Set-Content "$box/repo/src/scripts/build.ps1" $stubBuild
     New-Item -ItemType Directory -Force "$box/repo/src/Fonts", "$box/repo/src/Themes", "$box/repo/src/licenses", "$box/repo/src/Plugins/Sample/Icons/deep", "$box/repo/src/Plugins/Sample/bin", "$box/repo/src/Plugins/Sample/Tests", "$box/repo/src/Plugins/Minimap/Tests", "$box/repo/src/Plugins/Inspector", "$box/repo/src/Plugins/Mcp", "$box/repo/src/scripts/steam", "$box/repo/assets/icons" | Out-Null
     foreach ($file in 'Fonts/a.ttf', 'Fonts/OFL.txt', 'Themes/a.json', 'licenses/THIRD-PARTY.txt', 'licenses/ooz-GPL-3.0.txt', 'Plugins/Sample/Main.cs', 'Plugins/Sample/defaults.json', 'Plugins/Sample/notes.txt', 'Plugins/Sample/Icons/dot.svg', 'Plugins/Sample/Icons/deep/skip.svg', 'Plugins/Sample/bin/Skip.cs', 'Plugins/Sample/Tests/T.cs', 'Plugins/Minimap/Main.cs', 'Plugins/Minimap/Tests/T.cs', 'Plugins/Inspector/Main.cs', 'Plugins/Mcp/Main.cs', 'Plugins/Plugins.csproj', 'scripts/README.release.md', 'scripts/steam/a.reg') { Set-Content "$box/repo/src/$file" x }
+    Set-Content "$box/repo/src/version.txt" '1.2.3' -NoNewline
     foreach ($file in 'index.json', 'a.png', 'notes.txt') { Set-Content "$box/repo/assets/icons/$file" x }
     foreach ($dir in 'repo', 'repo/src', 'repo/dist', 'plain', 'notdist', 'repo/other', 'plain/dist') { Set-Content "$box/$dir/keep.txt" keep }
     Set-Content "$box/repo/dist/old/old.bin" old
@@ -219,6 +221,22 @@ try {
         (Test-Path "$public/Plugins/Minimap/Main.cs") -and -not (Test-Path "$public/Plugins/Minimap/Tests") -and
         -not (Test-Path "$public/Plugins/Sample") -and -not (Test-Path "$public/Plugins/Inspector") -and -not (Test-Path "$public/Plugins/Mcp") -and
         (Test-Path "$dist/Plugins/Sample/Tests/T.cs")) 'a -Public release wipes everything but .git and .gitignore, ships the README and no plugin tests, Inspector, Mcp or Sample, while a normal release still ships plugin tests'
+    $manifestPath = "$public/manifest.json"
+    $manifestText = if (Test-Path $manifestPath) { Get-Content $manifestPath -Raw } else { '{}' }
+    $manifest = $manifestText | ConvertFrom-Json
+    $bytes = if (Test-Path $manifestPath) { [IO.File]::ReadAllBytes($manifestPath) } else { [byte[]]@() }
+    $keys = [string[]]@($manifest.Files.PSObject.Properties.Name | Where-Object { $_ })
+    $sorted = [string[]]$keys.Clone()
+    [Array]::Sort($sorted, [StringComparer]::Ordinal)
+    $hashesMatch = $keys.Count -gt 0
+    foreach ($key in $keys) { if (-not (Test-Path -LiteralPath "$public/$key") -or (Get-FileHash -LiteralPath "$public/$key" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.Files.$key) { $hashesMatch = $false } }
+    $onDisk = @(Get-ChildItem -LiteralPath $public -Recurse -File -Force | Where-Object { $_.FullName -notmatch '[\/]\.git([\/]|$)' -and $_.Name -notin '.gitignore', 'manifest.json' }).Count
+    Check ((Test-Path $manifestPath) -and $manifest.Version -eq '1.2.3' -and
+        -not ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF) -and $manifestText -match '(?m)^  "Files": \{' -and
+        $keys -contains 'EmberUpdater.exe' -and $keys -contains 'Plugins/Minimap/Main.cs' -and $keys -contains 'Fonts/a.ttf' -and
+        -not ($keys | Where-Object { $_.Contains('\') -or $_ -match '^(\.git|Config|Logs|Cache|GameIcons|Updates)(/|$)' -or $_ -in 'manifest.json', '.gitignore', 'imgui.ini' -or $_ -like '*.zip' }) -and
+        $keys.Count -eq $onDisk -and $hashesMatch -and ($keys -join '|') -ceq ($sorted -join '|')) 'a -Public release writes manifest.json with the version, / keys sorted ordinal, EmberUpdater.exe, sha256 of every shipped file and none of .git, Config, manifest.json or zips'
+    Check (-not (Test-Path "$dist/manifest.json")) 'a normal release writes no manifest.json'
     Run "$box/repo/dist" $box 'none' $release @('-Public')
     Check ($code -ne 0 -and $output -match 'refusing to wipe') '-Public refuses a folder not named release'
 

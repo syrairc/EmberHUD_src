@@ -10,6 +10,9 @@ internal sealed class SdkSettings : PluginSettings
     public bool AutoReload;
     public bool InteractiveOutOfFocus;
     public string GameIconsDirectory = "";
+    public bool UpdaterEnabled = true;
+    public int UpdateIntervalHours = 1;
+    public bool OverwriteModifiedPlugins;
     public Dictionary<string, PluginState> Plugins = [];
     public Dictionary<string, Dictionary<string, Hotkey>> PluginHotkeys = [];
 

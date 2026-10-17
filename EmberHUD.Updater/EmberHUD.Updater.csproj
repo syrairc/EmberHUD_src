@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ApplicationIcon>..\EmberHUD\ember.ico</ApplicationIcon>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>EmberHUD.Updater</RootNamespace>
+    <AssemblyName>EmberUpdater</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EmberHUD.Api\EmberHUD.Api.csproj" />
+    <ProjectReference Include="..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Hexa.NET.ImGui.Backends" />
+    <PackageReference Include="Vortice.Direct3D11" />
+    <PackageReference Include="Vortice.DirectComposition" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\EmberHUD.Setup\AppWindow.cs" Link="Host\AppWindow.cs" />
+    <Compile Include="..\EmberHUD\Overlay\GraphicsDevice.cs" Link="Host\GraphicsDevice.cs" />
+    <Compile Include="..\EmberHUD\Overlay\ImGuiHost.cs" Link="Host\ImGuiHost.cs" />
+    <Compile Include="..\EmberHUD\Overlay\Win32.cs" Link="Host\Win32.cs" />
+    <Compile Include="..\EmberHUD\Ui\ThemeStore.cs" Link="Host\ThemeStore.cs" />
+    <Compile Include="..\EmberHUD\Ui\ThemeGradients.cs" Link="Host\ThemeGradients.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Fonts\**" LinkBase="Fonts" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Themes\**" LinkBase="Themes" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="EmberHUD.Updater.Tests" />
+  </ItemGroup>
+</Project>

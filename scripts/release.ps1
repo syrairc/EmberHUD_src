@@ -37,6 +37,10 @@ $ship = @(
     'EmberLauncher.dll'
     'EmberLauncher.runtimeconfig.json'
     'EmberLauncher.deps.json'
+    'EmberUpdater.exe'
+    'EmberUpdater.dll'
+    'EmberUpdater.runtimeconfig.json'
+    'EmberUpdater.deps.json'
     'EmberSetup.exe'
     'EmberSetup.dll'
     'EmberSetup.runtimeconfig.json'
@@ -92,7 +96,7 @@ try {
     & "$PSScriptRoot/build.ps1"
     if ($LASTEXITCODE) { throw "build failed (exit $LASTEXITCODE)" }
 
-    foreach ($project in 'EmberHUD/EmberHUD.csproj', 'EmberHUD.Launcher/EmberHUD.Launcher.csproj', 'EmberHUD.Setup/EmberHUD.Setup.csproj') {
+    foreach ($project in 'EmberHUD/EmberHUD.csproj', 'EmberHUD.Launcher/EmberHUD.Launcher.csproj', 'EmberHUD.Setup/EmberHUD.Setup.csproj', 'EmberHUD.Updater/EmberHUD.Updater.csproj') {
         dotnet publish "$src/$project" -c Release -o $publish
         if ($LASTEXITCODE) { throw "publish failed for $project (exit $LASTEXITCODE)" }
     }
@@ -123,7 +127,7 @@ try {
         }
     }
 
-    $dlls = 'Ember.dll', 'EmberSetup.dll', 'EmberLauncher.dll'
+    $dlls = 'Ember.dll', 'EmberSetup.dll', 'EmberLauncher.dll', 'EmberUpdater.dll'
     $plainHashes = @{}
     $obfuscatedHashes = @{}
     foreach ($name in $dlls) { $plainHashes[$name] = (Get-FileHash (Join-Path $publish $name)).Hash }
@@ -194,6 +198,18 @@ try {
 
     foreach ($name in $dlls) {
         if ((Get-FileHash -LiteralPath (Join-Path $root $name)).Hash -ne $obfuscatedHashes[$name]) { throw "$root/$name is not the obfuscated build" }
+    }
+
+    if ($Public) {
+        $hashes = [Collections.Generic.SortedDictionary[string, string]]::new([StringComparer]::Ordinal)
+        foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Force) {
+            $relative = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
+            $parts = $relative -split '/'
+            if ($parts[0] -in $userData -or $parts[0] -eq 'Updates' -or ($parts | Where-Object { $_ -in '.git', '.gitignore' }) -or $relative -eq 'manifest.json' -or $file.Extension -eq '.zip') { continue }
+            $hashes[$relative] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        $manifest = [ordered]@{ Version = (Get-Content $versionFile -Raw).Trim(); Files = $hashes }
+        [IO.File]::WriteAllText((Join-Path $root 'manifest.json'), ($manifest | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
     }
 
     Write-Host "release ready in $root - the obfuscation map was at $obfuscated\Mapping.txt, already deleted with the temp work dir"
