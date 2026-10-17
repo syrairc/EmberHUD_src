@@ -21,6 +21,13 @@ public static class TestGame
         return Game.CharacterAsked != 0;
     }
 
+    public static bool InventoryAskedDuring(Action run)
+    {
+        Game.InventoryAsked = 0;
+        run();
+        return Game.InventoryAsked != 0;
+    }
+
     public static bool TartarusAskedDuring(Action run)
     {
         Game.TartarusAsked = 0;

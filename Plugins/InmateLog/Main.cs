@@ -1,0 +1,95 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using EmberHUD;
+
+namespace InmateLog;
+
+public sealed class Main : Plugin<Settings>
+{
+    const double SaveEverySeconds = 5;
+    const double RetryLookupSeconds = 10;
+
+    readonly Dictionary<int, InmateKind?> _kinds = [];
+    readonly Dictionary<int, double> _retryAt = [];
+    readonly Tracker _tracker;
+    readonly RunRecorder _recorder = new();
+    InmateStore? _store;
+    int _areaId;
+    double _lastSave = double.NegativeInfinity;
+    double _lastLoad = double.NegativeInfinity;
+
+    public Main() => _tracker = new(Classify);
+
+    InmateKind? Classify(int cfgId)
+    {
+        if (_kinds.TryGetValue(cfgId, out var known)) return known;
+        if (_retryAt.TryGetValue(cfgId, out var retry) && Seconds() < retry) return null;
+        var ownKey = $"npc|name|{cfgId}";
+        var lookupFailed = false;
+        var kind = Inmates.Classify(cfgId, key =>
+        {
+            var text = Loc.Get(key);
+            if (text is null && key == ownKey) lookupFailed = true;
+            return text;
+        });
+        if (lookupFailed) _retryAt[cfgId] = Seconds() + RetryLookupSeconds;
+        else _kinds[cfgId] = kind;
+        return kind;
+    }
+
+    internal string DataDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Config", "InmateLog");
+
+    internal Func<double> Seconds { get; set; } = () => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+
+    internal Func<DateTime> Now { get; set; } = () => DateTime.Now;
+
+    internal InmateStore Store => _store ??= InmateStore.Load(DataDirectory);
+
+    public override void Tick()
+    {
+        Game.WantInventory();
+        Game.WantTartarus();
+        var state = Game.State;
+        if (state.AreaId != _areaId)
+        {
+            _areaId = state.AreaId;
+            _kinds.Clear();
+            _retryAt.Clear();
+        }
+
+        var seconds = Seconds();
+        var nameplates = Nameplates.Count(state.Inventory);
+        foreach (var sighting in _tracker.Update(state, seconds))
+        {
+            Store.Add(sighting, state.Area?.Name ?? "", nameplates, Now());
+        }
+
+        if (_recorder.Update(state.Tartarus, nameplates, Now(), seconds) is { } run) Store.AddRun(run);
+        if (!Store.Loaded && seconds - _lastLoad >= SaveEverySeconds)
+        {
+            _lastLoad = seconds;
+            var fresh = InmateStore.Load(DataDirectory);
+            if (fresh.Loaded)
+            {
+                fresh.Absorb(Store);
+                _store = fresh;
+            }
+        }
+
+        if (Store.Dirty && seconds - _lastSave >= SaveEverySeconds)
+        {
+            Store.Save(DataDirectory);
+            _lastSave = seconds;
+        }
+    }
+
+    public override void DrawSettings() => SettingsUI.Draw(Store, Nameplates.Count(Game.State.Inventory), Store.Clear);
+
+    public override void Dispose()
+    {
+        if (_store is { Dirty: true }) _store.Save(DataDirectory);
+        base.Dispose();
+    }
+}
