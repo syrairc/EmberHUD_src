@@ -301,7 +301,7 @@ public class MinimapReaderTests
         reader.ReadRotationDegrees(1);
         var result = reader.ReadGameMinimap();
         Assert.Equal(open, result!.Open);
-        Assert.Equal(6.2086f * 34304 * 0.64f / 2, result.WorldWidth, 0.5f);
+        Assert.Equal(6.2086f * 34304 * 0.64f / 1.92f, result.WorldWidth, 0.01f);
     }
 
     [Theory]
