@@ -112,6 +112,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Player = player,
             Entities = Game.CastsWanted(now, Offsets.CastWantedSeconds) ? CastingAt(now) : SceneEntities,
             Projectiles = Game.ProjectilesWanted(now, Offsets.ProjectileWantedSeconds) ? ProjectilesAt(now, new Vector2(player.Position.X, player.Position.Y)) : [],
+            GroundHazards = Game.GroundHazardsWanted(now, Offsets.GroundHazardWantedSeconds) ? GroundHazardsAt(new Vector2(player.Position.X, player.Position.Y)) : [],
             Terrain = SceneTerrain,
             MinimapRotation = -90,
             MapIcons = SceneIcons,
@@ -271,6 +272,12 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             }),
         ];
     }
+
+    private static GroundHazard[] GroundHazardsAt(Vector2 player) =>
+    [
+        new(9100, HazardKind.Area, player + new Vector2(600, 0), 400),
+        new(9101, HazardKind.Damage, player + new Vector2(0, 300), 175),
+    ];
 
     private static Entity[] CastingAt(long now) =>
     [.. SceneEntities.Select(e =>

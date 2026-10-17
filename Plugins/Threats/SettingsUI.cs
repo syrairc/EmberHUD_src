@@ -30,6 +30,11 @@ public sealed partial class Settings
         Setting.Color("Line colour", ref LineColour);
         Setting.Slider("Animation speed", ref AnimationSpeed, 50, 3000, "Only used by the Animated style");
 
+        Controls.Section("Ground hazards");
+        Setting.Checkbox("Ground areas", ref GroundAreas);
+        Setting.Color("Area colour", ref AreaColour);
+        Setting.Slider("Ground alert delay", ref GroundAlertSeconds, 0, 10, "Seconds inside a pool before the move alert fires");
+
         Controls.Section("Danger");
         Setting.Color("Danger colour", ref DangerColour);
         Setting.Checkbox("Move alert", ref MoveAlert);

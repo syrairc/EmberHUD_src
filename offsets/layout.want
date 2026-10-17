@@ -70,6 +70,15 @@ MoveSpeed = 0x38
 MaxProjectileSpeed = 20000
 MaxProjectileRadius = 5000
 ProjectileWantedSeconds = 3
+BuffAreaComponentId = 16
+DamageDataComponentId = 27
+ScaleComponentId = 116
+ShapeCircle = 1
+ScaleValue = 0x38
+MaxHazardSize = 20000
+HazardStackTolerance = 1
+AuraTolerance = 60
+GroundHazardWantedSeconds = 3
 
 HashBucketCount = 12
 TMapInlineBits = 16

@@ -57,3 +57,23 @@ public class GameProjectilesTests
         Assert.False(Game.ProjectilesWanted(now + 4 * Stopwatch.Frequency, 3));
     }
 }
+
+public class GameGroundHazardsTests
+{
+    [Fact]
+    public void DefaultStateHasNoGroundHazards()
+    {
+        Assert.Empty(GameState.Empty.GroundHazards);
+    }
+
+    [Fact]
+    public void WantGroundHazardsMarksThemWanted()
+    {
+        Game.GroundHazardsAsked = 0;
+        Assert.False(Game.GroundHazardsWanted(Stopwatch.GetTimestamp(), 3));
+        Game.WantGroundHazards();
+        var now = Stopwatch.GetTimestamp();
+        Assert.True(Game.GroundHazardsWanted(now, 3));
+        Assert.False(Game.GroundHazardsWanted(now + 4 * Stopwatch.Frequency, 3));
+    }
+}

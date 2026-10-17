@@ -23,6 +23,7 @@ internal sealed class LiveReader
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
     private readonly ProjectileReader _projectiles;
+    private readonly GroundHazardReader _groundHazards;
     private readonly HpBarReader _hpBars;
     private readonly PausedReader _paused;
     private readonly Func<long> _clock;
@@ -50,6 +51,7 @@ internal sealed class LiveReader
         _woodStake = new WoodStakeReader(memory, moduleBase);
         _casts = new CastReader(memory, moduleBase);
         _projectiles = new ProjectileReader(memory, moduleBase);
+        _groundHazards = new GroundHazardReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
         _clock = clockMilliseconds ?? (() => Environment.TickCount64);
@@ -114,6 +116,7 @@ internal sealed class LiveReader
             Player = player,
             Entities = entities,
             Projectiles = Game.ProjectilesWanted(Stopwatch.GetTimestamp(), Offsets.ProjectileWantedSeconds) ? _projectiles.Read(entities) : [],
+            GroundHazards = Game.GroundHazardsWanted(Stopwatch.GetTimestamp(), Offsets.GroundHazardWantedSeconds) ? _groundHazards.Read(entities) : [],
             Terrain = terrain,
             MinimapRotation = rotation,
             GameMinimap = _minimap.ReadGameMinimap(),

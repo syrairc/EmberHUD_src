@@ -34,6 +34,10 @@ public sealed partial class Settings : PluginSettings
     public Color LineColour = Color.FromArgb(230, 60, 220, 255);
     public float AnimationSpeed = 600;
 
+    public bool GroundAreas = true;
+    public Color AreaColour = Color.FromArgb(200, 230, 120, 40);
+    public float GroundAlertSeconds = 1.0f;
+
     public Color DangerColour = Color.FromArgb(255, 255, 40, 120);
     public bool MoveAlert;
     public string MoveAlertText = "MOVE";

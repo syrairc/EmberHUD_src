@@ -22,13 +22,14 @@ public sealed class MainTests
 
     static Projectile Shot(Rarity rarity = Rarity.Rare) => new(1, 1, rarity, new Vector2(0, 500), new Vector2(0, 500), Vector2.UnitX, 100, 600);
 
-    static GameState State(Player? player, Entity[]? entities = null, Projectile[]? projectiles = null, GameUi? ui = null) => GameState.Empty with
+    static GameState State(Player? player, Entity[]? entities = null, Projectile[]? projectiles = null, GameUi? ui = null, GroundHazard[]? hazards = null) => GameState.Empty with
     {
         Camera = Forward,
         Player = player,
         Entities = entities ?? [],
         Projectiles = projectiles ?? [],
         Ui = ui ?? GameUi.Empty,
+        GroundHazards = hazards ?? [],
     };
 
     static Main Plugin(Action<Settings>? configure = null, Func<long>? clock = null)
@@ -153,15 +154,100 @@ public sealed class MainTests
         Check.Equal(Frame(outside), Frame(outside, s => s.MoveAlert = true));
     }
 
+    static readonly GroundHazard Pool = new(1, HazardKind.Area, new Vector2(500, 0), 200);
+    static readonly GroundHazard NextPool = new(2, HazardKind.Area, new Vector2(900, 0), 200);
+    static readonly GroundHazard Rock = new(3, HazardKind.Damage, new Vector2(500, 0), 200);
+    static readonly Player InPool = new(new Vector3(500, 0, 0), Vector2.UnitX);
+    static readonly Player InBoth = new(new Vector3(700, 0, 0), Vector2.UnitX);
+    static readonly Player InNext = new(new Vector3(1000, 0, 0), Vector2.UnitX);
+
+    [Test]
+    public void DrawsAHostileArea()
+    {
+        Check.That(Frame(State(Away, hazards: [Pool])) > Frame(State(Away)), "area missing");
+    }
+
+    [Test]
+    public void DrawsADamageCircle()
+    {
+        Check.That(Frame(State(Away, hazards: [Rock])) > Frame(State(Away)), "damage circle missing");
+    }
+
+    [Test]
+    public void GroundAreasOffDrawsNothing()
+    {
+        Check.Equal(Frame(State(Away)), Frame(State(Away, hazards: [Pool, Rock]), s => s.GroundAreas = false));
+        Check.Equal(Frame(State(InPool), s => s.MoveAlert = true), Frame(State(InPool, hazards: [Rock]), s => { s.GroundAreas = false; s.MoveAlert = true; }));
+    }
+
+    [Test]
+    public void AreaAlertWaitsForTheDelay()
+    {
+        var now = 1000L;
+        var state = State(InPool, hazards: [Pool]);
+        var quiet = Frame(state);
+        var main = Plugin(s => { s.MoveAlert = true; s.GroundAlertSeconds = 1; }, () => now);
+        Check.Equal(quiet, Frame(main, state));
+        now += Stopwatch.Frequency / 2;
+        Check.Equal(quiet, Frame(main, state));
+        now += Stopwatch.Frequency / 2;
+        Check.That(Frame(main, state) > quiet, "no alert after the delay");
+    }
+
+    [Test]
+    public void AreaTimerResetsOnlyWhenOutsideAll()
+    {
+        var overlap = State(InBoth, hazards: [Pool, NextPool]);
+        var inFirst = State(InPool, hazards: [Pool, NextPool]);
+        var inSecond = State(InNext, hazards: [Pool, NextPool]);
+        var outside = State(Away, hazards: [Pool, NextPool]);
+        var quiet = Frame(inFirst);
+        var now = 1000L;
+        var main = Plugin(s => { s.MoveAlert = true; s.GroundAlertSeconds = 1; }, () => now);
+        Frame(main, inFirst);
+        now += Stopwatch.Frequency * 6 / 10;
+        Frame(main, overlap);
+        now += Stopwatch.Frequency * 4 / 10;
+        Check.That(Frame(main, inSecond) > quiet, "timer reset when walking between areas");
+
+        now = 1000;
+        main = Plugin(s => { s.MoveAlert = true; s.GroundAlertSeconds = 1; }, () => now);
+        Frame(main, inFirst);
+        now += Stopwatch.Frequency * 6 / 10;
+        Frame(main, outside);
+        Frame(main, inFirst);
+        now += Stopwatch.Frequency * 4 / 10;
+        Check.Equal(quiet, Frame(main, inFirst));
+    }
+
+    [Test]
+    public void DamageAlertIsInstant()
+    {
+        var state = State(InPool, hazards: [Rock]);
+        var quiet = Frame(state, s => s.GroundAlertSeconds = 10);
+        Check.That(Frame(state, s => { s.GroundAlertSeconds = 10; s.MoveAlert = true; }) > quiet, "no instant alert in a damage circle");
+    }
+
+    [Test]
+    public void TelegraphAlertStaysInstant()
+    {
+        var state = State(Standing, [Caster()]);
+        var quiet = Frame(state, s => s.GroundAlertSeconds = 10);
+        Check.That(Frame(state, s => { s.GroundAlertSeconds = 10; s.MoveAlert = true; }) > quiet, "telegraph alert delayed");
+    }
+
     [Test]
     public void CallsBothWantMethods()
     {
         var casts = Asked("CastsAsked");
         var projectiles = Asked("ProjectilesAsked");
+        var ground = Asked("GroundHazardsAsked");
         casts.SetValue(null, 0L);
         projectiles.SetValue(null, 0L);
+        ground.SetValue(null, 0L);
         Frame(State(Away));
         Check.That((long)casts.GetValue(null)! != 0, "WantCasts was not called");
         Check.That((long)projectiles.GetValue(null)! != 0, "WantProjectiles was not called");
+        Check.That((long)ground.GetValue(null)! != 0, "WantGroundHazards was not called");
     }
 }

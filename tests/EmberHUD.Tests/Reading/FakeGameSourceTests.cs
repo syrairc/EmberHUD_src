@@ -197,6 +197,26 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGroundHazardsAreGatedByTheWant()
+    {
+        Game.GroundHazardsAsked = 0;
+        Assert.Empty(At(Stopwatch.GetTimestamp()).GroundHazards);
+        try
+        {
+            Game.WantGroundHazards();
+            var state = At(Stopwatch.GetTimestamp());
+            var player = new System.Numerics.Vector2(state.Player!.Position.X, state.Player.Position.Y);
+            var area = Assert.Single(state.GroundHazards, h => h.Kind == HazardKind.Area);
+            var damage = Assert.Single(state.GroundHazards, h => h.Kind == HazardKind.Damage);
+            Assert.Equal(400, area.Radius);
+            Assert.Equal(175, damage.Radius);
+            Assert.Equal(600, System.Numerics.Vector2.Distance(area.Centre, player), 1);
+            Assert.Equal(300, System.Numerics.Vector2.Distance(damage.Centre, player), 1);
+        }
+        finally { Game.GroundHazardsAsked = 0; }
+    }
+
+    [Fact]
     public void FakeSkillsFollowTheSameWantAsBuffs()
     {
         Game.CharacterAsked = 0;

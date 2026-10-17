@@ -10,6 +10,7 @@ public static class Game
     static long _inventoryAsked;
     static long _castsAsked;
     static long _projectilesAsked;
+    static long _groundHazardsAsked;
     static long _characterAsked;
     static long _tartarusAsked;
 
@@ -79,6 +80,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantGroundHazards() => Interlocked.Exchange(ref _groundHazardsAsked, Stopwatch.GetTimestamp());
+
+    internal static long GroundHazardsAsked
+    {
+        get => Interlocked.Read(ref _groundHazardsAsked);
+        set => Interlocked.Exchange(ref _groundHazardsAsked, value);
+    }
+
+    internal static bool GroundHazardsWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _groundHazardsAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     public static void WantCharacter() => Interlocked.Exchange(ref _characterAsked, Stopwatch.GetTimestamp());
 
     internal static long CharacterAsked
@@ -129,6 +144,8 @@ public sealed record GameState
     public Entity[] Entities { get; init; } = [];
 
     public Projectile[] Projectiles { get; init; } = [];
+
+    public GroundHazard[] GroundHazards { get; init; } = [];
 
     public Terrain? Terrain { get; init; }
 
@@ -240,6 +257,10 @@ public readonly record struct Cast(int StoneId, byte State, float Progress, floa
 }
 
 public readonly record struct Projectile(int Id, int OwnerId, Rarity OwnerRarity, Vector2 Position, Vector2 Origin, Vector2 Direction, float Radius, float Speed);
+
+public enum HazardKind { Area, Damage }
+
+public readonly record struct GroundHazard(int Id, HazardKind Kind, Vector2 Centre, float Radius);
 
 public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)
 {
