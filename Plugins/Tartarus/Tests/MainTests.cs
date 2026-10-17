@@ -126,9 +126,9 @@ public sealed class MainTests
             TestFrame.Run(plugin.DrawSettings);
             plugin.Logger.Store.Kills.Add(new(DateTime.Now, "Odd", 5027099, null, 0, "killed", 0, 10, 1, 1, 12));
             plugin.Logger.Store.AddRun(new(DateTime.Now, null, null, 7, [new(1, 2, 3)]));
+            plugin.Logger.Minigame.Add(new(DateTime.Now, 1, 2, 3, 4, 2, 1, "door", 0));
             TestGame.Set(GameState.Empty);
-            TestFrame.Run(plugin.DrawSettings);
-        }
+            TestFrame.Run(plugin.DrawSettings);        }
         finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
     }
 

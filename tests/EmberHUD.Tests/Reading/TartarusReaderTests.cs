@@ -304,7 +304,36 @@ public class TartarusReaderTests
         var f = new Fixture();
         f.Cell(2, "P7", 101, 205);
         var cell = f.Reader().Read()!.Cells.Single();
-        Assert.Equal(new TartarusCell(2, true, 4, TartarusBeast.Mammoth, false, false), cell);
+        Assert.Equal(new TartarusCell(2, true, 4, TartarusBeast.Mammoth, false, false, 7), cell);
+    }
+
+    [Fact]
+    public void OpenCellReadsItsUid()
+    {
+        var f = new Fixture();
+        f.Cell(2, "P12", 101, 205);
+        Assert.Equal(12, f.Reader().Read()!.Cells.Single().Uid);
+    }
+
+    [Fact]
+    public void LockedCellHasUidZero()
+    {
+        var f = new Fixture();
+        f.Cell(2, null, 0, 0);
+        Assert.Equal(0, f.Reader().Read()!.Cells.Single().Uid);
+    }
+
+    [Theory]
+    [InlineData("X7")]
+    [InlineData("P")]
+    [InlineData("Pabc")]
+    public void OddUidTextGivesZeroButStaysOpen(string text)
+    {
+        var f = new Fixture();
+        f.Cell(2, text, 101, 205);
+        var cell = f.Reader().Read()!.Cells.Single();
+        Assert.True(cell.Open);
+        Assert.Equal(0, cell.Uid);
     }
 
     [Fact]
