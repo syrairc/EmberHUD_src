@@ -26,6 +26,13 @@ sealed class Autoloot
         }
     }
 
+    public void Release(Settings s, Func<Key, bool> up)
+    {
+        if (!Holding) return;
+        up(s.PickupKey.Key);
+        Holding = false;
+    }
+
     static bool NearOwnedItem(Settings s, GameState state) =>
         state.Player is { } player && state.GroundItems is { } items && items.Any(item => item.Owned && player.FlatDistance(item.Position) <= s.NearRadius);
 }

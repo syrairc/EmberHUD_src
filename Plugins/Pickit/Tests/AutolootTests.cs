@@ -128,4 +128,32 @@ public sealed class AutolootTests
         rig.Step(new GameState());
         Check.Equal("down A,up A", string.Join(",", rig.Sent));
     }
+
+    [Test]
+    public void ReleaseWhileHoldingSendsOneUpForPickupKey()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Step(new GameState());
+        rig.Engine.Release(rig.Settings, key => { rig.Sent.Add($"up {key}"); return true; });
+        Check.Equal("down A,up A", string.Join(",", rig.Sent));
+        Check.That(!rig.Engine.Holding, "not holding");
+    }
+
+    [Test]
+    public void ReleaseWhileNotHoldingSendsNothing()
+    {
+        var rig = new Rig();
+        rig.Engine.Release(rig.Settings, key => { rig.Sent.Add($"up {key}"); return true; });
+        Check.Equal(0, rig.Sent.Count);
+    }
+
+    [Test]
+    public void PressesAgainAfterRelease()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Step(new GameState());
+        rig.Engine.Release(rig.Settings, key => { rig.Sent.Add($"up {key}"); return true; });
+        rig.Step(new GameState());
+        Check.Equal("down A,up A,down A", string.Join(",", rig.Sent));
+    }
 }

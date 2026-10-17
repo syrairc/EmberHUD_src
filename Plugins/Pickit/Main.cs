@@ -12,7 +12,6 @@ public sealed class Main : Plugin<Settings>
 
     public override void Tick()
     {
-        Settings.Normalize();
         if (Settings.NearEnabled || Settings.GemsEnabled) Game.WantGroundItems();
         _autoloot.Step(Settings, Game.State, Input.IsDown, Send.Down, Send.Up, Send.Allowed);
     }
@@ -31,7 +30,7 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    public override void OnDisable() => Send.ReleaseAll();
+    public override void OnDisable() => _autoloot.Release(Settings, Send.Up);
 
-    public override void Dispose() => Send.ReleaseAll();
+    public override void Dispose() => _autoloot.Release(Settings, Send.Up);
 }
