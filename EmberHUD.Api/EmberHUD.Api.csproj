@@ -10,5 +10,6 @@
     <InternalsVisibleTo Include="EmberHUD.Tests" />
     <InternalsVisibleTo Include="EmberHUD.Api.Tests" />
     <InternalsVisibleTo Include="EmberSetup" />
+    <InternalsVisibleTo Include="EmberUpdater" />
   </ItemGroup>
 </Project>

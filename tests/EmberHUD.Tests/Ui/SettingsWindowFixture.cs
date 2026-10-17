@@ -1,5 +1,6 @@
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Ui;
+using EmberHUD.Host.Update;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
@@ -16,6 +17,8 @@ public abstract class SettingsWindowFixture : IDisposable
     internal readonly Queue<Action> _beforeFrame = new();
 
     internal string _themes => _temp.Path;
+
+    internal UpdateService NoUpdates() => new(_fixture.Sdk, _temp.Path, new Version(1, 0, 0), new HttpClient(), _ => null, _ => { });
 
     protected SettingsWindowFixture()
     {
@@ -88,7 +91,7 @@ public abstract class SettingsWindowFixture : IDisposable
 
     internal SettingsWindow Window(PluginHost host, ThemeStore? themes = null, LogBuffer? logs = null)
     {
-        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? new LogBuffer());
+        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? new LogBuffer(), NoUpdates(), () => { });
         window.Toggle();
         return window;
     }
@@ -113,7 +116,7 @@ public abstract class SettingsWindowFixture : IDisposable
     {
         window.Selected = null;
         var labels = PageRows(Settled(window))[0].OrderBy(glyph => glyph.Min.X).ToList();
-        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length }[tab]].Centre);
+        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length }[tab]].Centre);
     }
 
     internal PluginHost Discovered(params string[] good)

@@ -63,7 +63,7 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         var themes = new ThemeStore(Path.Combine(AppContext.BaseDirectory, "Themes"), Path.Combine(AppContext.BaseDirectory, "Fonts"), "Torchlight", action => action());
         var logs = new LogBuffer();
         logs.Add("100% done %s %d");
-        var window = new SettingsWindow(_fixture.Sdk, host, themes, logs);
+        var window = new SettingsWindow(_fixture.Sdk, host, themes, logs, NoUpdates(), () => { });
         window.Toggle();
 
         foreach (var tab in new[] { 0, 1, 2 })
@@ -389,6 +389,19 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         {
             TestGame.Set(GameState.Empty);
         }
+    }
+
+    [Fact]
+    public void TheUpdaterTabDrawsWithoutErrors()
+    {
+        using var host = Discovered();
+        var window = Window(host);
+        OpenTab(window, 3);
+
+        var scene = Settled(window);
+
+        Assert.Equal(0, ImGui.GetCurrentContext().ErrorCountCurrentFrame);
+        Assert.Contains(PageRows(scene), row => row.Count == "Installed:v1.0.0".Length);
     }
 
     [Fact]

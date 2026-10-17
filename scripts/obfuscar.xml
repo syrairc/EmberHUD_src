@@ -16,4 +16,5 @@
   <Module file="$(InPath)\Ember.dll" />
   <Module file="$(InPath)\EmberSetup.dll" />
   <Module file="$(InPath)\EmberLauncher.dll" />
+  <Module file="$(InPath)\EmberUpdater.dll" />
 </Obfuscator>

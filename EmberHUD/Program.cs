@@ -7,6 +7,7 @@ using EmberHUD.Host.Overlay;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Reading;
 using EmberHUD.Host.Ui;
+using EmberHUD.Host.Update;
 using EmberHUD.Ui;
 
 const string usage = "usage: EmberHUD [--plugins <dir>] [--fake] [--live] [--check] [--icon-sheet <dir>] [--as <name>]";
@@ -107,13 +108,21 @@ overlay.OnStyle(() =>
     ImGui.GetIO().ConfigErrorRecoveryEnableAssert = false;
     themes.Apply();
 });
-var window = new SettingsWindow(sdk, plugins, themes, logs);
+var smoother = new PlayerSmoother();
+var hostVersion = typeof(SdkSettings).Assembly.GetName().Version ?? new Version(0, 0, 0);
+using var updateHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+using var updates = new UpdateService(sdk, root, UpdateService.InstalledVersion(root, hostVersion, Log.Info), updateHttp, Process.Start, Log.Info);
+updates.Start();
+var window = new SettingsWindow(sdk, plugins, themes, logs, updates, () =>
+{
+    updates.RequestRestart();
+    overlay.Stop();
+});
 using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle, command =>
 {
     if (command == TrayCommand.Settings) window.Toggle();
     else overlay.Stop();
 });
-var smoother = new PlayerSmoother();
 
 Dictionary<string, string> LoadSvgSources() => SvgIcons.Load(SvgIcons.BuiltIns(typeof(SvgIconStore).Assembly), Path.Combine(root, "Icons"), pluginsDirectory);
 
@@ -155,4 +164,6 @@ catch (Exception ex)
     Log.Error(ex, "fatal");
     Environment.ExitCode = 1;
 }
+updates.Dispose();
+updates.LaunchOnExit();
 return Environment.ExitCode;

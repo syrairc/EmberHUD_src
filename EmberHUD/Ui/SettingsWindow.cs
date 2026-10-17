@@ -1,11 +1,12 @@
 using System.Numerics;
 using EmberHUD.Host.Plugins;
+using EmberHUD.Host.Update;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs)
+internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart)
 {
     internal const float ListWidth = 190f;
     internal const float ControlWidth = 260f;
@@ -60,7 +61,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
     void DrawPage()
     {
         if (Selected is { } slot) DrawPlugin(slot);
-        else Layout.TabBar("emberhud", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys));
+        else Layout.TabBar("emberhud", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater));
     }
 
     void DrawPlugin(PluginSlot slot)
@@ -120,8 +121,57 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         return false;
     }
 
+    void Wrapped(string text)
+    {
+        ImGui.PushTextWrapPos(0);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+    }
+
+    void DrawUpdateNotice()
+    {
+        if (updates.Staged is { } staged)
+        {
+            Wrapped($"Version {staged.Version} is ready - it applies when the overlay is closed");
+            if (Controls.PrimaryButton("Apply and Restart")) applyAndRestart();
+        }
+        else if (updates.Available is { } found) Wrapped($"Version {found.Version} found, downloading...");
+        if (updates.LastResult is not { } result) return;
+        Wrapped(result.Outcome == "updated" ? $"Updated to v{result.Version}" : $"Update to v{result.Version} failed: {result.Reason}");
+        if (result.KeptPlugins.Count > 0) Wrapped($"Kept your modified plugins: {string.Join(", ", result.KeptPlugins)}");
+        if (ImGui.Button("Dismiss")) updates.DismissResult();
+    }
+
+    bool DrawUpdater()
+    {
+        Controls.Section("Updates");
+        ImGui.Checkbox("Check for updates", ref sdk.UpdaterEnabled);
+        ImGui.SetNextItemWidth(ControlWidth);
+        ImGui.SliderInt("Check every (hours)", ref sdk.UpdateIntervalHours, 1, 168);
+        sdk.UpdateIntervalHours = Math.Clamp(sdk.UpdateIntervalHours, 1, 168);
+        ImGui.Checkbox("Overwrite plugins I modified (off = keep them)", ref sdk.OverwriteModifiedPlugins);
+
+        Controls.Section("Status");
+        ImGui.TextUnformatted($"Installed: v{updates.Installed}");
+        Wrapped(updates.Status);
+        ImGui.BeginDisabled(!updates.Enabled);
+        if (ImGui.Button("Check now")) Task.Run(async () =>
+            {
+                try
+                {
+                    await updates.CheckOnce();
+                }
+                catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+                {
+                }
+            });
+        ImGui.EndDisabled();
+        return false;
+    }
+
     bool DrawGeneral()
     {
+        DrawUpdateNotice();
         Controls.Section("Game");
         ImGui.TextUnformatted(Game.State.Status);
 
