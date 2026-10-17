@@ -15,6 +15,9 @@ public sealed class Main : Plugin<Settings>
     internal Func<long> Clock = () => Environment.TickCount64;
     Walls _walls = Walls.Empty;
     Region _region = Region.Empty;
+    Polyline[] _unexploredOutline = [];
+    Walls? _unexploredWalls;
+    Region? _unexploredRegion;
     string _regionKey = "";
     long _regionAt;
     byte[]? _spare;
@@ -189,8 +192,19 @@ public sealed class Main : Plugin<Settings>
             DrawOutline(_walls.RegionOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
             return;
         }
-        DrawOutline(_walls.RegionOutline, map, viewport, view.Outline, view.OutlineWidth);
+        DrawOutline(gameMode && current ? UnexploredOutline() : _walls.RegionOutline, map, viewport, view.Outline, view.OutlineWidth);
         if (current && !gameMode) DrawOutline(_region.ExploredOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
+    }
+
+    Polyline[] UnexploredOutline()
+    {
+        if (!ReferenceEquals(_unexploredWalls, _walls) || !ReferenceEquals(_unexploredRegion, _region))
+        {
+            _unexploredOutline = _region.Unexplored(_walls.RegionOutline);
+            _unexploredWalls = _walls;
+            _unexploredRegion = _region;
+        }
+        return _unexploredOutline;
     }
 
     internal void DrawOutline(Polyline[] lines, MapView map, Vector2 viewport, Color colour, float width)

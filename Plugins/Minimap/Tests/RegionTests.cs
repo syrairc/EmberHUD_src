@@ -257,4 +257,44 @@ public sealed class RegionTests
         Check.That(first.Stale(new ExploredTrail(buffer, 2, 4), null, Blue, White), "the first region is stale once the count grows");
         Check.That(!second.Stale(new ExploredTrail(buffer, 2, 4), null, Blue, White), "the same count over the same buffer is not stale");
     }
+
+    static Region Half() => Build(Row(4), Trail(12, new Vector2(5, 5)));
+
+    [Test]
+    public void UnexploredKeepsOnlyOutlineStretchesOutsideExploredGround()
+    {
+        var lines = Row(4).Outline();
+        var kept = Half().Unexplored(lines);
+
+        Check.Equal(1, kept.Length);
+        var run = kept[0];
+        Check.That(!run.Closed, "a partly explored loop becomes an open run");
+        Check.Equal(20f, run.Points.Min(p => p.X));
+        Check.Equal(20f, run.Points[0].X);
+        Check.Equal(20f, run.Points[^1].X);
+    }
+
+    [Test]
+    public void UnexploredDropsAFullyExploredLoop() => Check.Equal(0, Build(Row(4), Trail(100, new Vector2(20, 5))).Unexplored(Row(4).Outline()).Length);
+
+    [Test]
+    public void UnexploredKeepsAFullyUnexploredLoopClosed()
+    {
+        var lines = Row(4).Outline();
+        var kept = Build(Row(4), Trail(1, new Vector2(500, 500))).Unexplored(lines);
+
+        Check.Equal(1, kept.Length);
+        var loop = kept[0];
+        Check.That(loop.Closed, "still a loop");
+        Check.That(ReferenceEquals(lines[0].Points, loop.Points), "same points");
+    }
+
+    [Test]
+    public void UnexploredKeepsTheFullOutlineWithoutATrail()
+    {
+        var lines = Row(4).Outline();
+
+        Check.That(ReferenceEquals(lines, Build(Row(4), null).Unexplored(lines)), "no trail, nothing dropped");
+        Check.That(ReferenceEquals(lines, Region.Empty.Unexplored(lines)), "no region, nothing dropped");
+    }
 }
