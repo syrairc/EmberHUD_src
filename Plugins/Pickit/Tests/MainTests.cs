@@ -146,4 +146,35 @@ public sealed class MainTests
         Check.Equal(0, Vertices(plugin, BagState(Owned(0, [1], []) with { Bag = InventoryBag.Equipment })));
         Check.Equal(0, Vertices(plugin, BagState() with { Bag = null }));
     }
+
+    [Test]
+    public void GroundTierNumbersAreOptIn()
+    {
+        var plugin = Plugin();
+        TestGame.Set(WithItem());
+        var plain = TestFrame.Vertices(plugin.Render);
+        Check.Equal(false, plugin.Settings.GroundTierNumbers);
+        plugin.Settings.GroundTierNumbers = true;
+        Check.That(TestFrame.Vertices(plugin.Render) > plain, "ground on");
+        plugin.Settings.GroundTierNumbers = false;
+        plugin.Settings.InventoryTierNumbers = true;
+        Check.Equal(plain, TestFrame.Vertices(plugin.Render));
+    }
+
+    [Test]
+    public void InventoryTierNumbersAreOptInAndIndependent()
+    {
+        var plugin = Plugin();
+        var bag = BagState(Owned(0, [1], []));
+        var stash = StashState(Owned(0, [1], []));
+        var plainBag = Vertices(plugin, bag);
+        var plainStash = Vertices(plugin, stash);
+        plugin.Settings.GroundTierNumbers = true;
+        Check.Equal(plainBag, Vertices(plugin, bag));
+        Check.Equal(plainStash, Vertices(plugin, stash));
+        plugin.Settings.GroundTierNumbers = false;
+        plugin.Settings.InventoryTierNumbers = true;
+        Check.That(Vertices(plugin, bag) > plainBag, "bag on");
+        Check.That(Vertices(plugin, stash) > plainStash, "stash on");
+    }
 }

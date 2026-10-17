@@ -12,7 +12,10 @@ public sealed class SettingsUiTests
         var settings = new Settings();
         Check.Equal(10, settings.Tiers.Count);
         TestFrame.Run(settings.Draw);
+        Check.That(!settings.GroundTierNumbers && !settings.InventoryTierNumbers);
         settings.DebugRects = true;
+        settings.GroundTierNumbers = true;
+        settings.InventoryTierNumbers = true;
         TestFrame.Run(settings.Draw);
     }
 

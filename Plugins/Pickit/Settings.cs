@@ -29,6 +29,8 @@ public sealed class Settings : PluginSettings
     public bool InventoryEnabled = true;
     public float GroundScale = 1;
     public float InventoryScale = 1;
+    public bool GroundTierNumbers = false;
+    public bool InventoryTierNumbers = false;
     public bool DebugRects = false;
 
     public const int TierCount = 10;

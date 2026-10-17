@@ -8,6 +8,8 @@ namespace Pickit;
 
 public sealed class Main : Plugin<Settings>
 {
+    const float MinNumberSize = 9;
+
     readonly Autoloot _autoloot = new();
 
     public override void Initialize() => Settings.Normalize();
@@ -30,7 +32,7 @@ public sealed class Main : Plugin<Settings>
         foreach (var item in items)
         {
             if (Settings.DebugRects) EmberHUD.Draw.Rect(item.LabelMin, item.LabelMax, Color.Red);
-            foreach (var gem in Gems.Layout(item, Settings)) DrawGem(gem);
+            foreach (var gem in Gems.Layout(item, Settings)) DrawGem(gem, Settings.GroundTierNumbers);
         }
     }
 
@@ -59,16 +61,18 @@ public sealed class Main : Plugin<Settings>
             foreach (var cell in cells)
             {
                 if (cell.Slot != item.Slot) continue;
-                foreach (var gem in Gems.CellLayout(cell.Min, cell.Max, item.PrefixIds, item.SuffixIds, Settings)) DrawGem(gem);
+                foreach (var gem in Gems.CellLayout(cell.Min, cell.Max, item.PrefixIds, item.SuffixIds, Settings)) DrawGem(gem, Settings.InventoryTierNumbers);
                 break;
             }
         }
     }
 
-    void DrawGem(Gems.Gem gem)
+    void DrawGem(Gems.Gem gem, bool tierNumber)
     {
         var style = Settings.Tiers[Math.Clamp(gem.Tier, 0, Settings.Tiers.Count - 1)];
         EmberHUD.Draw.Icon(style.Icon, gem.Centre, gem.Radius, style.Color);
+        if (tierNumber)
+            EmberHUD.Draw.TextOutlined(Math.Min(gem.Tier, 99).ToString(), gem.Centre, Color.White, Color.Black, 1, Align.Center | Align.Middle, Math.Max(MinNumberSize, 1.1f * gem.Radius));
     }
 
     static PanelKind? OpenKind(GameUi ui)
