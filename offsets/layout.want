@@ -333,6 +333,48 @@ CombatWantedSeconds = 3
 UeClassClassName = "Class"
 GlobalLabels = "FNamePool GUObjectArray LogicWorld FightMgr PlayerMgr MiniMapMgr"
 
+LuaMgrState = 24
+LuaStateGlobal = 24
+LuaGlobalRegistry = 64
+LuaGlobalSeed = 80
+LuaRegistryGlobals = 2
+LuaTableLogSize = 11
+LuaTableArraySize = 12
+LuaTableArray = 16
+LuaTableNode = 24
+LuaTValueSize = 16
+LuaNodeSize = 32
+LuaNodeValue = 0
+LuaNodeTag = 8
+LuaNodeKey = 16
+LuaNodeKeyTag = 24
+LuaStringHash = 12
+LuaStringLength = 16
+LuaStringChars = 32
+LuaTagInt = 0x13
+LuaTagShortString = 0x44
+LuaTagLongString = 0x54
+LuaTagTable = 0x45
+MaxLuaLogSize = 12
+MaxLuaArray = 65536
+MaxLuaString = 256
+InventoryTabFirst = 100
+InventoryTabCount = 4
+MaxInventoryItems = 1000
+InventoryRefreshMilliseconds = 500
+InventoryWantedSeconds = 3
+LuaItemManager = "ItemMgr"
+LuaItemBags = "ItemList"
+LuaItemRecord = "_Raw_Data"
+LuaItemId = "ItemId"
+LuaItemBaseId = "ConfigBaseId"
+LuaItemLevel = "Level"
+LuaItemQuality = "Quality"
+LuaItemRareValue = "RareValue"
+LuaItemCount = "BagNum"
+LuaItemStackMax = "MaxNum"
+LuaItemType = "Type1"
+
 [build 123144120]
 LogicWorldGlobalRva = 0x69331B8
 FightMgrGlobalRva = 0x6931AD8
@@ -364,6 +406,7 @@ EntityHeaderSize = 928
 EntityRole = 752
 WoodStakeStatistic = 240
 WoodStakeUnlimitedTotal = 152
+LuaGlobalRva = 0x7E34AE8
 
 [build 124465080]
 LogicWorldGlobalRva = 0x6A5F388
@@ -396,6 +439,7 @@ EntityHeaderSize = 928
 EntityRole = 752
 WoodStakeStatistic = 240
 WoodStakeUnlimitedTotal = 152
+LuaGlobalRva = 0x7F60CB8
 
 [build 126258104]
 LogicWorldGlobalRva = 0x6BFC1A8
@@ -428,6 +472,7 @@ EntityHeaderSize = 944
 EntityRole = 768
 WoodStakeStatistic = 376
 WoodStakeUnlimitedTotal = 224
+LuaGlobalRva = 0x8194520
 
 [build 127223224]
 LogicWorldGlobalRva = 0x6CDBC48
@@ -460,3 +505,4 @@ EntityHeaderSize = 944
 EntityRole = 768
 WoodStakeStatistic = 376
 WoodStakeUnlimitedTotal = 224
+LuaGlobalRva = 0x8273FD0

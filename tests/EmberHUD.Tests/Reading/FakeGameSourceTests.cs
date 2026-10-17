@@ -71,6 +71,29 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeInventoryIsNullWhenNobodyAsked()
+    {
+        Game.InventoryAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Inventory);
+    }
+
+    [Fact]
+    public void FakeInventoryHasItemsInEveryBagWhenWanted()
+    {
+        try
+        {
+            Game.WantInventory();
+            var inventory = At(Stopwatch.GetTimestamp()).Inventory!;
+
+            Assert.Equal([InventoryBag.Equipment, InventoryBag.Skills, InventoryBag.Commodities, InventoryBag.Other], inventory.Select(i => i.Bag).Distinct());
+            Assert.Equal(2, inventory.Count(i => i.Bag == InventoryBag.Commodities));
+            Assert.Equal(inventory.Length, inventory.Select(i => (i.Bag, i.Slot)).Distinct().Count());
+            Assert.All(inventory, i => Assert.NotEqual("", i.Id));
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void TerrainHasWalkableAndBlockedCells()
     {
         var terrain = At(0).Terrain!;

@@ -255,4 +255,51 @@ public sealed class StateToolsTests
         Check.Equal(0, (int)result["total"]!);
         Check.Equal(0, result["entities"]!.AsArray().Count);
     }
+
+    static readonly InventoryItem[] Bags =
+    [
+        new(InventoryBag.Equipment, 0, "406_a", 406, 31, 1, 2, 1, 1, 0),
+        new(InventoryBag.Commodities, 0, "5080_b", 5080, 1, 0, 2, 177, 9999, 7),
+        new(InventoryBag.Commodities, 1, "382001_c", 382001, 1, 0, 100, 6, 999, 42),
+    ];
+
+    [Test]
+    public void GetInventoryListsItemsAndFiltersByBag()
+    {
+        TestGame.Set(GameState.Empty with { Inventory = Bags });
+        var tool = Tools.Single(t => t.Name == "get_inventory");
+        Check.That(tool.Description.Length > 0, "described");
+        var all = Wire.Run(Tools, "get_inventory");
+        Check.Equal(true, (bool)all["ready"]!);
+        Check.Equal(3, all["items"]!.AsArray().Count);
+        var stack = all["items"]![1]!;
+        Check.Equal("Commodities", (string?)stack["bag"]);
+        Check.Equal(0, (int)stack["slot"]!);
+        Check.Equal("5080_b", (string?)stack["id"]);
+        Check.Equal(5080, (int)stack["baseId"]!);
+        Check.Equal(177, (int)stack["count"]!);
+        Check.Equal(9999, (int)stack["stackMax"]!);
+        Check.Equal(7, (int)stack["type"]!);
+        Check.Equal(100, (int)all["items"]![2]!["rareValue"]!);
+        Check.Equal(31, (int)all["items"]![0]!["level"]!);
+        Check.Equal(1, (int)all["items"]![0]!["quality"]!);
+        Check.Equal(2, Wire.Run(Tools, "get_inventory", new JsonObject { ["bag"] = "commodities" })["items"]!.AsArray().Count);
+        Check.Equal(0, Wire.Run(Tools, "get_inventory", new JsonObject { ["bag"] = "Skills" })["items"]!.AsArray().Count);
+    }
+
+    [Test]
+    public void GetInventoryBeforeTheReaderHasRunIsNotReady()
+    {
+        TestGame.Set(GameState.Empty);
+        var result = Wire.Run(Tools, "get_inventory");
+        Check.Equal(false, (bool)result["ready"]!);
+        Check.Equal(0, result["items"]!.AsArray().Count);
+    }
+
+    [Test]
+    public void GetInventoryRejectsAnUnknownBag()
+    {
+        TestGame.Set(GameState.Empty with { Inventory = Bags });
+        Check.That(Wire.Fails(Tools, "get_inventory", new JsonObject { ["bag"] = "Stash" }).Contains("Equipment"), "bags listed");
+    }
 }

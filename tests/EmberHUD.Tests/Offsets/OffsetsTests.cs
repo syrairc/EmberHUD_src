@@ -169,6 +169,67 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void LuaLayoutKeysExist()
+    {
+        Assert.Equal(24, Offsets.LuaMgrState);
+        Assert.Equal(24, Offsets.LuaStateGlobal);
+        Assert.Equal(64, Offsets.LuaGlobalRegistry);
+        Assert.Equal(80, Offsets.LuaGlobalSeed);
+        Assert.Equal(2, Offsets.LuaRegistryGlobals);
+        Assert.Equal(11, Offsets.LuaTableLogSize);
+        Assert.Equal(12, Offsets.LuaTableArraySize);
+        Assert.Equal(16, Offsets.LuaTableArray);
+        Assert.Equal(24, Offsets.LuaTableNode);
+        Assert.Equal(16, Offsets.LuaTValueSize);
+        Assert.Equal(32, Offsets.LuaNodeSize);
+        Assert.Equal(0, Offsets.LuaNodeValue);
+        Assert.Equal(8, Offsets.LuaNodeTag);
+        Assert.Equal(16, Offsets.LuaNodeKey);
+        Assert.Equal(24, Offsets.LuaNodeKeyTag);
+        Assert.Equal(12, Offsets.LuaStringHash);
+        Assert.Equal(16, Offsets.LuaStringLength);
+        Assert.Equal(32, Offsets.LuaStringChars);
+        Assert.Equal(0x13, Offsets.LuaTagInt);
+        Assert.Equal(0x44, Offsets.LuaTagShortString);
+        Assert.Equal(0x54, Offsets.LuaTagLongString);
+        Assert.Equal(0x45, Offsets.LuaTagTable);
+        Assert.Equal(12, Offsets.MaxLuaLogSize);
+        Assert.Equal(65536, Offsets.MaxLuaArray);
+        Assert.Equal(256, Offsets.MaxLuaString);
+        Assert.Equal(100, Offsets.InventoryTabFirst);
+        Assert.Equal(4, Offsets.InventoryTabCount);
+        Assert.Equal(1000, Offsets.MaxInventoryItems);
+        Assert.Equal(500, Offsets.InventoryRefreshMilliseconds);
+        Assert.Equal(3, Offsets.InventoryWantedSeconds);
+        Assert.Equal("ItemMgr", Offsets.LuaItemManager);
+        Assert.Equal("ItemList", Offsets.LuaItemBags);
+        Assert.Equal("_Raw_Data", Offsets.LuaItemRecord);
+        Assert.Equal("ItemId", Offsets.LuaItemId);
+        Assert.Equal("ConfigBaseId", Offsets.LuaItemBaseId);
+        Assert.Equal("Level", Offsets.LuaItemLevel);
+        Assert.Equal("Quality", Offsets.LuaItemQuality);
+        Assert.Equal("RareValue", Offsets.LuaItemRareValue);
+        Assert.Equal("BagNum", Offsets.LuaItemCount);
+        Assert.Equal("MaxNum", Offsets.LuaItemStackMax);
+        Assert.Equal("Type1", Offsets.LuaItemType);
+    }
+
+    [Fact]
+    public void LuaGlobalRvaIsSetForTheCurrentBuild()
+    {
+        var original = Offsets.Build;
+        try
+        {
+            Assert.True(Offsets.SelectBuild(126258104));
+            Assert.NotEqual(0, Offsets.LuaGlobalRva);
+        }
+        finally
+        {
+            Offsets.Build = original;
+        }
+    }
+
+    [Fact]
     public void NonAsciiStringsSurviveTheSealedTable()
     {
         Assert.Equal("实体ID", Offsets.TarotEntityVar);
