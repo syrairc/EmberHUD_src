@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
@@ -99,5 +100,80 @@ public sealed class GemsTests
         var before = Gems.Layout(Item([1], []), settings)[0].Radius;
         settings.Tiers[1].Scale = 2;
         Check.Equal(before * 2, Gems.Layout(Item([1], []), settings)[0].Radius);
+    }
+
+    static Gems.Gem[] Cell(int[] prefixes, int[] suffixes, Settings? s = null, float height = 100) => Gems.CellLayout(new Vector2(10, 20), new Vector2(10 + height, 20 + height), prefixes, suffixes, s ?? new Settings());
+
+    [Test]
+    public void CellPrefixesOnTheLeftSuffixesOnTheRight()
+    {
+        var gems = Cell([5], [5]);
+        var radius = 0.16f * 100 / 2;
+        Check.Equal(10 + radius, gems.Single(g => g.Prefix).Centre.X);
+        Check.Equal(110 - radius, gems.Single(g => !g.Prefix).Centre.X);
+    }
+
+    [Test]
+    public void CellStackIsVerticallyCentred()
+    {
+        var one = Cell([1], [])[0];
+        Check.Equal(70f, one.Centre.Y);
+        var three = Cell([1, 2, 3], []);
+        Check.Equal(70f, (three[0].Centre.Y + three[2].Centre.Y) / 2);
+        Check.That(three[0].Centre.Y < three[1].Centre.Y && three[1].Centre.Y < three[2].Centre.Y);
+        Check.That(MathF.Abs((three[1].Centre.Y - three[0].Centre.Y) - (three[2].Centre.Y - three[1].Centre.Y)) < 0.01f);
+    }
+
+    [Test]
+    public void CellBestTierFirst()
+    {
+        var gems = Cell([3, 1, 2], [3, 1, 2]);
+        Check.Equal(1, gems.Where(g => g.Prefix).First().Tier);
+        Check.Equal(3, gems.Where(g => g.Prefix).Last().Tier);
+        Check.Equal(1, gems.Where(g => !g.Prefix).First().Tier);
+        Check.That(gems.Where(g => !g.Prefix).First().Centre.Y < gems.Where(g => !g.Prefix).Last().Centre.Y);
+    }
+
+    [Test]
+    public void CellInsetAndSpacingMoveTheGems()
+    {
+        var plain = Cell([1, 2], []);
+        var moved = Cell([1, 2], [], new Settings { InsetX = 10, GemSpacing = 1 });
+        Check.Equal(plain[0].Centre.X + 10, moved[0].Centre.X);
+        Check.That(moved[1].Centre.Y - moved[0].Centre.Y > plain[1].Centre.Y - plain[0].Centre.Y);
+        Check.Equal(2 * 8f * 2, moved[1].Centre.Y - moved[0].Centre.Y);
+    }
+
+    [Test]
+    public void CellScaleChangesRadius()
+    {
+        var before = Cell([1], [])[0].Radius;
+        Check.Equal(before * 2, Cell([1], [], new Settings { InventoryScale = 2 })[0].Radius);
+        var settings = new Settings();
+        settings.Tiers[1].Scale = 3;
+        Check.Equal(before * 3, Cell([1], [], settings)[0].Radius);
+    }
+
+    [Test]
+    public void CellOverCapKeepsBest12()
+    {
+        var many = Enumerable.Range(0, 20).ToArray();
+        var gems = Cell(many, many);
+        Check.Equal(GroundItem.MaxAffixes * 2, gems.Length);
+        Check.That(gems.Where(g => g.Prefix).All(g => g.Tier < GroundItem.MaxAffixes));
+    }
+
+    [Test]
+    public void ZeroSizeCellGivesNoGems()
+    {
+        Check.Equal(0, Gems.CellLayout(Vector2.Zero, Vector2.Zero, [1], [1], new Settings()).Length);
+        Check.Equal(0, Cell([], []).Length);
+    }
+
+    [Test]
+    public void GroundScaleChangesGroundRadius()
+    {
+        var before = Gems.Layout(Item([1], []), new Settings())[0].Radius;
+        Check.Equal(before * 2, Gems.Layout(Item([1], []), new Settings { GroundScale = 2 })[0].Radius);
     }
 }

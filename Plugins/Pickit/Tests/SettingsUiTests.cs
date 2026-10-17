@@ -39,4 +39,23 @@ public sealed class SettingsUiTests
         Check.That(Strength(1) > Strength(6));
         Check.That(Strength(6) < Strength(5));
     }
+
+    [Test]
+    public void InventoryDefaultsAndScaleClamps()
+    {
+        var settings = new Settings();
+        Check.That(settings.InventoryEnabled);
+        Check.Equal(1f, settings.GroundScale);
+        Check.Equal(1f, settings.InventoryScale);
+        settings.GroundScale = 0;
+        settings.InventoryScale = 99;
+        settings.Normalize();
+        Check.Equal(0.25f, settings.GroundScale);
+        Check.Equal(3f, settings.InventoryScale);
+        settings.GroundScale = float.NaN;
+        settings.InventoryScale = float.PositiveInfinity;
+        settings.Normalize();
+        Check.Equal(1f, settings.GroundScale);
+        Check.Equal(1f, settings.InventoryScale);
+    }
 }

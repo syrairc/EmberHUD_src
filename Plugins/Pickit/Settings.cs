@@ -26,6 +26,9 @@ public sealed class Settings : PluginSettings
     public float GemSpacing = 0.1f;
     public float AnchorY = 0;
     public float InsetX = 0;
+    public bool InventoryEnabled = true;
+    public float GroundScale = 1;
+    public float InventoryScale = 1;
     public bool DebugRects = false;
 
     public const int TierCount = 10;
@@ -43,6 +46,8 @@ public sealed class Settings : PluginSettings
         GemSpacing = Clamp(GemSpacing, 0, 2, 0.1f);
         AnchorY = Clamp(AnchorY, 0, 1, 0);
         InsetX = Clamp(InsetX, 0, 200, 0);
+        GroundScale = Clamp(GroundScale, 0.25f, 3, 1);
+        InventoryScale = Clamp(InventoryScale, 0.25f, 3, 1);
         Tiers = [.. (Tiers ?? []).Take(TierCount).Select((t, i) => t ?? DefaultTier(i))];
         while (Tiers.Count < TierCount) Tiers.Add(DefaultTier(Tiers.Count));
         foreach (var tier in Tiers)
