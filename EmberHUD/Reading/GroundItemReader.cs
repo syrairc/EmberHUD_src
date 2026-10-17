@@ -12,6 +12,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
     private readonly LuaReader _lua = new(memory, moduleBase);
     private readonly Names _names = new(memory, moduleBase);
     private nint _dropMgr;
+    private long _nextScan;
     private long _nextRefresh;
     private bool _hasRead;
     private GroundItem[]? _items;
@@ -48,8 +49,13 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
 
     private Dictionary<int, (Vector2 Min, Vector2 Max, Vector3 Position)>? ReadRects()
     {
-        if (!TryFindDropMgr(out var dropMgr) ||
-            !memory.TryReadTMapElements(dropMgr + Offsets.DropMgrNameTagGroups, Offsets.NameTagGroupStride, Offsets.MaxNameTagGroups, out var data, out var groups, out var groupBits))
+        if (!TryFindDropMgr(out var dropMgr))
+            return null;
+
+        var map = dropMgr + Offsets.DropMgrNameTagGroups;
+        if (memory.TryRead(map + Offsets.TArrayNum, out int num) && num == 0)
+            return [];
+        if (!memory.TryReadTMapElements(map, Offsets.NameTagGroupStride, Offsets.MaxNameTagGroups, out var data, out var groups, out var groupBits))
             return null;
 
         Dictionary<int, (Vector2, Vector2, Vector3)> rects = [];
@@ -96,7 +102,13 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         if (dropMgr != 0 && IsDropMgr(dropMgr))
             return true;
 
+        var now = _clock();
+        if (now < _nextScan)
+            return false;
+
         dropMgr = _dropMgr = Scan();
+        if (dropMgr == 0)
+            _nextScan = now + System.Diagnostics.Stopwatch.Frequency * Offsets.DropMgrRescanSeconds;
         return dropMgr != 0;
     }
 

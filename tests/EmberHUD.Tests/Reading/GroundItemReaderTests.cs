@@ -241,11 +241,42 @@ public class GroundItemReaderTests
     }
 
     [Fact]
+    public void ReturnsEmptyWhenNothingOnTheGround()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([]);
+        var (reader, _) = Joined(world, 1);
+
+        Assert.Empty(reader.Read()!);
+    }
+
+    [Fact]
+    public void MissingDropMgrIsNotRescannedInsideTheWindow()
+    {
+        var world = new FakeWorld();
+        long now = 0;
+        var f = new Fixture(world: world);
+        f.Drop(1, [1], []);
+        var reader = new GroundItemReader(world.Memory, Module, () => now);
+        var pastCache = System.Diagnostics.Stopwatch.Frequency;
+        Assert.Null(reader.Read());
+        world.Memory.Reads.Clear();
+
+        now += pastCache;
+        Assert.Null(reader.Read());
+        Assert.DoesNotContain(world.Memory.Reads, r => r.Length >= Offsets.GObjectsPerChunk);
+
+        world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        now += pastCache * Offsets.DropMgrRescanSeconds;
+        Assert.Single(reader.Read()!);
+    }
+
+    [Fact]
     public void ReturnsNullWhenGroupsCannotBeRead()
     {
         var world = new FakeWorld();
         var manager = world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
-        world.Memory.Write(manager + Offsets.DropMgrNameTagGroups + Offsets.TArrayNum, 0);
+        world.Memory.Write(manager + Offsets.DropMgrNameTagGroups + Offsets.TArrayNum, -1);
         var (reader, _) = Joined(world, 1);
 
         Assert.Null(reader.Read());

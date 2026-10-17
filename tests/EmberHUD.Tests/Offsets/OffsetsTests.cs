@@ -356,6 +356,7 @@ public class OffsetsTests
         Assert.Equal(4, Offsets.ScreenRectBox);
         Assert.Equal(128, Offsets.MaxNameTagGroups);
         Assert.Equal(64, Offsets.MaxScreenRects);
+        Assert.Equal(5, Offsets.DropMgrRescanSeconds);
     }
 
     [Fact]
