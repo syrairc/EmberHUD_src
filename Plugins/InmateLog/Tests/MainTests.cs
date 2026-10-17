@@ -204,6 +204,73 @@ public sealed class MainTests
         Check.Equal(1, rig.Plugin.Store.Grid[(int)InmateSpecies.Wolf, 2]);
     }
 
+    static void Gone(Rig rig, int id, double life, SceneEntity[] scene)
+    {
+        TestGame.UseScene(() => scene);
+        Set(7, Wolf(id, life));
+        rig.Tick(1);
+        Set(7);
+        rig.Tick(2);
+    }
+
+    [Test]
+    public void SceneDeadCountsAsKilledWhateverTheLastLife()
+    {
+        using var rig = new Rig();
+        try
+        {
+            Gone(rig, 61, 34, [new(61, RareWolf, null, false, EntityKind.Monster, "")]);
+            Check.Equal(1, rig.Plugin.Store.Grid[(int)InmateSpecies.Wolf, 2]);
+            Check.Equal("scene-dead", rig.Plugin.Store.Kills[0].Source);
+        }
+        finally { TestGame.UseScene(null); }
+    }
+
+    [Test]
+    public void EmptySceneIsUnknownNotDead()
+    {
+        using var rig = new Rig();
+        try
+        {
+            Gone(rig, 62, 34, []);
+            Check.Equal(1, rig.Plugin.Store.Unsure);
+            Check.Equal("life", rig.Plugin.Store.Kills[0].Source);
+        }
+        finally { TestGame.UseScene(null); }
+    }
+
+    [Test]
+    public void SceneEntryWithAnotherCfgIdIsUnknown()
+    {
+        using var rig = new Rig();
+        try
+        {
+            Gone(rig, 63, 0, [new(63, 5027099, null, true, EntityKind.Monster, "")]);
+            Check.Equal("life", rig.Plugin.Store.Kills[0].Source);
+            Check.Equal("killed", rig.Plugin.Store.Kills[0].Outcome);
+        }
+        finally { TestGame.UseScene(null); }
+    }
+
+    [Test]
+    public void SceneIsListedOncePerTickAndOnlyWhenNeeded()
+    {
+        using var rig = new Rig();
+        var lists = 0;
+        try
+        {
+            TestGame.UseScene(() => { lists++; return []; });
+            Set(7, Wolf(64, 20), Wolf(65, 20));
+            rig.Tick(1);
+            Check.Equal(0, lists);
+            Set(7);
+            rig.Tick(2);
+            Check.Equal(1, lists);
+            Check.Equal(2, rig.Plugin.Store.Unsure);
+        }
+        finally { TestGame.UseScene(null); }
+    }
+
     [Test]
     public void SettingsPageSurvivesCorruptKillEntries()
     {

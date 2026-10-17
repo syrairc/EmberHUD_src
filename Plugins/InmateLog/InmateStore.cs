@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace InmateLog;
 
-public sealed record KillEntry(DateTime When, string Area, int CfgId, InmateSpecies? Species, int Step, string Outcome, double LastLife, double MaxLife, float Distance, double SecondsSeen, int? Nameplates);
+public sealed record KillEntry(DateTime When, string Area, int CfgId, InmateSpecies? Species, int Step, string Outcome, double LastLife, double MaxLife, float Distance, double SecondsSeen, int? Nameplates, string? Source = null);
 
 public sealed record RunCell(int Index, int Beast, int Tier);
 
@@ -34,7 +34,7 @@ public sealed class InmateStore
         if (!killed) Unsure++;
         else if (sighting.Kind.Step is >= 1 and <= 4) Grid[(int)sighting.Kind.Species, sighting.Kind.Step - 1]++;
         else Unclassified++;
-        Kills.Add(new(when, area, sighting.CfgId, sighting.Kind.Species, sighting.Kind.Step, killed ? "killed" : "unsure", Finite(sighting.LastLife), Finite(sighting.MaxLife), (float)Finite(sighting.Distance), Finite(sighting.SecondsSeen), nameplates));
+        Kills.Add(new(when, area, sighting.CfgId, sighting.Kind.Species, sighting.Kind.Step, killed ? "killed" : "unsure", Finite(sighting.LastLife), Finite(sighting.MaxLife), (float)Finite(sighting.Distance), Finite(sighting.SecondsSeen), nameplates, sighting.Source switch { SightingSource.SceneDead => "scene-dead", SightingSource.SceneAlive => "scene-alive", _ => "life" }));
         if (Kills.Count > KillCap) Kills.RemoveRange(0, Kills.Count - KillCap);
         Dirty = true;
     }

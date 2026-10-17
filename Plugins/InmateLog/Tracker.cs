@@ -6,7 +6,9 @@ namespace InmateLog;
 
 public enum SightingEnd { Killed, Unsure }
 
-public sealed record Sighting(int CfgId, InmateKind Kind, SightingEnd End, double LastLife, double MaxLife, float Distance, double SecondsSeen);
+public enum SightingSource { Life, SceneDead, SceneAlive }
+
+public sealed record Sighting(int CfgId, InmateKind Kind, SightingEnd End, double LastLife, double MaxLife, float Distance, double SecondsSeen, SightingSource Source = SightingSource.Life);
 
 public sealed class Tracker(Func<int, InmateKind?> classify)
 {
@@ -21,7 +23,7 @@ public sealed class Tracker(Func<int, InmateKind?> classify)
 
     internal static SightingEnd EndOf(double lastLife, double maxLife) => lastLife == 0 && maxLife > 0 ? SightingEnd.Killed : SightingEnd.Unsure;
 
-    public Sighting[] Update(GameState state, double nowSeconds)
+    public Sighting[] Update(GameState state, double nowSeconds, Func<int, int, bool?>? sceneAlive = null)
     {
         if (state.AreaId != areaId)
         {
@@ -45,7 +47,13 @@ public sealed class Tracker(Func<int, InmateKind?> classify)
         {
             if (present.Contains(id) || nowSeconds - seen.LastSeen < MissingSeconds) continue;
             gone.Add(id);
-            ended.Add(new(seen.CfgId, seen.Kind, EndOf(seen.Life, seen.MaxLife), seen.Life, seen.MaxLife, seen.Distance, seen.LastSeen - seen.FirstSeen));
+            var (end, source) = sceneAlive?.Invoke(id, seen.CfgId) switch
+            {
+                false => (SightingEnd.Killed, SightingSource.SceneDead),
+                true => (SightingEnd.Unsure, SightingSource.SceneAlive),
+                null => (EndOf(seen.Life, seen.MaxLife), SightingSource.Life),
+            };
+            ended.Add(new(seen.CfgId, seen.Kind, end, seen.Life, seen.MaxLife, seen.Distance, seen.LastSeen - seen.FirstSeen, source));
         }
 
         foreach (var id in gone) tracked.Remove(id);
