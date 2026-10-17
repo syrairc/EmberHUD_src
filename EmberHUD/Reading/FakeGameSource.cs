@@ -35,6 +35,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
     private static readonly MapIcon[] SceneIcons = BuildIcons();
+    private static readonly InventoryItem[] FakeInventory =
+    [
+        new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0),
+        new(InventoryBag.Skills, 0, "7507_fake-0002", 7507, 4, 0, 1, 1, 1, 6),
+        new(InventoryBag.Commodities, 0, "5080_fake-0003", 5080, 1, 0, 2, 177, 9999, 7),
+        new(InventoryBag.Commodities, 1, "382001_fake-0004", 382001, 1, 0, 100, 6, 999, 42),
+        new(InventoryBag.Other, 0, "1500_fake-0005", 1500, 1, 0, 0, 1, 1, 0),
+    ];
 
     private readonly List<Vector2> _trail = [];
     private ExploredTrail _published = new([], TrailRadius);
@@ -71,6 +79,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             WoodStake = WoodStakeAt(now),
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
+            Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
         };
         failure = null;
         return true;

@@ -7,6 +7,7 @@ public static class Game
 {
     static int _minimapRescans;
     static long _combatAsked;
+    static long _inventoryAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -26,12 +27,28 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantInventory() => Interlocked.Exchange(ref _inventoryAsked, Stopwatch.GetTimestamp());
+
+    internal static long InventoryAsked
+    {
+        get => Interlocked.Read(ref _inventoryAsked);
+        set => Interlocked.Exchange(ref _inventoryAsked, value);
+    }
+
+    internal static bool InventoryWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _inventoryAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
 public enum EntityKind : byte { Monster, Ally, Player, Portal, Npc, Interactive, Coffin, Altar, Elevator, MapObject, Destructible }
 
 public enum Rarity : byte { Normal, Magic, Rare, Boss }
+
+public enum InventoryBag : byte { Equipment, Skills, Commodities, Other }
 
 public sealed record GameState
 {
@@ -66,6 +83,8 @@ public sealed record GameState
     public CombatStats? Combat { get; init; }
 
     public QuestTarget[] QuestTargets { get; init; } = [];
+
+    public InventoryItem[]? Inventory { get; init; }
 }
 
 public readonly record struct QuestTarget(int Id, Vector2 Position)
@@ -150,6 +169,8 @@ public sealed record CombatStats(long At, double Effective, double Raw, long Hit
 {
     public double Seconds => At / (double)Stopwatch.Frequency;
 }
+
+public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type);
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 

@@ -24,7 +24,7 @@ internal sealed record EntityFilter(EntityKind? Kind, Rarity? Rarity, int? CfgId
             (Radius is null || state.Player!.FlatDistance(entity.Position) <= Radius));
     }
 
-    static T? Parse<T>(Args args, string name) where T : struct, Enum
+    internal static T? Parse<T>(Args args, string name) where T : struct, Enum
     {
         if (args.OptStr(name) is not { } text) return null;
         if (Enum.TryParse<T>(text, true, out var value) && Enum.IsDefined(value)) return value;
@@ -42,6 +42,8 @@ internal static class StateTools
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
+        new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory - ready is false until the reader has run, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
+            Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
     ];
 
     internal static JsonObject Row(Entity entity, Player? player)
@@ -182,6 +184,30 @@ internal static class StateTools
         var matches = EntityFilter.From(args).Apply(state).Where(entity => (id is null || entity.Id == id) && (address is null || entity.Address == address));
         var ordered = state.Player is { } player ? matches.OrderBy(entity => player.FlatDistance(entity.Position)) : matches.OrderBy(entity => entity.Id);
         return Page(ordered.ToArray(), limit, entity => Row(entity, state.Player));
+    }
+
+    static JsonObject GetInventory(Args args)
+    {
+        var bag = EntityFilter.Parse<InventoryBag>(args, "bag");
+        Game.WantInventory();
+        var items = Game.State.Inventory;
+        return new JsonObject
+        {
+            ["ready"] = items is not null,
+            ["items"] = new JsonArray([.. (items ?? []).Where(item => bag is null || item.Bag == bag).Select(item => (JsonNode)new JsonObject
+            {
+                ["bag"] = item.Bag.ToString(),
+                ["slot"] = item.Slot,
+                ["id"] = item.Id,
+                ["baseId"] = item.BaseId,
+                ["level"] = item.Level,
+                ["quality"] = item.Quality,
+                ["rareValue"] = item.RareValue,
+                ["count"] = item.Count,
+                ["stackMax"] = item.StackMax,
+                ["type"] = item.Type,
+            })]),
+        };
     }
 
     static JsonObject SceneEntities(Args args)

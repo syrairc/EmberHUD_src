@@ -136,6 +136,47 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void PublishesTheInventoryWhenWantedAndGivenAReader()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var f = new Reading.InventoryReaderTests.Fixture(true, world.Memory, FakeWorld.Module);
+        f.Lua.SetIntKeyTable(f.Bag(2, 1), 1, f.Item("5_a", 5, 3, 9));
+        Game.WantInventory();
+        try
+        {
+            Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, f.Reader()).TryRead(out var state, out _));
+            var item = Assert.Single(state.Inventory!);
+            Assert.Equal(("5_a", 3), (item.Id, item.Count));
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
+    public void InventoryIsNullWhenNobodyAsked()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        Game.InventoryAsked = 0;
+        Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, new InventoryReader(world.Memory, FakeWorld.Module)).TryRead(out var state, out _));
+        Assert.Null(state.Inventory);
+    }
+
+    [Fact]
+    public void InventoryIsNullWithoutAReader()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        Game.WantInventory();
+        try
+        {
+            Assert.True(ReaderFor(world).TryRead(out var state, out _));
+            Assert.Null(state.Inventory);
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void NoSceneIsAFailureWithTheReason()
     {
         var world = new FakeWorld();

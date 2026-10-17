@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using EmberHUD.Host.Memory;
 
@@ -16,16 +17,18 @@ internal sealed class LiveReader
     private readonly MapInfoReader _mapInfo;
     private readonly WoodStakeReader _woodStake;
     private readonly CombatReader? _combat;
+    private readonly InventoryReader? _inventory;
     private readonly EntityNamer _namer;
     private readonly HpBarReader _hpBars;
     private int _generation;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null)
     {
         _memory = memory;
         _combat = combat;
+        _inventory = inventory;
         var names = new Names(memory, moduleBase);
         _world = new LogicWorldReader(memory, moduleBase);
         _terrain = new TerrainReader(memory, firstAreaId);
@@ -101,6 +104,7 @@ internal sealed class LiveReader
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
             Combat = _combat?.Snapshot,
+            Inventory = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _inventory?.Read() : null,
         };
         return true;
     }

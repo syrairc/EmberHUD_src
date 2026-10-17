@@ -44,7 +44,7 @@ internal sealed class LiveGameSource : IGameSource
         if (!_game!.ExactBuild) Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
         _combat = new CombatReader(_game.Backend, _game.ModuleBase);
         _poller = new CombatPoller(_combat.Poll, () => Game.CombatWanted(Stopwatch.GetTimestamp(), Offsets.CombatWantedSeconds), Log.Warn);
-        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat);
+        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase));
         EmberHUD.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         UseLookups(_game.Backend, _game.ModuleBase);
         return true;
