@@ -30,6 +30,24 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetStateIncludesBag()
+    {
+        var cells = Enumerable.Range(0, 27).Select(i => new BagCell(i, new Vector2(i, 2), new Vector2(i + 1, 3))).ToArray();
+        TestGame.Set(GameState.Empty with { Bag = new BagView(InventoryBag.Commodities, new Vector2(10, 20), new Vector2(300, 400), cells) });
+        var bag = Wire.Run(Tools, "get_state")["bag"]!;
+        Check.Equal("Commodities", (string?)bag["tab"]);
+        Check.Equal("10,20", string.Join(',', bag["clip"]!["min"]!.AsArray().Select(v => (double)v!)), "clip min");
+        Check.Equal("300,400", string.Join(',', bag["clip"]!["max"]!.AsArray().Select(v => (double)v!)), "clip max");
+        Check.Equal(27, (int)bag["cells"]!);
+        Check.Equal(10, bag["first"]!.AsArray().Count);
+        Check.Equal(9, (int)bag["first"]![9]!["slot"]!);
+        Check.Equal("9,2", string.Join(',', bag["first"]![9]!["min"]!.AsArray().Select(v => (double)v!)), "min");
+        Check.Equal("10,3", string.Join(',', bag["first"]![9]!["max"]!.AsArray().Select(v => (double)v!)), "max");
+        TestGame.Set(GameState.Empty);
+        Check.That(Wire.Run(Tools, "get_state")["bag"] is null, "no bag, no key");
+    }
+
+    [Test]
     public void GetStateListsTheFirstTenQuestTargets()
     {
         TestGame.Set(GameState.Empty with { QuestTargets = [.. Enumerable.Range(1, 12).Select(i => new QuestTarget(i, new Vector2(i, -i)))] });

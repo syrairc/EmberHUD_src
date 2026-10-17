@@ -369,6 +369,17 @@ TradeCellStatusText = "UUITextBlock_Status"
 TradePriceTexture = "UI_Item_chuhuoyuanzhiV3_Icon_128"
 MaxTradeCells = 512
 TradeRefreshMilliseconds = 250
+BagGrid = "PCUIGridListView"
+BagListPrefix = "ListView"
+ListViewItems = 0x2F8
+ListViewEntrySpacing = 0x2F0
+ListViewEntryPool = 0x150
+ListViewScrollOffset = 0x400
+BagRowItemData = 0x288
+BagRowCells = 0x298
+BagRowCellCount = 9
+MaxBagRows = 64
+BagRefreshMilliseconds = 33
 
 WoodStakeRunning = 40
 WoodStakeStatSeconds = 0

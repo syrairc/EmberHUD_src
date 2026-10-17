@@ -37,7 +37,7 @@ internal static class StateTools
     public static Tool[] Create(Func<Status> status) =>
     [
         new("get_status", "Connection and freshness: whether memory is attached, the game status string and area id, how many ms since Game.State last changed, server url and in-flight requests, watch count, recording flag.", Schema.Of([]), _ => GetStatus(status())),
-        new("get_state", "Summary of Game.State: status, area id, player position, forward, life and shield, entity counts by kind and rarity, terrain / map icon presence, quest targets (count and first 10 id / x / y), minimap rotation, open game panels, camera, a map block when there is one (name, monster level, remaining enemies, XP gain, isTown, content rows with name / icon / state / done / total, leftover modifier lines), and the market trade page (page, cellsPerPage, priceIcon, first 10 listings) when open.", Schema.Of([]), _ => GetState()),
+        new("get_state", "Summary of Game.State: status, area id, player position, forward, life and shield, entity counts by kind and rarity, terrain / map icon presence, quest targets (count and first 10 id / x / y), minimap rotation, open game panels, camera, a map block when there is one (name, monster level, remaining enemies, XP gain, isTown, content rows with name / icon / state / done / total, leftover modifier lines), the market trade page (page, cellsPerPage, priceIcon, first 10 listings) when open, and the open bag (tab, clip min / max, cells count, first 10 cell rects) when one is shown.", Schema.Of([]), _ => GetState()),
         new("get_entities", "Entities from Game.State (life / maxLife, 0 = unknown; name only when known), nearest to the player first. Filters combine: kind, rarity, cfgId, id, address (hex), radius (world units around the player). limit defaults to 100, max 1000.",
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
@@ -171,6 +171,19 @@ internal static class StateTools
                     ["status"] = l.Status,
                     ["min"] = new JsonArray(Num.F(l.Min.X), Num.F(l.Min.Y)),
                     ["max"] = new JsonArray(Num.F(l.Max.X), Num.F(l.Max.Y)),
+                })]),
+            };
+        if (state.Bag is { } bag)
+            result["bag"] = new JsonObject
+            {
+                ["tab"] = bag.Tab.ToString(),
+                ["clip"] = new JsonObject { ["min"] = new JsonArray(Num.F(bag.ClipMin.X), Num.F(bag.ClipMin.Y)), ["max"] = new JsonArray(Num.F(bag.ClipMax.X), Num.F(bag.ClipMax.Y)) },
+                ["cells"] = bag.Cells.Length,
+                ["first"] = new JsonArray([.. bag.Cells.Take(10).Select(c => (JsonNode)new JsonObject
+                {
+                    ["slot"] = c.Slot,
+                    ["min"] = new JsonArray(Num.F(c.Min.X), Num.F(c.Min.Y)),
+                    ["max"] = new JsonArray(Num.F(c.Max.X), Num.F(c.Max.Y)),
                 })]),
             };
         return result;

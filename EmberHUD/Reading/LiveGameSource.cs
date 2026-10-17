@@ -47,11 +47,13 @@ internal sealed class LiveGameSource : IGameSource
         _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase), new CharacterReader(_game.Backend, _game.ModuleBase));
         EmberHUD.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         UseLookups(_game.Backend, _game.ModuleBase);
+        Game.ExePath = _game.ExePath;
         return true;
     }
 
     private void Detach()
     {
+        Game.ExePath = null;
         UseLookups(null, 0);
         EmberHUD.Memory.Use(null);
         _reader = null;
