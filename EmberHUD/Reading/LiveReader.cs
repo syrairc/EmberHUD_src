@@ -86,6 +86,7 @@ internal sealed class LiveReader
             Entities = entities,
             Terrain = terrain,
             MinimapRotation = rotation,
+            GameMinimap = _minimap.ReadGameMinimap(),
             MapIcons = icons,
             Explored = explored,
             Camera = pawn != 0 ? _world.ReadCamera(pawn) : null,

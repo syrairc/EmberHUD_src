@@ -27,6 +27,7 @@ public sealed class GeneralTab
     internal const float MinZoom = 0.002f;
     internal const float MaxZoom = 4;
 
+    public bool UseGameMinimap;
     public bool Show = true;
     public bool FollowPlayer = true;
     public bool HideBehindPanels = true;
@@ -35,6 +36,8 @@ public sealed class GeneralTab
     public float VerticalScale = 1;
     public float OffsetX;
     public float OffsetY = -50;
+    public float GameOffsetX;
+    public float GameOffsetY;
 }
 
 public sealed class RegionLook
@@ -203,14 +206,26 @@ public sealed class Settings : PluginSettings
     bool DrawGeneral()
     {
         if (ImGui.Button("Re-check map rotation")) Game.RescanMinimap();
-        var changed = Setting.Checkbox("Show", ref General.Show);
-        changed |= Setting.Checkbox("Follow Player", ref General.FollowPlayer);
+        var changed = Setting.Checkbox("Use game minimap", ref General.UseGameMinimap, "Match the game's Tab map exactly - the game drives zoom, rotation, vertical scale and follow, and our map only shows while the game map is open");
+        changed |= Setting.Checkbox("Show", ref General.Show);
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Checkbox("Follow Player", ref General.FollowPlayer);
+        }
         changed |= Setting.Checkbox("Hide behind full-screen panels", ref General.HideBehindPanels, "Nothing draws while the game has a full-screen panel open, e.g. the big map or the talent tree");
-        changed |= Setting.Slider("Zoom", ref General.Zoom, GeneralTab.MinZoom, GeneralTab.MaxZoom, "Pixels per world unit. Real world units are small, about 0.005 to 0.05", log: true);
-        changed |= Setting.Slider("Rotation", ref General.Rotation, -180, 180, "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game");
-        changed |= Setting.Slider("Vertical scale", ref General.VerticalScale, 0.2f, 1.5f, "Squashes the map vertically after the rotation, the game camera is isometric");
-        changed |= Setting.Slider("Offset X", ref General.OffsetX, -960, 960);
-        changed |= Setting.Slider("Offset Y", ref General.OffsetY, -960, 960);
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Slider("Zoom", ref General.Zoom, GeneralTab.MinZoom, GeneralTab.MaxZoom, "Pixels per world unit. Real world units are small, about 0.005 to 0.05", log: true);
+            changed |= Setting.Slider("Rotation", ref General.Rotation, -180, 180, "Extra clockwise degrees added on top of the game's own minimap rotation, 0 matches the game");
+            changed |= Setting.Slider("Vertical scale", ref General.VerticalScale, 0.2f, 1.5f, "Squashes the map vertically after the rotation, the game camera is isometric");
+            changed |= Setting.Slider("Offset X", ref General.OffsetX, -960, 960);
+            changed |= Setting.Slider("Offset Y", ref General.OffsetY, -960, 960);
+        }
+        if (General.UseGameMinimap)
+        {
+            changed |= Setting.Slider("Game offset X", ref General.GameOffsetX, -960, 960, "Nudges the map if it doesn't line up with the game's");
+            changed |= Setting.Slider("Game offset Y", ref General.GameOffsetY, -960, 960, "Nudges the map if it doesn't line up with the game's");
+        }
         return changed;
     }
 

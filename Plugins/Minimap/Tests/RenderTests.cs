@@ -594,6 +594,70 @@ public sealed class RenderTests
         Check.That(!colours.Contains(Packed(FoundColour)), "the game icon is not drawn");
     }
 
+
+    static readonly GameMinimap OpenGameMap = new(true, 3840);
+
+    static void GameMode(Main main) => main.Settings.General.UseGameMinimap = true;
+
+    static GameState GameScene(MapIcon[]? icons = null, Entity[]? entities = null, ExploredTrail? explored = null) =>
+        Scene.State(player: Facing(Vector2.UnitX), terrain: Scene.OneCell(), icons: icons, entities: entities, explored: explored, gameMinimap: OpenGameMap);
+
+    [Test]
+    public void GameModeDrawsNoMapIconsNotEvenTheTaskRing()
+    {
+        var bare = Drawn(GameScene(), configure: GameMode);
+
+        Check.That(Drawn(GameScene([Portal]), configure: main => main.Settings.General.UseGameMinimap = false) > Drawn(GameScene(), configure: main => main.Settings.General.UseGameMinimap = false), "toggle off draws the icon");
+        Check.Equal(bare, Drawn(GameScene([Portal]), configure: GameMode));
+        Check.Equal(bare, Drawn(GameScene([Portal with { Type = Main.TaskRingType, Texture = "" }]), configure: GameMode));
+    }
+
+    [Test]
+    public void GameModeSkipsAnEntityWithAGameIconEvenWithOverrideGameIcon()
+    {
+        var scene = GameScene([Portal with { EntityId = 1 }], [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)]);
+
+        Check.That(Colours(scene, main => FixedRare(main, overrideGameIcon: true)).Contains(Packed(FixedColour)), "toggle off, the override row draws");
+        Check.That(!Colours(scene, main =>
+        {
+            FixedRare(main, overrideGameIcon: true);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "toggle on, it does not");
+    }
+
+    [Test]
+    public void GameModeStillDrawsAnEntityWithoutAGameIconFromItsFixedRow()
+    {
+        var scene = GameScene(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)]);
+
+        Check.That(Colours(scene, main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)));
+    }
+
+    [Test]
+    public void GameModeDrawsNoPlayerArrow()
+    {
+        var arrow = Packed(new Settings().Map.Player.Colour);
+
+        Check.That(Colours(GameScene(), _ => { }).Contains(arrow), "toggle off draws the arrow");
+        Check.That(!Colours(GameScene(), GameMode).Contains(arrow), "toggle on does not");
+    }
+
+    [Test]
+    public void GameModeDrawsNoExploredOutline()
+    {
+        var trail = new ExploredTrail([new Vector2(15, 15)], 50);
+        void Off(Main main) => main.Settings.General.UseGameMinimap = false;
+
+        Check.That(Drawn(GameScene(explored: trail), configure: Off) > Drawn(GameScene(), configure: Off), "toggle off draws both outlines");
+        Check.Equal(Drawn(GameScene(), configure: GameMode), Drawn(GameScene(explored: trail), configure: GameMode));
+        Check.That(!Colours(GameScene(explored: trail), GameMode).Contains(Packed(new Settings().Map.Region.ExploredOutline)), "no explored outline colour");
+        Check.That(Colours(GameScene(explored: trail), GameMode).Contains(Packed(new Settings().Map.Region.Outline)), "the area outline stays");
+    }
+
     [Test]
     public void AHiddenRowDrawsNothing()
     {

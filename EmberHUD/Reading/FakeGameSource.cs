@@ -66,6 +66,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Trade = TradeAt(now),
             WoodStake = WoodStakeAt(now),
             Combat = CombatAt(now),
+            GameMinimap = new GameMinimap(true, 51892f),
         };
         failure = null;
         return true;

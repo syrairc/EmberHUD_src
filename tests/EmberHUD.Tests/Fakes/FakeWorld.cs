@@ -362,6 +362,13 @@ internal sealed class FakeWorld
         Memory.Write(minimap.Widget + Offsets.MinimapSaveObject, save);
     }
 
+    public void SetGameMinimap(FakeMinimap minimap, byte mode, float zoom, int mapSide)
+    {
+        Memory.Write(minimap.Widget + Offsets.MinimapMode, mode);
+        Memory.Write(minimap.Widget + Offsets.MinimapBigZoom, zoom);
+        Memory.Write(minimap.Widget + Offsets.MinimapMapSide, mapSide);
+    }
+
     public void MoveEntity(FakeEntity entity, double x, double y, double z)
     {
         Memory.TryReadPtr(entity.Address + Offsets.EntityPosition, out var block);

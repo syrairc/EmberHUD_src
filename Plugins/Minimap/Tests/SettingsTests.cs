@@ -13,6 +13,28 @@ public sealed class SettingsTests
     static MapIcon Icon(string texture, string name = "", int type = 1, int entity = 0) => new(type, texture, Vector2.Zero, 1, 0, entity) { Name = name };
 
     [Test]
+    public void GameMinimapSettingsDefaultOffWithNoOffset()
+    {
+        var general = new Settings().General;
+        Check.That(!general.UseGameMinimap);
+        Check.Equal(0f, general.GameOffsetX);
+        Check.Equal(0f, general.GameOffsetY);
+    }
+
+    [Test]
+    public void GameMinimapSettingsSurviveAJsonRoundTrip()
+    {
+        var options = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+        var general = new GeneralTab { UseGameMinimap = true, GameOffsetX = 3, GameOffsetY = -4 };
+
+        var back = System.Text.Json.JsonSerializer.Deserialize<GeneralTab>(System.Text.Json.JsonSerializer.Serialize(general, options), options)!;
+
+        Check.That(back.UseGameMinimap);
+        Check.Equal(3f, back.GameOffsetX);
+        Check.Equal(-4f, back.GameOffsetY);
+    }
+
+    [Test]
     public void MonstersPickTheFixedRowOfTheirRarity()
     {
         var s = new Settings();

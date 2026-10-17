@@ -109,6 +109,7 @@ internal static class StateTools
             ["hasTerrain"] = state.Terrain is not null,
             ["mapIcons"] = state.MapIcons.Length,
             ["minimapRotation"] = state.MinimapRotation is { } rotation ? Num.F(rotation) : null,
+            ["gameMinimap"] = state.GameMinimap is { } gameMinimap ? new JsonObject { ["open"] = gameMinimap.Open, ["worldWidth"] = Num.F(gameMinimap.WorldWidth) } : null,
             ["panels"] = new JsonArray([.. state.Ui.Panels.Select(panel => (JsonNode)new JsonObject
             {
                 ["name"] = panel.Name,

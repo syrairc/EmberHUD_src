@@ -73,6 +73,17 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void StateShowsTheGameMinimapOrNull()
+    {
+        TestGame.Set(GameState.Empty with { GameMinimap = new GameMinimap(true, 51892f) });
+        var shown = Wire.Run(Tools, "get_state")["gameMinimap"]!;
+        Check.Equal(true, (bool)shown["open"]!, "open");
+        Check.Equal(51892d, (double)shown["worldWidth"]!, "worldWidth");
+        TestGame.Set(GameState.Empty);
+        Check.That(Wire.Run(Tools, "get_state")["gameMinimap"] is null, "null when absent");
+    }
+
+    [Test]
     public void StateListsTheOpenGamePanels()
     {
         TestGame.Set(GameState.Empty with

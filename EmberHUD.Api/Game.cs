@@ -64,7 +64,11 @@ public sealed record GameState
     public WoodStakeStats? WoodStake { get; init; }
 
     public CombatStats? Combat { get; init; }
+
+    public GameMinimap? GameMinimap { get; init; }
 }
+
+public sealed record GameMinimap(bool Open, float WorldWidth);
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
 {
