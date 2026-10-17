@@ -95,6 +95,7 @@ public static class ListEditor
             ImGui.PushID(i);
             using var dim = Layout.Dim(opts.FilterText is not null && !Text.Matches(filter, opts.FilterText(i)));
             var rowTop = ImGui.GetCursorPosY();
+            var rowLeft = ImGui.GetCursorPosX();
 
             ImGui.PushStyleColor(ImGuiCol.Header, 0u);
             ImGui.PushStyleColor(ImGuiCol.HeaderHovered, ImGui.GetColorU32(ImGuiCol.Button));
@@ -144,8 +145,9 @@ public static class ListEditor
                 }
             }
 
-            ImGui.SameLine(6f);
-            ImGui.SetCursorPosY(rowTop + (rowH - ImGui.GetTextLineHeight()) * 0.5f);
+            ImGui.SameLine(rowLeft + 4f);
+            ImGui.SetCursorPosY(rowTop + (rowH - ImGui.GetFrameHeight()) * 0.5f);
+            ImGui.AlignTextToFramePadding();
             if (opts.ShowIndex)
             {
                 ImGui.TextDisabled(movableRow ? (i + 1).ToString("00") : "--");

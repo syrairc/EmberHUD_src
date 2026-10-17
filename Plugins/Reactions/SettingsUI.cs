@@ -13,6 +13,16 @@ static class SettingsUI
     const string BuffTip = "Matched against the buff name and id as a regex, e.g. shield|1234 - if it does not compile it matches the name or id exactly";
 
     static int selected;
+    static PickerState<Buff>? buffPicker;
+
+    static readonly PickerOpts<Buff> BuffPickerOpts = new()
+    {
+        Primary = buff => buff.Name ?? "(no name)",
+        Secondary = buff => $"id {buff.Id}",
+        Key = buff => buff.Id.ToString(),
+        EmptyText = "no buffs on the player right now.",
+        Size = new Vector2(360, 300),
+    };
 
     public static void Draw(Settings s)
     {
@@ -38,6 +48,8 @@ static class SettingsUI
     }
 
     internal static Condition NewCondition() => new();
+
+    internal static string AddExactId(string text, int id) => string.IsNullOrEmpty(text) ? $"^{id}$" : $"{text}|^{id}$";
 
     internal static bool SkillMissing(int cfgId) => Conditions.FindSkill(Game.State, cfgId) is null;
 
@@ -87,6 +99,13 @@ static class SettingsUI
                 ImGui.SetNextItemWidth(170);
                 changed |= ImGui.InputText("##text", ref condition.Text, 128);
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip(BuffTip);
+                ImGui.SameLine();
+                Game.WantCharacter();
+                if (Picker.Button("Current buffs", Game.State.Buffs, ref buffPicker, out var buff, BuffPickerOpts, "buffs"))
+                {
+                    condition.Text = AddExactId(condition.Text, buff.Id);
+                    changed = true;
+                }
                 break;
             case ConditionKind.SkillCooldown:
                 changed |= SkillPicker(condition);
@@ -116,6 +135,7 @@ static class SettingsUI
 
     static bool SkillPicker(Condition condition)
     {
+        Game.WantCharacter();
         var skills = Game.State.Skills ?? [];
         var labels = skills.Select(skill => $"Slot {skill.Slot} - {skill.CfgId}").ToList();
         var index = Array.FindIndex(skills, skill => skill.CfgId == condition.SkillCfgId);

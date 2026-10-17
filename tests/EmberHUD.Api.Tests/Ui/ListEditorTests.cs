@@ -584,7 +584,7 @@ public class ListEditorTests : IDisposable
         UiFrame.Run(Window, tall.Draw);
         UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 2.5f), tall.Draw);
         Assert.Equal(0, tall.Selected);
-        Assert.Equal((tall.Opts.RowHeight - FontSize) / 2, tall.Rows[0].Cursor.Y - tall.Origin.Y);
+        Assert.Equal((tall.Opts.RowHeight - FrameHeight) / 2, tall.Rows[0].Cursor.Y - tall.Origin.Y);
         tall.Selected = -1;
         UiFrame.Click(Window, new Vector2(tall.Rows[0].Cursor.X + 1f, tall.Origin.Y + FrameHeight * 3 + Spacing.Y + 2f), tall.Draw);
         Assert.Equal(1, tall.Selected);
@@ -592,6 +592,30 @@ public class ListEditorTests : IDisposable
         plain.Selected = -1;
         UiFrame.Click(Window, new Vector2(plain.Rows[0].Cursor.X + 1f, plain.Origin.Y + FrameHeight * 1.5f), plain.Draw);
         Assert.Equal(1, plain.Selected);
+    }
+
+    [Fact]
+    public void OrderedCheckboxSitsInsideItsRowClearOfTheSelectionBar()
+    {
+        List<string> items = ["a", "b"];
+        var selected = 0;
+        var origin = Vector2.Zero;
+        List<(Vector2 Min, Vector2 Max)> boxes = [];
+        UiFrame.Run(Window, () =>
+        {
+            origin = ImGui.GetCursorScreenPos();
+            boxes.Clear();
+            ListEditor.ReorderableList(UiFrame.NextId("boxes"), items, ref selected, (_, _) =>
+            {
+                var on = true;
+                ImGui.Checkbox("##on", ref on);
+                boxes.Add((ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
+            }, new ListOpts { ShowIndex = false });
+        });
+        Assert.Equal(origin.Y, boxes[0].Min.Y);
+        Assert.Equal(origin.Y + FrameHeight, boxes[0].Max.Y);
+        Assert.Equal(FrameHeight + Spacing.Y, boxes[1].Min.Y - boxes[0].Min.Y);
+        Assert.True(boxes[0].Min.X > origin.X, $"checkbox at {boxes[0].Min.X} covers the row start {origin.X}");
     }
 
     [Fact]

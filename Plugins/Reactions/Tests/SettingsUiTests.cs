@@ -112,6 +112,18 @@ public sealed class SettingsUiTests
     }
 
     [Test]
+    public void TheSkillPickerAsksForCharacterData()
+    {
+        var asked = typeof(Game).GetProperty("CharacterAsked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var settings = new Settings { Reactions = [new Reaction { Name = "r", Conditions = [new Condition { Kind = ConditionKind.SkillCooldown }] }] };
+        SettingsUI.Select(0);
+        TestGame.Set(GameState.Empty);
+        asked.SetValue(null, 0L);
+        TestFrame.Run(settings.Draw);
+        Check.That((long)asked.GetValue(null)! != 0, "WantCharacter was not called");
+    }
+
+    [Test]
     public void MissingSkillDrawsTheWarningRow()
     {
         var settings = new Settings { Reactions = [new Reaction { Name = "r", Conditions = [new Condition { Kind = ConditionKind.SkillCooldown, SkillCfgId = 10 }] }] };
@@ -121,5 +133,14 @@ public sealed class SettingsUiTests
         TestFrame.Run(settings.Draw);
         TestGame.Set(new GameState { Skills = null });
         TestFrame.Run(settings.Draw);
+    }
+
+    [Test]
+    public void PickedBuffIdIsAddedAsExactMatch()
+    {
+        Check.Equal("^1234$", SettingsUI.AddExactId("", 1234));
+        Check.Equal("shield|^1234$", SettingsUI.AddExactId("shield", 1234));
+        Check.That(Conditions.BuffMatches(SettingsUI.AddExactId("", 12), new Buff(12, "x", 0, 0)));
+        Check.That(!Conditions.BuffMatches(SettingsUI.AddExactId("", 12), new Buff(123, "x", 0, 0)));
     }
 }
