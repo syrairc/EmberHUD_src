@@ -150,4 +150,192 @@ public class LuaReaderTests
         Assert.Empty(reader.IntKeyedTables(t));
         Assert.True(memory.Reads.Count < 20);
     }
+
+    private static LuaTable Nested(FakeLua lua, LuaTable parent, string key, int arraySize = 0, int logSize = 2)
+    {
+        var child = lua.NewTable(arraySize, logSize);
+        lua.SetTable(parent, key, child);
+        return child;
+    }
+
+    [Fact]
+    public void ResolvesNestedStringKeys()
+    {
+        var (_, lua, reader) = Fixture();
+        var c = Nested(lua, Nested(lua, Nested(lua, lua.Globals, "a"), "b"), "c");
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.True(reader.TryResolve(globals, "a.b.c", out var table, out var failedAt));
+        Assert.Equal(c, table);
+        Assert.Equal("", failedAt);
+    }
+
+    [Fact]
+    public void ResolvesIntSegmentsInNodeAndArrayParts()
+    {
+        var (_, lua, reader) = Fixture();
+        var list = Nested(lua, lua.Globals, "list", 2, 2);
+        var inNode = lua.NewTable(0, 0);
+        var inArray = lua.NewTable(0, 0);
+        lua.SetIntKeyTable(list, 100, inNode);
+        lua.SetIntKeyTable(list, 2, inArray);
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.True(reader.TryResolve(globals, "list.100", out var node, out _));
+        Assert.Equal(inNode, node);
+        Assert.True(reader.TryResolve(globals, "list.2", out var array, out _));
+        Assert.Equal(inArray, array);
+    }
+
+    [Fact]
+    public void MetaSegmentFollowsTheMetatable()
+    {
+        var (_, lua, reader) = Fixture();
+        var obj = Nested(lua, lua.Globals, "obj");
+        var meta = lua.NewTable(0, 0);
+        lua.SetMetatable(obj, meta);
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.True(reader.TryResolve(globals, "obj.@meta", out var table, out _));
+        Assert.Equal(meta, table);
+        Assert.False(reader.TryResolve(globals, "a.@meta", out _, out var failedAt));
+        Assert.Equal("a", failedAt);
+    }
+
+    [Fact]
+    public void MissingSegmentReportsWhereItFailed()
+    {
+        var (_, lua, reader) = Fixture();
+        Nested(lua, Nested(lua, lua.Globals, "a"), "b");
+        Assert.True(reader.TryOpen(out var globals));
+
+        Assert.False(reader.TryResolve(globals, "a.nope.c", out _, out var failedAt));
+        Assert.Equal("nope", failedAt);
+        Assert.False(reader.TryResolve(globals, "a.b.7", out _, out failedAt));
+        Assert.Equal("7", failedAt);
+    }
+
+    [Fact]
+    public void UnopenableRootFailsWithEmptyFailedAt()
+    {
+        var (_, _, reader) = Fixture();
+        Assert.False(reader.TryResolve(default, "a", out _, out var failedAt));
+        Assert.Equal("", failedAt);
+    }
+
+    [Fact]
+    public void EmptyPathIsTheRoot()
+    {
+        var (_, lua, reader) = Fixture();
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryResolve(globals, "", out var table, out _));
+        Assert.Equal(lua.Globals, table);
+    }
+
+    [Fact]
+    public void EntriesListArrayThenNodesWithTypesAndValues()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 2, 3);
+        var inner = lua.NewTable(0, 0);
+        lua.SetIntKey(t, 1, 11, Offsets.LuaTagInt);
+        lua.SetIntKey(t, 2, (long)BitConverter.DoubleToInt64Bits(1.5), Offsets.LuaTagFloat);
+        lua.SetString(t, "name", "Gold");
+        lua.SetInt(t, "count", 42);
+        lua.SetValue(t, "flag", 7, Offsets.LuaTagBool);
+        lua.SetValue(t, "off", 0, Offsets.LuaTagBool);
+        lua.SetTable(t, "inner", inner);
+        lua.SetValue(t, "fn", 0x1234, Offsets.LuaTagFunction);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        var entries = reader.Entries(table, 100, out var total);
+
+        Assert.Equal(8, total);
+        Assert.Equal(new LuaEntryRow("[1]", "int", "11"), entries[0]);
+        Assert.Equal(new LuaEntryRow("[2]", "float", "1.5"), entries[1]);
+        var byKey = entries.Skip(2).ToDictionary(e => e.Key);
+        Assert.Equal(new LuaEntryRow("name", "string", "Gold"), byKey["name"]);
+        Assert.Equal(new LuaEntryRow("count", "int", "42"), byKey["count"]);
+        Assert.Equal(new LuaEntryRow("flag", "bool", "true"), byKey["flag"]);
+        Assert.Equal(new LuaEntryRow("off", "bool", "false"), byKey["off"]);
+        Assert.Equal(new LuaEntryRow("inner", "table", $"0x{inner.Address:X}"), byKey["inner"]);
+        Assert.Equal(new LuaEntryRow("fn", "function", "0x1234"), byKey["fn"]);
+    }
+
+    [Fact]
+    public void EntriesTotalIsTrueCountAndArrayIsCut()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 0, 3);
+        for (var i = 0; i < 5; i++) lua.SetInt(t, $"k{i}", i);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        var entries = reader.Entries(table, 3, out var total);
+
+        Assert.Equal(5, total);
+        Assert.Equal(3, entries.Length);
+    }
+
+    [Fact]
+    public void EntriesSkipEmptyNodesAndCutLongStrings()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 0, 3);
+        lua.SetString(t, "long", new string('x', 10) + "\n" + new string('x', 300));
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        var entries = reader.Entries(table, 10, out var total);
+
+        Assert.Equal(1, total);
+        Assert.Equal("long", entries[0].Key);
+        Assert.Equal(Offsets.MaxLuaString, entries[0].Value.Length);
+        Assert.DoesNotContain('\n',entries[0].Value);
+    }
+
+    [Fact]
+    public void BoolReadsOnlyTheLowFourBytes()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 0, 2);
+        lua.SetValue(t, "off", 0x1_0000_0000L, Offsets.LuaTagBool);
+        lua.SetValue(t, "on", 0x1_0000_0001L, Offsets.LuaTagBool);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        var byKey = reader.Entries(table, 10, out _).ToDictionary(e => e.Key);
+
+        Assert.Equal("false", byKey["off"].Value);
+        Assert.Equal("true", byKey["on"].Value);
+    }
+
+    [Fact]
+    public void EntriesListOtherKeyTypesByTag()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 0, 2);
+        lua.SetOddKey(t, 0x45, 5, Offsets.LuaTagInt);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        var entries = reader.Entries(table, 10, out var total);
+
+        Assert.Equal(1, total);
+        Assert.Equal(new LuaEntryRow("<tag 0x45>", "int", "5"), entries[0]);
+    }
+
+    [Fact]
+    public void EntriesWithUnreadableNodesAreEmpty()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 0, 2);
+        lua.BreakNodes(t);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        Assert.Empty(reader.Entries(table, 10, out var total));
+        Assert.Equal(0, total);
+    }
 }

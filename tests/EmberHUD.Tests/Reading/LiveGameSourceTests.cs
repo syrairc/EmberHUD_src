@@ -1,5 +1,6 @@
 using EmberHUD.Host.Memory;
 using EmberHUD.Host;
+using EmberHUD.Tests.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -11,6 +12,61 @@ public sealed class LiveGameSourceTests : IDisposable
     {
         EmberHUD.Memory.Use(null);
         LiveGameSource.UseLookups(null, 0);
+    }
+
+    private static FakeLua LuaWorld(FakeWorld world)
+    {
+        var lua = new FakeLua(world.Memory, FakeWorld.Module);
+        var inner = lua.NewTable(0, 2);
+        lua.SetString(inner, "name", "Gold");
+        lua.SetTable(lua.Globals, "inner", inner);
+        LiveGameSource.UseLookups(world.Memory, FakeWorld.Module);
+        return lua;
+    }
+
+    [Fact]
+    public void LuaDumpListsThePathFromTheGame()
+    {
+        LuaWorld(new FakeWorld());
+
+        var dump = Lua.Dump("inner", 10);
+
+        Assert.NotNull(dump);
+        Assert.True(dump.Resolved);
+        Assert.Equal(1, dump.Total);
+        Assert.Equal(new LuaEntry("name", "string", "Gold"), Assert.Single(dump.Entries));
+    }
+
+    [Fact]
+    public void LuaDumpReportsTheSegmentThatFailed()
+    {
+        LuaWorld(new FakeWorld());
+
+        Assert.Equal(new LuaDump(false, "missing", [], 0), Lua.Dump("inner.missing", 10));
+        Assert.Equal(new LuaDump(false, "nope", [], 0), Lua.Dump("nope.x", 10));
+    }
+
+    [Fact]
+    public void LuaDumpWithNoLuaStateIsUnresolvedWithNoSegment()
+    {
+        var world = new FakeWorld();
+        LiveGameSource.UseLookups(world.Memory, FakeWorld.Module);
+
+        var dump = Lua.Dump("inner", 10);
+
+        Assert.NotNull(dump);
+        Assert.False(dump.Resolved);
+        Assert.Equal("", dump.FailedAt);
+        Assert.Empty(dump.Entries);
+    }
+
+    [Fact]
+    public void ClearingTheLookupsClearsLua()
+    {
+        LuaWorld(new FakeWorld());
+        LiveGameSource.UseLookups(null, 0);
+
+        Assert.Null(Lua.Dump("inner", 10));
     }
 
     [Fact]

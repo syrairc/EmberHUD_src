@@ -70,6 +70,7 @@ internal sealed class LiveGameSource : IGameSource
             Loc.Getter = null;
             Loc.Finder = null;
             Scene.Lister = null;
+            Lua.Dumper = null;
             return;
         }
 
@@ -79,10 +80,21 @@ internal sealed class LiveGameSource : IGameSource
         var names = new Names(backend, moduleBase);
         var locGate = new Lock();
         var findGate = new Lock();
+        var luaReader = new LuaReader(backend, moduleBase);
         var sceneGate = new Lock();
+        var luaGate = new Lock();
         Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
         Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
         Scene.Lister = () => Guarded(sceneGate, () => world.TryReadScene(out var scene, out _) ? world.ListScene(scene, names) : [], []);
+        Lua.Dumper = (path, max) => Guarded(luaGate, () => DumpLua(luaReader, path, max), new LuaDump(false, "", [], 0));
+    }
+
+    private static LuaDump DumpLua(LuaReader reader, string path, int max)
+    {
+        var failedAt = "";
+        if (!reader.TryOpen(out var globals) || !reader.TryResolve(globals, path, out var table, out failedAt)) return new LuaDump(false, failedAt, [], 0);
+        var rows = reader.Entries(table, max, out var total);
+        return new LuaDump(true, "", [.. rows.Select(row => new LuaEntry(row.Key, row.Type, row.Value))], total);
     }
 
     private static T Guarded<T>(Lock gate, Func<T> read, T fallback)

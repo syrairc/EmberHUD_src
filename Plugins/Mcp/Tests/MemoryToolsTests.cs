@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Text.Json.Nodes;
 using EmberHUD;
@@ -151,5 +152,65 @@ public sealed class MemoryToolsTests
         Check.Equal("0x10,0x48", string.Join(',', exact["offsets"]!.AsArray().Select(offset => (string?)offset)));
         var near = Wire.Run(Tools, "find_pointer_offset", new JsonObject { ["base"] = Hex.Of(at), ["target"] = Hex.Of(target), ["range"] = 0x100, ["within"] = 8 });
         Check.Equal("0x10,0x40,0x48", string.Join(',', near["offsets"]!.AsArray().Select(offset => (string?)offset)));
+    }
+
+    static LuaEntry[] Entries(int count) => Enumerable.Range(0, count).Select(i => new LuaEntry($"k{i}", "number", i.ToString())).ToArray();
+
+    static JsonObject RunLua(Func<string, int, LuaDump?> hook, JsonObject args)
+    {
+        TestGame.UseLua(hook);
+        try { return Wire.Run(Tools, "lua_get", args); }
+        finally { TestGame.UseLua(null); }
+    }
+
+    [Test]
+    public void LuaGetListsEntriesAndEchoesThePath()
+    {
+        var result = RunLua((path, _) => path == "ItemMgr.ItemList.100" ? new LuaDump(true, "", [new("0", "string", "sword"), new("@meta", "table", "table: 0x1")], 2) : null, new JsonObject { ["path"] = "ItemMgr.ItemList.100" });
+        Check.Equal("ItemMgr.ItemList.100", (string?)result["path"]);
+        Check.That((bool)result["resolved"]!, "resolved");
+        Check.That(result["failedAt"] is null, "failedAt null");
+        Check.Equal(2, (int)result["total"]!);
+        Check.Equal("0,string,sword", $"{(string?)result["entries"]![0]!["key"]},{(string?)result["entries"]![0]!["type"]},{(string?)result["entries"]![0]!["value"]}");
+    }
+
+    [Test]
+    public void LuaGetMaxCapsEntriesAndTotalStaysTrue()
+    {
+        Func<string, int, LuaDump?> hook = (_, max) => new LuaDump(true, "", Entries(300).Take(max).ToArray(), 300);
+        var capped = RunLua(hook, new JsonObject { ["max"] = 5 });
+        Check.Equal(5, capped["entries"]!.AsArray().Count);
+        Check.Equal(300, (int)capped["total"]!);
+        Check.Equal("", (string?)capped["path"]);
+        Check.Equal(100, RunLua(hook, new JsonObject())["entries"]!.AsArray().Count);
+    }
+
+    [Test]
+    public void LuaGetMaxOutOfRangeIsAToolError()
+    {
+        TestGame.UseLua((_, _) => new LuaDump(true, "", [], 0));
+        try
+        {
+            Check.That(Wire.Fails(Tools, "lua_get", new JsonObject { ["max"] = 0 }).Contains("between"), "min");
+            Check.That(Wire.Fails(Tools, "lua_get", new JsonObject { ["max"] = 1025 }).Contains("between"), "max");
+        }
+        finally { TestGame.UseLua(null); }
+    }
+
+    [Test]
+    public void LuaGetUnresolvedPathIsAResultNotAnError()
+    {
+        var result = RunLua((_, _) => new LuaDump(false, "ItemMgr.Nope", [], 0), new JsonObject { ["path"] = "ItemMgr.Nope.x" });
+        Check.That(!(bool)result["resolved"]!, "unresolved");
+        Check.Equal("ItemMgr.Nope", (string?)result["failedAt"]);
+        Check.Equal(0, result["entries"]!.AsArray().Count);
+    }
+
+    [Test]
+    public void LuaGetWithoutAHookSaysNotAttached()
+    {
+        TestGame.UseLua(null);
+        TestMemory.Clear();
+        Check.That(Wire.Fails(Tools, "lua_get", new JsonObject()).Contains("not attached"), "not live");
     }
 }

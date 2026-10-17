@@ -180,6 +180,7 @@ public class OffsetsTests
         Assert.Equal(12, Offsets.LuaTableArraySize);
         Assert.Equal(16, Offsets.LuaTableArray);
         Assert.Equal(24, Offsets.LuaTableNode);
+        Assert.Equal(40, Offsets.LuaTableMetatable);
         Assert.Equal(16, Offsets.LuaTValueSize);
         Assert.Equal(32, Offsets.LuaNodeSize);
         Assert.Equal(0, Offsets.LuaNodeValue);
@@ -193,9 +194,13 @@ public class OffsetsTests
         Assert.Equal(0x44, Offsets.LuaTagShortString);
         Assert.Equal(0x54, Offsets.LuaTagLongString);
         Assert.Equal(0x45, Offsets.LuaTagTable);
+        Assert.Equal(0x03, Offsets.LuaTagFloat);
+        Assert.Equal(0x01, Offsets.LuaTagBool);
+        Assert.Equal(0x46, Offsets.LuaTagFunction);
         Assert.Equal(12, Offsets.MaxLuaLogSize);
         Assert.Equal(65536, Offsets.MaxLuaArray);
         Assert.Equal(256, Offsets.MaxLuaString);
+        Assert.Equal(1024, Offsets.MaxLuaDumpEntries);
         Assert.Equal(100, Offsets.InventoryTabFirst);
         Assert.Equal(4, Offsets.InventoryTabCount);
         Assert.Equal(1000, Offsets.MaxInventoryItems);

@@ -40,7 +40,7 @@ internal sealed class FakeLua
 
     public LuaTable NewTable(int arraySize, int logNodeSize)
     {
-        var header = Alloc(32);
+        var header = Alloc(48);
         var array = Alloc(Math.Max(arraySize, 1) * Offsets.LuaTValueSize);
         var node = Alloc((1 << logNodeSize) * Offsets.LuaNodeSize);
         _memory.Write(header + Offsets.LuaTableLogSize, (byte)logNodeSize);
@@ -58,25 +58,43 @@ internal sealed class FakeLua
 
     public void SetTable(LuaTable t, string key, LuaTable value) => SetNode(t, MainPosition(t, key), key, value.Address, Offsets.LuaTagTable);
 
-    public void SetIntKeyTable(LuaTable t, long key, LuaTable value)
+    public void SetIntKeyTable(LuaTable t, long key, LuaTable value) => SetIntKey(t, key, value.Address, Offsets.LuaTagTable);
+
+    public void SetIntKey(LuaTable t, long key, long value, int tag)
     {
         var (logSize, arraySize, array, node) = _tables[t.Address];
         if (key >= 1 && key <= arraySize)
         {
             var at = array + (nint)(key - 1) * Offsets.LuaTValueSize;
-            _memory.Write(at, (long)value.Address);
-            _memory.Write(at + Offsets.LuaNodeTag, (uint)Offsets.LuaTagTable);
+            _memory.Write(at, value);
+            _memory.Write(at + Offsets.LuaNodeTag, (uint)tag);
             return;
         }
 
         var nodes = 1 << logSize;
         var main = (int)(key % Math.Max((nodes - 1) | 1, 1));
         var slot = FreeSlot(node, nodes, main);
-        _memory.Write(slot + Offsets.LuaNodeValue, (long)value.Address);
-        _memory.Write(slot + Offsets.LuaNodeTag, (uint)Offsets.LuaTagTable);
+        _memory.Write(slot + Offsets.LuaNodeValue, value);
+        _memory.Write(slot + Offsets.LuaNodeTag, (uint)tag);
         _memory.Write(slot + Offsets.LuaNodeKey, key);
         _memory.Write(slot + Offsets.LuaNodeKeyTag, (uint)Offsets.LuaTagInt);
     }
+
+    public void SetValue(LuaTable t, string key, long value, int tag) => SetNode(t, MainPosition(t, key), key, value, tag);
+
+    public void SetOddKey(LuaTable t, int keyTag, long value, int tag)
+    {
+        var (logSize, _, _, node) = _tables[t.Address];
+        var slot = FreeSlot(node, 1 << logSize, 0);
+        _memory.Write(slot + Offsets.LuaNodeValue, value);
+        _memory.Write(slot + Offsets.LuaNodeTag, (uint)tag);
+        _memory.Write(slot + Offsets.LuaNodeKey, 1L);
+        _memory.Write(slot + Offsets.LuaNodeKeyTag, (uint)keyTag);
+    }
+
+    public void SetMetatable(LuaTable t, LuaTable meta) => _memory.Write(t.Address + Offsets.LuaTableMetatable, (long)meta.Address);
+
+    public void BreakNodes(LuaTable t) => _memory.Write(t.Address + Offsets.LuaTableNode, 0x7000_0000L);
 
     public void BreakState() => _memory.Write(_manager + Offsets.LuaMgrState, 0L);
 
