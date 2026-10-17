@@ -254,21 +254,25 @@ public class GroundItemReaderTests
     public void MissingDropMgrIsNotRescannedInsideTheWindow()
     {
         var world = new FakeWorld();
+        world.AddObject(world.AddClass("Other_C"), "Other_0");
         long now = 0;
         var f = new Fixture(world: world);
         f.Drop(1, [1], []);
         var reader = new GroundItemReader(world.Memory, Module, () => now);
-        var pastCache = System.Diagnostics.Stopwatch.Frequency;
-        Assert.Null(reader.Read());
-        world.Memory.Reads.Clear();
+        var second = System.Diagnostics.Stopwatch.Frequency;
+        int ChunkReads() => world.Memory.Reads.Count(r => r.Length >= 100 * Offsets.GObjectsItemSize);
 
-        now += pastCache;
         Assert.Null(reader.Read());
-        Assert.DoesNotContain(world.Memory.Reads, r => r.Length >= Offsets.GObjectsPerChunk);
+        Assert.Equal(1, ChunkReads());
+
+        now += second;
+        Assert.Null(reader.Read());
+        Assert.Equal(1, ChunkReads());
 
         world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
-        now += pastCache * Offsets.DropMgrRescanSeconds;
+        now += second * Offsets.DropMgrRescanSeconds;
         Assert.Single(reader.Read()!);
+        Assert.Equal(2, ChunkReads());
     }
 
     [Fact]
