@@ -115,4 +115,30 @@ public sealed class MainTests
         }
         finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
     }
+
+    [Test]
+    public void SettingsPageDrawsEveryTab()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N"));
+        var plugin = new Main { Logger = { DataDirectory = directory } };
+        try
+        {
+            TestFrame.Run(plugin.DrawSettings);
+            plugin.Logger.Store.Kills.Add(new(DateTime.Now, "Odd", 5027099, null, 0, "killed", 0, 10, 1, 1, 12));
+            plugin.Logger.Store.AddRun(new(DateTime.Now, null, null, 7, [new(1, 2, 3)]));
+            TestGame.Set(GameState.Empty);
+            TestFrame.Run(plugin.DrawSettings);
+        }
+        finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
+    }
+
+    [Test]
+    public void SettingsFieldsAreUnchanged()
+    {
+        string[] expected = ["ShowPanel", "PanelX", "PanelY", "TierBase", "RainbowMult", "ChainUpside", "CloseMargin", "UnsureWidthRatio", "PriorLowPercentile", "PriorHighPercentile", "LateDays", "StandardDays", "DoorPrior", "ReplacePrior"];
+        var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
+        Array.Sort(expected);
+        Array.Sort(actual);
+        Check.Equal(string.Join(",", expected), string.Join(",", actual));
+    }
 }

@@ -19,5 +19,5 @@ public sealed class Settings : PluginSettings
     public double[] DoorPrior = [0.418, 0.359, 0.114, 0.092, 0.018, 0];
     public double[] ReplacePrior = [0.422, 0.333, 0.145, 0.073, 0.023, 0.003];
 
-    public override void Draw() => SettingsUI.Draw(this);
+    public override void Draw() { }
 }

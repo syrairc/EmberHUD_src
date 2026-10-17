@@ -30,6 +30,11 @@ public sealed class Main : Plugin<Settings>
         base.Dispose();
     }
 
+    public override void DrawSettings() => Layout.TabBar("tartarus",
+        ("Panel", () => SettingsUI.DrawPanel(Settings)),
+        ("Advice", () => SettingsUI.DrawAdvice(Settings)),
+        ("Inmate log", Logger.DrawPage));
+
     public override void Render()
     {
         if (!Settings.ShowPanel || Advice is not { } advice || _state is not { Choice: { } choice } state) return;
