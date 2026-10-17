@@ -96,7 +96,18 @@ public static class ListEditor
             using var dim = Layout.Dim(opts.FilterText is not null && !Text.Matches(filter, opts.FilterText(i)));
             var rowTop = ImGui.GetCursorPosY();
 
+            ImGui.PushStyleColor(ImGuiCol.Header, 0u);
+            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, ImGui.GetColorU32(ImGuiCol.Button));
+            ImGui.PushStyleColor(ImGuiCol.HeaderActive, ImGui.GetColorU32(ImGuiCol.ButtonHovered));
             if (ImGui.Selectable("##row", selected == i, ImGuiSelectableFlags.AllowOverlap, new Vector2(0, rowH))) selected = i;
+            ImGui.PopStyleColor(3);
+            if (selected == i)
+            {
+                var top = ImGui.GetItemRectMin();
+                var bottom = ImGui.GetItemRectMax();
+                dl.AddRectFilled(top, bottom, ImGui.GetColorU32(ImGuiCol.ButtonHovered));
+                dl.AddRectFilled(top, new Vector2(top.X + 3, bottom.Y), ImGui.GetColorU32(ImGuiCol.CheckMark));
+            }
 
             var movableRow = i >= head && i < movable;
             if (ImGui.IsItemActivated() && movableRow)
