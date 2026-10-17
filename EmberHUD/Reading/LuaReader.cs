@@ -138,17 +138,18 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
-    public LuaEntryRow[] Entries(LuaTable table, int max, out int total)
+    public LuaEntryRow[] Entries(LuaTable table, int max, int skip, string filter, out int total)
     {
         total = 0;
         if (!TryReadHeader(table, out var header)) return [];
 
         var rows = new List<LuaEntryRow>();
         var count = 0;
+        skip = Math.Max(skip, 0);
         void Add(string key, long raw, uint tag)
         {
-            count++;
-            if (rows.Count < max) rows.Add(Describe(key, raw, tag));
+            if (!key.Contains(filter, StringComparison.OrdinalIgnoreCase)) return;
+            if (count++ >= skip && rows.Count < max) rows.Add(Describe(key, raw, tag));
         }
 
         if (header.ArraySize > 0 && memory.TryReadArray(header.Array, (int)header.ArraySize * Offsets.LuaTValueSize, out byte[] array))

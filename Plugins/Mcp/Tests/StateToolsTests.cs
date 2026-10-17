@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Text.Json.Nodes;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -346,6 +349,49 @@ public sealed class StateToolsTests
         var result = Wire.Run(Tools, "get_inventory");
         Check.Equal(false, (bool)result["ready"]!);
         Check.Equal(0, result["items"]!.AsArray().Count);
+    }
+
+    [Test]
+    public void GetInventoryWaitsForTheReader()
+    {
+        try
+        {
+            TestGame.Set(GameState.Empty);
+            var late = Task.Run(() => { Thread.Sleep(200); TestGame.Set(GameState.Empty with { Inventory = Bags }); });
+            var result = Wire.Run(Tools, "get_inventory");
+            late.Wait();
+            Check.Equal(true, (bool)result["ready"]!);
+            Check.Equal(3, result["items"]!.AsArray().Count);
+        }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Test]
+    public void GetInventoryGivesUpWhenTheReaderNeverAnswers()
+    {
+        try
+        {
+            TestGame.Set(GameState.Empty);
+            var clock = Stopwatch.StartNew();
+            var result = Wire.Run(Tools, "get_inventory");
+            Check.That(clock.ElapsedMilliseconds < 1500, "returned");
+            Check.Equal(false, (bool)result["ready"]!);
+            Check.Equal(0, result["items"]!.AsArray().Count);
+        }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Test]
+    public void GetInventoryReturnsAtOnceWhenAlreadyRead()
+    {
+        try
+        {
+            TestGame.Set(GameState.Empty with { Inventory = Bags });
+            var clock = Stopwatch.StartNew();
+            Wire.Run(Tools, "get_inventory");
+            Check.That(clock.ElapsedMilliseconds < 200, "immediate");
+        }
+        finally { TestGame.Set(GameState.Empty); }
     }
 
     [Test]

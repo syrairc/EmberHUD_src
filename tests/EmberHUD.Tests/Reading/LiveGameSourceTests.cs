@@ -38,6 +38,21 @@ public sealed class LiveGameSourceTests : IDisposable
     }
 
     [Fact]
+    public void LuaDumpPassesFilterAndSkip()
+    {
+        var lua = LuaWorld(new FakeWorld());
+        var inner = lua.NewTable(0, 2);
+        lua.SetString(inner, "name", "Gold");
+        lua.SetString(inner, "kind", "Gem");
+        lua.SetTable(lua.Globals, "two", inner);
+
+        Assert.Equal(new LuaEntry("kind", "string", "Gem"), Assert.Single(Lua.Dump("two", 10, 0, "KIN")!.Entries));
+        var skipped = Lua.Dump("two", 10, 1, "")!;
+        Assert.Equal(2, skipped.Total);
+        Assert.Single(skipped.Entries);
+    }
+
+    [Fact]
     public void LuaDumpReportsTheSegmentThatFailed()
     {
         LuaWorld(new FakeWorld());

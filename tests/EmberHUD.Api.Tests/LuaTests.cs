@@ -13,8 +13,8 @@ public sealed class LuaTests : IDisposable
     public void DumpPassesThroughToTheSource()
     {
         var dump = new LuaDump(true, "", [new LuaEntry("name", "string", "Gold")], 1);
-        TestGame.UseLua((path, max) => path == "a.b" && max == 5 ? dump : null);
+        TestGame.UseLua((path, max, skip, filter) => path == "a.b" && max == 5 && skip == 3 && filter == "gold" ? dump : null);
 
-        Assert.Same(dump, Lua.Dump("a.b", 5));
+        Assert.Same(dump, Lua.Dump("a.b", 5, 3, "gold"));
     }
 }

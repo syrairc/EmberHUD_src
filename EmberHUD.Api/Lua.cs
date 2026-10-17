@@ -8,7 +8,7 @@ public sealed record LuaDump(bool Resolved, string FailedAt, LuaEntry[] Entries,
 
 public static class Lua
 {
-    internal static Func<string, int, LuaDump?>? Dumper { get; set; }
+    internal static Func<string, int, int, string, LuaDump?>? Dumper { get; set; }
 
-    public static LuaDump? Dump(string path, int max) => Dumper?.Invoke(path, max);
+    public static LuaDump? Dump(string path, int max, int skip = 0, string filter = "") => Dumper?.Invoke(path, max, skip, filter);
 }
