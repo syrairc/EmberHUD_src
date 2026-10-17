@@ -162,12 +162,12 @@ public sealed class Main : Plugin<Settings>
         _ordered.Sort(DrawOrder);
         foreach (var entity in _ordered)
         {
-            if (gameMode && HasIconAt(entity.Position))
+            if (gameMode && HasIconAt(entity.Position) && ExploredAt(state.Explored, entity.Position.X, entity.Position.Y))
                 continue;
             var row = Settings.Icons.FixedFor(entity);
             if (_iconEntities.Contains(entity.Id))
             {
-                if (gameMode || row is not { OverrideGameIcon: true }) continue;
+                if (row is not { OverrideGameIcon: true } || gameMode && ExploredAt(state.Explored, entity.Position.X, entity.Position.Y)) continue;
                 _overridden.Add(entity.Id);
             }
             if (row is not { Show: true }) continue;
@@ -177,8 +177,8 @@ public sealed class Main : Plugin<Settings>
             Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, colour);
         }
 
-        if (!gameMode)
-            foreach (var icon in state.MapIcons) DrawIcon(icon, map, viewport, zoomScale);
+        foreach (var icon in state.MapIcons)
+            if (!gameMode || !ExploredAt(state.Explored, icon.Position.X, icon.Position.Y)) DrawIcon(icon, map, viewport, zoomScale);
 
         if (!gameMode && state.Player is { } player) DrawPlayer(map.ToScreen(player.Position), map.ToScreenDirection(player.Forward), viewport, zoomScale);
     }
@@ -260,6 +260,20 @@ public sealed class Main : Plugin<Settings>
             if (icon.EntityId != 0) _iconEntities.Add(icon.EntityId);
             _iconCells.Add(Cell(icon.Position.X, icon.Position.Y));
         }
+    }
+
+    internal static bool ExploredAt(ExploredTrail? trail, float x, float y)
+    {
+        if (trail is null || !float.IsFinite(trail.Radius) || trail.Radius <= 0 || !float.IsFinite(x) || !float.IsFinite(y)) return true;
+        var reach = trail.Radius * Region.BrushReach;
+        var reachSquared = reach * reach;
+        for (var i = 0; i < trail.Count; i++)
+        {
+            var dx = trail.Buffer[i].X - x;
+            var dy = trail.Buffer[i].Y - y;
+            if (dx * dx + dy * dy <= reachSquared) return true;
+        }
+        return false;
     }
 
     static (int, int) Cell(float x, float y) => ((int)MathF.Round(x), (int)MathF.Round(y));

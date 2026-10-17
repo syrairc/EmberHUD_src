@@ -716,6 +716,89 @@ public sealed class RenderTests
         }).Contains(Packed(FixedColour)), "non-finite icon position is ignored");
     }
 
+    static readonly ExploredTrail ExploredHere = new([new Vector2(15, 15)], 50);
+    static readonly ExploredTrail ExploredElsewhere = new([new Vector2(500, 500)], 10);
+
+    static bool DrawsFixedRow(ExploredTrail? explored, bool gameMode, bool overrideGameIcon = false)
+    {
+        var scene = GameScene([Portal with { EntityId = 1 }], [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], explored);
+        return Colours(scene, main =>
+        {
+            FixedRare(main, overrideGameIcon);
+            main.Settings.General.UseGameMinimap = gameMode;
+        }).Contains(Packed(FixedColour));
+    }
+
+    [Test]
+    public void GameModeLeavesAnEntityWithAGameIconToTheGameWhereExplored()
+    {
+        Check.That(!DrawsFixedRow(ExploredHere, true), "explored, the game draws it");
+        Check.That(!DrawsFixedRow(ExploredHere, true, overrideGameIcon: true), "explored, even with override");
+    }
+
+    [Test]
+    public void GameModeDrawsAnEntityWithAGameIconWhereUnexplored()
+    {
+        Check.That(!DrawsFixedRow(ExploredElsewhere, true), "unexplored, an icon-backed entity is skipped like toggle off");
+        Check.That(DrawsFixedRow(ExploredElsewhere, true, overrideGameIcon: true), "unexplored, override draws the row");
+        var unlinked = GameScene([Portal], [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)], ExploredElsewhere);
+        Check.That(Colours(unlinked, main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "unexplored, a position-only icon still lets the row draw");
+    }
+
+    [Test]
+    public void GameModeWithoutATrailKeepsLeavingIconEntitiesToTheGame()
+    {
+        Check.That(!DrawsFixedRow(null, true, overrideGameIcon: true));
+        Check.That(DrawsFixedRow(null, false, overrideGameIcon: true), "toggle off, override draws");
+        Check.That(DrawsFixedRow(ExploredElsewhere, false) == DrawsFixedRow(ExploredHere, false), "toggle off ignores the trail");
+    }
+
+    static int IconDraw(ExploredTrail? explored, bool gameMode)
+    {
+        void Configure(Main main) => main.Settings.General.UseGameMinimap = gameMode;
+        return Drawn(GameScene([Portal], explored: explored), configure: Configure) - Drawn(GameScene(explored: explored), configure: Configure);
+    }
+
+    [Test]
+    public void GameModeDrawsMapIconsOnlyInUnexploredGround()
+    {
+        Check.Equal(0, IconDraw(ExploredHere, true));
+        Check.Equal(0, IconDraw(null, true));
+        Check.That(IconDraw(ExploredElsewhere, true) > 0, "fogged icon drawn");
+    }
+
+    [Test]
+    public void ToggleOffDrawsMapIconsWhateverTheTrail()
+    {
+        Check.That(IconDraw(null, false) > 0, "no trail");
+        Check.Equal(IconDraw(null, false), IconDraw(ExploredHere, false));
+        Check.Equal(IconDraw(null, false), IconDraw(ExploredElsewhere, false));
+    }
+
+    [Test]
+    public void ExploredAtIsTrueWithinTheBrushReachOfAnyCountedPoint()
+    {
+        var trail = new ExploredTrail([new Vector2(0, 0), new Vector2(100, 0), new Vector2(1000, 0)], 2, 100);
+
+        Check.That(Main.ExploredAt(trail, 64, 0), "inside 100 * 0.65");
+        Check.That(Main.ExploredAt(trail, 100, 64), "near the second point");
+        Check.That(!Main.ExploredAt(trail, 170, 0), "outside every counted point");
+        Check.That(!Main.ExploredAt(trail, 1000, 0), "the point past the count is ignored");
+    }
+
+    [Test]
+    public void ExploredAtTreatsAMissingOrUnusableTrailAsExplored()
+    {
+        Check.That(Main.ExploredAt(null, 5, 5), "null");
+        Check.That(Main.ExploredAt(new ExploredTrail([new Vector2(500, 500)], 0), 5, 5), "zero radius");
+        Check.That(Main.ExploredAt(new ExploredTrail([new Vector2(500, 500)], float.NaN), 5, 5), "nan radius");
+        Check.That(Main.ExploredAt(new ExploredTrail([new Vector2(500, 500)], 1), float.NaN, 5), "non-finite position");
+    }
+
     [Test]
     public void GameModeStillDrawsAnEntityWithoutAGameIconFromItsFixedRow()
     {
