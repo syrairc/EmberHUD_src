@@ -33,7 +33,7 @@ public sealed class Main : Plugin<Settings>
         {
             if (item.Legendary) continue;
             if (Settings.DebugRects) EmberHUD.Draw.Rect(item.LabelMin, item.LabelMax, Color.Red);
-            foreach (var gem in Gems.Layout(item, Settings)) DrawGem(gem, Settings.GroundTierNumbers);
+            foreach (var gem in Gems.Layout(item, Settings)) DrawGem(gem, Settings.GroundTierNumbers, Settings.GroundNumbers);
         }
     }
 
@@ -62,18 +62,21 @@ public sealed class Main : Plugin<Settings>
             foreach (var cell in cells)
             {
                 if (cell.Slot != item.Slot) continue;
-                foreach (var gem in Gems.CellLayout(cell.Min, cell.Max, item.PrefixIds, item.SuffixIds, Settings)) DrawGem(gem, Settings.InventoryTierNumbers);
+                foreach (var gem in Gems.CellLayout(cell.Min, cell.Max, item.PrefixIds, item.SuffixIds, Settings)) DrawGem(gem, Settings.InventoryTierNumbers, Settings.InventoryNumbers);
                 break;
             }
         }
     }
 
-    void DrawGem(Gems.Gem gem, bool tierNumber)
+    void DrawGem(Gems.Gem gem, bool tierNumber, NumberStyle numbers)
     {
         var style = Settings.Tiers[Math.Clamp(gem.Tier, 0, Settings.Tiers.Count - 1)];
         EmberHUD.Draw.Icon(style.Icon, gem.Centre, gem.Radius, style.Color);
-        if (tierNumber)
-            EmberHUD.Draw.TextOutlined(Math.Min(gem.Tier, 99).ToString(), gem.Centre, Color.White, Color.Black, 1, Align.Center | Align.Middle, Math.Max(MinNumberSize, 1.1f * gem.Radius));
+        if (!tierNumber) return;
+        var text = Math.Min(gem.Tier, 99).ToString();
+        var size = Math.Max(MinNumberSize, 1.1f * gem.Radius) * numbers.Scale;
+        if (numbers.Outline) EmberHUD.Draw.TextOutlined(text, gem.Centre, numbers.Color, Color.Black, 1, Align.Center | Align.Middle, size);
+        else EmberHUD.Draw.Text(text, gem.Centre, numbers.Color, Align.Center | Align.Middle, size);
     }
 
     static PanelKind? OpenKind(GameUi ui)

@@ -1,7 +1,10 @@
+using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
+using Hexa.NET.ImGui;
 
 namespace Pickit;
 
@@ -204,5 +207,87 @@ public sealed class MainTests
         Check.That(one > 0, "normal draws");
         Check.Equal(one, Vertices(plugin, BagState(legendary, Owned(1, [1], []))));
         Check.Equal(one, Vertices(plugin, StashState(legendary, Owned(1, [1], []))));
+    }
+
+    static uint Abgr(Color c) => (uint)(c.A << 24 | c.B << 16 | c.G << 8 | c.R);
+
+    static List<(Vector2 Pos, uint Col)> Drawn(Main plugin, GameState state)
+    {
+        TestGame.Set(state);
+        var drawn = new List<(Vector2, uint)>();
+        TestFrame.Run(() =>
+        {
+            var list = EmberHUD.Draw.Background;
+            var before = list.VtxBuffer.Size;
+            plugin.Render();
+            for (var i = before; i < list.VtxBuffer.Size; i++) drawn.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col));
+        });
+        return drawn;
+    }
+
+    static readonly Color Lime = Color.FromArgb(255, 0, 255, 0);
+
+    static float Height(List<(Vector2 Pos, uint Col)> drawn, Color colour)
+    {
+        var ys = drawn.Where(v => v.Col == Abgr(colour)).Select(v => v.Pos.Y).ToArray();
+        return ys.Length == 0 ? 0 : ys.Max() - ys.Min();
+    }
+
+    [Test]
+    public void GroundNumberColourAndOpacityReachTheText()
+    {
+        var plugin = Plugin();
+        plugin.Settings.GroundTierNumbers = true;
+        Check.Equal(0, Drawn(plugin, WithItem()).Count(v => v.Col == Abgr(Lime)));
+        plugin.Settings.GroundNumbers.Color = Lime;
+        Check.That(Drawn(plugin, WithItem()).Any(v => v.Col == Abgr(Lime)), "colour");
+        var faded = Color.FromArgb(128, 0, 255, 0);
+        plugin.Settings.GroundNumbers.Color = faded;
+        var drawn = Drawn(plugin, WithItem());
+        Check.That(drawn.Any(v => v.Col == Abgr(faded)), "opacity");
+        Check.That(!drawn.Any(v => v.Col == Abgr(Lime)), "no opaque");
+    }
+
+    [Test]
+    public void NumberScaleChangesTheTextSize()
+    {
+        var plugin = Plugin();
+        plugin.Settings.GroundTierNumbers = true;
+        plugin.Settings.GroundNumbers.Color = Lime;
+        var normal = Height(Drawn(plugin, WithItem()), Lime);
+        plugin.Settings.GroundNumbers.Scale = 3;
+        Check.That(Height(Drawn(plugin, WithItem()), Lime) > normal * 2, "scaled");
+    }
+
+    [Test]
+    public void OutlineOffDrawsFewerVertices()
+    {
+        var plugin = Plugin();
+        plugin.Settings.GroundTierNumbers = true;
+        var outlined = Drawn(plugin, WithItem()).Count;
+        plugin.Settings.GroundNumbers.Outline = false;
+        var plain = Drawn(plugin, WithItem()).Count;
+        Check.That(plain < outlined, "ground");
+        plugin.Settings.InventoryTierNumbers = true;
+        var bag = BagState(Owned(0, [1], []));
+        var bagOutlined = Drawn(plugin, bag).Count;
+        plugin.Settings.InventoryNumbers.Outline = false;
+        Check.That(Drawn(plugin, bag).Count < bagOutlined, "inventory");
+    }
+
+    [Test]
+    public void GroundAndInventoryNumberStylesAreIndependent()
+    {
+        var plugin = Plugin();
+        plugin.Settings.GroundTierNumbers = true;
+        plugin.Settings.InventoryTierNumbers = true;
+        plugin.Settings.GroundNumbers.Color = Lime;
+        Check.That(Drawn(plugin, WithItem()).Any(v => v.Col == Abgr(Lime)), "ground styled");
+        Check.That(!Drawn(plugin, BagState(Owned(0, [1], []))).Any(v => v.Col == Abgr(Lime)), "bag unaffected");
+        plugin.Settings.GroundNumbers.Color = Color.White;
+        plugin.Settings.InventoryNumbers.Color = Lime;
+        Check.That(!Drawn(plugin, WithItem()).Any(v => v.Col == Abgr(Lime)), "ground unaffected");
+        Check.That(Drawn(plugin, BagState(Owned(0, [1], []))).Any(v => v.Col == Abgr(Lime)), "bag styled");
+        Check.That(Drawn(plugin, StashState(Owned(0, [1], []))).Any(v => v.Col == Abgr(Lime)), "stash styled");
     }
 }

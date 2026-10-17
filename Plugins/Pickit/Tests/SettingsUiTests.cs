@@ -61,4 +61,25 @@ public sealed class SettingsUiTests
         Check.Equal(1f, settings.GroundScale);
         Check.Equal(1f, settings.InventoryScale);
     }
+
+    [Test]
+    public void NormalizeClampsNumberStyles()
+    {
+        var settings = new Settings { GroundNumbers = null!, InventoryNumbers = new NumberStyle { Scale = 50 } };
+        settings.Normalize();
+        Check.Equal(1f, settings.GroundNumbers.Scale);
+        Check.Equal(3f, settings.InventoryNumbers.Scale);
+        settings.GroundNumbers.Scale = 0.01f;
+        settings.InventoryNumbers.Scale = float.NaN;
+        settings.Normalize();
+        Check.Equal(0.5f, settings.GroundNumbers.Scale);
+        Check.Equal(1f, settings.InventoryNumbers.Scale);
+    }
+
+    [Test]
+    public void NumberStyleControlsDrawWhenTheToggleIsOn()
+    {
+        var settings = new Settings { GroundTierNumbers = true, InventoryTierNumbers = true };
+        TestFrame.Run(settings.Draw);
+    }
 }

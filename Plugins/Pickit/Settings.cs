@@ -13,6 +13,13 @@ public sealed class TierStyle
     public float Scale = 1;
 }
 
+public sealed class NumberStyle
+{
+    public Color Color = Color.White;
+    public float Scale = 1;
+    public bool Outline = true;
+}
+
 public sealed class Settings : PluginSettings
 {
     public bool HoldKeyEnabled = true;
@@ -31,6 +38,8 @@ public sealed class Settings : PluginSettings
     public float InventoryScale = 1;
     public bool GroundTierNumbers = false;
     public bool InventoryTierNumbers = false;
+    public NumberStyle GroundNumbers = new();
+    public NumberStyle InventoryNumbers = new();
     public bool DebugRects = false;
 
     public const int TierCount = 10;
@@ -50,6 +59,8 @@ public sealed class Settings : PluginSettings
         InsetX = Clamp(InsetX, 0, 200, 0);
         GroundScale = Clamp(GroundScale, 0.25f, 3, 1);
         InventoryScale = Clamp(InventoryScale, 0.25f, 3, 1);
+        GroundNumbers = Normalized(GroundNumbers);
+        InventoryNumbers = Normalized(InventoryNumbers);
         Tiers = [.. (Tiers ?? []).Take(TierCount).Select((t, i) => t ?? DefaultTier(i))];
         while (Tiers.Count < TierCount) Tiers.Add(DefaultTier(Tiers.Count));
         foreach (var tier in Tiers)
@@ -57,6 +68,13 @@ public sealed class Settings : PluginSettings
             tier.Icon ??= "svg:gem";
             tier.Scale = Clamp(tier.Scale, 0.1f, 10, 1);
         }
+    }
+
+    static NumberStyle Normalized(NumberStyle? style)
+    {
+        style ??= new();
+        style.Scale = Clamp(style.Scale, 0.5f, 3, 1);
+        return style;
     }
 
     static float Clamp(float value, float min, float max, float fallback) => float.IsFinite(value) ? Math.Clamp(value, min, max) : fallback;
