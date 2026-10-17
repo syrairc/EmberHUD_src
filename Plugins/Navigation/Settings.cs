@@ -4,11 +4,15 @@ using EmberHUD.Ui;
 
 namespace NavigationPlugin;
 
+public enum GroundShape { Streak, Chevron, Dot }
+
 public sealed class GeneralTab
 {
     public bool Show = true;
     public bool Ground = true;
     public bool Minimap = true;
+    public bool AvoidMapObjects = true;
+    public float ObjectRadius = 110;
 }
 
 public sealed class SurfaceStyle
@@ -40,32 +44,37 @@ public sealed class LegendTab
     public TextStyle Text = TextStyle.Hud();
 }
 
-public sealed class LabelsTab
+public sealed class CompassTab
 {
-    public bool Show;
-    public float AlongDistance = 600;
-    public float SideOffset = 120;
-    public bool ShowDistance = true;
-    public TextStyle Label = TextStyle.WorldLabel();
+    public bool Show = true;
+    public float Radius = 250;
+    public float Size = 80;
+    public float Opacity = 0.9f;
+    public float Lookahead = 600;
 }
 
 public sealed class Settings : PluginSettings
 {
     public GeneralTab General = new();
+    public GroundShape GroundShape = GroundShape.Streak;
     public SurfaceStyle GroundStyle = new() { Size = 25, Spacing = 250, Speed = 400, Trail = 200, BaseLine = 2 };
     public SurfaceStyle MinimapStyle = new();
     public LegendTab Legend = new();
-    public LabelsTab Labels = new();
+    public CompassTab Compass = new();
 
     public override void Draw() => Layout.TabBar("navigation",
         ("General", DrawGeneral),
         ("Ground", DrawGround),
         ("Minimap", DrawMinimap),
+        ("Compass", DrawCompass),
         ("Legend", DrawLegend),
-        ("Labels", DrawLabels),
         ("Hotkeys", Controls.PluginHotkeys));
 
-    internal void DrawGround() => DrawStyle("Ground", GroundStyle, "Particle radius in world units");
+    internal void DrawGround()
+    {
+        Setting.Choice("Shape", ref GroundShape, "Streak = glowing comet, Chevron = flat arrowhead, Dot = round particle. All lie flat on the ground", id: "GroundShape");
+        DrawStyle("Ground", GroundStyle, "Size of the shape in world units");
+    }
 
     internal void DrawMinimap() => DrawStyle("Minimap", MinimapStyle, "Particle radius in pixels");
 
@@ -81,20 +90,22 @@ public sealed class Settings : PluginSettings
         Setting.Style("Text", Legend.Text);
     }
 
-    internal void DrawLabels()
+    internal void DrawCompass()
     {
-        Setting.Checkbox("Show", ref Labels.Show, "A name tag floating beside each path on the ground", id: "LabelsShow");
-        Setting.Slider("Along distance", ref Labels.AlongDistance, 0, 3000, "World units along the path from you", id: "LabelsAlong");
-        Setting.Slider("Side offset", ref Labels.SideOffset, -500, 500, "World units sideways from the path, negative = other side", id: "LabelsSide");
-        Setting.Checkbox("Show distance", ref Labels.ShowDistance, "Append the path length to the name", id: "LabelsDistance");
-        Setting.Style("Label", Labels.Label);
+        Setting.Checkbox("Show", ref Compass.Show, "A ring of arrows around you, one per objective in its path colour, pointing along the route (dimmed when no path was found)", id: "CompassShow");
+        Setting.Slider("Radius", ref Compass.Radius, 50, 1000, "World units from you to the arrows, also the distance from an objective where its arrow hides", id: "CompassRadius");
+        Setting.Slider("Size", ref Compass.Size, 10, 300, "Length of each arrow in world units", id: "CompassSize");
+        Setting.Slider("Opacity", ref Compass.Opacity, 0.05f, 1, "How solid the arrows are", id: "CompassOpacity");
+        Setting.Slider("Lookahead", ref Compass.Lookahead, 1, 3000, "World units along the route the arrows aim at, so they follow bends instead of pointing straight at the objective", id: "CompassLookahead");
     }
 
     internal void DrawGeneral()
     {
-        Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and labels included", id: "GeneralShow");
+        Setting.Checkbox("Show", ref General.Show, "Master switch for everything this plugin draws, the legend and compass included", id: "GeneralShow");
         Setting.Checkbox("Ground", ref General.Ground, "Particles flow along the path on the ground in the game world");
         Setting.Checkbox("Minimap", ref General.Minimap, "Particles flow along the path on the Minimap plugin's map");
+        Setting.Checkbox("Avoid map objects", ref General.AvoidMapObjects, "Map objects such as the road blockers are invisible to the walkability grid, so each one is treated as a disc the route goes around. Off = ignore them", id: "AvoidMapObjects");
+        Setting.Slider("Object radius", ref General.ObjectRadius, 0, 400, "How wide the disc around each map object is, in world units. 0 = ignore map objects", id: "ObjectRadius");
     }
 
     static void DrawStyle(string name, SurfaceStyle style, string sizeTip)
