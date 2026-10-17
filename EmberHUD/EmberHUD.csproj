@@ -23,6 +23,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Offsets\offsets.bin" LogicalName="t" />
     <EmbeddedResource Include="Icons\*.svg" LogicalName="icon:%(Filename)" />
+    <EmbeddedResource Include="Reading\invulnerable.txt" LogicalName="invulnerable" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="EmberHUD.Tests" />

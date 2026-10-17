@@ -155,7 +155,7 @@ public sealed class Main : Plugin<Settings>
             if (row is not { Show: true }) continue;
             var at = map.ToScreen(entity.Position);
             if (!Visible(at, at, viewport)) continue;
-            var colour = entity.Hidden && Settings.Icons.FadeHidden ? Color.FromArgb(row.Colour.A / 2 + row.Colour.A % 2, row.Colour) : row.Colour;
+            var colour = entity.Hidden && Settings.Icons.FadeHidden || entity.Invulnerable && Settings.Icons.FadeInvulnerable ? Color.FromArgb(row.Colour.A / 2 + row.Colour.A % 2, row.Colour) : row.Colour;
             Draw.Icon(row.Icon, at, MarkerRadius * row.Scale * zoomScale, colour);
         }
 

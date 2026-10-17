@@ -99,6 +99,8 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public bool Friendly { get; init; }
 
     public bool Hidden { get; init; }
+
+    public bool Invulnerable { get; init; }
 }
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)

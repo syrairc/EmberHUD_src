@@ -73,6 +73,8 @@ public sealed class IconsTab
     public float GameIconScale = 1;
     public bool ScaleWithZoom = true;
     public bool FadeHidden = true;
+
+    public bool FadeInvulnerable = true;
     public float ZoomScaleFactor = 0.5f;
     public float ZoomScaleMin = 0.5f;
     public float ZoomScaleMax = 2;
@@ -239,6 +241,7 @@ public sealed class Settings : PluginSettings
         var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
         changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
         changed |= Setting.Checkbox("Fade hidden monsters", ref Icons.FadeHidden, "Draw buried or hidden monsters at half opacity");
+        changed |= Setting.Checkbox("Fade invulnerable monsters", ref Icons.FadeInvulnerable, "Draw monsters that cannot be damaged (e.g. turrets) at half opacity");
         changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
         changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
         changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");

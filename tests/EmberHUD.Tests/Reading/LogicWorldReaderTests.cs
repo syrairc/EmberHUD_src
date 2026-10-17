@@ -495,6 +495,19 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void MonstersInTheInvulnerableListAreMarkedInvulnerable()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 2191020, role: 1),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 2191030, role: 1),
+            world.AddEntity(3, 48, true, 3, 3, 0, monsterCfgId: 1180001, role: 1),
+            world.AddEntity(4, 2191020, true, 4, 4, 0, mapOffset: Offsets.FightMapNpc));
+        var reader = ReaderFor(world);
+        Assert.Equal([true, true, false, false], Tick(reader).OrderBy(e => e.Id).Select(e => e.Invulnerable));
+    }
+
+    [Fact]
     public void MonstersWithTheActorHiddenBitAreMarkedHidden()
     {
         var world = new FakeWorld();

@@ -469,6 +469,36 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void InvulnerableMonstersFadeByHalfWhenTheOptionIsOn()
+    {
+        var terrain = Scene.OneCell();
+        var rare = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var asked = new List<int>();
+        TestGame.UseSvgIcons((_, _, colour, _) =>
+        {
+            asked.Add(colour.A);
+            return Ready;
+        });
+        try
+        {
+            int AlphaOf(Entity entity, bool fade)
+            {
+                asked.Clear();
+                Drawn(Scene.State(entities: [entity], terrain: terrain), configure: main => main.Settings.Icons.FadeInvulnerable = fade);
+                return asked[^1];
+            }
+
+            Check.Equal(255, AlphaOf(rare, true));
+            Check.Equal(128, AlphaOf(rare with { Invulnerable = true }, true));
+            Check.Equal(255, AlphaOf(rare with { Invulnerable = true }, false));
+        }
+        finally
+        {
+            TestGame.UseSvgIcons(null);
+        }
+    }
+
+    [Test]
     public void HiddenMonstersFadeByHalfWhenTheOptionIsOn()
     {
         var terrain = Scene.OneCell();

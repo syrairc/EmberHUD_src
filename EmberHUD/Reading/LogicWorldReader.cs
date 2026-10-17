@@ -308,7 +308,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         if (kind == EntityKind.Monster)
             TryReadStat(role, Offsets.RoleLifeMax, false, out life, out maxLife);
         var hidden = kind == EntityKind.Monster && memory.TryRead(value + Offsets.ActorFlags, out byte actorFlags) && (actorFlags & Offsets.ActorHiddenMask) != 0;
-        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId), Hidden = hidden };
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId), Hidden = hidden, Invulnerable = kind == EntityKind.Monster && InvulnerableMonsters.Ids.Contains(cfgId) };
         return true;
     }
 
