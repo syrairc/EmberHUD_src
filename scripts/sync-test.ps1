@@ -1,4 +1,4 @@
-param([string]$Dist = 'E:\EmberHUD\dist', [string]$Test = 'E:\EmberHUD\test')
+param([string]$Dist = "$PSScriptRoot\..\..\dist", [string]$Test = "$PSScriptRoot\..\..\test")
 
 $running = Get-Process Ember -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Test\*" }
 if ($running) { throw "Ember.exe is running from $Test - close it first, a partial copy leaves old host dlls next to new plugins" }

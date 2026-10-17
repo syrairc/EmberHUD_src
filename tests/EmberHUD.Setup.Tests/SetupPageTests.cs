@@ -17,7 +17,7 @@ public class SetupPageTests
     public void FirstRunPrefillsPoeAndDraws()
     {
         using var temp = new TempDir();
-        var page = Page(temp.Path, "POE", "jessi");
+        var page = Page(temp.Path, "POE", "alice");
         Assert.Equal("POE", page.Config.RunAsUser);
         Assert.Equal("", page.Config.GameDirectory);
         TestFrame.Run(page.Draw);
@@ -28,9 +28,9 @@ public class SetupPageTests
     public void LoadsAnExistingConfig()
     {
         using var temp = new TempDir();
-        new LauncherConfig { RunAsUser = "jessi", LaunchEmberHUD = false, Programs = [new LauncherProgram { Path = @"C:\Tools\obs64.exe" }] }.Save(Path.Combine(temp.Path, "Config", "launcher.json"));
+        new LauncherConfig { RunAsUser = "alice", LaunchEmberHUD = false, Programs = [new LauncherProgram { Path = @"C:\Tools\obs64.exe" }] }.Save(Path.Combine(temp.Path, "Config", "launcher.json"));
         var page = Page(temp.Path, "POE");
-        Assert.Equal("jessi", page.Config.RunAsUser);
+        Assert.Equal("alice", page.Config.RunAsUser);
         Assert.False(page.Config.LaunchEmberHUD);
         TestFrame.Run(page.Draw);
     }
