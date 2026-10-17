@@ -20,6 +20,7 @@ internal sealed class LiveReader
     private readonly InventoryReader? _inventory;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
+    private readonly ProjectileReader _projectiles;
     private readonly HpBarReader _hpBars;
     private int _generation;
     private Vector3? _anchor;
@@ -41,6 +42,7 @@ internal sealed class LiveReader
         _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
         _woodStake = new WoodStakeReader(memory, moduleBase);
         _casts = new CastReader(memory, moduleBase);
+        _projectiles = new ProjectileReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
         _generation = firstAreaId;
@@ -96,6 +98,7 @@ internal sealed class LiveReader
             AreaId = _terrain.Generation,
             Player = player,
             Entities = entities,
+            Projectiles = Game.ProjectilesWanted(Stopwatch.GetTimestamp(), Offsets.ProjectileWantedSeconds) ? _projectiles.Read(entities) : [],
             Terrain = terrain,
             MinimapRotation = rotation,
             GameMinimap = _minimap.ReadGameMinimap(),

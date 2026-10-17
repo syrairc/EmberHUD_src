@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using EmberHUD.Testing;
+using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
@@ -15,6 +16,24 @@ public sealed class GroundTests
         TestGame.Set(new GameState { Camera = camera, Player = player });
         return TestFrame.Vertices(draw);
     }
+
+    static (Vector2 Pos, uint Col)[] Drawn(Camera? camera, Action draw)
+    {
+        TestGame.Set(new GameState { Camera = camera });
+        (Vector2, uint)[] result = [];
+        TestFrame.Run(() =>
+        {
+            var list = ImGui.GetBackgroundDrawList();
+            var before = list.VtxBuffer.Size;
+            draw();
+            result = [.. Enumerable.Range(before, list.VtxBuffer.Size - before).Select(i => (list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col))];
+        });
+        return result;
+    }
+
+    static float Alpha(uint colour) => colour >> 24;
+
+    static float MaxAlpha(IEnumerable<(Vector2 Pos, uint Col)> vertices) => vertices.Max(v => Alpha(v.Col));
 
     static List<Vector2[]> Runs(Camera camera, bool closed, params Vector3[] world)
     {
@@ -201,5 +220,104 @@ public sealed class GroundTests
     {
         Assert.Equal(0, Vertices(Looking, () => Ground.Polyline([Vector2.Zero], Color.Red)));
         Assert.Equal(0, Vertices(Looking, () => Ground.PolygonFilled([Vector2.Zero, Vector2.One], Color.Red)));
+    }
+
+    [Fact]
+    public void AGradientLineFadesTowardsTheEnd()
+    {
+        var vertices = Drawn(Forward, () => Ground.GradientLine(new Vector2(500, -100), new Vector2(500, 100), Color.FromArgb(255, Color.Red), Color.FromArgb(0, Color.Red), 3, 0));
+
+        var quarter = vertices.Length / 4;
+        Assert.True(MaxAlpha(vertices.Take(quarter)) > MaxAlpha(vertices.TakeLast(quarter)));
+    }
+
+    [Fact]
+    public void ADashedLineDrawsOneSegmentPerDash()
+    {
+        var solid = Vertices(Forward, () => Ground.Line(new Vector2(500, 0), new Vector2(500, 10), Color.Red, 2, 0));
+        var dashed = Vertices(Forward, () => Ground.DashedLine(new Vector2(500, 0), new Vector2(500, 100), Color.Red, 2, 10, 10, 0, 0));
+
+        Assert.Equal(solid * 5, dashed);
+    }
+
+    [Fact]
+    public void ThePhaseSlidesTheDashesAlongTheLine()
+    {
+        float[] Xs(float phase) => [.. Drawn(Forward, () => Ground.DashedLine(new Vector2(500, 0), new Vector2(500, 100), Color.Red, 2, 10, 10, phase, 0)).Select(v => v.Pos.X)];
+
+        var (start, shifted) = (Xs(0), Xs(10));
+
+        Assert.True(shifted.Min() > start.Min() + 10);
+        Assert.True(shifted.Max() > start.Max() + 10);
+    }
+
+    [Fact]
+    public void ANegativePhaseSlidesTheDashesTheOtherWay()
+    {
+        float[] Xs(float phase) => [.. Drawn(Forward, () => Ground.DashedLine(new Vector2(500, 0), new Vector2(500, 100), Color.Red, 2, 10, 10, phase, 0)).Select(v => v.Pos.X)];
+
+        Assert.True(Xs(-5).Min() < Xs(5).Min());
+        Assert.True(Xs(-5).Max() > Xs(5).Max());
+        Assert.Equal(Xs(10), Xs(-10));
+        Assert.Equal(Xs(5), Xs(25));
+        Assert.Equal(Xs(-5), Xs(15));
+    }
+
+    [Fact]
+    public void ADashedLineWithoutALengthOrACameraDrawsNothing()
+    {
+        Assert.Equal(0, Vertices(null, () => Ground.DashedLine(Vector2.Zero, new Vector2(100, 0), Color.Red, 2, 10, 10)));
+        Assert.Equal(0, Vertices(Looking, () => Ground.DashedLine(Vector2.Zero, Vector2.Zero, Color.Red, 2, 10, 10)));
+        Assert.Equal(0, Vertices(Looking, () => Ground.DashedLine(Vector2.Zero, new Vector2(100, 0), Color.Red, 2, 0, 10)));
+    }
+
+    [Fact]
+    public void TextLiesOnTheGround()
+    {
+        var drawn = false;
+        var vertices = Drawn(Looking, () => drawn = Ground.Text("MMMMMMMM", Vector2.Zero, 100, 0, Color.White, 0));
+
+        Assert.True(drawn);
+        var centre = Looking.ToScreen(Vector3.Zero, Screen)!.Value;
+        Assert.Equal(centre.X, (vertices.Min(v => v.Pos.X) + vertices.Max(v => v.Pos.X)) / 2, 10f);
+        Assert.InRange(centre.Y, vertices.Min(v => v.Pos.Y), vertices.Max(v => v.Pos.Y));
+        var rows = vertices.OrderBy(v => v.Pos.Y).ToArray();
+        var quarter = rows.Length / 4;
+        float Span(IEnumerable<(Vector2 Pos, uint Col)> part) => part.Max(v => v.Pos.X) - part.Min(v => v.Pos.X);
+        Assert.True(Span(rows.Take(quarter)) < Span(rows.TakeLast(quarter)));
+    }
+
+    [Fact]
+    public void TextBehindTheCameraDrawsNothing()
+    {
+        var drawn = true;
+
+        Assert.Empty(Drawn(Forward, () => drawn = Ground.Text("Hello", new Vector2(-1000, 0), 100, 0, Color.White, 0)));
+        Assert.False(drawn);
+    }
+
+    [Fact]
+    public void TextCrossingTheNearPlaneAddsNothing()
+    {
+        TestGame.Set(new GameState { Camera = Forward });
+        TestFrame.Run(() =>
+        {
+            var list = ImGui.GetBackgroundDrawList();
+            Draw.Text("before", new Vector2(10, 10), Color.White);
+            var (vtx, idx, cmds) = (list.VtxBuffer.Size, list.IdxBuffer.Size, list.CmdBuffer.Size);
+
+            Assert.False(Ground.Text("Hello", Vector2.Zero, 4000, 0, Color.White, 0));
+
+            Assert.Equal((vtx, idx, cmds), (list.VtxBuffer.Size, list.IdxBuffer.Size, list.CmdBuffer.Size));
+            Draw.Text("after", new Vector2(10, 40), Color.White);
+            Assert.True(list.VtxBuffer.Size > vtx);
+        });
+    }
+
+    [Fact]
+    public void TextWithoutACameraOrContentDrawsNothing()
+    {
+        Assert.Equal(0, Vertices(null, () => Assert.False(Ground.Text("Hello", Vector2.Zero, 100, 0, Color.White, 0))));
+        Assert.Equal(0, Vertices(Looking, () => Assert.False(Ground.Text("", Vector2.Zero, 100, 0, Color.White, 0))));
     }
 }

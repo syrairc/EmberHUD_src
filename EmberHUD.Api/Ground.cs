@@ -12,6 +12,8 @@ public static class Ground
 
     const int CircleSegments = 48;
     const int DotSegments = 12;
+    const int GradientSegments = 24;
+    const int MaxDashes = 2000;
 
     static readonly List<Vector3> WorldPoints = [];
     static readonly List<Vector3> ClippedPoints = [];
@@ -59,6 +61,62 @@ public static class Ground
     public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null) =>
         Polyline([a, b], color, thickness, false, z, list);
 
+    public static void GradientLine(Vector2 from, Vector2 to, Color start, Color end, float thickness = 1, float? z = null, ImDrawListPtr? list = null)
+    {
+        for (var i = 0; i < GradientSegments; i++)
+        {
+            var t = (i + 0.5f) / GradientSegments;
+            var color = Color.FromArgb(Mix(start.A, end.A, t), Mix(start.R, end.R, t), Mix(start.G, end.G, t), Mix(start.B, end.B, t));
+            Line(Vector2.Lerp(from, to, i / (float)GradientSegments), Vector2.Lerp(from, to, (i + 1) / (float)GradientSegments), color, thickness, z, list);
+        }
+    }
+
+    public static void DashedLine(Vector2 from, Vector2 to, Color color, float thickness, float dash, float gap, float phase = 0, float? z = null, ImDrawListPtr? list = null)
+    {
+        var length = Vector2.Distance(from, to);
+        var period = dash + gap;
+        if (length <= 0 || dash <= 0 || gap < 0 || length / period > MaxDashes || !float.IsFinite(phase)) return;
+        var direction = (to - from) / length;
+        var offset = (phase % period + period) % period;
+        for (var start = offset - period; start < length; start += period)
+        {
+            var (a, b) = (MathF.Max(start, 0), MathF.Min(start + dash, length));
+            if (b > a) Line(from + direction * a, from + direction * b, color, thickness, z, list);
+        }
+    }
+
+    public static unsafe bool Text(string text, Vector2 centre, float worldHeight, float rotationDegrees, Color color, float? z = null, ImDrawListPtr? list = null)
+    {
+        if (text.Length == 0 || worldHeight <= 0 || !TryFrame(out var camera, out var viewport)) return false;
+        var size = Draw.MeasureText(text);
+        if (size.Y <= 0) return false;
+        var target = list ?? Draw.Background;
+        var height = HeightOrPlayer(z);
+        var scale = worldHeight / size.Y;
+        var (sin, cos) = MathF.SinCos(rotationDegrees * MathF.PI / 180);
+        bool TryProject(Vector2 pos, out Vector2 screen)
+        {
+            var local = (pos - size / 2) * scale;
+            var world = new Vector3(centre + new Vector2(local.X * cos - local.Y * sin, local.X * sin + local.Y * cos), height);
+            screen = default;
+            if (camera.Depth(world) < Near || camera.ToScreen(world, viewport) is not { } projected) return false;
+            screen = projected;
+            return true;
+        }
+
+        if (!TryProject(Vector2.Zero, out _) || !TryProject(new Vector2(size.X, 0), out _) || !TryProject(size, out _) || !TryProject(new Vector2(0, size.Y), out _)) return false;
+        var vertices = target.VtxBuffer.Size;
+        Draw.Text(text, Vector2.Zero, color, Align.TopLeft, list: target);
+        var raw = target.Handle;
+        for (var i = vertices; i < raw->VtxBuffer.Size; i++)
+        {
+            if (TryProject(raw->VtxBuffer.Data[i].Pos, out var screen)) raw->VtxBuffer.Data[i].Pos = screen;
+            else raw->VtxBuffer.Data[i].Col = 0;
+        }
+
+        return raw->VtxBuffer.Size > vertices;
+    }
+
     public static void Polyline(ReadOnlySpan<Vector2> points, Color color, float thickness = 1, bool closed = false, float? z = null, ImDrawListPtr? list = null)
     {
         if (points.Length < 2 || !TryFrame(out var camera, out var viewport)) return;
@@ -76,6 +134,8 @@ public static class Ground
             if (camera.ToScreen(point, viewport) is { } at) ScreenPoints.Add(at);
         Draw.ConvexPolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), color, list);
     }
+
+    static int Mix(int a, int b, float t) => (int)MathF.Round(a + (b - a) * t);
 
     internal static float HeightOrPlayer(float? z) => z ?? Game.State.Player?.Position.Z ?? 0;
 

@@ -1,25 +1,48 @@
 using System.Drawing;
 using EmberHUD;
-using EmberHUD.Ui;
 
 namespace Threats;
 
-public sealed class Settings : PluginSettings
+public enum LineStyle { Solid, Gradient, Animated }
+
+public sealed partial class Settings : PluginSettings
 {
     public bool Show = true;
     public bool HideBehindPanels = true;
-    public float WorldRadius = 100;
-    public float Thickness = 2;
-    public Color Colour = Color.FromArgb(220, 255, 80, 40);
 
-    public override void Draw()
+    public bool TelegraphNormal;
+    public bool TelegraphMagic;
+    public bool TelegraphRare = true;
+    public bool TelegraphBoss = true;
+    public bool LinesNormal;
+    public bool LinesMagic;
+    public bool LinesRare = true;
+    public bool LinesBoss = true;
+
+    public float PlaceholderRadius = 250;
+    public Color TelegraphColour = Color.FromArgb(230, 255, 70, 30);
+    public Color TelegraphFillColour = Color.FromArgb(255, 255, 140, 30);
+    public float FillOpacity = 0.45f;
+    public bool ShowCountdown = true;
+    public float CountdownSize = 120;
+
+    public LineStyle Style = LineStyle.Gradient;
+    public float LineLength = 1500;
+    public float LineWidth = 4;
+    public float RadiusScale = 0.25f;
+    public Color LineColour = Color.FromArgb(230, 60, 220, 255);
+    public float AnimationSpeed = 600;
+
+    public Color DangerColour = Color.FromArgb(255, 255, 40, 120);
+    public bool MoveAlert;
+    public string MoveAlertText = "MOVE";
+    public float MoveAlertSize = 48;
+
+    public bool Allows(Rarity rarity, bool telegraphs) => rarity switch
     {
-        Setting.Checkbox("Show rings", ref Show);
-        Setting.Checkbox("Hide behind full screen panels", ref HideBehindPanels);
-        Setting.Slider("World radius", ref WorldRadius, 20, 500);
-        Setting.Slider("Thickness", ref Thickness, 1, 6);
-        Setting.Color("Colour", ref Colour);
-        Controls.Section("Hotkeys");
-        Controls.PluginHotkeys();
-    }
+        Rarity.Normal => telegraphs ? TelegraphNormal : LinesNormal,
+        Rarity.Magic => telegraphs ? TelegraphMagic : LinesMagic,
+        Rarity.Rare => telegraphs ? TelegraphRare : LinesRare,
+        _ => telegraphs ? TelegraphBoss : LinesBoss,
+    };
 }

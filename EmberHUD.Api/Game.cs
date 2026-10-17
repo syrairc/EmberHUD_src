@@ -9,6 +9,7 @@ public static class Game
     static long _combatAsked;
     static long _inventoryAsked;
     static long _castsAsked;
+    static long _projectilesAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -56,6 +57,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantProjectiles() => Interlocked.Exchange(ref _projectilesAsked, Stopwatch.GetTimestamp());
+
+    internal static long ProjectilesAsked
+    {
+        get => Interlocked.Read(ref _projectilesAsked);
+        set => Interlocked.Exchange(ref _projectilesAsked, value);
+    }
+
+    internal static bool ProjectilesWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _projectilesAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -76,6 +91,8 @@ public sealed record GameState
     public Player? Player { get; init; }
 
     public Entity[] Entities { get; init; } = [];
+
+    public Projectile[] Projectiles { get; init; } = [];
 
     public Terrain? Terrain { get; init; }
 
@@ -151,6 +168,8 @@ public readonly record struct Cast(int StoneId, byte State, float Progress, floa
 {
     public string Name { get; init; } = "";
 }
+
+public readonly record struct Projectile(int Id, int OwnerId, Rarity OwnerRarity, Vector2 Position, Vector2 Origin, Vector2 Direction, float Radius, float Speed);
 
 public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)
 {

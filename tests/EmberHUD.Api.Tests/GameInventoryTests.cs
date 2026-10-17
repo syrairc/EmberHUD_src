@@ -31,3 +31,21 @@ public class GameCastsTests
         Assert.False(Game.CastsWanted(now + 4 * Stopwatch.Frequency, 3));
     }
 }
+
+public class GameProjectilesTests
+{
+    [Fact]
+    public void DefaultStateHasNoProjectiles()
+    {
+        Assert.Empty(GameState.Empty.Projectiles);
+    }
+
+    [Fact]
+    public void WantProjectilesMarksProjectilesWanted()
+    {
+        Game.WantProjectiles();
+        var now = Stopwatch.GetTimestamp();
+        Assert.True(Game.ProjectilesWanted(now, 3));
+        Assert.False(Game.ProjectilesWanted(now + 4 * Stopwatch.Frequency, 3));
+    }
+}

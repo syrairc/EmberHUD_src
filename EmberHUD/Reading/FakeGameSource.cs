@@ -7,6 +7,7 @@ namespace EmberHUD.Host.Reading;
 internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 {
     private const float CastSeconds = 3f;
+    private const float ProjectileSeconds = 1.5f;
     private const float LapSeconds = 20f;
     private const float WalkRadius = 300f;
     private const float OuterRadius = 900f;
@@ -69,6 +70,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             AreaId = 1,
             Player = player,
             Entities = Game.CastsWanted(now, Offsets.CastWantedSeconds) ? CastingAt(now) : SceneEntities,
+            Projectiles = Game.ProjectilesWanted(now, Offsets.ProjectileWantedSeconds) ? ProjectilesAt(now, new Vector2(player.Position.X, player.Position.Y)) : [],
             Terrain = SceneTerrain,
             MinimapRotation = -90,
             MapIcons = SceneIcons,
@@ -175,6 +177,23 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
                 walkable[row * Cells + col] = distance is >= InnerRadius and <= OuterRadius && !blocked;
             }
         return terrain;
+    }
+
+    private static Projectile[] ProjectilesAt(long now, Vector2 player)
+    {
+        var shooter = SceneEntities.First(e => e.Kind == EntityKind.Monster && e.Rarity == Rarity.Boss);
+        var origin = new Vector2(shooter.Position.X, shooter.Position.Y);
+        var travel = (float)(now / (double)Stopwatch.Frequency % ProjectileSeconds / ProjectileSeconds);
+        return
+        [
+            .. new[] { 0f, 450f }.Select((miss, i) =>
+            {
+                var aim = Vector2.Normalize(player - origin);
+                var end = player + new Vector2(-aim.Y, aim.X) * miss;
+                var direction = Vector2.Normalize(end - origin);
+                return new Projectile(9000 + i, shooter.Id, shooter.Rarity, origin + (end - origin) * travel, origin, direction, 120, 1500);
+            }),
+        ];
     }
 
     private static Entity[] CastingAt(long now) =>
