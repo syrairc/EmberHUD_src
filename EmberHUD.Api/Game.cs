@@ -332,7 +332,11 @@ public readonly record struct Skill(int CfgId, int Slot, double CooldownRemainin
     public bool Ready => CooldownRemaining <= 0;
 }
 
-public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type);
+public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type)
+{
+    public int[] PrefixIds { get; init; } = [];
+    public int[] SuffixIds { get; init; } = [];
+}
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 
