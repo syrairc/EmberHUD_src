@@ -85,4 +85,17 @@ public sealed class MainTests
         Check.Equal(2, sent.Count);
         Check.Equal(Key.D2, sent[0].Key);
     }
+
+    [Test]
+    public void RenderDrawsRangeOnlyWhenShowRangeIsOn()
+    {
+        TestGame.Set(Hurt() with { Camera = new Camera(new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90) });
+        var range = new Condition { Kind = ConditionKind.NearbyEnemies, Radius = 300 };
+        var plugin = Plugin(range);
+        Check.Equal(0, TestFrame.Vertices(plugin.Render));
+        range.ShowRange = true;
+        Check.That(TestFrame.Vertices(plugin.Render) > 0);
+        TestGame.Set(Hurt());
+        Check.Equal(0, TestFrame.Vertices(plugin.Render), "no camera");
+    }
 }

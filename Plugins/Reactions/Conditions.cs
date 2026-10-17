@@ -19,12 +19,29 @@ public static class Conditions
         ConditionKind.Health => state.Player is { } p && Below(p.Life, p.MaxLife, condition.Percent),
         ConditionKind.Shield => state.Player is { } p && Below(p.Shield, p.MaxShield, condition.Percent),
         ConditionKind.HealthAndShield => state.Player is { } p && Below(p.Life + p.Shield, p.MaxLife + p.MaxShield, condition.Percent),
-        ConditionKind.Buff => !string.IsNullOrEmpty(condition.Text) && state.Buffs is { } buffs && Array.Exists(buffs, buff => BuffMatches(condition.Text, buff)) != condition.Missing,
+        ConditionKind.Buff => BuffMet(condition, state),
         ConditionKind.SkillCooldown => FindSkill(state, condition.SkillCfgId) is { } skill && skill.Ready == condition.Ready,
         ConditionKind.SkillCharges => FindSkill(state, condition.SkillCfgId) is { MaxCharges: > 0 } skill && skill.Charges >= condition.Charges,
         ConditionKind.NearbyEnemies => state.CountNear(condition.Radius, condition.MinRarity) >= Math.Max(condition.Count, 1),
         _ => false,
     };
+
+    // untimed buffs read 1.0 / 1.0 forever, so Ending needs a match that is actually ticking down, gone counts as 0 s left
+    static bool BuffMet(Condition condition, GameState state)
+    {
+        if (string.IsNullOrEmpty(condition.Text) || state.Buffs is not { } buffs) return false;
+        var found = false;
+        var timed = false;
+        var longest = 0.0;
+        foreach (var buff in buffs)
+        {
+            if (!BuffMatches(condition.Text, buff)) continue;
+            found = true;
+            timed |= buff.Remaining < buff.Total;
+            longest = Math.Max(longest, buff.Remaining);
+        }
+        return condition.Ending ? !found || timed && longest < condition.Seconds : found != condition.Missing;
+    }
 
     public static bool BuffMatches(string text, Buff buff)
     {

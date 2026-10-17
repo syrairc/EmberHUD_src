@@ -285,6 +285,8 @@ public readonly record struct Buff(int Id, string? Name, double Remaining, doubl
 
 public readonly record struct Skill(int CfgId, int Slot, double CooldownRemaining, double CooldownTotal, int Charges, int MaxCharges)
 {
+    public string? Name { get; init; }
+
     public bool Ready => CooldownRemaining <= 0;
 }
 

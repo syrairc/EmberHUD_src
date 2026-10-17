@@ -89,6 +89,22 @@ public sealed class ConditionsTests
     }
 
     [Test]
+    public void EndingIsTrueWhenTheLongestMatchIsUnderTheSecondsOrGone()
+    {
+        var condition = new Condition { Kind = ConditionKind.Buff, Text = "Euph", Ending = true, Seconds = 1 };
+        Check.That(Conditions.Met(condition, WithBuffs(new Buff(1, "Euphoria", 0.9, 4))));
+        Check.That(!Conditions.Met(condition, WithBuffs(new Buff(1, "Euphoria", 1.5, 4))));
+        Check.That(!Conditions.Met(condition, WithBuffs(new Buff(1, "Euphoria", 0.5, 4), new Buff(1, "Euphoria", 3, 4))));
+        Check.That(Conditions.Met(condition, WithBuffs(new Buff(2, "Other", 0.5, 4))), "gone counts as 0 s left");
+        Check.That(Conditions.Met(condition, WithBuffs()));
+        Check.That(!Conditions.Met(condition, new GameState()), "unread buffs never fire");
+    }
+
+    [Test]
+    public void EndingIgnoresUntimedBuffs() =>
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.Buff, Text = "Euph", Ending = true, Seconds = 2 }, WithBuffs(new Buff(1, "Euphoria", 1, 1))));
+
+    [Test]
     public void BuffMatchesNameByRegex() =>
         Check.That(Conditions.BuffMatches("Euph.*", new Buff(1, "Euphoria", 1, 1)));
 

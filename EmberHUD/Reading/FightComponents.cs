@@ -13,6 +13,11 @@ internal sealed class FightComponents(IReadBackend memory, nint moduleBase)
                memory.TryReadPtr(inner + Offsets.FightWorldHop3, out world);
     }
 
+    public bool IsHostile(nint world, int id) =>
+        memory.TryFindHashValue(world + Offsets.FightWorldEntityBucketCount, world + Offsets.FightWorldEntityBuckets, unchecked((uint)id), out var fighter) &&
+        TryReadComponent(fighter, Offsets.SideComponentId, out var side) && side != 0 &&
+        memory.TryRead(side + Offsets.SideCamp, out byte camp) && camp == Offsets.HostileCamp;
+
     public bool TryReadComponent(nint fighter, int componentId, out nint component)
     {
         if (TryFromTable(fighter + Offsets.FightEntityDirectTable, componentId, out var direct) && direct != 0)

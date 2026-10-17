@@ -1,5 +1,6 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
+using EmberHUD.Tests.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -231,6 +232,37 @@ public class CharacterReaderTests
 
         Assert.Equal(new Skill(2040, 1, 0, 0, 3, 3), skill);
         Assert.True(skill.Ready);
+    }
+
+    [Fact]
+    public void ABarSkillIsNamedByTheItemInItsSkillTab()
+    {
+        var rig = new Rig();
+        var lua = new FakeLua(rig.World.Memory, FakeWorld.Module);
+        var tabs = lua.NewTable(2, 1);
+        foreach (var (tab, baseId) in new[] { (1, 7175), (3, 7031) })
+        {
+            var record = lua.NewTable(0, 1);
+            lua.SetInt(record, Offsets.LuaItemBaseId, baseId);
+            var data = lua.NewTable(0, 1);
+            lua.SetTable(data, Offsets.LuaItemRecord, record);
+            var slot = lua.NewTable(0, 1);
+            lua.SetTable(slot, Offsets.LuaSkillData, data);
+            var tabSlots = lua.NewTable(1, 1);
+            lua.SetIntKeyTable(tabSlots, 1, slot);
+            lua.SetIntKeyTable(tabs, tab, tabSlots);
+        }
+        var manager = lua.NewTable(0, 1);
+        lua.SetTable(manager, Offsets.LuaSkillSlots, tabs);
+        lua.SetTable(lua.Globals, Offsets.LuaSkillManager, manager);
+        rig.World.SetLanguageTable(2, 7, (Offsets.ItemNameKey + 7175, "Thunder Spike"));
+        rig.GiveSkills((46, 2300, 0, 0, 0, 0), (48, 2210, 0, 0, 0, 0), (50, 1230, 0, 0, 0, 0));
+
+        var skills = rig.Reader.ReadSkills(() => [2300, 2040, 2210, 1230, 1960, 0])!;
+
+        Assert.Equal("Thunder Spike", skills.Single(k => k.CfgId == 2300).Name);
+        Assert.Null(skills.Single(k => k.CfgId == 2210).Name);
+        Assert.Null(skills.Single(k => k.CfgId == 1230).Name);
     }
 
     [Fact]

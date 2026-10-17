@@ -495,6 +495,21 @@ public class LogicWorldReaderTests
     }
 
     [Fact]
+    public void ConfigFriendlyMonsterInTheHostileCampIsNotFriendly()
+    {
+        var world = new FakeWorld();
+        world.FriendlyConfigIds.Add(11305);
+        world.SetMonsterConfigTable(7, (11305, 1));
+        world.PublishEntities(
+            world.AddEntity(1, 48, true, 1, 1, 0, monsterCfgId: 11305, role: 1),
+            world.AddEntity(2, 48, true, 2, 2, 0, monsterCfgId: 11305, role: 1));
+        world.AddSideFighter(1, 1);
+        world.AddSideFighter(2, 2);
+        var reader = ReaderFor(world);
+        Assert.Equal([false, true], Tick(reader).OrderBy(e => e.Id).Select(e => e.Friendly));
+    }
+
+    [Fact]
     public void MonstersInTheInvulnerableListAreMarkedInvulnerable()
     {
         var world = new FakeWorld();

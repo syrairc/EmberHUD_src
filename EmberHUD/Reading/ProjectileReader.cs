@@ -13,21 +13,21 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
 
         var owners = new Dictionary<int, Rarity>(entities.Length);
         foreach (var entity in entities)
-            if (entity.Kind == EntityKind.Monster && !entity.Friendly) owners[entity.Id] = entity.Rarity;
+            if (entity.Kind == EntityKind.Monster) owners[entity.Id] = entity.Rarity;
 
         var found = new List<Projectile>(16);
         memory.TryWalkBuckets(world + Offsets.FightWorldEntityBucketCount, world + Offsets.FightWorldEntityBuckets, Offsets.MaxBuckets, Offsets.NodeSize, Offsets.NodeNext, Offsets.MaxEntities,
             (_, node) =>
             {
                 var fighter = (nint)BitConverter.ToInt64(node[Offsets.NodeEntity..]);
-                if (fighter != 0 && TryReadProjectile(fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, out var projectile))
+                if (fighter != 0 && TryReadProjectile(world, fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, out var projectile))
                     found.Add(projectile);
                 return true;
             });
         return [.. found];
     }
 
-    private bool TryReadProjectile(nint fighter, int id, Dictionary<int, Rarity> owners, out Projectile projectile)
+    private bool TryReadProjectile(nint world, nint fighter, int id, Dictionary<int, Rarity> owners, out Projectile projectile)
     {
         projectile = default;
         Span<double> pair = stackalloc double[2];
@@ -38,16 +38,26 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
             !memory.TryRead(transform + Offsets.TransformPosition, pair) || !IsFinite(pair, out var position) ||
             !memory.TryRead(transform + Offsets.TransformDirection, pair) || !IsFinite(pair, out var direction) ||
             !memory.TryRead(bullet + Offsets.BulletOrigin, pair) || !IsFinite(pair, out var origin) ||
-            !memory.TryRead(shape + Offsets.ShapeRadius, out uint radius) || radius == 0 || radius > Offsets.MaxProjectileRadius ||
+            !TryReadRadius(shape, out var radius) || radius == 0 || radius > Offsets.MaxProjectileRadius ||
             !memory.TryRead(move + Offsets.MoveSpeed, out double speed) || !double.IsFinite(speed) || speed < 0 || speed > Offsets.MaxProjectileSpeed ||
             !_fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) || attachment == 0 ||
-            !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity))
+            !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity) || !_fight.IsHostile(world, ownerId))
             return false;
 
         var length = direction.Length();
         if (!float.IsFinite(length) || length < 0.5f) return false;
 
         projectile = new Projectile(id, ownerId, rarity, position, origin, direction / length, radius, (float)speed);
+        return true;
+    }
+
+    private bool TryReadRadius(nint shape, out uint radius)
+    {
+        radius = 0;
+        if (!memory.TryRead(shape + Offsets.ShapeKind, out uint kind)) return false;
+        if (kind != Offsets.ShapeRect) return memory.TryRead(shape + Offsets.ShapeRadius, out radius);
+        if (!memory.TryRead(shape + Offsets.ShapeExtentA, out uint a) || !memory.TryRead(shape + Offsets.ShapeExtentB, out uint b)) return false;
+        radius = Math.Min(a, b);
         return true;
     }
 

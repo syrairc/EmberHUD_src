@@ -18,15 +18,27 @@ static class SettingsUI
     static readonly PickerOpts<Buff> BuffPickerOpts = new()
     {
         Primary = buff => buff.Name ?? "(no name)",
-        Secondary = buff => $"id {buff.Id}",
+        Secondary = buff => buff.Remaining < buff.Total ? $"id {buff.Id} - {buff.Remaining:0.0} / {buff.Total:0.0}s left" : $"id {buff.Id} - untimed",
         Key = buff => buff.Id.ToString(),
-        EmptyText = "no buffs on the player right now.",
         Size = new Vector2(360, 300),
     };
 
     public static void Draw(Settings s)
     {
         s.Normalize();
+        Layout.TabBar("reactions", ("Reactions", () => DrawReactions(s)), ("Log", () => DrawLog(s)));
+    }
+
+    static void DrawLog(Settings s)
+    {
+        if (ImGui.Button("Clear")) s.Log.Clear();
+        ImGui.SameLine();
+        ImGui.TextDisabled(s.Log.Count == 0 ? "Nothing yet - key presses and refused presses show up here" : $"{s.Log.Count} entries, newest at the bottom");
+        Controls.LogView("log", s.Log, 0);
+    }
+
+    static void DrawReactions(Settings s)
+    {
         Controls.Section("Reactions");
         Setting.Slider("Global cooldown (ms)", ref s.GlobalCooldownMs, 0, 2000, "Minimum gap between any two reactions firing");
         selected = Math.Clamp(selected, 0, Math.Max(0, s.Reactions.Count - 1));
@@ -93,15 +105,23 @@ static class SettingsUI
                 changed |= ImGui.SliderFloat("##percent", ref condition.Percent, 1, 100, "below %.0f%%");
                 break;
             case ConditionKind.Buff:
-                var missing = condition.Missing ? 1 : 0;
-                if (Combo.Option(ref missing, ["Present", "Missing"], "presence", 90)) { condition.Missing = missing == 1; changed = true; }
+                var presence = condition.Missing ? 1 : condition.Ending ? 2 : 0;
+                if (Combo.Option(ref presence, ["Present", "Missing", "Ending"], "presence", 90)) { condition.Missing = presence == 1; condition.Ending = presence == 2; changed = true; }
                 ImGui.SameLine();
+                if (condition.Ending)
+                {
+                    ImGui.SetNextItemWidth(120);
+                    changed |= ImGui.SliderFloat("##seconds", ref condition.Seconds, 0.1f, 10, "under %.1fs");
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Holds while the longest matching buff has less than this many seconds left, or is gone - an untimed buff that is up never counts");
+                    ImGui.SameLine();
+                }
                 ImGui.SetNextItemWidth(170);
                 changed |= ImGui.InputText("##text", ref condition.Text, 128);
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip(BuffTip);
                 ImGui.SameLine();
                 Game.WantCharacter();
-                if (Picker.Button("Current buffs", Game.State.Buffs, ref buffPicker, out var buff, BuffPickerOpts, "buffs"))
+                BuffPickerOpts.EmptyText = Game.State.Buffs is null ? "buffs could not be read right now." : "no buffs on the player right now.";
+                if (Picker.Button("Current buffs", Game.State.Buffs?.DistinctBy(b => b.Id), ref buffPicker, out var buff, BuffPickerOpts, "buffs"))
                 {
                     condition.Text = AddExactId(condition.Text, buff.Id);
                     changed = true;
@@ -126,6 +146,8 @@ static class SettingsUI
                 changed |= ImGui.SliderFloat("##radius", ref condition.Radius, 50, 2000, "within %.0f");
                 ImGui.SameLine();
                 changed |= Combo.Enum(ref condition.MinRarity, "rarity", 90);
+                ImGui.SameLine();
+                changed |= ImGui.Checkbox("Show range", ref condition.ShowRange);
                 break;
         }
         if (condition.Kind is ConditionKind.SkillCooldown or ConditionKind.SkillCharges && SkillMissing(condition.SkillCfgId))
@@ -136,8 +158,8 @@ static class SettingsUI
     static bool SkillPicker(Condition condition)
     {
         Game.WantCharacter();
-        var skills = Game.State.Skills ?? [];
-        var labels = skills.Select(skill => $"Slot {skill.Slot} - {skill.CfgId}").ToList();
+        var skills = (Game.State.Skills ?? []).Where(skill => skill.Slot is >= 0 and <= 4).OrderBy(skill => skill.Slot).ToArray();
+        var labels = skills.Select(skill => $"Slot {skill.Slot} - {skill.Name ?? skill.CfgId.ToString()}").ToList();
         var index = Array.FindIndex(skills, skill => skill.CfgId == condition.SkillCfgId);
         if (index < 0)
         {

@@ -8,6 +8,7 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly LocText _loc = new(memory, moduleBase);
+    private readonly LuaReader _lua = new(memory, moduleBase);
     private long _nextRefresh;
     private long _nextSkillRefresh;
     private Buff[]? _buffs;
@@ -36,6 +37,9 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
             return null;
 
         var skills = new List<Skill>();
+        var slots = _lua.TryOpen(out var globals) && _lua.TryGetTable(globals, Offsets.LuaSkillManager, out var manager) && _lua.TryGetTable(manager, Offsets.LuaSkillSlots, out var tabs)
+            ? tabs
+            : (LuaTable?)null;
         var intact = true;
         var walked = memory.TryWalkBuckets(component + Offsets.CooldownMapCount, component + Offsets.CooldownMap, Offsets.MaxBuckets, Offsets.CooldownNodeSize, Offsets.CooldownNodeNext, Offsets.MaxSkills, (_, node) =>
         {
@@ -46,12 +50,21 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
 
             var maxCharges = BitConverter.ToInt32(node[Offsets.CooldownMaxCharges..]);
             var hasCharges = maxCharges > 1;
-            skills.Add(new Skill(cfgId, cfgId == 0 ? -1 : Array.IndexOf(bar, cfgId), remaining, total, hasCharges ? BitConverter.ToInt32(node[Offsets.CooldownCharges..]) : 0, hasCharges ? maxCharges : 0));
+            var slot = cfgId == 0 ? -1 : Array.IndexOf(bar, cfgId);
+            skills.Add(new Skill(cfgId, slot, remaining, total, hasCharges ? BitConverter.ToInt32(node[Offsets.CooldownCharges..]) : 0, hasCharges ? maxCharges : 0) { Name = slot >= 0 && slots is { } tabList ? BarSkillName(tabList, slot) : null });
             return true;
         });
 
         return walked && intact ? [.. skills] : null;
     }
+
+    // bar slot n is skill tab n + 1, its first slot holds the skill item
+    private string? BarSkillName(LuaTable tabs, int slot) =>
+        _lua.TryGetTableAt(tabs, slot + 1, out var tab) && _lua.TryGetTableAt(tab, 1, out var first) &&
+        _lua.TryGetTable(first, Offsets.LuaSkillData, out var data) && _lua.TryGetTable(data, Offsets.LuaItemRecord, out var record) &&
+        _lua.TryGetInt(record, Offsets.LuaItemBaseId, out var baseId)
+            ? _loc.Get(Offsets.ItemNameKey + baseId)
+            : null;
 
     private bool TryCfgId(nint world, int skillEntityId, out int cfgId)
     {

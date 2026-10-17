@@ -43,9 +43,33 @@ public class ProjectileReaderTests
     public void OwnBulletsAreDropped()
     {
         var (world, reader) = Rig();
-        Good(world);
-        Assert.Empty(reader.Read([Owner(friendly: true)]));
+        world.AddBullet(50, 7, Position, Direction, Origin, ownerCamp: 2);
+        Assert.Empty(reader.Read([Owner()]));
         Assert.Empty(reader.Read([Owner(kind: EntityKind.Player)]));
+    }
+
+    [Fact]
+    public void FriendlyConfigFlagDoesNotHideAHostileOwner()
+    {
+        var (world, reader) = Rig();
+        Good(world);
+        Assert.Single(reader.Read([Owner(friendly: true)]));
+    }
+
+    [Fact]
+    public void RectangleShapesUseTheSmallerExtentAsRadius()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, radius: 0, rect: (150, 140));
+        Assert.Equal(140, Assert.Single(reader.Read([Owner()])).Radius);
+    }
+
+    [Fact]
+    public void RectangleWithNoExtentIsDropped()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, radius: 0, rect: (0, 140));
+        Assert.Empty(reader.Read([Owner()]));
     }
 
     [Fact]

@@ -101,6 +101,20 @@ public sealed class EngineTests
     }
 
     [Test]
+    public void LogsPressesAndEachRefusedStreakOnce()
+    {
+        var reaction = Heal();
+        reaction.Name = "Heal";
+        var rig = With(0, reaction);
+        rig.Step(Hurt(), 0, _ => false);
+        rig.Step(Hurt(), 1, _ => false);
+        rig.Step(Hurt(), 2, _ => true);
+        Check.Equal(2, rig.Settings.Log.Count);
+        Check.That(rig.Settings.Log[0].EndsWith("Heal: D1 refused - game not focused or chat open"), rig.Settings.Log[0]);
+        Check.That(rig.Settings.Log[1].EndsWith("Heal: pressed D1"), rig.Settings.Log[1]);
+    }
+
+    [Test]
     public void RefusedPressFallsThroughToNextReaction()
     {
         var first = Heal(Key.D1);

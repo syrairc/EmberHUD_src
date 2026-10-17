@@ -11,7 +11,7 @@ public sealed class SettingsUiTests
         Reactions =
         [
             new Reaction { Name = "Heal", Trigger = new Hotkey(Key.D1), Conditions = [new Condition { Kind = ConditionKind.Health }, new Condition { Kind = ConditionKind.Shield }, new Condition { Kind = ConditionKind.HealthAndShield }] },
-            new Reaction { Name = "Buff", Conditions = [new Condition { Kind = ConditionKind.Buff, Text = "shield|1234" }, new Condition { Kind = ConditionKind.Buff, Missing = true, Text = "(" }] },
+            new Reaction { Name = "Buff", Conditions = [new Condition { Kind = ConditionKind.Buff, Text = "shield|1234" }, new Condition { Kind = ConditionKind.Buff, Missing = true, Text = "(" }, new Condition { Kind = ConditionKind.Buff, Ending = true, Text = "x" }] },
             new Reaction { Name = "Skills", Conditions = [new Condition { Kind = ConditionKind.SkillCooldown }, new Condition { Kind = ConditionKind.SkillCharges }, new Condition { Kind = ConditionKind.NearbyEnemies, MinRarity = Rarity.Rare }] },
         ],
     };

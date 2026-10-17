@@ -19,6 +19,19 @@ public sealed class StateToolsTests
     static JsonArray Entities(JsonObject args) => Wire.Run(Tools, "get_entities", args)["entities"]!.AsArray();
 
     [Test]
+    public void GetStateListsProjectiles()
+    {
+        TestGame.Set(GameState.Empty with { Projectiles = [new Projectile(7, 3, Rarity.Boss, new Vector2(1, 2), new Vector2(0, 0), Vector2.UnitX, 250, 550)] });
+        var projectiles = Wire.Run(Tools, "get_state")["projectiles"]!;
+        Check.Equal(1, (int)projectiles["count"]!);
+        var first = projectiles["first"]![0]!;
+        Check.Equal(7, (int)first["id"]!);
+        Check.Equal(3, (int)first["ownerId"]!);
+        Check.Equal("Boss", (string?)first["rarity"]);
+        Check.Equal(250.0, (double)first["radius"]!);
+    }
+
+    [Test]
     public void GetStateShowsTheTradePage()
     {
         TestGame.Set(GameState.Empty with { Trade = new TradePage(2, false, 72, [new TradeListing(3, "Precious Ember", 3712, 297, null, new Vector2(1, 2), new Vector2(3, 4)), new TradeListing(7, "", 1442, 115, "Sold", Vector2.Zero, Vector2.One)], "game:fe") });
