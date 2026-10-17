@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using EmberHUD;
 
 namespace Tartarus;
@@ -23,6 +24,17 @@ public sealed class Tracker(Func<int, InmateKind?> classify)
 
     internal static SightingEnd EndOf(double lastLife, double maxLife) => lastLife == 0 && maxLife > 0 ? SightingEnd.Killed : SightingEnd.Unsure;
 
+    static bool HasQuestMarker(GameState state, Entity entity)
+    {
+        var at = new Vector2(entity.Position.X, entity.Position.Y);
+        foreach (var target in state.QuestTargets)
+        {
+            if (Vector2.DistanceSquared(target.Position, at) < 1) return true;
+        }
+
+        return false;
+    }
+
     public Sighting[] Update(GameState state, double nowSeconds, Func<int, int, bool?>? sceneAlive = null)
     {
         if (state.AreaId != areaId)
@@ -35,6 +47,7 @@ public sealed class Tracker(Func<int, InmateKind?> classify)
         foreach (var entity in state.Entities)
         {
             if (entity.Kind != EntityKind.Monster || classify(entity.CfgId) is not { } kind) continue;
+            if (!tracked.ContainsKey(entity.Id) && !HasQuestMarker(state, entity)) continue;
             present.Add(entity.Id);
             var distance = state.Player?.FlatDistance(entity.Position) ?? 0;
             var first = tracked.TryGetValue(entity.Id, out var old) ? old.FirstSeen : nowSeconds;
