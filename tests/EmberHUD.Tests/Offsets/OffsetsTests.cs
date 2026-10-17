@@ -262,6 +262,68 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void TartarusKeysExist()
+    {
+        Assert.Equal("S16GameplayMgr", Offsets.LuaTartarusManager);
+        Assert.Equal("Board", Offsets.LuaTartarusBoard);
+        Assert.Equal("Cells", Offsets.LuaTartarusCells);
+        Assert.Equal("Position", Offsets.LuaTartarusPosition);
+        Assert.Equal("Size", Offsets.LuaTartarusSize);
+        Assert.Equal("MaxTurn", Offsets.LuaTartarusMaxTurn);
+        Assert.Equal("Attrs", Offsets.LuaTartarusAttrs);
+        Assert.Equal("Choices", Offsets.LuaTartarusChoices);
+        Assert.Equal("Relics", Offsets.LuaTartarusRelics);
+        Assert.Equal("Archive", Offsets.LuaTartarusArchive);
+        Assert.Equal("Result", Offsets.LuaTartarusResult);
+        Assert.Equal("BoardPageOpen", Offsets.LuaTartarusBoardPageOpen);
+        Assert.Equal("prisoner", Offsets.LuaTartarusPrisoner);
+        Assert.Equal("species", Offsets.LuaTartarusSpecies);
+        Assert.Equal("rating", Offsets.LuaTartarusRating);
+        Assert.Equal("uid", Offsets.LuaTartarusUid);
+        Assert.Equal("isDevourTarget", Offsets.LuaTartarusDevourTarget);
+        Assert.Equal("hasEventMarker", Offsets.LuaTartarusEventMarker);
+        Assert.Equal("choiceType", Offsets.LuaTartarusChoiceType);
+        Assert.Equal("choiceId", Offsets.LuaTartarusChoiceId);
+        Assert.Equal("options", Offsets.LuaTartarusOptions);
+        Assert.Equal("optionId", Offsets.LuaTartarusOptionId);
+        Assert.Equal("dice", Offsets.LuaTartarusDice);
+        Assert.Equal("step", Offsets.LuaTartarusStep);
+        Assert.Equal("operation", Offsets.LuaTartarusOperation);
+        Assert.Equal("operationType", Offsets.LuaTartarusOperationType);
+        Assert.Equal("devour", Offsets.LuaTartarusDevour);
+        Assert.Equal("targetCellIndex", Offsets.LuaTartarusTarget);
+        Assert.Equal("interrogation", Offsets.LuaTartarusInterrogation);
+        Assert.Equal("optionType", Offsets.LuaTartarusInterrogationType);
+        Assert.Equal("relic", Offsets.LuaTartarusRelic);
+        Assert.Equal("relicId", Offsets.LuaTartarusRelicId);
+        Assert.Equal("obtainSequence", Offsets.LuaTartarusObtainSequence);
+        Assert.Equal("coloredReward", Offsets.LuaTartarusColoredReward);
+        Assert.Equal("rewardId", Offsets.LuaTartarusRewardId);
+        Assert.Equal("event", Offsets.LuaTartarusEvent);
+        Assert.Equal("eventId", Offsets.LuaTartarusEventId);
+        Assert.Equal(32, Offsets.TartarusDayAttr);
+        Assert.Equal(201, Offsets.TartarusRatingBase);
+        Assert.Equal(101, Offsets.TartarusSpeciesBase);
+        Assert.Equal(1, Offsets.TartarusChoiceDice);
+        Assert.Equal(3, Offsets.TartarusChoiceReward);
+        Assert.Equal(4, Offsets.TartarusChoiceOffice);
+        Assert.Equal(5, Offsets.TartarusChoiceEvent);
+        Assert.Equal(8, Offsets.TartarusChoiceInstrument);
+        Assert.Equal(9, Offsets.TartarusChoiceOperation);
+        Assert.Equal(1, Offsets.TartarusOpDevour);
+        Assert.Equal(2, Offsets.TartarusOpReplace);
+        Assert.Equal(3, Offsets.TartarusOpEnd);
+        Assert.Equal(4, Offsets.TartarusOpStopChain);
+        Assert.Equal(1, Offsets.TartarusInstigate);
+        Assert.Equal(2, Offsets.TartarusBestow);
+        Assert.Equal(100, Offsets.TartarusRefreshMilliseconds);
+        Assert.Equal(3, Offsets.TartarusWantedSeconds);
+        Assert.Equal(64, Offsets.MaxTartarusCells);
+        Assert.Equal(16, Offsets.MaxTartarusOptions);
+        Assert.Equal(16, Offsets.MaxTartarusRelics);
+    }
+
+    [Fact]
     public void LuaGlobalRvaIsSetForTheCurrentBuild()
     {
         var original = Offsets.Build;

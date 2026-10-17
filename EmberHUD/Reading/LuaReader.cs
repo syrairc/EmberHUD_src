@@ -57,6 +57,14 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
+    public bool TryGetBool(LuaTable table, string key, out bool value)
+    {
+        value = false;
+        if (!TryFind(table, key, out var raw, out var tag) || tag != Offsets.LuaTagBool) return false;
+        value = (int)raw != 0;
+        return true;
+    }
+
     public bool TryGetString(LuaTable table, string key, out string value)
     {
         value = "";
@@ -84,6 +92,30 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
             var raw = MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue));
             if (raw == 0) return false;
             value = new LuaTable((nint)raw);
+            return true;
+        }
+
+        return false;
+    }
+
+    public bool TryGetIntAt(LuaTable table, long index, out long value)
+    {
+        value = 0;
+        if (!TryReadHeader(table, out var header)) return false;
+
+        if (index >= 1 && index <= header.ArraySize)
+        {
+            if (!TryReadValue(header.Array + (nint)(index - 1) * Offsets.LuaTValueSize, out var raw, out var tag) || tag != Offsets.LuaTagInt) return false;
+            value = raw;
+            return true;
+        }
+
+        if (!TryReadNodes(header, out var nodes)) return false;
+        for (var i = 0; i < nodes.Length; i += Offsets.LuaNodeSize)
+        {
+            if (NodeKeyTag(nodes, i) != Offsets.LuaTagInt || MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey)) != index) continue;
+            if (NodeTag(nodes, i) != Offsets.LuaTagInt) return false;
+            value = MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue));
             return true;
         }
 

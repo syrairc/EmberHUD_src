@@ -56,6 +56,8 @@ internal sealed class FakeLua
 
     public void SetInt(LuaTable t, string key, long value) => SetNode(t, MainPosition(t, key), key, value, Offsets.LuaTagInt);
 
+    public void SetBool(LuaTable t, string key, bool value) => SetValue(t, key, value ? 1 : 0, Offsets.LuaTagBool);
+
     public void SetTable(LuaTable t, string key, LuaTable value) => SetNode(t, MainPosition(t, key), key, value.Address, Offsets.LuaTagTable);
 
     public void SetIntKeyTable(LuaTable t, long key, LuaTable value) => SetIntKey(t, key, value.Address, Offsets.LuaTagTable);

@@ -110,6 +110,28 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameSourceServesTartarusOnlyWhenAsked()
+    {
+        Game.TartarusAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Tartarus);
+        try
+        {
+            Game.WantTartarus();
+            Assert.NotNull(At(Stopwatch.GetTimestamp()).Tartarus);
+            var board = FakeGameSource.TartarusAt(0);
+
+            Assert.Equal(16, board.Cells.Length);
+            Assert.Contains(board.Cells, c => c.Open);
+            Assert.Contains(board.Cells, c => !c.Open && c.Tier < 0);
+            Assert.Contains(board.Cells, c => !c.Open && c.Tier >= 0);
+            Assert.Equal(TartarusChoiceKind.Doors, board.Choice!.Kind);
+            Assert.Equal(3, board.Choice.Options.Length);
+            Assert.Equal(TartarusChoiceKind.Operation, FakeGameSource.TartarusAt(3 * Stopwatch.Frequency).Choice!.Kind);
+        }
+        finally { Game.TartarusAsked = 0; }
+    }
+
+    [Fact]
     public void FakeMonstersCastOnlyWhenWanted()
     {
         Game.CastsAsked = 0;

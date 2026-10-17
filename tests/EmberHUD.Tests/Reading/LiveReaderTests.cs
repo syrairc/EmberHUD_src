@@ -204,6 +204,28 @@ public class LiveReaderTests
         finally { Game.InventoryAsked = 0; }
     }
 
+    [Fact]
+    public void TartarusIsOnlyReadWhenAsked()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var f = new Reading.TartarusReaderTests.Fixture();
+        f.Cell(2, "P7", 101, 205);
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, 0, null, null, null, f.Reader());
+        try
+        {
+            Game.TartarusAsked = 0;
+            Assert.True(reader.TryRead(out var idle, out _));
+            Assert.Null(idle.Tartarus);
+
+            Game.WantTartarus();
+            Assert.True(reader.TryRead(out var asked, out _));
+            Assert.Equal(16, asked.Tartarus!.Size);
+            Assert.Equal(2, Assert.Single(asked.Tartarus.Cells).Index);
+        }
+        finally { Game.TartarusAsked = 0; }
+    }
+
     private static CharacterReader CharacterWith(FakeWorld world)
     {
         world.SetLocalPlayer(11);
