@@ -230,12 +230,16 @@ try {
     [Array]::Sort($sorted, [StringComparer]::Ordinal)
     $hashesMatch = $keys.Count -gt 0
     foreach ($key in $keys) { if (-not (Test-Path -LiteralPath "$public/$key") -or (Get-FileHash -LiteralPath "$public/$key" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.Files.$key) { $hashesMatch = $false } }
-    $onDisk = @(Get-ChildItem -LiteralPath $public -Recurse -File -Force | Where-Object { $_.FullName -notmatch '[\/]\.git([\/]|$)' -and $_.Name -notin '.gitignore', 'manifest.json' }).Count
+    $onDisk = @(Get-ChildItem -LiteralPath $public -Recurse -File -Force | Where-Object { $_.FullName -notmatch '[\/]\.git([\/]|$)' -and $_.Name -notin '.gitignore', 'manifest.json' -and $_.Extension -ne '.zip' }).Count
     Check ((Test-Path $manifestPath) -and $manifest.Version -eq '1.2.3' -and
         -not ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF) -and $manifestText -match '(?m)^  "Files": \{' -and
         $keys -contains 'EmberUpdater.exe' -and $keys -contains 'Plugins/Minimap/Main.cs' -and $keys -contains 'Fonts/a.ttf' -and
         -not ($keys | Where-Object { $_.Contains('\') -or $_ -match '^(\.git|Config|Logs|Cache|GameIcons|Updates)(/|$)' -or $_ -in 'manifest.json', '.gitignore', 'imgui.ini' -or $_ -like '*.zip' }) -and
         $keys.Count -eq $onDisk -and $hashesMatch -and ($keys -join '|') -ceq ($sorted -join '|')) 'a -Public release writes manifest.json with the version, / keys sorted ordinal, EmberUpdater.exe, sha256 of every shipped file and none of .git, Config, manifest.json or zips'
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zipFile = @(Get-ChildItem -LiteralPath $public -Filter 'EmberHUD-*-v1.2.3.zip')
+    $zipNames = if ($zipFile.Count -eq 1) { $a = [IO.Compression.ZipFile]::OpenRead($zipFile[0].FullName); try { @($a.Entries.FullName) } finally { $a.Dispose() } } else { @() }
+    Check ($zipFile.Count -eq 1 -and $zipNames.Count -eq $keys.Count + 1 -and $zipNames -contains 'manifest.json' -and -not ($keys | Where-Object { $_ -notin $zipNames })) 'a -Public release zips EmberHUD-date-vVersion.zip with every manifest file plus manifest.json'
     Check (-not (Test-Path "$dist/manifest.json")) 'a normal release writes no manifest.json'
     Run "$box/repo/dist" $box 'none' $release @('-Public')
     Check ($code -ne 0 -and $output -match 'refusing to wipe') '-Public refuses a folder not named release'

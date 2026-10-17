@@ -216,6 +216,13 @@ try {
         }
         $manifest = [ordered]@{ Version = (Get-Content $versionFile -Raw).Trim(); Files = $hashes }
         [IO.File]::WriteAllText((Join-Path $root 'manifest.json'), ($manifest | ConvertTo-Json -Depth 3), [Text.UTF8Encoding]::new($false))
+        $zip = Join-Path $root "EmberHUD-$(Get-Date -Format yyyyMMdd)-v$($manifest.Version).zip"
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
+        try {
+            foreach ($relative in @($hashes.Keys) + 'manifest.json') { [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, (Join-Path $root $relative), $relative) }
+        }
+        finally { $archive.Dispose() }
     }
 
     Write-Host "release ready in $root - the obfuscation map was at $obfuscated\Mapping.txt, already deleted with the temp work dir"
