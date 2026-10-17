@@ -21,7 +21,17 @@ sealed class InmateLogger
     double _lastSave = double.NegativeInfinity;
     double _lastLoad = double.NegativeInfinity;
 
-    public InmateLogger() => _tracker = new(Classify);
+    readonly MinigameLogger _minigame;
+    MinigameStore? _minigameStore;
+    bool _runSynced;
+    double _lastMinigameSave = double.NegativeInfinity;
+    double _lastMinigameLoad = double.NegativeInfinity;
+
+    public InmateLogger()
+    {
+        _tracker = new(Classify);
+        _minigame = new((species, tier) => Store.Grid[species, tier]);
+    }
 
     InmateKind? Classify(int cfgId)
     {
@@ -47,6 +57,8 @@ sealed class InmateLogger
     internal Func<DateTime> Now { get; set; } = () => DateTime.Now;
 
     internal InmateStore Store => _store ??= InmateStore.Load(DataDirectory);
+
+    internal MinigameStore Minigame => _minigameStore ??= MinigameStore.Load(DataDirectory);
 
     public void Tick()
     {
@@ -75,6 +87,30 @@ sealed class InmateLogger
         }
 
         if (_recorder.Update(state.Tartarus, nameplates, Now(), seconds) is { } run) Store.AddRun(run);
+        if (!_runSynced && Minigame.Loaded)
+        {
+            _runSynced = true;
+            _minigame.Run = Math.Max(_minigame.Run, Minigame.Entries.Select(entry => entry.Run).DefaultIfEmpty(0).Max() + 1);
+        }
+
+        foreach (var pull in _minigame.Update(state.Tartarus, Now(), seconds)) Minigame.Add(pull);
+        if (!Minigame.Loaded && seconds - _lastMinigameLoad >= SaveEverySeconds)
+        {
+            _lastMinigameLoad = seconds;
+            var fresh = MinigameStore.Load(DataDirectory);
+            if (fresh.Loaded)
+            {
+                fresh.Absorb(Minigame);
+                _minigameStore = fresh;
+            }
+        }
+
+        if (Minigame.Dirty && seconds - _lastMinigameSave >= SaveEverySeconds)
+        {
+            Minigame.Save(DataDirectory);
+            _lastMinigameSave = seconds;
+        }
+
         if (!Store.Loaded && seconds - _lastLoad >= SaveEverySeconds)
         {
             _lastLoad = seconds;
@@ -95,8 +131,11 @@ sealed class InmateLogger
 
     public void DrawPage() => InmateLogUI.Draw(Store, Nameplates.Count(Game.State.Inventory), Store.Clear);
 
+    public void DrawMinigamePage() => MinigameLogUI.Draw(Minigame, Minigame.Clear);
+
     public void Dispose()
     {
+        if (_minigameStore is { Dirty: true }) _minigameStore.Save(DataDirectory);
         if (_store is { Dirty: true }) _store.Save(DataDirectory);
     }
 }

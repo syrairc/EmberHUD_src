@@ -33,7 +33,8 @@ public sealed class Main : Plugin<Settings>
     public override void DrawSettings() => Layout.TabBar("tartarus",
         ("Panel", () => SettingsUI.DrawPanel(Settings)),
         ("Advice", () => SettingsUI.DrawAdvice(Settings)),
-        ("Inmate log", Logger.DrawPage));
+        ("Inmate log", Logger.DrawPage),
+        ("Minigame log", Logger.DrawMinigamePage));
 
     public override void Render()
     {
