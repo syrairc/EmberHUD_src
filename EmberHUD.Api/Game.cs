@@ -14,6 +14,10 @@ public static class Game
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
+    internal static Func<nint>? WindowSource { get; set; }
+
+    public static nint WindowHandle => WindowSource?.Invoke() ?? 0;
+
     public static void RescanMinimap() => Interlocked.Increment(ref _minimapRescans);
 
     public static void WantCombat() => Interlocked.Exchange(ref _combatAsked, Stopwatch.GetTimestamp());

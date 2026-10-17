@@ -106,6 +106,7 @@ public sealed class Main : Plugin<Settings>
                 .. LocTools.Create(),
                 .. WatchTools.Create(Watching),
                 .. RecordTools.Create(Recorder, Recordings),
+                .. ScreenTools.Create(() => Settings.AllowScreenshots, Path.Combine(DataDirectory, "screenshots")),
             ];
             Server = Http.Start(new Rpc(tools, HostVersion), _token, Settings.Port);
             if (Server is null)

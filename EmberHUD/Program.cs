@@ -85,6 +85,7 @@ using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetT
 reader.Start();
 using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
 Send.GameForeground = overlay.GameIsForeground;
+Game.WindowSource = () => overlay.TargetHandle;
 Send.ToScreen = (x, y) =>
 {
     var point = new Win32.Point { X = x, Y = y };

@@ -11,6 +11,7 @@ public sealed class Settings : PluginSettings
     public int MaxReadBytes = 16384;
     public int RecordHz = 5;
     public bool ShowStatusDot = true;
+    public bool AllowScreenshots;
 
     public override void Draw()
     {
@@ -20,5 +21,6 @@ public sealed class Settings : PluginSettings
         Setting.Slider("Max read bytes", ref MaxReadBytes, 256, 65536, "Biggest single read_bytes the server will do");
         Setting.Slider("Record rate", ref RecordHz, 1, 30, "Frames per second a recording writes");
         Setting.Checkbox("Status dot", ref ShowStatusDot, "Small dot in the top left while the server runs - green idle, yellow busy, red when the game state stopped updating");
+        Setting.Checkbox("Allow screenshots", ref AllowScreenshots, "Lets the screenshot tool capture the monitor the game is on (overlay and anything else on it) or just the game window. PNGs go to Config\\Mcp\\screenshots, newest 20 kept");
     }
 }
