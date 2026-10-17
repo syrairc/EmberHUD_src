@@ -5,11 +5,15 @@ namespace Tartarus;
 
 static class SettingsUI
 {
-    public static void Draw(Settings s)
+    public static void DrawPanel(Settings s)
     {
         Setting.Checkbox("Show panel", ref s.ShowPanel, "The advice card next to the screen's choice");
         Setting.Slider("Panel X", ref s.PanelX, 0, 1, "Left edge, as a fraction of the screen width");
         Setting.Slider("Panel Y", ref s.PanelY, 0, 1, "Top edge, as a fraction of the screen height");
+    }
+
+    public static void DrawAdvice(Settings s)
+    {
         ImGui.SeparatorText("Tier values");
         Number("Tier base", ref s.TierBase, 1, 10, "An inmate of tier t is worth base^t");
         Number("Rainbow multiplier", ref s.RainbowMult, 1, 5, "Extra worth of the jump to the top tier");

@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -73,5 +76,69 @@ public sealed class MainTests
         var instruments = new TartarusChoice(2, TartarusChoiceKind.Instrument, [new(1, TartarusOptionKind.Instrument, -1, 106), new(2, TartarusOptionKind.Instrument, -1, 131)], true);
         Check.That(TestFrame.Vertices(Run(instruments).Render) > 0, "instrument panel drew");
         Check.Equal(0, TestFrame.Vertices(Run(instruments, new Settings { ShowPanel = false }).Render));
+    }
+
+    [Test]
+    public void TickAlsoRunsTheInmateLogger()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N"));
+        var now = 1.0;
+        var plugin = new Main { Logger = { DataDirectory = directory, Seconds = () => now } };
+        try
+        {
+            TestGame.UseLoc(key => key == "npc|name|5027023" ? "Robber: Alpha Wolf" : null, null);
+            var wolf = new Entity(11, 5027023, Vector3.Zero, EntityKind.Monster, Rarity.Rare) { Life = 0, MaxLife = 90 };
+            TestGame.Set(new GameState { AreaId = 7, Entities = [wolf] });
+            plugin.Tick();
+            TestGame.Set(new GameState { AreaId = 7 });
+            now = 3;
+            plugin.Tick();
+            Check.Equal(1, plugin.Logger.Store.Grid[(int)InmateSpecies.Wolf, 2]);
+        }
+        finally
+        {
+            TestGame.UseLoc(null, null);
+            try { Directory.Delete(directory, true); } catch (IOException) { }
+        }
+    }
+
+    [Test]
+    public void DisposeSavesTheInmateStore()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N"));
+        var plugin = new Main { Logger = { DataDirectory = directory } };
+        try
+        {
+            plugin.Logger.Store.Add(new(5027023, new(InmateSpecies.Wolf, 2), SightingEnd.Killed, 0, 90, 5, 3), "Prison", null, DateTime.Now);
+            plugin.Dispose();
+            Check.Equal(1, InmateStore.Load(directory).Grid[(int)InmateSpecies.Wolf, 1]);
+        }
+        finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
+    }
+
+    [Test]
+    public void SettingsPageDrawsEveryTab()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N"));
+        var plugin = new Main { Logger = { DataDirectory = directory } };
+        try
+        {
+            TestFrame.Run(plugin.DrawSettings);
+            plugin.Logger.Store.Kills.Add(new(DateTime.Now, "Odd", 5027099, null, 0, "killed", 0, 10, 1, 1, 12));
+            plugin.Logger.Store.AddRun(new(DateTime.Now, null, null, 7, [new(1, 2, 3)]));
+            TestGame.Set(GameState.Empty);
+            TestFrame.Run(plugin.DrawSettings);
+        }
+        finally { try { Directory.Delete(directory, true); } catch (IOException) { } }
+    }
+
+    [Test]
+    public void SettingsFieldsAreUnchanged()
+    {
+        string[] expected = ["ShowPanel", "PanelX", "PanelY", "TierBase", "RainbowMult", "ChainUpside", "CloseMargin", "UnsureWidthRatio", "PriorLowPercentile", "PriorHighPercentile", "LateDays", "StandardDays", "DoorPrior", "ReplacePrior"];
+        var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
+        Array.Sort(expected);
+        Array.Sort(actual);
+        Check.Equal(string.Join(",", expected), string.Join(",", actual));
     }
 }

@@ -11,6 +11,8 @@ public sealed class Main : Plugin<Settings>
     readonly TextStyle _style = TextStyle.Hud();
     TartarusState? _state;
 
+    internal InmateLogger Logger { get; } = new();
+
     public Advice? Advice { get; private set; }
 
     public override void Tick()
@@ -19,7 +21,19 @@ public sealed class Main : Plugin<Settings>
         var state = Game.State.Tartarus;
         _state = state;
         Advice = state?.Choice is { Kind: not TartarusChoiceKind.Event } ? Advisor.Advise(state, Settings) : null;
+        Logger.Tick();
     }
+
+    public override void Dispose()
+    {
+        Logger.Dispose();
+        base.Dispose();
+    }
+
+    public override void DrawSettings() => Layout.TabBar("tartarus",
+        ("Panel", () => SettingsUI.DrawPanel(Settings)),
+        ("Advice", () => SettingsUI.DrawAdvice(Settings)),
+        ("Inmate log", Logger.DrawPage));
 
     public override void Render()
     {

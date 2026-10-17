@@ -3,9 +3,9 @@ using System.Linq;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
-namespace InmateLog;
+namespace Tartarus;
 
-static class SettingsUI
+static class InmateLogUI
 {
     const long ConfirmMs = 5000;
 

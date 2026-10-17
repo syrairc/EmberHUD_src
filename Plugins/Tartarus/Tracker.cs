@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using EmberHUD;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public enum SightingEnd { Killed, Unsure }
 

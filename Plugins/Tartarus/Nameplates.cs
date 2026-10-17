@@ -1,7 +1,7 @@
 using System.Linq;
 using EmberHUD;
 
-namespace InmateLog;
+namespace Tartarus;
 
 public static class Nameplates
 {
