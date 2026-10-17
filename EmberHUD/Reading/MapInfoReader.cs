@@ -33,8 +33,8 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
     private long _nextAt;
     private Dictionary<int, int> _tarotDone = [];
     private readonly HashSet<int> _tarotSeen = [];
-    private readonly HashSet<int> _fugitiveSeen = [];
-    private int _fugitiveStanding;
+    private string _tarotLogged = "";
+    private readonly Dictionary<int, (HashSet<int> Seen, int Standing)> _iconTracked = [];
 
     public MapInfo? Read(nint scene, int areaId, int aliveMonsters, MapIcon[] icons)
     {
@@ -45,8 +45,8 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         {
             _tarotDone = [];
             _tarotSeen.Clear();
-            _fugitiveSeen.Clear();
-            _fugitiveStanding = 0;
+            _tarotLogged = "";
+            _iconTracked.Clear();
             _statuesSeen.Clear();
             ui.ForgetHud();
         }
@@ -62,7 +62,12 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         {
             var standing = icons.Where(i => i.Type == Offsets.TarotIconType).Select(i => i.EntityId).ToHashSet();
             _tarotSeen.UnionWith(standing);
-            _tarotDone = byType.ToDictionary(g => g.Key, g => g.Count(c => TryVar(c.Record, Offsets.TarotEntityVar, out var id) && id != 0 && _tarotSeen.Contains(id) && !standing.Contains(id)));
+            var cards = byType.SelectMany(g => g.Select(c => (Type: g.Key, Id: TryVar(c.Record, Offsets.TarotEntityVar, out var id) ? id : 0))).Where(c => c.Id != 0).OrderBy(c => c.Id).ToArray();
+            var seen = _tarotSeen.Order().ToArray();
+            var ids = $"cards {string.Join(' ', cards.Select(c => $"{c.Type}:{c.Id}"))} icons {string.Join(' ', seen)}";
+            if (ids != _tarotLogged) Log.Info($"tarot - {_tarotLogged = ids}");
+            if (cards.Length > 0 && cards.Length == seen.Length)
+                _tarotDone = cards.Zip(seen).Where(p => !standing.Contains(p.Second)).GroupBy(p => p.First.Type).ToDictionary(g => g.Key, g => g.Count());
         }
         return byType.Select(g =>
         {
@@ -73,16 +78,20 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         });
     }
 
-    private MapContent FugitiveRow(ContentSpec spec, MapIcon[] icons)
+    private MapContent IconRow(ContentSpec spec, MapIcon[] icons)
     {
+        var type = int.Parse(spec.State.AsSpan("icon:".Length), CultureInfo.InvariantCulture);
+        var (seen, standingBefore) = _iconTracked.GetValueOrDefault(type, ([], 0));
+        var standingNow = standingBefore;
         if (icons.Length > 0)
         {
-            var standing = icons.Where(i => i.Type == Offsets.FugitiveIconType).Select(i => i.EntityId).ToHashSet();
-            _fugitiveSeen.UnionWith(standing);
-            _fugitiveStanding = standing.Count;
+            var standing = icons.Where(i => i.Type == type).Select(i => i.EntityId).ToHashSet();
+            seen.UnionWith(standing);
+            standingNow = standing.Count;
         }
-        var total = _fugitiveSeen.Count;
-        var done = total - _fugitiveStanding;
+        _iconTracked[type] = (seen, standingNow);
+        var total = seen.Count;
+        var done = total - standingNow;
         return new MapContent(spec.Name, spec.Icon, total == 0 || done == 0 ? ContentState.Pending : done == total ? ContentState.Done : ContentState.Active, done, total);
     }
 
@@ -139,7 +148,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
             remaining,
             XpOf(ui.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent)),
             TownTypes.Contains(sceneType),
-            [.. found.Select(s => s.State == "fugitive" ? FugitiveRow(s, icons) : new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
+            [.. found.Select(s => s.State.StartsWith("icon:", StringComparison.Ordinal) ? IconRow(s, icons) : new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
             [.. ui.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Where(line => !claimed.Contains(line))]);
     }
 

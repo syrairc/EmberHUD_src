@@ -208,7 +208,7 @@ public class MapInfoReaderTests
         return reader.Read(world.Scene, 1, 0, icons)!;
     }
 
-    static MapIcon InmateIcon(int entityId) => new(Offsets.FugitiveIconType, "UI_MiniMap_S16jingying", default, 1, 0, entityId);
+    static MapIcon InmateIcon(int entityId) => new(2682, "UI_MiniMap_S16jingying", default, 1, 0, entityId);
 
     [Fact]
     public void FugitiveInmatesCountDoneFromVanishedIcons()
@@ -230,6 +230,23 @@ public class MapInfoReaderTests
         Assert.Equal((2, 3, ContentState.Active), (some.Done, some.Total, some.State));
         var all = Row();
         Assert.Equal((3, 3, ContentState.Done), (all.Done, all.Total, all.State));
+    }
+
+    [Fact]
+    public void DyedSnowMonsterIsDoneWhenItsIconVanishes()
+    {
+        var world = FakeMapInfo.Demiman();
+        world.SetModifiers(5111003, 3001000);
+        var reader = ReaderFor(world);
+        MapContent Row(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!.Content.Single(c => c.Name == "Dyed Snow Monster");
+        }
+
+        Assert.Equal(ContentState.Pending, Row().State);
+        Assert.Equal(ContentState.Pending, Row(new MapIcon(2314, "UI_MiniMap_S8yanliaoqiu07", default, 1, 0, 8707)).State);
+        Assert.Equal(ContentState.Done, Row().State);
     }
 
     [Fact]
@@ -296,6 +313,43 @@ public class MapInfoReaderTests
         var names = ReaderFor(world).Read(world.Scene, 1, 0, [PortalIcon])!.Content.Select(c => c.Name).ToArray();
         Assert.Equal(["The Devil", "The Hermit"], names.Where(n => n.StartsWith("The ")).Order().ToArray());
         Assert.Equal(2, names.Length - (names.Contains(VigilSpec[0]) ? 1 : 0));
+    }
+
+    [Fact]
+    public void CardsPairWithIconsBySortedIdWhenTheIdsDiffer()
+    {
+        var world = TarotMap();
+        world.SetGameplays(
+            (5010, [(Offsets.TarotEntityVar + "_EventsMember_A", 119)]),
+            (5008, [(Offsets.TarotEntityVar + "_EventsMember_B", 120)]),
+            (5010, [(Offsets.TarotEntityVar + "_EventsMember_C", 121)]));
+        var reader = ReaderFor(world);
+        MapInfo Read(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!;
+        }
+
+        Read(CardIcon(124), CardIcon(125), CardIcon(127));
+        var map = Read(CardIcon(125), CardIcon(127));
+        Assert.Equal((1, 2), (map.Content.Single(c => c.Name == "The Hermit").Done, map.Content.Single(c => c.Name == "The Hermit").Total));
+        Assert.Equal(0, map.Content.Single(c => c.Name == "The Devil").Done);
+        map = Read(CardIcon(127));
+        Assert.Equal((1, ContentState.Done), (map.Content.Single(c => c.Name == "The Devil").Done, map.Content.Single(c => c.Name == "The Devil").State));
+    }
+
+    [Fact]
+    public void CardsWaitForEveryIconBeforePairing()
+    {
+        var world = TarotMap();
+        world.SetGameplays(
+            (5010, [(Offsets.TarotEntityVar + "_EventsMember_A", 119)]),
+            (5008, [(Offsets.TarotEntityVar + "_EventsMember_B", 120)]));
+        var reader = ReaderFor(world);
+        reader.Read(world.Scene, 1, 0, [PortalIcon, CardIcon(127)]);
+        _now += Offsets.MapInfoRefreshMilliseconds;
+        var map = reader.Read(world.Scene, 1, 0, [PortalIcon])!;
+        Assert.All(map.Content.Where(c => c.Name.StartsWith("The ")), c => Assert.Equal(0, c.Done));
     }
 
     [Fact]
