@@ -599,6 +599,18 @@ GroundItemsRefreshMilliseconds = 100
 GroundItemsWantedSeconds = 3
 MaxGroundItems = 200
 MaxGroundAffixes = 12
+DropMgrClassName = "DropMgr"
+DropMgrNameTagGroups = 0x3E8
+NameTagGroupStride = 144
+NameTagGroupValue = 8
+NameTagGroupWorldPos = 0
+NameTagGroupScreenRects = 0x10
+NameTagGroupInScreen = 0x74
+NameTagGroupScreenPos = 0x78
+ScreenRectStride = 32
+ScreenRectBox = 4
+MaxNameTagGroups = 128
+MaxScreenRects = 64
 
 [build 123144120]
 BuffMap = 216

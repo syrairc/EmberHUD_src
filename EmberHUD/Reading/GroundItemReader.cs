@@ -1,3 +1,4 @@
+using System.Numerics;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
@@ -7,7 +8,128 @@ internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] Pref
 internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
 {
     private readonly Func<long> _clock = clock ?? System.Diagnostics.Stopwatch.GetTimestamp;
+    private const float MaxLabelPixels = 1000;
     private readonly LuaReader _lua = new(memory, moduleBase);
+    private readonly Names _names = new(memory, moduleBase);
+    private nint _dropMgr;
+    private long _nextRefresh;
+    private bool _hasRead;
+    private GroundItem[]? _items;
+
+    internal static (Vector2 Min, Vector2 Max) LabelRect(Vector2 screenPos, (Vector2 Min, Vector2 Max) box) =>
+        (screenPos + box.Min, screenPos + box.Max);
+
+    internal GroundItem[]? Read()
+    {
+        var now = _clock();
+        if (_hasRead && now < _nextRefresh)
+            return _items;
+
+        _hasRead = true;
+        _nextRefresh = now + System.Diagnostics.Stopwatch.Frequency * Offsets.GroundItemsRefreshMilliseconds / 1000;
+        return _items = Join();
+    }
+
+    private GroundItem[]? Join()
+    {
+        var rects = ReadRects();
+        if (rects is null)
+            return null;
+
+        List<GroundItem> items = [];
+        foreach (var affixes in ReadLua())
+        {
+            if (rects.TryGetValue(affixes.DropId, out var rect))
+                items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds));
+        }
+
+        return [.. items];
+    }
+
+    private Dictionary<int, (Vector2 Min, Vector2 Max, Vector3 Position)>? ReadRects()
+    {
+        if (!TryFindDropMgr(out var dropMgr) ||
+            !memory.TryReadTMapElements(dropMgr + Offsets.DropMgrNameTagGroups, Offsets.NameTagGroupStride, Offsets.MaxNameTagGroups, out var data, out var groups, out var groupBits))
+            return null;
+
+        Dictionary<int, (Vector2, Vector2, Vector3)> rects = [];
+        for (var i = 0; i < groups.Length / Offsets.NameTagGroupStride; i++)
+        {
+            var value = i * Offsets.NameTagGroupStride + Offsets.NameTagGroupValue;
+            var screenPos = new Vector2(BitConverter.ToSingle(groups, value + Offsets.NameTagGroupScreenPos), BitConverter.ToSingle(groups, value + Offsets.NameTagGroupScreenPos + sizeof(float)));
+            var position = new Vector3(BitConverter.ToSingle(groups, value + Offsets.NameTagGroupWorldPos), BitConverter.ToSingle(groups, value + Offsets.NameTagGroupWorldPos + sizeof(float)), BitConverter.ToSingle(groups, value + Offsets.NameTagGroupWorldPos + 2 * sizeof(float)));
+            if (!ReadExtensions.IsAllocated(groupBits, i) || groups[value + Offsets.NameTagGroupInScreen] == 0 || !IsFinite(screenPos) || !IsFinite(position))
+                continue;
+
+            if (memory.TryReadTMapElements(data + value + Offsets.NameTagGroupScreenRects, Offsets.ScreenRectStride, Offsets.MaxScreenRects, out _, out var labels, out var labelBits))
+                AddRects(rects, labels, labelBits, screenPos, position);
+        }
+
+        return rects;
+    }
+
+    private static void AddRects(Dictionary<int, (Vector2, Vector2, Vector3)> into, byte[] labels, uint[] labelBits, Vector2 screenPos, Vector3 position)
+    {
+        for (var i = 0; i < labels.Length / Offsets.ScreenRectStride; i++)
+        {
+            var at = i * Offsets.ScreenRectStride;
+            var box = at + Offsets.ScreenRectBox;
+            var min = new Vector2(BitConverter.ToSingle(labels, box), BitConverter.ToSingle(labels, box + sizeof(float)));
+            var max = new Vector2(BitConverter.ToSingle(labels, box + 2 * sizeof(float)), BitConverter.ToSingle(labels, box + 3 * sizeof(float)));
+            if (!ReadExtensions.IsAllocated(labelBits, i) || labels[box + 4 * sizeof(float)] == 0 || !IsFinite(min) || !IsFinite(max))
+                continue;
+
+            var (labelMin, labelMax) = LabelRect(screenPos, (min, max));
+            var size = labelMax - labelMin;
+            if (size.X > 0 && size.Y > 0 && size.X <= MaxLabelPixels && size.Y <= MaxLabelPixels)
+                into.TryAdd(BitConverter.ToInt32(labels, at), (labelMin, labelMax, position));
+        }
+    }
+
+    private static bool IsFinite(Vector2 v) => float.IsFinite(v.X) && float.IsFinite(v.Y);
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+    private bool TryFindDropMgr(out nint dropMgr)
+    {
+        dropMgr = _dropMgr;
+        if (dropMgr != 0 && IsDropMgr(dropMgr))
+            return true;
+
+        dropMgr = _dropMgr = Scan();
+        return dropMgr != 0;
+    }
+
+    private nint Scan()
+    {
+        var table = moduleBase + Offsets.GObjectsGlobalRva;
+        if (!memory.TryReadPtr(table, out var chunks) ||
+            !memory.TryRead(table + Offsets.GObjectsNumElements, out int count) ||
+            count <= 0 || count > Offsets.MaxGObjectChunks * Offsets.GObjectsPerChunk)
+            return 0;
+
+        for (var chunk = (count - 1) / Offsets.GObjectsPerChunk; chunk >= 0; chunk--)
+        {
+            var inChunk = Math.Min(Offsets.GObjectsPerChunk, count - chunk * Offsets.GObjectsPerChunk);
+            if (!memory.TryReadPtr(chunks + chunk * nint.Size, out var items) ||
+                !memory.TryReadArray(items, inChunk * Offsets.GObjectsItemSize, out byte[] bytes))
+                continue;
+
+            for (var i = inChunk - 1; i >= 0; i--)
+            {
+                var obj = (nint)BitConverter.ToInt64(bytes, i * Offsets.GObjectsItemSize + Offsets.GObjectsItemObject);
+                if (obj != 0 && IsDropMgr(obj))
+                    return obj;
+            }
+        }
+
+        return 0;
+    }
+
+    private bool IsDropMgr(nint obj) =>
+        _names.TryReadClassName(obj, out var className) && className == Offsets.DropMgrClassName &&
+        memory.TryRead(obj + Offsets.UObjectName, out uint nameIndex) && _names.TryRead(nameIndex, out var name) &&
+        !name.StartsWith(Offsets.DefaultObjectPrefix, StringComparison.Ordinal);
 
     internal GroundAffixes[] ReadLua()
     {

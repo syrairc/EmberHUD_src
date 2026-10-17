@@ -132,6 +132,25 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameSourceServesGroundItemsOnlyWhenAsked()
+    {
+        Game.GroundItemsAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).GroundItems);
+        try
+        {
+            Game.WantGroundItems();
+            var items = At(Stopwatch.GetTimestamp()).GroundItems!;
+
+            Assert.Equal(3, items.Length);
+            Assert.Contains(items, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length == 0);
+            Assert.Contains(items, i => i.PrefixIds.Length == 0 && i.SuffixIds.Length > 0);
+            Assert.Contains(items, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0 && !i.Owned);
+            Assert.All(items, i => Assert.True(i.LabelMax.X > i.LabelMin.X && i.LabelMax.Y > i.LabelMin.Y));
+        }
+        finally { Game.GroundItemsAsked = 0; }
+    }
+
+    [Fact]
     public void FakeStashFollowsTheOpenStashPageAndIsGated()
     {
         var open = 6 * Stopwatch.Frequency;

@@ -268,6 +268,28 @@ public class LiveReaderTests
         finally { Game.TartarusAsked = 0; }
     }
 
+    [Fact]
+    public void GroundItemsAreOnlyReadWhenAsked()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        world.AddDropMgr([new FakeNameTagGroup(1, new(5, 6, 7), new(500, 400), [new FakeNameTagLabel(3, new(10, -20), new(110, 10))])]);
+        var f = new Reading.GroundItemReaderTests.Fixture(world: world);
+        f.Drop(3, [106060407], []);
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, 0, null, null, null, null, f.Reader());
+        try
+        {
+            Game.GroundItemsAsked = 0;
+            Assert.True(reader.TryRead(out var idle, out _));
+            Assert.Null(idle.GroundItems);
+
+            Game.WantGroundItems();
+            Assert.True(reader.TryRead(out var asked, out _));
+            Assert.Equal(3, Assert.Single(asked.GroundItems!).DropId);
+        }
+        finally { Game.GroundItemsAsked = 0; }
+    }
+
     private static CharacterReader CharacterWith(FakeWorld world)
     {
         world.SetLocalPlayer(11);

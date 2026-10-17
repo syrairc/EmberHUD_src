@@ -342,6 +342,23 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void NameTagKeysExist()
+    {
+        Assert.Equal("DropMgr", Offsets.DropMgrClassName);
+        Assert.Equal(0x3E8, Offsets.DropMgrNameTagGroups);
+        Assert.Equal(144, Offsets.NameTagGroupStride);
+        Assert.Equal(8, Offsets.NameTagGroupValue);
+        Assert.Equal(0, Offsets.NameTagGroupWorldPos);
+        Assert.Equal(0x10, Offsets.NameTagGroupScreenRects);
+        Assert.Equal(0x74, Offsets.NameTagGroupInScreen);
+        Assert.Equal(0x78, Offsets.NameTagGroupScreenPos);
+        Assert.Equal(32, Offsets.ScreenRectStride);
+        Assert.Equal(4, Offsets.ScreenRectBox);
+        Assert.Equal(128, Offsets.MaxNameTagGroups);
+        Assert.Equal(64, Offsets.MaxScreenRects);
+    }
+
+    [Fact]
     public void LuaGlobalRvaIsSetForTheCurrentBuild()
     {
         var original = Offsets.Build;

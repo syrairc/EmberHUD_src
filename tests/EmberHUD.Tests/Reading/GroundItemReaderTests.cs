@@ -7,14 +7,15 @@ public class GroundItemReaderTests
 {
     private static readonly nint Module = unchecked((nint)0x1_4000_0000L);
 
-    private sealed class Fixture
+    internal sealed class Fixture
     {
-        public readonly FakeMemory Memory = new();
+        public readonly FakeMemory Memory;
         public readonly FakeLua Lua;
         public readonly LuaTable Items;
 
-        public Fixture(bool withManager = true, int logItems = 3)
+        public Fixture(bool withManager = true, int logItems = 3, FakeWorld? world = null)
         {
+            Memory = world?.Memory ?? new();
             Lua = new FakeLua(Memory, Module);
             var manager = Lua.NewTable(0, 2);
             Items = Lua.NewTable(0, logItems);
@@ -138,5 +139,161 @@ public class GroundItemReaderTests
         var read = Assert.Single(f.Reader().ReadLua());
 
         Assert.Equal([106060407], read.PrefixIds);
+    }
+
+    private static FakeNameTagLabel Label(int dropId, float x = 10, float y = -20, float width = 100, float height = 30, bool valid = true, bool allocated = true) =>
+        new(dropId, new(x, y), new(x + width, y + height), valid, allocated);
+
+    private static FakeNameTagGroup Group(int key, Vector2 screenPos, params FakeNameTagLabel[] labels) => new(key, new(5, 6, 7), screenPos, labels);
+
+    private static (GroundItemReader Reader, Fixture Fixture) Joined(FakeWorld world, params int[] dropIds)
+    {
+        var f = new Fixture(world: world);
+        foreach (var id in dropIds) f.Drop(id, [100 + id], [200 + id], owned: id != 2);
+        return (f.Reader(), f);
+    }
+
+    [Fact]
+    public void JoinsRectsWithAffixes()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(2), Label(1))]);
+        var (reader, _) = Joined(world, 1, 2);
+
+        var items = reader.Read()!;
+
+        Assert.Equal([1, 2], items.Select(i => i.DropId));
+        var first = items[0];
+        Assert.Equal(new Vector2(510, 380), first.LabelMin);
+        Assert.Equal(new Vector2(610, 410), first.LabelMax);
+        Assert.Equal(new Vector3(5, 6, 7), first.Position);
+        Assert.Equal([101], first.PrefixIds);
+        Assert.Equal([201], first.SuffixIds);
+        Assert.True(first.Owned);
+        Assert.False(items[1].Owned);
+    }
+
+    [Fact]
+    public void ItemWithoutRectIsDropped()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        var (reader, _) = Joined(world, 1, 2);
+
+        Assert.Equal([1], reader.Read()!.Select(i => i.DropId));
+    }
+
+    [Fact]
+    public void RectWithoutAffixesIsDropped()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(1), Label(9))]);
+        var (reader, _) = Joined(world, 1);
+
+        Assert.Equal([1], reader.Read()!.Select(i => i.DropId));
+    }
+
+    [Fact]
+    public void GroupNotInScreenIsSkipped()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(1)) with { InScreen = false }, Group(2, new(900, 400), Label(2))]);
+        var (reader, _) = Joined(world, 1, 2);
+
+        Assert.Equal([2], reader.Read()!.Select(i => i.DropId));
+    }
+
+    [Fact]
+    public void InvalidAndInvertedRectsAreSkipped()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400),
+            Label(1, valid: false),
+            Label(2, width: 0),
+            Label(3, height: -5),
+            Label(4, x: float.NaN),
+            Label(5, width: 1001),
+            Label(6, height: 1001),
+            Label(7))]);
+        var (reader, _) = Joined(world, 1, 2, 3, 4, 5, 6, 7);
+
+        Assert.Equal([7], reader.Read()!.Select(i => i.DropId));
+    }
+
+    [Fact]
+    public void FreeSlotsAreIgnored()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(1), Label(2, allocated: false))]);
+        var (reader, _) = Joined(world, 1, 2);
+
+        Assert.Equal([1], reader.Read()!.Select(i => i.DropId));
+    }
+
+    [Fact]
+    public void ReturnsNullWhenDropMgrMissing()
+    {
+        var world = new FakeWorld();
+        world.AddObject(world.AddClass("Other_C"), "DropMgr_0");
+        var (reader, _) = Joined(world, 1);
+
+        Assert.Null(reader.Read());
+    }
+
+    [Fact]
+    public void ReturnsNullWhenGroupsCannotBeRead()
+    {
+        var world = new FakeWorld();
+        var manager = world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        world.Memory.Write(manager + Offsets.DropMgrNameTagGroups + Offsets.TArrayNum, 0);
+        var (reader, _) = Joined(world, 1);
+
+        Assert.Null(reader.Read());
+    }
+
+    [Fact]
+    public void LabelRectIsScreenPosPlusBox()
+    {
+        var (min, max) = GroundItemReader.LabelRect(new(500, 400), (new(-50, -10), new(50, 10)));
+
+        Assert.Equal(new Vector2(450, 390), min);
+        Assert.Equal(new Vector2(550, 410), max);
+    }
+
+    [Fact]
+    public void FindsTheDropMgrAgainWhenItMoves()
+    {
+        var world = new FakeWorld();
+        var first = world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        long now = 0;
+        var f = new Fixture(world: world);
+        f.Drop(1, [1], []);
+        var reader = new GroundItemReader(world.Memory, Module, () => now);
+        Assert.Single(reader.Read()!);
+
+        world.Memory.Write(first + Offsets.UObjectClass, FakeWorld.Unmapped);
+        world.AddDropMgr([Group(1, new(500, 400), Label(1))], objectName: "DropMgr_1");
+        now += System.Diagnostics.Stopwatch.Frequency;
+
+        Assert.Single(reader.Read()!);
+    }
+
+    [Fact]
+    public void ReadsAreCachedForTheRefreshInterval()
+    {
+        var world = new FakeWorld();
+        world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        long now = 0;
+        var f = new Fixture(world: world);
+        f.Drop(1, [1], []);
+        var reader = new GroundItemReader(world.Memory, Module, () => now);
+        var first = reader.Read();
+        world.Memory.Reads.Clear();
+
+        Assert.Same(first, reader.Read());
+        Assert.Empty(world.Memory.Reads);
+
+        now += System.Diagnostics.Stopwatch.Frequency;
+        Assert.NotSame(first, reader.Read());
     }
 }

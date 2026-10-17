@@ -86,6 +86,13 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly TartarusOption[] FakeDoors = [new(1, TartarusOptionKind.Door, 1, 1), new(2, TartarusOptionKind.Door, 2, 2), new(3, TartarusOptionKind.Door, 3, 3)];
     private static readonly TartarusOption[] FakeOperations = [new(4, TartarusOptionKind.Consume, 4, 0), new(5, TartarusOptionKind.Replace, 5, 0)];
 
+    private static readonly GroundItem[] FakeGroundItems =
+    [
+        new(1, new(1620, 640), new(1820, 670), new(1000, 1000, 0), true, [106060407, 140060404], []),
+        new(2, new(1620, 700), new(1820, 730), new(1010, 1000, 0), true, [], [200060101]),
+        new(3, new(1620, 760), new(1820, 790), new(1020, 1000, 0), false, [106060405], [200060103, 200060106]),
+    ];
+
     private readonly List<Vector2> _trail = [];
     private ExploredTrail _published = new([], TrailRadius);
     private int _trailArea = -1;
@@ -131,6 +138,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
+            GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
             GameMinimap = new GameMinimap(true, 51892f),
