@@ -1,1 +1,9 @@
-{ }
+{
+  "Serve": true,
+  "Port": 50902,
+  "CustomToken": "",
+  "MaxReadBytes": 16384,
+  "RecordHz": 5,
+  "ShowStatusDot": true,
+  "AllowScreenshots": false
+}
