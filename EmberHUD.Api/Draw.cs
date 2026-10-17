@@ -300,6 +300,45 @@ public static class Draw
         return new ClipScope(target);
     }
 
+    public static void Excluding(IReadOnlyList<(Vector2 Min, Vector2 Max)> rects, Action draw, ImDrawListPtr? list = null)
+    {
+        if (rects.Count == 0)
+        {
+            draw();
+            return;
+        }
+
+        foreach (var (min, max) in Strips(ImGui.GetIO().DisplaySize, rects))
+        {
+            using (Clip(min, max, list)) draw();
+        }
+    }
+
+    internal static List<(Vector2 Min, Vector2 Max)> Strips(Vector2 size, IReadOnlyList<(Vector2 Min, Vector2 Max)> rects)
+    {
+        List<(Vector2 Min, Vector2 Max)> strips = [(Vector2.Zero, size)];
+        foreach (var (holeMin, holeMax) in rects)
+        {
+            strips = [.. strips.SelectMany(strip => CutOut(strip.Min, strip.Max, holeMin, holeMax))];
+        }
+
+        return strips;
+    }
+
+    static IEnumerable<(Vector2 Min, Vector2 Max)> CutOut(Vector2 min, Vector2 max, Vector2 holeMin, Vector2 holeMax)
+    {
+        if (holeMin.X >= max.X || holeMax.X <= min.X || holeMin.Y >= max.Y || holeMax.Y <= min.Y) return [(min, max)];
+        var top = MathF.Max(min.Y, holeMin.Y);
+        var bottom = MathF.Min(max.Y, holeMax.Y);
+        return new[]
+        {
+            (min, new Vector2(max.X, top)),
+            (new Vector2(min.X, bottom), max),
+            (new Vector2(min.X, top), new Vector2(holeMin.X, bottom)),
+            (new Vector2(holeMax.X, top), new Vector2(max.X, bottom)),
+        }.Where(strip => strip.Item2.X > strip.Item1.X && strip.Item2.Y > strip.Item1.Y);
+    }
+
     public static LayerScope Layer(DrawLayer layer)
     {
         var list = Background;

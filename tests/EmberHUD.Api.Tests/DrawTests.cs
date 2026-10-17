@@ -249,6 +249,92 @@ public sealed class DrawTests
         Assert.Equal(outer, top());
     });
 
+    static float Area(IEnumerable<(Vector2 Min, Vector2 Max)> strips) => strips.Sum(s => (s.Max.X - s.Min.X) * (s.Max.Y - s.Min.Y));
+
+    static bool Overlaps((Vector2 Min, Vector2 Max) a, (Vector2 Min, Vector2 Max) b) => a.Min.X < b.Max.X && b.Min.X < a.Max.X && a.Min.Y < b.Max.Y && b.Min.Y < a.Max.Y;
+
+    [Fact]
+    public void StripsWithoutRectsAreTheWholeScreen() =>
+        Assert.Equal([(Vector2.Zero, new Vector2(100, 50))], Draw.Strips(new Vector2(100, 50), []));
+
+    [Fact]
+    public void StripsAroundOneRectCoverEverythingElse()
+    {
+        var hole = (new Vector2(10, 10), new Vector2(30, 20));
+        var strips = Draw.Strips(new Vector2(100, 50), [hole]);
+        Assert.Equal(5000 - 200, Area(strips));
+        Assert.DoesNotContain(strips, s => Overlaps(s, hole));
+    }
+
+    [Fact]
+    public void StripsAroundTwoRectsSkipBoth()
+    {
+        var holes = new[] { (new Vector2(10, 10), new Vector2(30, 20)), (new Vector2(60, 0), new Vector2(80, 50)) };
+        var strips = Draw.Strips(new Vector2(100, 50), holes);
+        Assert.Equal(5000 - 200 - 1000, Area(strips));
+        Assert.DoesNotContain(strips, s => holes.Any(h => Overlaps(s, h)));
+    }
+
+    [Fact]
+    public void StripsAroundOverlappingRectsDoNotDoubleCount()
+    {
+        var holes = new[] { (new Vector2(10, 10), new Vector2(30, 30)), (new Vector2(20, 20), new Vector2(40, 40)) };
+        Assert.Equal(5000 - 400 - 400 + 100, Area(Draw.Strips(new Vector2(100, 50), holes)));
+    }
+
+    [Fact]
+    public void StripsHangingOffTheScreenAreCutToIt() =>
+        Assert.Equal(5000 - 10 * 50, Area(Draw.Strips(new Vector2(100, 50), [(new Vector2(-20, -5), new Vector2(10, 60))])));
+
+    [Fact]
+    public void StripsAreEmptyWhenARectCoversTheScreen() =>
+        Assert.Empty(Draw.Strips(new Vector2(100, 50), [(new Vector2(-1), new Vector2(200))]));
+
+    [Fact]
+    public void StripsIgnoreRectsOffTheScreen() =>
+        Assert.Equal([(Vector2.Zero, new Vector2(100, 50))], Draw.Strips(new Vector2(100, 50), [(new Vector2(200), new Vector2(300))]));
+
+    [Fact]
+    public void ExcludingRunsTheDrawOncePerStripInsideThatStripsClip() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var top = () => list.ClipRectStack[list.ClipRectStack.Size - 1];
+        var outer = top();
+        var hole = (new Vector2(10, 10), new Vector2(30, 20));
+        var expected = Draw.Strips(ImGui.GetIO().DisplaySize, [hole]);
+        var seen = new List<Vector4>();
+        Draw.Excluding([hole], () => seen.Add(top()));
+        Assert.Equal(expected.Select(s => new Vector4(s.Min.X, s.Min.Y, s.Max.X, s.Max.Y)), seen);
+        Assert.Equal(outer, top());
+    });
+
+    [Fact]
+    public void ExcludingWithNoRectsDrawsOnceUnclipped() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var outer = list.ClipRectStack[list.ClipRectStack.Size - 1];
+        var calls = 0;
+        Draw.Excluding([], () =>
+        {
+            calls++;
+            Assert.Equal(outer, list.ClipRectStack[list.ClipRectStack.Size - 1]);
+        });
+        Assert.Equal(1, calls);
+    });
+
+    [Fact]
+    public void ExcludingKeepsDrawsOutOfTheRect() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        var hole = (new Vector2(10, 10), new Vector2(30, 20));
+        var start = list.CmdBuffer.Size;
+        var firstIndex = list.IdxBuffer.Size;
+        Draw.Excluding([hole], () => Draw.RectFilled(Vector2.Zero, new Vector2(100, 50), Color.Red));
+        var drawn = Enumerable.Range(start - 1, list.CmdBuffer.Size - start + 1).Select(i => list.CmdBuffer[i]).Where(cmd => cmd.ElemCount > 0 && cmd.IdxOffset >= firstIndex).ToList();
+        Assert.NotEmpty(drawn);
+        Assert.DoesNotContain(drawn, cmd => Overlaps((new Vector2(cmd.ClipRect.X, cmd.ClipRect.Y), new Vector2(cmd.ClipRect.Z, cmd.ClipRect.W)), hole));
+    });
+
     [Fact]
     public void PolylineAndConvexPolySkipDegenerateInput() => TestFrame.Run(() =>
     {
