@@ -18,7 +18,7 @@ public sealed class SettingsTests
         var general = new Settings().General;
         Check.That(!general.UseGameMinimap);
         Check.Equal(0f, general.GameOffsetX);
-        Check.Equal(-35f, general.GameOffsetY);
+        Check.Equal(-37f, general.GameOffsetY);
     }
 
     [Test]

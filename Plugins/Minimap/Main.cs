@@ -15,6 +15,9 @@ public sealed class Main : Plugin<Settings>
     internal Func<long> Clock = () => Environment.TickCount64;
     Walls _walls = Walls.Empty;
     Region _region = Region.Empty;
+    Polyline[] _unexploredOutline = [];
+    Walls? _unexploredWalls;
+    Region? _unexploredRegion;
     string _regionKey = "";
     long _regionAt;
     byte[]? _spare;
@@ -24,6 +27,7 @@ public sealed class Main : Plugin<Settings>
     static readonly Comparison<Entity> DrawOrder = (a, b) => (IconsTab.Layer(a), a.Id).CompareTo((IconsTab.Layer(b), b.Id));
     readonly HashSet<int> _overridden = [];
     readonly HashSet<int> _iconEntities = [];
+    readonly HashSet<(int, int)> _iconCells = [];
     MapIcon[]? _indexedIcons;
     internal const float MarkerRadius = 8;
     internal const int TaskRingType = 1002;
@@ -159,6 +163,8 @@ public sealed class Main : Plugin<Settings>
         foreach (var entity in _ordered)
         {
             var row = Settings.Icons.FixedFor(entity);
+            if (gameMode && HasIconAt(entity.Position))
+                continue;
             if (_iconEntities.Contains(entity.Id))
             {
                 if (gameMode || row is not { OverrideGameIcon: true }) continue;
@@ -189,8 +195,19 @@ public sealed class Main : Plugin<Settings>
             DrawOutline(_walls.RegionOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
             return;
         }
-        DrawOutline(_walls.RegionOutline, map, viewport, view.Outline, view.OutlineWidth);
+        DrawOutline(gameMode && current ? UnexploredOutline() : _walls.RegionOutline, map, viewport, view.Outline, view.OutlineWidth);
         if (current && !gameMode) DrawOutline(_region.ExploredOutline, map, viewport, view.ExploredOutline, view.ExploredOutlineWidth);
+    }
+
+    Polyline[] UnexploredOutline()
+    {
+        if (!ReferenceEquals(_unexploredWalls, _walls) || !ReferenceEquals(_unexploredRegion, _region))
+        {
+            _unexploredOutline = _region.Unexplored(_walls.RegionOutline);
+            _unexploredWalls = _walls;
+            _unexploredRegion = _region;
+        }
+        return _unexploredOutline;
     }
 
     internal void DrawOutline(Polyline[] lines, MapView map, Vector2 viewport, Color colour, float width)
@@ -236,8 +253,25 @@ public sealed class Main : Plugin<Settings>
         if (ReferenceEquals(icons, _indexedIcons)) return;
         _indexedIcons = icons;
         _iconEntities.Clear();
+        _iconCells.Clear();
         foreach (var icon in icons)
-            if (icon.EntityId != 0 && float.IsFinite(icon.Position.X) && float.IsFinite(icon.Position.Y)) _iconEntities.Add(icon.EntityId);
+        {
+            if (!float.IsFinite(icon.Position.X) || !float.IsFinite(icon.Position.Y)) continue;
+            if (icon.EntityId != 0) _iconEntities.Add(icon.EntityId);
+            _iconCells.Add(Cell(icon.Position.X, icon.Position.Y));
+        }
+    }
+
+    static (int, int) Cell(float x, float y) => ((int)MathF.Round(x), (int)MathF.Round(y));
+
+    bool HasIconAt(Vector3 position)
+    {
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y)) return false;
+        var (x, y) = Cell(position.X, position.Y);
+        for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+                if (_iconCells.Contains((x + dx, y + dy))) return true;
+        return false;
     }
 
     void DrawIcon(MapIcon icon, MapView map, Vector2 viewport, float zoomScale)

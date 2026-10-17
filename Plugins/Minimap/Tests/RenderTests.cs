@@ -656,6 +656,35 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void GameModeSkipsAnEntityAtAGameIconPositionWhateverTheEntityId()
+    {
+        var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var atMonster = Portal with { EntityId = 99 };
+
+        Check.That(Colours(GameScene([atMonster], [monster]), main => FixedRare(main)).Contains(Packed(FixedColour)), "toggle off, it draws");
+        Check.That(!Colours(GameScene([atMonster], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "toggle on, skipped by position");
+        Check.That(!Colours(GameScene([atMonster with { EntityId = 0 }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "no entity id still skips by position");
+        Check.That(Colours(GameScene([atMonster with { Position = new Vector2(65, 15) }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "50 units away still draws");
+        Check.That(Colours(GameScene([atMonster with { Position = new Vector2(float.NaN, float.PositiveInfinity) }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "non-finite icon position is ignored");
+    }
+
+    [Test]
     public void GameModeStillDrawsAnEntityWithoutAGameIconFromItsFixedRow()
     {
         var scene = GameScene(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)]);
@@ -683,9 +712,55 @@ public sealed class RenderTests
         void Off(Main main) => main.Settings.General.UseGameMinimap = false;
 
         Check.That(Drawn(GameScene(explored: trail), configure: Off) > Drawn(GameScene(), configure: Off), "toggle off draws both outlines");
-        Check.Equal(Drawn(GameScene(), configure: GameMode), Drawn(GameScene(explored: trail), configure: GameMode));
+        Check.Equal(0, Drawn(GameScene(explored: trail), configure: GameMode));
         Check.That(!Colours(GameScene(explored: trail), GameMode).Contains(Packed(new Settings().Map.Region.ExploredOutline)), "no explored outline colour");
-        Check.That(Colours(GameScene(explored: trail), GameMode).Contains(Packed(new Settings().Map.Region.Outline)), "the area outline stays");
+        Check.That(Colours(GameScene(), GameMode).Contains(Packed(new Settings().Map.Region.Outline)), "the area outline stays in unexplored ground");
+    }
+
+    static GameState RowScene(ExploredTrail? explored) =>
+        Scene.State(player: Facing(Vector2.UnitX), terrain: Scene.Cells(4, 1, (0, 0), (1, 0), (2, 0), (3, 0)), explored: explored, gameMinimap: OpenGameMap);
+
+    static (float Left, int Count) OutlineSpan(GameState state, Action<Main> configure)
+    {
+        TestGame.Set(state);
+        Map.View = null;
+        var main = Scene.Plugin();
+        configure(main);
+        var left = float.MaxValue;
+        var count = 0;
+        TestFrame.Run(() =>
+        {
+            main.Tick();
+            main.Tick();
+            var list = Draw.Background;
+            var first = list.VtxBuffer.Size;
+            main.Render();
+            count = list.VtxBuffer.Size - first;
+            for (var i = first; i < list.VtxBuffer.Size; i++) left = Math.Min(left, list.VtxBuffer[i].Pos.X);
+        });
+        return (left, count);
+    }
+
+    [Test]
+    public void GameModeDrawsTheAreaOutlineOnlyInUnexploredGround()
+    {
+        void Off(Main main) => main.Settings.General.UseGameMinimap = false;
+        var half = new ExploredTrail([new Vector2(5, 5)], 12);
+        var all = new ExploredTrail([new Vector2(20, 5)], 100);
+        var none = new ExploredTrail([new Vector2(500, 500)], 1);
+
+        TestGame.Set(RowScene(half));
+        Map.View = null;
+        Scene.Plugin().Tick();
+        var boundary = Map.View!.Value.ToScreen(new Vector3(20, 5, 0)).X;
+
+        var full = OutlineSpan(RowScene(null), GameMode);
+        Check.Equal(full, OutlineSpan(RowScene(none), GameMode));
+        Check.That(full.Left < boundary - 5, "the whole outline reaches the explored half");
+        var partial = OutlineSpan(RowScene(half), GameMode);
+        Check.That(partial.Count > 0 && partial.Left >= boundary - 5, "only the unexplored half is drawn");
+        Check.Equal(0, OutlineSpan(RowScene(all), GameMode).Count);
+        Check.That(OutlineSpan(RowScene(all), Off).Count > 0, "toggle off still draws");
     }
 
     [Test]

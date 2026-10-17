@@ -37,7 +37,7 @@ public sealed class GeneralTab
     public float OffsetX;
     public float OffsetY = -50;
     public float GameOffsetX;
-    public float GameOffsetY = -35;
+    public float GameOffsetY = -37;
 }
 
 public sealed class RegionLook
@@ -234,19 +234,26 @@ public sealed class Settings : PluginSettings
     internal bool DrawMap()
     {
         var changed = Setting.Choice("Draw style", ref Map.DrawStyle, "Region fills the walkable area like the game's Tab map - white where you've been, blue where you haven't. Walls draws the old wall lines");
-        Controls.Section("Region");
+        Controls.Section("Unexplored regions");
         changed |= Setting.Color("Region fill", ref Map.Region.Fill, "Fill of the walkable area you haven't explored yet");
         changed |= Setting.Color("Region outline", ref Map.Region.Outline, "Outline around the whole walkable area");
         changed |= Setting.Slider("Region outline width", ref Map.Region.OutlineWidth, 0.5f, 6);
-        changed |= Setting.Color("Explored fill", ref Map.Region.ExploredFill, "Fill of the area you've been through");
-        changed |= Setting.Color("Explored outline", ref Map.Region.ExploredOutline, "Outline around the explored area and the islands inside it");
-        changed |= Setting.Slider("Explored outline width", ref Map.Region.ExploredOutlineWidth, 0.5f, 6);
+        Controls.Section("Explored regions");
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Color("Explored fill", ref Map.Region.ExploredFill, "Fill of the area you've been through. The game map draws explored ground itself");
+            changed |= Setting.Color("Explored outline", ref Map.Region.ExploredOutline, "Outline around the explored area and the islands inside it. The game map draws explored ground itself");
+            changed |= Setting.Slider("Explored outline width", ref Map.Region.ExploredOutlineWidth, 0.5f, 6);
+        }
         Controls.Section("Walls");
         changed |= Setting.Color("Wall colour", ref Map.Walls.Colour, "Only used by the Walls draw style");
         changed |= Setting.Slider("Wall thickness", ref Map.Walls.Thickness, 0.5f, 6, "Only used by the Walls draw style");
         Controls.Section("Player");
-        changed |= Setting.Color("Colour", ref Map.Player.Colour, id: "player colour");
-        changed |= Setting.Slider("Size", ref Map.Player.Size, 4, 30, id: "player size");
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Color("Colour", ref Map.Player.Colour, "The game map draws the player arrow itself", id: "player colour");
+            changed |= Setting.Slider("Size", ref Map.Player.Size, 4, 30, "The game map draws the player arrow itself", id: "player size");
+        }
         return changed;
     }
 
@@ -254,13 +261,19 @@ public sealed class Settings : PluginSettings
     {
         Icons.SeedPresets();
         var changed = Setting.Checkbox("Game icons", ref Icons.UseGameIcons, "Draw the game's own minimap icons when GameIcons are set up, shapes otherwise");
-        changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale");
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Slider("Game icon scale", ref Icons.GameIconScale, 0.25f, 4, "Scales every game icon on top of its own row scale. The game map draws its own icons");
+        }
         changed |= Setting.Checkbox("Fade hidden monsters", ref Icons.FadeHidden, "Draw buried or hidden monsters at half opacity");
         changed |= Setting.Checkbox("Fade invulnerable monsters", ref Icons.FadeInvulnerable, "Draw monsters that cannot be damaged (e.g. turrets) at half opacity");
-        changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size");
-        changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
-        changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
-        changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
+        using (Layout.Dim(General.UseGameMinimap))
+        {
+            changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size. The game map drives zoom with Use game minimap");
+            changed |= Setting.Slider("Zoom scale factor", ref Icons.ZoomScaleFactor, 0, 1, "How strongly icons follow the zoom - 1 matches the map exactly, 0 keeps them a fixed size");
+            changed |= Setting.Slider("Zoom scale min", ref Icons.ZoomScaleMin, 0.1f, 1, "Smallest icon multiplier when zoomed out");
+            changed |= Setting.Slider("Zoom scale max", ref Icons.ZoomScaleMax, 1, 4, "Largest icon multiplier when zoomed in");
+        }
         Controls.Section("Icons");
         Controls.Filter(ref _filter, width: 240);
         ImGui.SameLine();
@@ -312,8 +325,8 @@ public sealed class Settings : PluginSettings
             ImGui.TableNextColumn();
             if (fixedRow)
             {
-                changed |= ImGui.Checkbox("##override", ref row.OverrideGameIcon);
-                Text.Tip("Draw this row instead of the game's own icon for these entities. Hidden + override hides both");
+                using (Layout.Dim(General.UseGameMinimap)) changed |= ImGui.Checkbox("##override", ref row.OverrideGameIcon);
+                Text.Tip("Draw this row instead of the game's own icon for these entities. Hidden + override hides both. Ignored with Use game minimap");
             }
         }
         ImGui.PopID();
