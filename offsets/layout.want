@@ -611,6 +611,7 @@ ScreenRectStride = 32
 ScreenRectBox = 4
 MaxNameTagGroups = 128
 MaxScreenRects = 64
+MaxLabelPixels = 1000
 DropMgrRescanSeconds = 5
 
 [build 123144120]

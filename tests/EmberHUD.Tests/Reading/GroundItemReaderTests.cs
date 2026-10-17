@@ -314,21 +314,28 @@ public class GroundItemReaderTests
     }
 
     [Fact]
-    public void ReadsAreCachedForTheRefreshInterval()
+    public void LuaIsCachedButRectsAreReadEveryPass()
     {
         var world = new FakeWorld();
-        world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
+        var first = world.AddDropMgr([Group(1, new(500, 400), Label(1))]);
         long now = 0;
         var f = new Fixture(world: world);
         f.Drop(1, [1], []);
         var reader = new GroundItemReader(world.Memory, Module, () => now);
-        var first = reader.Read();
-        world.Memory.Reads.Clear();
+        var luaSlot = Module + Offsets.LuaGlobalRva;
+        int LuaReads() => world.Memory.Reads.Count(r => r.Address == luaSlot);
+        Assert.Equal(new Vector2(510, 380), Assert.Single(reader.Read()!).LabelMin);
+        Assert.Equal(1, LuaReads());
 
-        Assert.Same(first, reader.Read());
-        Assert.Empty(world.Memory.Reads);
+        world.Memory.Write(first + Offsets.UObjectClass, FakeWorld.Unmapped);
+        world.AddDropMgr([Group(1, new(700, 400), Label(1))], objectName: "DropMgr_1");
+        now += System.Diagnostics.Stopwatch.Frequency * Offsets.GroundItemsRefreshMilliseconds / 2000;
+
+        Assert.Equal(new Vector2(710, 380), Assert.Single(reader.Read()!).LabelMin);
+        Assert.Equal(1, LuaReads());
 
         now += System.Diagnostics.Stopwatch.Frequency;
-        Assert.NotSame(first, reader.Read());
+        reader.Read();
+        Assert.Equal(2, LuaReads());
     }
 }

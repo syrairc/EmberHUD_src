@@ -8,37 +8,31 @@ internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] Pref
 internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
 {
     private readonly Func<long> _clock = clock ?? System.Diagnostics.Stopwatch.GetTimestamp;
-    private const float MaxLabelPixels = 1000;
     private readonly LuaReader _lua = new(memory, moduleBase);
     private readonly Names _names = new(memory, moduleBase);
     private nint _dropMgr;
     private long _nextScan;
     private long _nextRefresh;
-    private bool _hasRead;
-    private GroundItem[]? _items;
+    private GroundAffixes[]? _affixes;
 
     internal static (Vector2 Min, Vector2 Max) LabelRect(Vector2 screenPos, (Vector2 Min, Vector2 Max) box) =>
         (screenPos + box.Min, screenPos + box.Max);
 
     internal GroundItem[]? Read()
     {
-        var now = _clock();
-        if (_hasRead && now < _nextRefresh)
-            return _items;
-
-        _hasRead = true;
-        _nextRefresh = now + System.Diagnostics.Stopwatch.Frequency * Offsets.GroundItemsRefreshMilliseconds / 1000;
-        return _items = Join();
-    }
-
-    private GroundItem[]? Join()
-    {
         var rects = ReadRects();
         if (rects is null)
             return null;
 
+        var now = _clock();
+        if (_affixes is null || now >= _nextRefresh)
+        {
+            _affixes = ReadLua();
+            _nextRefresh = now + System.Diagnostics.Stopwatch.Frequency * Offsets.GroundItemsRefreshMilliseconds / 1000;
+        }
+
         List<GroundItem> items = [];
-        foreach (var affixes in ReadLua())
+        foreach (var affixes in _affixes)
         {
             if (rects.TryGetValue(affixes.DropId, out var rect))
                 items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds));
@@ -87,7 +81,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
 
             var (labelMin, labelMax) = LabelRect(screenPos, (min, max));
             var size = labelMax - labelMin;
-            if (size.X > 0 && size.Y > 0 && size.X <= MaxLabelPixels && size.Y <= MaxLabelPixels)
+            if (size.X > 0 && size.Y > 0 && size.X <= Offsets.MaxLabelPixels && size.Y <= Offsets.MaxLabelPixels)
                 into.TryAdd(BitConverter.ToInt32(labels, at), (labelMin, labelMax, position));
         }
     }
