@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using EmberHUD.Host.Memory;
@@ -5,6 +6,8 @@ using EmberHUD.Host.Memory;
 namespace EmberHUD.Host.Reading;
 
 internal readonly record struct LuaTable(nint Address);
+
+internal readonly record struct LuaEntryRow(string Key, string Type, string Value);
 
 internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
 {
@@ -110,6 +113,101 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         }
     }
 
+    public bool TryResolve(LuaTable root, string path, out LuaTable table, out string failedAt)
+    {
+        table = default;
+        failedAt = "";
+        if (!TryReadHeader(root, out _)) return false;
+
+        var current = root;
+        foreach (var segment in path.Length == 0 ? [] : path.Split('.'))
+        {
+            var found = segment == "@meta" ? TryGetMetatable(current, out var next)
+                : long.TryParse(segment, NumberStyles.None, CultureInfo.InvariantCulture, out var index) ? TryGetTableAt(current, index, out next)
+                : TryGetTable(current, segment, out next);
+            if (!found)
+            {
+                failedAt = segment;
+                return false;
+            }
+
+            current = next;
+        }
+
+        table = current;
+        return true;
+    }
+
+    public LuaEntryRow[] Entries(LuaTable table, int max, out int total)
+    {
+        total = 0;
+        if (!TryReadHeader(table, out var header)) return [];
+
+        var rows = new List<LuaEntryRow>();
+        var count = 0;
+        void Add(string key, long raw, uint tag)
+        {
+            count++;
+            if (rows.Count < max) rows.Add(Describe(key, raw, tag));
+        }
+
+        if (header.ArraySize > 0 && memory.TryReadArray(header.Array, (int)header.ArraySize * Offsets.LuaTValueSize, out byte[] array))
+        {
+            for (var i = 0; i < header.ArraySize; i++)
+            {
+                var at = i * Offsets.LuaTValueSize;
+                var tag = MemoryMarshal.Read<uint>(array.AsSpan(at + Offsets.LuaNodeTag));
+                if (tag != 0) Add($"[{i + 1}]", MemoryMarshal.Read<long>(array.AsSpan(at)), tag);
+            }
+        }
+
+        if (!TryReadNodes(header, out var nodes))
+        {
+            total = count;
+            return [.. rows];
+        }
+
+        for (var i = 0; i < nodes.Length; i += Offsets.LuaNodeSize)
+        {
+            var tag = NodeTag(nodes, i);
+            var keyTag = NodeKeyTag(nodes, i);
+            if (tag == 0 && keyTag == 0) continue;
+            var keyRaw = MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey));
+            var key = keyTag == Offsets.LuaTagInt ? $"[{keyRaw}]"
+                : (keyTag == Offsets.LuaTagShortString || keyTag == Offsets.LuaTagLongString) && TryReadString((nint)keyRaw, out var text, true) ? Clean(text)
+                : $"<tag 0x{keyTag:X2}>";
+            Add(key, MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue)), tag);
+        }
+
+        total = count;
+        return [.. rows];
+    }
+
+    private bool TryGetMetatable(LuaTable table, out LuaTable value)
+    {
+        value = default;
+        if (!memory.TryReadPtr(table.Address + Offsets.LuaTableMetatable, out var meta) || meta == 0) return false;
+        value = new LuaTable(meta);
+        return true;
+    }
+
+    private LuaEntryRow Describe(string key, long raw, uint tag)
+    {
+        if (tag == Offsets.LuaTagShortString || tag == Offsets.LuaTagLongString)
+            return new LuaEntryRow(key, "string", TryReadString((nint)raw, out var text, true) ? Clean(text) : "");
+        if (tag == 0) return new LuaEntryRow(key, "nil", "");
+        if (tag == Offsets.LuaTagInt) return new LuaEntryRow(key, "int", raw.ToString(CultureInfo.InvariantCulture));
+        if (tag == Offsets.LuaTagFloat) return new LuaEntryRow(key, "float", BitConverter.Int64BitsToDouble(raw).ToString("R", CultureInfo.InvariantCulture));
+        if (tag == Offsets.LuaTagBool) return new LuaEntryRow(key, "bool", (int)raw != 0 ? "true" : "false");
+        var type = tag == Offsets.LuaTagTable ? "table" : tag == Offsets.LuaTagFunction ? "function" : $"tag 0x{tag:X2}";
+        return new LuaEntryRow(key, type, $"0x{raw:X}");
+    }
+
+    private static string Clean(string text) => string.Create(text.Length, text, (span, source) =>
+    {
+        for (var i = 0; i < span.Length; i++) span[i] = char.IsControl(source[i]) ? ' ' : source[i];
+    });
+
     private readonly record struct Header(int LogSize, uint ArraySize, nint Array, nint Node);
 
     private bool TryReadHeader(LuaTable table, out Header header)
@@ -183,11 +281,11 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
                memory.TryReadArray(keyAddress + Offsets.LuaStringChars, length, out byte[] chars) && chars.AsSpan().SequenceEqual(wanted);
     }
 
-    private bool TryReadString(nint address, out string value)
+    private bool TryReadString(nint address, out string value, bool cut = false)
     {
         value = "";
-        if (address == 0 || !memory.TryRead(address + Offsets.LuaStringLength, out int length) || length < 0 || length > Offsets.MaxLuaString ||
-            !memory.TryReadArray(address + Offsets.LuaStringChars, length, out byte[] chars))
+        if (address == 0 || !memory.TryRead(address + Offsets.LuaStringLength, out int length) || length < 0 || (length > Offsets.MaxLuaString && !cut) ||
+            !memory.TryReadArray(address + Offsets.LuaStringChars, Math.Min(length, Offsets.MaxLuaString), out byte[] chars))
             return false;
 
         value = Encoding.UTF8.GetString(chars);
