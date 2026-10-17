@@ -169,7 +169,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
                 if (_lua.TryGetString(item, Offsets.LuaGroundBaseId, out var baseText)) int.TryParse(baseText, out baseId);
                 if (_lua.TryGetInt(item, Offsets.LuaGroundCount, out var num) && num is >= 1 and <= int.MaxValue) count = (int)num;
                 if (_lua.TryGetInt(item, Offsets.LuaGroundRareValue, out var rare) && rare is >= int.MinValue and <= int.MaxValue) rareValue = (int)rare;
-                equipment = _lua.TryGetTable(item, Offsets.LuaGroundPrefix, out _);
+                equipment = _lua.TryGetInt(item, Offsets.LuaGroundLevel, out var level) && level > Offsets.GroundCommodityMaxLevel;
             }
         }
 

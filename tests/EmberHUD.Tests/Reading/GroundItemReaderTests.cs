@@ -25,14 +25,14 @@ public class GroundItemReaderTests
 
         public GroundItemReader Reader() => new(Memory, Module);
 
-        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true, int specialId = 0, string? uniqueId = null, string? baseId = null, int count = 0, int rareValue = 0)
+        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true, int specialId = 0, string? uniqueId = null, string? baseId = null, int count = 0, int rareValue = 0, int level = 0)
         {
             var entry = Lua.NewTable(0, 4);
             var drop = Lua.NewTable(0, 2);
             if (withDropId) Lua.SetInt(drop, Offsets.LuaGroundDropId, key);
             if (withTables)
             {
-                var item = Lua.NewTable(0, baseId is null && count == 0 && rareValue == 0 ? 2 : 8);
+                var item = Lua.NewTable(0, baseId is null && count == 0 && rareValue == 0 && level == 0 ? 2 : 8);
                 Lua.SetTable(item, Offsets.LuaGroundPrefix, Affixes(prefixes));
                 Lua.SetTable(item, Offsets.LuaGroundSuffix, Affixes(suffixes));
                 if (specialId != 0) Lua.SetInt(item, Offsets.LuaGroundSpecialId, specialId);
@@ -40,6 +40,7 @@ public class GroundItemReaderTests
                 if (baseId is not null) Lua.SetString(item, Offsets.LuaGroundBaseId, baseId);
                 if (count != 0) Lua.SetInt(item, Offsets.LuaGroundCount, count);
                 if (rareValue != 0) Lua.SetInt(item, Offsets.LuaGroundRareValue, rareValue);
+                if (level != 0) Lua.SetInt(item, Offsets.LuaGroundLevel, level);
                 Lua.SetTable(drop, Offsets.LuaGroundItem, item);
             }
 
@@ -101,7 +102,7 @@ public class GroundItemReaderTests
     public void ReadsBaseIdCountAndRarity()
     {
         var f = new Fixture();
-        f.Drop(1, [], [], baseId: "1502", count: 7, rareValue: 100);
+        f.Drop(1, [], [], baseId: "1502", count: 7, rareValue: 100, level: 78);
 
         var read = Assert.Single(f.Reader().ReadLua());
 
@@ -109,6 +110,19 @@ public class GroundItemReaderTests
         Assert.Equal(7, read.Count);
         Assert.Equal(100, read.RareValue);
         Assert.True(read.Equipment);
+    }
+
+    [Theory]
+    [InlineData(78, true)]
+    [InlineData(2, true)]
+    [InlineData(1, false)]
+    [InlineData(0, false)]
+    public void ItemLevelAboveOneIsEquipment(int level, bool equipment)
+    {
+        var f = new Fixture();
+        f.Drop(1, [1], [], level: level);
+
+        Assert.Equal(equipment, Assert.Single(f.Reader().ReadLua()).Equipment);
     }
 
     [Fact]

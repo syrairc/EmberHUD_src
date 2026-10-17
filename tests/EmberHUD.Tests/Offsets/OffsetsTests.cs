@@ -343,10 +343,12 @@ public class OffsetsTests
         Assert.Equal("BaseId", Offsets.LuaGroundBaseId);
         Assert.Equal("Num", Offsets.LuaGroundCount);
         Assert.Equal("RareValue", Offsets.LuaGroundRareValue);
+        Assert.Equal("Level", Offsets.LuaGroundLevel);
         Assert.Equal("Id", Offsets.LuaGroundAffixId);
         Assert.Equal(100, Offsets.GroundItemsRefreshMilliseconds);
         Assert.Equal(3, Offsets.GroundItemsWantedSeconds);
         Assert.Equal(200, Offsets.MaxGroundItems);
+        Assert.Equal(1, Offsets.GroundCommodityMaxLevel);
         Assert.Equal(12, Offsets.MaxGroundAffixes);
     }
 
