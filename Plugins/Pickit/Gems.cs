@@ -21,7 +21,7 @@ static class Gems
 
         void Side(int[] ids, bool prefix, float x, float direction)
         {
-            var ordered = s.BestIsLowest ? ids.OrderBy(GroundItem.Tier) : ids.OrderByDescending(GroundItem.Tier);
+            var ordered = ids.OrderBy(GroundItem.Tier);
             foreach (var id in ordered.Take(GroundItem.MaxAffixes))
             {
                 var tier = GroundItem.Tier(id);

@@ -8,7 +8,7 @@ namespace Pickit;
 
 public sealed class TierStyle
 {
-    public string Icon = "marker:diamond";
+    public string Icon = "svg:gem";
     public Color Color = Color.White;
     public float Scale = 1;
 }
@@ -26,7 +26,6 @@ public sealed class Settings : PluginSettings
     public float GemSpacing = 0.1f;
     public float AnchorY = 0;
     public float InsetX = 0;
-    public bool BestIsLowest = true;
     public bool DebugRects = false;
 
     public const int TierCount = 10;
@@ -48,7 +47,7 @@ public sealed class Settings : PluginSettings
         while (Tiers.Count < TierCount) Tiers.Add(DefaultTier(Tiers.Count));
         foreach (var tier in Tiers)
         {
-            tier.Icon ??= "marker:diamond";
+            tier.Icon ??= "svg:gem";
             tier.Scale = Clamp(tier.Scale, 0.1f, 10, 1);
         }
     }

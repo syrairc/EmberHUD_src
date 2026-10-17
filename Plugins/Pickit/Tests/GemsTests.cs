@@ -27,11 +27,8 @@ public sealed class GemsTests
         Check.Equal(1, gems[0].Tier);
         Check.Equal(3, gems[^1].Tier);
         Check.That(gems[0].Centre.X < gems[^1].Centre.X);
-        settings.BestIsLowest = false;
-        gems = Gems.Layout(Item([3, 1, 2], []), settings);
-        Check.Equal(3, gems[0].Tier);
         var suffixes = Gems.Layout(Item([], [3, 1, 2]), settings);
-        Check.Equal(3, suffixes[0].Tier);
+        Check.Equal(1, suffixes[0].Tier);
         Check.That(suffixes[0].Centre.X > suffixes[^1].Centre.X);
     }
 

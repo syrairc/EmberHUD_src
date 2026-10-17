@@ -1,3 +1,4 @@
+using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -33,6 +34,7 @@ public sealed class SettingsUiTests
     {
         var tiers = new Settings().Tiers;
         Check.Equal(10, tiers.Count);
+        Check.That(tiers.All(t => t.Icon == "svg:gem"));
         float Strength(int i) => tiers[i].Color.GetSaturation() * tiers[i].Color.A;
         Check.That(Strength(1) > Strength(6));
         Check.That(Strength(6) < Strength(5));
