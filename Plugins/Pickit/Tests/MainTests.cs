@@ -177,4 +177,32 @@ public sealed class MainTests
         Check.That(Vertices(plugin, bag) > plainBag, "bag on");
         Check.That(Vertices(plugin, stash) > plainStash, "stash on");
     }
+
+    [Test]
+    public void LegendaryGroundItemDrawsNothingNeighboursStill()
+    {
+        var plugin = Plugin();
+        var normal = new GroundItem(1, new Vector2(100, 200), new Vector2(300, 230), Vector3.Zero, true, [1], [2]);
+        var legendary = normal with { DropId = 2, LabelMin = new Vector2(100, 300), LabelMax = new Vector2(300, 330) } with { Legendary = true };
+        TestGame.Set(GameState.Empty with { GroundItems = [legendary] });
+        Check.Equal(0, TestFrame.Vertices(plugin.Render));
+        TestGame.Set(GameState.Empty with { GroundItems = [normal] });
+        var one = TestFrame.Vertices(plugin.Render);
+        Check.That(one > 0, "normal draws");
+        TestGame.Set(GameState.Empty with { GroundItems = [legendary, normal] });
+        Check.Equal(one, TestFrame.Vertices(plugin.Render));
+    }
+
+    [Test]
+    public void LegendaryBagAndStashItemsDrawNothingNeighboursStill()
+    {
+        var plugin = Plugin();
+        var legendary = Owned(0, [1], []) with { Legendary = true };
+        Check.Equal(0, Vertices(plugin, BagState(legendary)));
+        Check.Equal(0, Vertices(plugin, StashState(legendary)));
+        var one = Vertices(plugin, BagState(Owned(1, [1], [])));
+        Check.That(one > 0, "normal draws");
+        Check.Equal(one, Vertices(plugin, BagState(legendary, Owned(1, [1], []))));
+        Check.Equal(one, Vertices(plugin, StashState(legendary, Owned(1, [1], []))));
+    }
 }

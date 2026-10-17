@@ -31,6 +31,7 @@ public sealed class Main : Plugin<Settings>
         if (!Settings.GemsEnabled || Game.State.GroundItems is not { } items || Game.State.Ui.AnyFullScreen) return;
         foreach (var item in items)
         {
+            if (item.Legendary) continue;
             if (Settings.DebugRects) EmberHUD.Draw.Rect(item.LabelMin, item.LabelMax, Color.Red);
             foreach (var gem in Gems.Layout(item, Settings)) DrawGem(gem, Settings.GroundTierNumbers);
         }
@@ -57,7 +58,7 @@ public sealed class Main : Plugin<Settings>
         using var clip = EmberHUD.Draw.Clip(clipMin, clipMax);
         foreach (var item in items)
         {
-            if (!onTab(item) || item.PrefixIds.Length + item.SuffixIds.Length == 0) continue;
+            if (!onTab(item) || item.Legendary || item.PrefixIds.Length + item.SuffixIds.Length == 0) continue;
             foreach (var cell in cells)
             {
                 if (cell.Slot != item.Slot) continue;
