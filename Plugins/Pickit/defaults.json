@@ -1,1 +1,1 @@
-{ "HoldKeyEnabled": true, "NearEnabled": true, "NearRadius": 500, "GemsEnabled": true }
+{ "HoldKeyEnabled": true, "NearEnabled": true, "NearRadius": 500, "GemsEnabled": true, "GemSize": 0.33, "GemSpacing": 0.1, "AnchorY": 0, "InsetX": 0, "BestIsLowest": true, "DebugRects": false }
