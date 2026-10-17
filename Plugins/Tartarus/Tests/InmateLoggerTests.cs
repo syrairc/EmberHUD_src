@@ -30,12 +30,10 @@ public sealed class InmateLoggerTests
         TestGame.UseLoc(key => names.GetValueOrDefault(key), null);
     }
 
-    static readonly QuestTarget[] Marked = [new QuestTarget(1, Vector2.Zero)];
-
     static Entity Wolf(int id, double life) => new(id, RareWolf, Vector3.Zero, EntityKind.Monster, Rarity.Rare) { Life = life, MaxLife = 90 };
 
     static void Set(int area, params Entity[] entities) =>
-        TestGame.Set(new GameState { AreaId = area, Player = new Player(Vector3.Zero, Vector2.UnitX), QuestTargets = Marked, Entities = entities, Area = new MapInfo("Prison", 1, null, null, false, [], []) });
+        TestGame.Set(new GameState { AreaId = area, Player = new Player(Vector3.Zero, Vector2.UnitX), Entities = entities, Area = new MapInfo("Prison", 1, null, null, false, [], []) });
 
     sealed class Rig : IDisposable
     {
@@ -181,12 +179,12 @@ public sealed class InmateLoggerTests
         var calls = 0;
         TestGame.UseLoc(key => { calls++; return "Plain Rock"; }, null);
         Entity Rock() => new(31, 4000001, Vector3.Zero, EntityKind.Monster, Rarity.Normal) { Life = 10, MaxLife = 10 };
-        TestGame.Set(new GameState { AreaId = 7, QuestTargets = Marked, Entities = [Rock()] });
+        TestGame.Set(new GameState { AreaId = 7, Entities = [Rock()] });
         rig.Tick(1);
         rig.Tick(2);
         rig.Tick(3);
         Check.Equal(1, calls);
-        TestGame.Set(new GameState { AreaId = 8, QuestTargets = Marked, Entities = [Rock()] });
+        TestGame.Set(new GameState { AreaId = 8, Entities = [Rock()] });
         rig.Tick(4);
         Check.Equal(2, calls);
     }
@@ -196,10 +194,10 @@ public sealed class InmateLoggerTests
     {
         using var rig = new Rig();
         TestGame.UseLoc(key => key == $"npc|name|{RareWolf}" ? "Robber: Alpha Wolf" : null, null);
-        TestGame.Set(new GameState { AreaId = 7, QuestTargets = Marked, Entities = [Wolf(41, 0)] });
+        TestGame.Set(new GameState { AreaId = 7, Entities = [Wolf(41, 0)] });
         rig.Tick(1);
         UseNames();
-        TestGame.Set(new GameState { AreaId = 8, QuestTargets = Marked, Entities = [Wolf(42, 0)] });
+        TestGame.Set(new GameState { AreaId = 8, Entities = [Wolf(42, 0)] });
         rig.Tick(2);
         TestGame.Set(new GameState { AreaId = 8 });
         rig.Tick(3);
@@ -287,14 +285,14 @@ public sealed class InmateLoggerTests
     {
         using var rig = new Rig();
         TestGame.UseLoc(_ => null, null);
-        TestGame.Set(new GameState { AreaId = 7, QuestTargets = Marked, Entities = [Wolf(51, 0)] });
+        TestGame.Set(new GameState { AreaId = 7, Entities = [Wolf(51, 0)] });
         rig.Tick(1);
         UseNames();
         rig.Tick(5);
         TestGame.Set(new GameState { AreaId = 7 });
         rig.Tick(6);
         Check.Equal(0, rig.Plugin.Store.Kills.Count);
-        TestGame.Set(new GameState { AreaId = 7, QuestTargets = Marked, Entities = [Wolf(51, 0)] });
+        TestGame.Set(new GameState { AreaId = 7, Entities = [Wolf(51, 0)] });
         rig.Tick(12);
         TestGame.Set(new GameState { AreaId = 7 });
         rig.Tick(13);

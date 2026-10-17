@@ -88,7 +88,7 @@ public sealed class MainTests
         {
             TestGame.UseLoc(key => key == "npc|name|5027023" ? "Robber: Alpha Wolf" : null, null);
             var wolf = new Entity(11, 5027023, Vector3.Zero, EntityKind.Monster, Rarity.Rare) { Life = 0, MaxLife = 90 };
-            TestGame.Set(new GameState { AreaId = 7, QuestTargets = [new QuestTarget(1, Vector2.Zero)], Entities = [wolf] });
+            TestGame.Set(new GameState { AreaId = 7, Entities = [wolf] });
             plugin.Tick();
             TestGame.Set(new GameState { AreaId = 7 });
             now = 3;

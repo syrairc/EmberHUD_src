@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -13,9 +12,6 @@ public sealed class TrackerTests
         new(id, cfgId, at ?? Vector3.Zero, kind, Rarity.Rare) { Life = life, MaxLife = maxLife };
 
     static GameState State(int area, params Entity[] entities) =>
-        Unmarked(area, entities) with { QuestTargets = [.. entities.Select(entity => new QuestTarget(entity.Id, new(entity.Position.X, entity.Position.Y)))] };
-
-    static GameState Unmarked(int area, params Entity[] entities) =>
         new() { AreaId = area, Player = new Player(Vector3.Zero, Vector2.UnitX), Entities = entities };
 
     static Tracker InmatesOnly() => new(cfgId => cfgId == 5027023 ? Rare : null);
@@ -194,36 +190,6 @@ public sealed class TrackerTests
         (int, int)? asked = null;
         tracker.Update(State(7), 2, (id, cfgId) => { asked = (id, cfgId); return null; });
         Check.Equal((46, 5027023), asked);
-    }
-
-    [Test]
-    public void InmateWithoutQuestMarkerIsIgnored()
-    {
-        var tracker = InmatesOnly();
-        tracker.Update(Unmarked(7, Mob(51, 0, 90)), 1);
-        Check.Equal(0, tracker.Update(Unmarked(7), 2).Length);
-    }
-
-    [Test]
-    public void InmateIsTrackedOnceMarkedEvenWhenMarkerIsGoneAtDeath()
-    {
-        var tracker = InmatesOnly();
-        tracker.Update(State(7, Mob(52, 40, 90)), 1);
-        tracker.Update(Unmarked(7, Mob(52, 0, 90)), 2);
-        var events = tracker.Update(Unmarked(7), 3);
-        Check.Equal(1, events.Length);
-        Check.Equal(SightingEnd.Killed, events[0].End);
-    }
-
-    [Test]
-    public void MarkerOnAnotherInmateDoesNotMarkThisOne()
-    {
-        var tracker = InmatesOnly();
-        var marked = Mob(53, 0, 90, new Vector3(500, 0, 0));
-        var plain = Mob(54, 0, 90);
-        tracker.Update(Unmarked(7, marked, plain) with { QuestTargets = [new QuestTarget(1, new(500, 0))] }, 1);
-        var events = tracker.Update(Unmarked(7), 2);
-        Check.Equal(1, events.Length);
     }
 
     [Test]
