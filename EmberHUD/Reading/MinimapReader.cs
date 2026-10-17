@@ -4,6 +4,7 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Names names)
 {
+    private const float StayMapScale = 1.92f;
     private readonly Dictionary<nint, bool> _isMinimapClass = [];
     private readonly Dictionary<uint, bool> _isRotateName = [];
     private nint _widget;
@@ -31,7 +32,7 @@ internal sealed class MinimapReader(IReadBackend memory, nint moduleBase, Names 
         && memory.TryRead(_widget + Offsets.MinimapBigZoom, out float zoom) && float.IsFinite(zoom) && zoom > 0
         && memory.TryRead(_widget + Offsets.MinimapMapSide, out int side) && side > 0
         && memory.TryRead(_widget + Offsets.MinimapViewportScale, out float viewportScale) && float.IsFinite(viewportScale) && viewportScale > 0
-            ? new GameMinimap(mode == 1, zoom * side * viewportScale / 2)
+            ? new GameMinimap(mode == 1, zoom * side * viewportScale / StayMapScale)
             : null;
 
     public float? ReadRotationDegrees(int generation)

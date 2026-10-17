@@ -314,7 +314,7 @@ public class LiveReaderTests
         var reader = ReaderFor(world);
         reader.TryRead(out var state, out _);
         Assert.True(state.GameMinimap!.Open);
-        Assert.Equal(6.2086f * 34304 * 0.64f / 2, state.GameMinimap.WorldWidth, 0.5f);
+        Assert.Equal(6.2086f * 34304 * 0.64f / 1.92f, state.GameMinimap.WorldWidth, 0.01f);
     }
 
     [Fact]
