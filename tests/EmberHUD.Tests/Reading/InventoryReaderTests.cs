@@ -38,7 +38,7 @@ public class InventoryReaderTests
             return table;
         }
 
-        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true, int type = 7)
+        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true, int type = 7, int specialId = 0)
         {
             var record = LastRecord = Lua.NewTable(0, 4);
             Lua.SetString(record, Offsets.LuaItemId, id);
@@ -46,6 +46,7 @@ public class InventoryReaderTests
             Lua.SetInt(record, Offsets.LuaItemLevel, 10);
             Lua.SetInt(record, Offsets.LuaItemQuality, 2);
             Lua.SetInt(record, Offsets.LuaItemRareValue, 3);
+            if (specialId != 0) Lua.SetInt(record, Offsets.LuaItemSpecialId, specialId);
             if (withCount) Lua.SetInt(record, Offsets.LuaItemCount, count);
             Lua.SetInt(record, Offsets.LuaItemStackMax, stackMax);
             Lua.SetInt(record, Offsets.LuaItemType, type);
@@ -88,6 +89,20 @@ public class InventoryReaderTests
             Lua.SetIntKeyTable(Bag(0, 1), 0, entry);
             return Assert.Single(Reader().Read()!);
         }
+    }
+
+    [Fact]
+    public void SpecialIdMarksLegendary()
+    {
+        var f = new Fixture();
+        var bag = f.Bag(0, 2);
+        f.Lua.SetIntKeyTable(bag, 0, f.Item("1_a", 1, 1, 1, specialId: 112333));
+        f.Lua.SetIntKeyTable(bag, 1, f.Item("2_b", 2, 1, 1));
+
+        var items = f.Reader().Read()!;
+
+        Assert.True(items[0].Legendary);
+        Assert.False(items[1].Legendary);
     }
 
     [Fact]

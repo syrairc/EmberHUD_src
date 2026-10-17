@@ -3,7 +3,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] PrefixIds, int[] SuffixIds);
+internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] PrefixIds, int[] SuffixIds, bool Legendary);
 
 internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
 {
@@ -35,7 +35,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         foreach (var affixes in _affixes)
         {
             if (rects.TryGetValue(affixes.DropId, out var rect))
-                items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds));
+                items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds) { Legendary = affixes.Legendary });
         }
 
         return [.. items];
@@ -152,6 +152,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         _lua.TryGetBool(entry, Offsets.LuaGroundBelong, out var owned);
         var dropId = (int)key;
         int[] prefixes = [], suffixes = [];
+        var legendary = false;
         if (_lua.TryGetTable(entry, Offsets.LuaGroundDropItem, out var drop))
         {
             if (_lua.TryGetInt(drop, Offsets.LuaGroundDropId, out var id) && id is >= int.MinValue and <= int.MaxValue) dropId = (int)id;
@@ -159,9 +160,11 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
             {
                 prefixes = _lua.AffixIds(item, Offsets.LuaGroundPrefix);
                 suffixes = _lua.AffixIds(item, Offsets.LuaGroundSuffix);
+                legendary = _lua.TryGetInt(item, Offsets.LuaGroundSpecialId, out var specialId) && specialId != 0 ||
+                    _lua.TryGetString(item, Offsets.LuaGroundUniqueId, out var uniqueId) && uniqueId.Length > 0 && uniqueId != "0";
             }
         }
 
-        return new GroundAffixes(dropId, owned, prefixes, suffixes);
+        return new GroundAffixes(dropId, owned, prefixes, suffixes, legendary);
     }
 }

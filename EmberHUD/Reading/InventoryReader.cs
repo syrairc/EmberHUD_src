@@ -84,7 +84,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             return false;
 
         var (prefixes, suffixes) = ReadAffixes(record, entry);
-        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes };
+        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes, Legendary = TryGetInt(record, Offsets.LuaItemSpecialId, out var specialId) && specialId != 0 };
         return true;
     }
 

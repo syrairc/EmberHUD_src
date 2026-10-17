@@ -256,6 +256,7 @@ public class OffsetsTests
         Assert.Equal("Level", Offsets.LuaItemLevel);
         Assert.Equal("Quality", Offsets.LuaItemQuality);
         Assert.Equal("RareValue", Offsets.LuaItemRareValue);
+        Assert.Equal("ConfigSpecialId", Offsets.LuaItemSpecialId);
         Assert.Equal("BagNum", Offsets.LuaItemCount);
         Assert.Equal("MaxNum", Offsets.LuaItemStackMax);
         Assert.Equal("Type1", Offsets.LuaItemType);
@@ -337,6 +338,8 @@ public class OffsetsTests
         Assert.Equal("item", Offsets.LuaGroundItem);
         Assert.Equal("Prefix", Offsets.LuaGroundPrefix);
         Assert.Equal("Suffix", Offsets.LuaGroundSuffix);
+        Assert.Equal("ConfigSpecialId", Offsets.LuaGroundSpecialId);
+        Assert.Equal("UniqueItmId", Offsets.LuaGroundUniqueId);
         Assert.Equal("Id", Offsets.LuaGroundAffixId);
         Assert.Equal(100, Offsets.GroundItemsRefreshMilliseconds);
         Assert.Equal(3, Offsets.GroundItemsWantedSeconds);

@@ -25,7 +25,7 @@ public class GroundItemReaderTests
 
         public GroundItemReader Reader() => new(Memory, Module);
 
-        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true)
+        public void Drop(int key, int[] prefixes, int[] suffixes, bool owned = true, bool withTables = true, bool withDropId = true, int specialId = 0, string? uniqueId = null)
         {
             var entry = Lua.NewTable(0, 4);
             var drop = Lua.NewTable(0, 2);
@@ -35,6 +35,8 @@ public class GroundItemReaderTests
                 var item = Lua.NewTable(0, 2);
                 Lua.SetTable(item, Offsets.LuaGroundPrefix, Affixes(prefixes));
                 Lua.SetTable(item, Offsets.LuaGroundSuffix, Affixes(suffixes));
+                if (specialId != 0) Lua.SetInt(item, Offsets.LuaGroundSpecialId, specialId);
+                if (uniqueId is not null) Lua.SetString(item, Offsets.LuaGroundUniqueId, uniqueId);
                 Lua.SetTable(drop, Offsets.LuaGroundItem, item);
             }
 
@@ -69,6 +71,37 @@ public class GroundItemReaderTests
         Assert.True(read.Owned);
         Assert.Equal([106060407, 140060404], read.PrefixIds);
         Assert.Empty(read.SuffixIds);
+    }
+
+    [Fact]
+    public void SpecialIdMarksLegendary()
+    {
+        var f = new Fixture();
+        f.Drop(1, [1], [], specialId: 112333);
+
+        Assert.True(Assert.Single(f.Reader().ReadLua()).Legendary);
+    }
+
+    [Theory]
+    [InlineData("8841263", true)]
+    [InlineData("0", false)]
+    [InlineData("", false)]
+    public void UniqueIdMarksLegendary(string uniqueId, bool legendary)
+    {
+        var f = new Fixture();
+        f.Drop(1, [1], [], uniqueId: uniqueId);
+
+        Assert.Equal(legendary, Assert.Single(f.Reader().ReadLua()).Legendary);
+    }
+
+    [Fact]
+    public void MissingLegendaryFieldsAreNotLegendary()
+    {
+        var f = new Fixture();
+        f.Drop(1, [1], []);
+        f.Drop(2, [], [], withTables: false);
+
+        Assert.All(f.Reader().ReadLua(), g => Assert.False(g.Legendary));
     }
 
     [Fact]
