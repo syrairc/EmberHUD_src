@@ -626,6 +626,35 @@ public sealed class RenderTests
     }
 
     [Test]
+    public void GameModeSkipsAnEntityAtAGameIconPositionWhateverTheEntityId()
+    {
+        var monster = Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare);
+        var atMonster = Portal with { EntityId = 99 };
+
+        Check.That(Colours(GameScene([atMonster], [monster]), main => FixedRare(main)).Contains(Packed(FixedColour)), "toggle off, it draws");
+        Check.That(!Colours(GameScene([atMonster], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "toggle on, skipped by position");
+        Check.That(!Colours(GameScene([atMonster with { EntityId = 0 }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "no entity id still skips by position");
+        Check.That(Colours(GameScene([atMonster with { Position = new Vector2(65, 15) }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "50 units away still draws");
+        Check.That(Colours(GameScene([atMonster with { Position = new Vector2(float.NaN, float.PositiveInfinity) }], [monster]), main =>
+        {
+            FixedRare(main);
+            GameMode(main);
+        }).Contains(Packed(FixedColour)), "non-finite icon position is ignored");
+    }
+
+    [Test]
     public void GameModeStillDrawsAnEntityWithoutAGameIconFromItsFixedRow()
     {
         var scene = GameScene(entities: [Scene.Entity(EntityKind.Monster, new Vector3(15, 15, 0), Rarity.Rare)]);

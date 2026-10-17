@@ -27,6 +27,7 @@ public sealed class Main : Plugin<Settings>
     static readonly Comparison<Entity> DrawOrder = (a, b) => (IconsTab.Layer(a), a.Id).CompareTo((IconsTab.Layer(b), b.Id));
     readonly HashSet<int> _overridden = [];
     readonly HashSet<int> _iconEntities = [];
+    readonly HashSet<(int, int)> _iconCells = [];
     MapIcon[]? _indexedIcons;
     internal const float MarkerRadius = 8;
     internal const int TaskRingType = 1002;
@@ -162,6 +163,8 @@ public sealed class Main : Plugin<Settings>
         foreach (var entity in _ordered)
         {
             var row = Settings.Icons.FixedFor(entity);
+            if (gameMode && HasIconAt(entity.Position))
+                continue;
             if (_iconEntities.Contains(entity.Id))
             {
                 if (gameMode || row is not { OverrideGameIcon: true }) continue;
@@ -250,8 +253,25 @@ public sealed class Main : Plugin<Settings>
         if (ReferenceEquals(icons, _indexedIcons)) return;
         _indexedIcons = icons;
         _iconEntities.Clear();
+        _iconCells.Clear();
         foreach (var icon in icons)
-            if (icon.EntityId != 0 && float.IsFinite(icon.Position.X) && float.IsFinite(icon.Position.Y)) _iconEntities.Add(icon.EntityId);
+        {
+            if (!float.IsFinite(icon.Position.X) || !float.IsFinite(icon.Position.Y)) continue;
+            if (icon.EntityId != 0) _iconEntities.Add(icon.EntityId);
+            _iconCells.Add(Cell(icon.Position.X, icon.Position.Y));
+        }
+    }
+
+    static (int, int) Cell(float x, float y) => ((int)MathF.Round(x), (int)MathF.Round(y));
+
+    bool HasIconAt(Vector3 position)
+    {
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y)) return false;
+        var (x, y) = Cell(position.X, position.Y);
+        for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+                if (_iconCells.Contains((x + dx, y + dy))) return true;
+        return false;
     }
 
     void DrawIcon(MapIcon icon, MapView map, Vector2 viewport, float zoomScale)
