@@ -1,7 +1,7 @@
 using System.Numerics;
 using EmberHUD;
 
-namespace GroundRing;
+namespace Threats;
 
 public sealed class Main : Plugin<Settings>
 {

@@ -2,7 +2,7 @@ using System.Drawing;
 using EmberHUD;
 using EmberHUD.Ui;
 
-namespace GroundRing;
+namespace Threats;
 
 public sealed class Settings : PluginSettings
 {

@@ -186,16 +186,22 @@ public class ReaderLoopTests
         Assert.Equal(expected, ReaderLoop.WaitMilliseconds(tick, TimeSpan.FromMilliseconds(elapsedMilliseconds)));
     }
 
-    private sealed class Sleeping(int milliseconds) : IGameSource
+    private sealed class Stamped(int milliseconds) : IGameSource
     {
-        private int _reads;
+        private readonly List<long> _starts = [];
 
-        public int Reads => Volatile.Read(ref _reads);
+        public long[] Starts
+        {
+            get
+            {
+                lock (_starts) return [.. _starts];
+            }
+        }
 
         public bool TryRead(out GameState state, out string? failure)
         {
+            lock (_starts) _starts.Add(System.Diagnostics.Stopwatch.GetTimestamp());
             Thread.Sleep(milliseconds);
-            Interlocked.Increment(ref _reads);
             state = GameState.Empty;
             failure = null;
             return true;
@@ -207,12 +213,16 @@ public class ReaderLoopTests
     [Fact]
     public void ThePeriodIncludesTheTimeTheReadTook()
     {
-        var source = new Sleeping(30);
-        using var loop = new ReaderLoop(() => source, _ => { }, 40);
+        var source = new Stamped(60);
+        using var loop = new ReaderLoop(() => source, _ => { }, 100);
         loop.Start();
 
-        Thread.Sleep(600);
+        SpinWait.SpinUntil(() => source.Starts.Length >= 8, TimeSpan.FromSeconds(15));
 
-        Assert.True(source.Reads >= 11, $"{source.Reads} reads");
+        var starts = source.Starts;
+        Assert.True(starts.Length >= 8, $"{starts.Length} reads");
+        var gaps = starts.Zip(starts.Skip(1), (a, b) => System.Diagnostics.Stopwatch.GetElapsedTime(a, b).TotalMilliseconds).Order().ToArray();
+        var median = gaps[gaps.Length / 2];
+        Assert.True(median < 130, $"median gap {median:0}ms");
     }
 }
