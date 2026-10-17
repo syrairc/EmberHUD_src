@@ -156,6 +156,25 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void EntityRowsCarryTheGameBarOnlyWhenSet()
+    {
+        Use(Mob(1, 5, 10) with { HasGameBar = true, GameBar = new ScreenRect(new Vector2(10, 20), new Vector2(110.5f, 30)) }, Mob(2, 5, 20));
+        var rows = Entities(new JsonObject());
+        Check.Equal("10,20,100.5,10", string.Join(',', rows[0]!["bar"]!.AsArray().Select(n => (double)n!)), "bar");
+        Check.That(rows[1]!["bar"] is null, "no bar");
+    }
+
+    [Test]
+    public void EntityRowsCarryHasBarOnlyForMonstersWithAGameBar()
+    {
+        Use(Mob(1, 5, 10) with { HasGameBar = true }, Mob(2, 5, 20));
+        var rows = Entities(new JsonObject());
+        Check.That((bool?)rows[0]!["hasBar"] == true, "hasBar");
+        Check.That(rows[0]!["bar"] is null, "no rect");
+        Check.That(rows[1]!["hasBar"] is null, "omitted");
+    }
+
+    [Test]
     public void EntityRowsCarryTheNameWhenThereIsOne()
     {
         Use(Mob(1, 5, 10) with { Name = "Crimson Boar" }, Mob(2, 5, 20));

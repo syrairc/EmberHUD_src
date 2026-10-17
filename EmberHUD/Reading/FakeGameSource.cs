@@ -169,19 +169,19 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static Entity[] BuildEntities()
     {
         var entities = new List<Entity>();
-        void Add(Vector2 offset, EntityKind kind, Rarity rarity)
+        void Add(Vector2 offset, EntityKind kind, Rarity rarity, bool hasGameBar = false, ScreenRect? gameBar = null)
         {
             var index = entities.Count;
             var maxLife = kind == EntityKind.Monster ? rarity switch { Rarity.Normal => 120d, Rarity.Magic => 300, Rarity.Rare => 900, _ => 12000 } : 0;
             var label = kind == EntityKind.Monster ? rarity.ToString() : kind.ToString();
-            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Name = $"Fake {label} {index + 1}", Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife });
+            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Name = $"Fake {label} {index + 1}", Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife, HasGameBar = hasGameBar, GameBar = gameBar });
         }
 
         Rarity[] rarities = [Rarity.Normal, Rarity.Magic, Rarity.Rare];
         for (var i = 0; i < 8; i++)
         {
             var angle = MathF.Tau * i / 8;
-            Add(new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 600, EntityKind.Monster, i == 7 ? Rarity.Boss : rarities[i % 3]);
+            Add(new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 600, EntityKind.Monster, i == 7 ? Rarity.Boss : rarities[i % 3], hasGameBar: i < 2, gameBar: i == 0 ? new ScreenRect(new Vector2(600, 300), new Vector2(680, 306)) : null);
         }
         Add(new Vector2(750, 0), EntityKind.Portal, Rarity.Normal);
         Add(new Vector2(-750, 0), EntityKind.Portal, Rarity.Normal);

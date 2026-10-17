@@ -12,19 +12,17 @@ public static class PlateRenderer
 
     static readonly Dictionary<string, Template> Templates = new();
 
-    public static bool DrawPlate(in PlateData data, PlateStyle style, Vector2 anchor, Vector2 viewport)
+    public static bool DrawPlate(in PlateData data, PlateStyle style, ScreenRect rect, Vector2 viewport)
     {
         var bar = style.Bar;
-        var centre = new Vector2(anchor.X, anchor.Y - style.OffsetY);
-        var half = new Vector2(bar.Width, bar.Height) / 2;
-        var min = centre - half;
-        var max = centre + half;
+        var min = rect.Min;
+        var max = rect.Max;
         if (!(max.X >= 0 && max.Y >= 0 && min.X <= viewport.X && min.Y <= viewport.Y)) return false;
 
         var hasBar = data.MaxLife > 0 && !double.IsNaN(data.Life);
-        if (hasBar) DrawBar(bar, min, max, (float)Math.Clamp(data.Life / data.MaxLife, 0, 1));
+        if (hasBar && style.DrawBar) DrawBar(bar, min, max, (float)Math.Clamp(data.Life / data.MaxLife, 0, 1));
         DrawLine(style.Above, data, min, max, new Vector2(0, min.Y - TextGap), Align.Bottom);
-        if (hasBar) DrawLine(style.OnBar, data, min, max, new Vector2(0, centre.Y), Align.Middle);
+        if (hasBar) DrawLine(style.OnBar, data, min, max, new Vector2(0, (min.Y + max.Y) / 2), Align.Middle);
         DrawLine(style.Below, data, min, max, new Vector2(0, max.Y + TextGap), Align.TopLeft);
         return true;
     }

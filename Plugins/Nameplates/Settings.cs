@@ -49,8 +49,9 @@ public sealed class PlateStyle
     public TextLine OnBar = new() { Enabled = true, Template = "{hp%}%" };
     public TextLine Below = new();
     public float OffsetY;
+    public bool DrawBar = true;
 
-    public PlateStyle Clone() => new() { Bar = Bar.Clone(), Above = Above.Clone(), OnBar = OnBar.Clone(), Below = Below.Clone(), OffsetY = OffsetY };
+    public PlateStyle Clone() => new() { DrawBar = DrawBar, Bar = Bar.Clone(), Above = Above.Clone(), OnBar = OnBar.Clone(), Below = Below.Clone(), OffsetY = OffsetY };
 }
 
 public sealed class BucketSettings
@@ -78,6 +79,7 @@ public sealed class Settings : PluginSettings
     public float DistanceUnit = 100;
     public float MaxDistance = 25;
     public bool HideBehindPanels = true;
+    public bool AnchorToGameBar;
     public BucketSettings[] Buckets = DefaultBuckets();
     public List<StyleOverride> Overrides = new();
 

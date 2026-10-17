@@ -18,6 +18,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     private static readonly HashSet<string> Hud = [.. Offsets.HudPages.Split(' ', StringSplitOptions.RemoveEmptyEntries)];
     private static readonly PanelSpec Unknown = new(PanelKind.Other, "");
 
+    private readonly SlateWidgets _slate = new(memory);
     private readonly Dictionary<(nint Class, string Ancestor), bool> _isA = [];
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<nint, (nint Child, long RetryAt)> _rectChildren = [];
@@ -183,14 +184,16 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         return Geometry(page, origin);
     }
 
+    internal Vector2? TryOrigin() => TryOverlay(out _, out var origin) ? origin : null;
+
     private bool TryOverlay(out nint overlay, out Vector2 origin)
     {
         overlay = 0;
         origin = default;
         if (!memory.TryReadPtr(moduleBase + Offsets.GEngineGlobalRva, out var engine) ||
             !memory.TryReadPtr(engine + Offsets.EngineGameViewport, out var viewport) ||
-            !TryWeak(viewport + Offsets.ViewportOverlay, out overlay) ||
-            !TrySlateRect(overlay, Vector2.Zero, out var rect))
+            !_slate.TryWeak(viewport + Offsets.ViewportOverlay, out overlay) ||
+            !_slate.TryRect(overlay, Vector2.Zero, out var rect))
             return false;
 
         origin = rect.Min;
@@ -290,32 +293,5 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         memory.TryRead(widget + Offsets.UWidgetVisibility, out byte visibility) && visibility is 0 or 3 or 4;
 
     private (Vector2 Min, Vector2 Max)? Geometry(nint widget, Vector2 origin) =>
-        TryWeak(widget + Offsets.UWidgetSlate, out var slate) && TrySlateRect(slate, origin, out var rect) ? rect : null;
-
-    private bool TryWeak(nint weakPtr, out nint target)
-    {
-        target = 0;
-        return memory.TryReadPtr(weakPtr, out target) && target != 0 &&
-               memory.TryReadPtr(weakPtr + Offsets.WeakPtrController, out var controller) && controller != 0 &&
-               memory.TryRead(controller + Offsets.RefControllerShared, out int shared) && shared > 0;
-    }
-
-    private bool TrySlateRect(nint slate, Vector2 origin, out (Vector2 Min, Vector2 Max) rect)
-    {
-        rect = default;
-        Span<float> size = stackalloc float[2];
-        Span<float> transform = stackalloc float[6];
-        if (!memory.TryRead(slate + Offsets.SWidgetSize, size) || !memory.TryRead(slate + Offsets.SWidgetTransform, transform))
-            return false;
-
-        var min = new Vector2(transform[4], transform[5]) - origin;
-        var extent = new Vector2(size[0] * transform[0], size[1] * transform[3]);
-        if (!float.IsFinite(min.X) || !float.IsFinite(min.Y) || !float.IsFinite(extent.X) || !float.IsFinite(extent.Y) ||
-            extent.X <= 0 || extent.Y <= 0 || extent.X > Offsets.MaxPanelPixels || extent.Y > Offsets.MaxPanelPixels ||
-            MathF.Abs(min.X) > Offsets.MaxPanelPixels || MathF.Abs(min.Y) > Offsets.MaxPanelPixels)
-            return false;
-
-        rect = (min, min + extent);
-        return true;
-    }
+        _slate.TryWeak(widget + Offsets.UWidgetSlate, out var slate) && _slate.TryRect(slate, origin, out var rect) ? rect : null;
 }

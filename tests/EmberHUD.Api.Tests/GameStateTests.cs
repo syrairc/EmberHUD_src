@@ -33,4 +33,33 @@ public class GameStateTests
         Assert.Equal(5f, player.FlatDistance(new Vector3(3, 4, -20)));
         Assert.Equal(0f, player.FlatDistance(new Vector3(0, 0, 9)));
     }
+
+    [Fact]
+    public void ScreenRectSizeIsMaxMinusMin()
+    {
+        var rect = new ScreenRect(new Vector2(10, 20), new Vector2(40, 26));
+
+        Assert.Equal((30f, 6f), (rect.Width, rect.Height));
+    }
+
+    [Fact]
+    public void EntityHasNoGameBarByDefault()
+    {
+        var entity = new Entity(1, 1000, Vector3.Zero, EntityKind.Monster, Rarity.Normal);
+
+        Assert.Null(entity.GameBar);
+        Assert.False(entity.HasGameBar);
+    }
+
+    [Fact]
+    public void WithGameBarKeepsTheOtherFields()
+    {
+        var entity = new Entity(1, 1000, new Vector3(3, 4, 5), EntityKind.Monster, Rarity.Rare) { Name = "Mob", Life = 50 };
+        var bar = new ScreenRect(new Vector2(600, 300), new Vector2(680, 306));
+
+        var barred = entity with { GameBar = bar, HasGameBar = true };
+
+        Assert.Equal((bar, true), (barred.GameBar, barred.HasGameBar));
+        Assert.Equal((entity.Id, entity.CfgId, entity.Position, entity.Kind, entity.Rarity, entity.Name, entity.Life), (barred.Id, barred.CfgId, barred.Position, barred.Kind, barred.Rarity, barred.Name, barred.Life));
+    }
 }

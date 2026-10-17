@@ -101,6 +101,17 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public bool Hidden { get; init; }
 
     public bool Invulnerable { get; init; }
+
+    public ScreenRect? GameBar { get; init; }
+
+    public bool HasGameBar { get; init; }
+}
+
+public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)
+{
+    public float Width => Max.X - Min.X;
+
+    public float Height => Max.Y - Min.Y;
 }
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)

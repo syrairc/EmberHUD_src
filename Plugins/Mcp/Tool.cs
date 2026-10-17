@@ -63,8 +63,14 @@ internal static class Num
 
     public static void Write(Utf8JsonWriter json, string name, float value)
     {
-        if (float.IsFinite(value)) json.WriteNumber(name, Math.Round(value, 2));
-        else json.WriteNull(name);
+        json.WritePropertyName(name);
+        WriteValue(json, value);
+    }
+
+    public static void WriteValue(Utf8JsonWriter json, float value)
+    {
+        if (float.IsFinite(value)) json.WriteNumberValue(Math.Round(value, 2));
+        else json.WriteNullValue();
     }
 
     public static void Write(Utf8JsonWriter json, string name, double value) => json.WriteNumber(name, Math.Round(value, 1));

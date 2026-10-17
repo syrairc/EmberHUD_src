@@ -43,6 +43,7 @@ static class SettingsUI
         Setting.Slider("Distance unit", ref s.DistanceUnit, 1, 1000, "World units per displayed distance unit, 100 = metres", log: true);
         Setting.Slider("Max distance", ref s.MaxDistance, 1, 10000, "In distance units, plates beyond this distance from the player are not drawn", log: true);
         Setting.Checkbox("Hide behind full-screen panels", ref s.HideBehindPanels);
+        Setting.Checkbox("Anchor to the game's HP bar", ref s.AnchorToGameBar, "Monsters only - the plate sits on the game's own health bar, so the bucket bar width and height are ignored while this is on");
     }
 
     static void DrawOverrides(Settings s)
@@ -106,6 +107,7 @@ static class SettingsUI
     {
         ImGui.PushID(id + "style");
         var bar = style.Bar;
+        Setting.Checkbox("Draw bar", ref style.DrawBar, "Off draws only the texts");
         Setting.Slider("Bar width", ref bar.Width, 10, 400);
         Setting.Slider("Bar height", ref bar.Height, 2, 80);
         Setting.Slider("Border width", ref bar.BorderWidth, 0, 8);
