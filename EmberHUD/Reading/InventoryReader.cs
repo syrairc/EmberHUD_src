@@ -83,8 +83,28 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             !TryGetInt(record, Offsets.LuaItemType, out var type))
             return false;
 
-        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type);
+        var (prefixes, suffixes) = ReadAffixes(record, entry);
+        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes };
         return true;
+    }
+
+    private (int[] Prefixes, int[] Suffixes) ReadAffixes(LuaTable record, LuaTable entry)
+    {
+        LuaTable[] sources = [record, entry];
+        foreach (var source in sources)
+        {
+            var (prefixes, suffixes) = (_lua.AffixIds(source, Offsets.LuaGroundPrefix), _lua.AffixIds(source, Offsets.LuaGroundSuffix));
+            if (prefixes.Length + suffixes.Length > 0) return (prefixes, suffixes);
+        }
+
+        foreach (var source in sources)
+        {
+            if (!_lua.TryGetTable(source, Offsets.LuaItemAffixList, out var list)) continue;
+            var (prefixes, suffixes) = (_lua.AffixIds(list, Offsets.LuaItemPrefixInfoList), _lua.AffixIds(list, Offsets.LuaItemSuffixInfoList));
+            if (prefixes.Length + suffixes.Length > 0) return (prefixes, suffixes);
+        }
+
+        return ([], []);
     }
 
     private bool TryGetInt(LuaTable record, string key, out int value)

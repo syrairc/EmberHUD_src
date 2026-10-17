@@ -259,6 +259,9 @@ public class OffsetsTests
         Assert.Equal("BagNum", Offsets.LuaItemCount);
         Assert.Equal("MaxNum", Offsets.LuaItemStackMax);
         Assert.Equal("Type1", Offsets.LuaItemType);
+        Assert.Equal("AffixList", Offsets.LuaItemAffixList);
+        Assert.Equal("PrefixInfoList", Offsets.LuaItemPrefixInfoList);
+        Assert.Equal("SuffixInfoList", Offsets.LuaItemSuffixInfoList);
     }
 
     [Fact]

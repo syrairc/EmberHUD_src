@@ -60,7 +60,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly InventoryItem[] FakeInventory =
     [
-        new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0),
+        new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0) { PrefixIds = [1001, 1002], SuffixIds = [2001] },
         new(InventoryBag.Skills, 0, "7507_fake-0002", 7507, 4, 0, 1, 1, 1, 6),
         new(InventoryBag.Commodities, 0, "5080_fake-0003", 5080, 1, 0, 2, 177, 9999, 7),
         new(InventoryBag.Commodities, 1, "382001_fake-0004", 382001, 1, 0, 100, 6, 999, 42),
@@ -69,7 +69,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly InventoryItem[] FakeStashItems =
     [
-        new(InventoryBag.Equipment, 0, "406_fake-0101", 406, 31, 0, 2, 1, 1, 1),
+        new(InventoryBag.Equipment, 0, "406_fake-0101", 406, 31, 0, 2, 1, 1, 1) { PrefixIds = [1003], SuffixIds = [2002, 2003] },
         new(InventoryBag.Commodities, 1, "5080_fake-0102", 5080, 1, 0, 2, 177, 9999, 7),
         new(InventoryBag.Commodities, 2, "382001_fake-0103", 382001, 1, 0, 100, 6, 999, 42),
         new(InventoryBag.Commodities, 4, "5080_fake-0104", 5080, 1, 0, 2, 3, 9999, 7),

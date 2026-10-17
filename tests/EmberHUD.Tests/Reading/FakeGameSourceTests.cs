@@ -105,6 +105,7 @@ public class FakeGameSourceTests
             Assert.Equal(2, inventory.Count(i => i.Bag == InventoryBag.Commodities));
             Assert.Equal(inventory.Length, inventory.Select(i => (i.Bag, i.Slot)).Distinct().Count());
             Assert.All(inventory, i => Assert.NotEqual("", i.Id));
+            Assert.Contains(inventory, i => i.Bag == InventoryBag.Equipment && i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0);
         }
         finally { Game.InventoryAsked = 0; }
     }
@@ -168,6 +169,7 @@ public class FakeGameSourceTests
             Assert.Contains(state.StashItems!, i => i.Bag == InventoryBag.Equipment);
             Assert.DoesNotContain(state.StashItems!, i => i.Slot == 3);
             Assert.All(state.StashItems!, i => Assert.Contains(state.Stash.Cells, c => c.Slot == i.Slot));
+            Assert.Contains(state.StashItems!, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0);
 
             Game.InventoryAsked = bagOpen;
             Assert.Equal((null, null), (At(bagOpen).Stash, At(bagOpen).StashItems));

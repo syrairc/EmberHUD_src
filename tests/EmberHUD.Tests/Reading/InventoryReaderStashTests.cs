@@ -23,6 +23,19 @@ public class InventoryReaderStashTests
     }
 
     [Fact]
+    public void StashItemsGetAffixesToo()
+    {
+        var f = new InventoryReaderTests.Fixture();
+        var table = Tab(f, 0, []);
+        var entry = f.Item("5_0", 5, 1, 9, type: 1);
+        f.ShapeA(f.LastRecord, [10], [20, 21]);
+        f.Lua.SetIntKeyTable(table, 0, entry);
+        var item = f.Reader().ReadStash(0)!.Single();
+        Assert.Equal([10], item.PrefixIds);
+        Assert.Equal([20, 21], item.SuffixIds);
+    }
+
+    [Fact]
     public void GapSlotHasNoItem()
     {
         var f = new InventoryReaderTests.Fixture();
