@@ -9,6 +9,10 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
     private readonly LuaReader _lua = new(memory, moduleBase);
     private long _nextRefresh;
     private InventoryItem[]? _items;
+    private static readonly HashSet<int> StashGearTypes = [.. Offsets.StashGearTypes.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)];
+    private long _stashNextRefresh;
+    private int _stashTab = -1;
+    private InventoryItem[]? _stashItems;
 
     public InventoryItem[]? Read()
     {
@@ -16,6 +20,30 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
         if (now < _nextRefresh) return _items;
         _nextRefresh = now + Stopwatch.Frequency * Offsets.InventoryRefreshMilliseconds / 1000;
         return _items = Build();
+    }
+
+    public InventoryItem[]? ReadStash(int tab)
+    {
+        var now = _clock();
+        if (tab == _stashTab && now < _stashNextRefresh) return _stashItems;
+        _stashTab = tab;
+        _stashNextRefresh = now + Stopwatch.Frequency * Offsets.StashItemsRefreshMilliseconds / 1000;
+        return _stashItems = BuildStash(tab);
+    }
+
+    private InventoryItem[]? BuildStash(int tab)
+    {
+        if (!_lua.TryOpen(out var globals) ||
+            !_lua.TryGetTable(globals, Offsets.LuaItemManager, out var manager) ||
+            !_lua.TryGetTable(manager, Offsets.LuaItemBags, out var bags) ||
+            !_lua.TryGetTableAt(bags, Offsets.StashTabFirstKey + tab, out var slots))
+            return null;
+
+        var items = new List<InventoryItem>();
+        foreach (var (key, entry) in _lua.IntKeyedTables(slots).OrderBy(s => s.Key).Take(Offsets.StashCells))
+            if (TryReadItem(InventoryBag.Commodities, key, entry, out var item))
+                items.Add(StashGearTypes.Contains(item.Type) ? item with { Bag = InventoryBag.Equipment } : item);
+        return [.. items];
     }
 
     private InventoryItem[]? Build()

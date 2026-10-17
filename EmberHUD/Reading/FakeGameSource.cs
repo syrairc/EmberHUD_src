@@ -23,6 +23,10 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float UiCycleSeconds = 10f;
     private const float InventoryOpenSeconds = 4f;
     private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
+    private const float StashOpenFromSeconds = 5f;
+    private const float StashOpenSeconds = 4f;
+    private static readonly GameUi StashOpen = new([new GamePanel("WareHouse_C", PanelKind.Stash, new Vector2(1900, 200), new Vector2(2800, 800), false)]);
+    private static readonly StashView FakeStash = BuildStash();
     private const int BagColumns = 9;
     private static readonly BagView FakeBag = BuildBag();
     private const float VigilCycleSeconds = 30f;
@@ -61,6 +65,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         new(InventoryBag.Commodities, 0, "5080_fake-0003", 5080, 1, 0, 2, 177, 9999, 7),
         new(InventoryBag.Commodities, 1, "382001_fake-0004", 382001, 1, 0, 100, 6, 999, 42),
         new(InventoryBag.Other, 0, "1500_fake-0005", 1500, 1, 0, 0, 1, 1, 0),
+    ];
+
+    private static readonly InventoryItem[] FakeStashItems =
+    [
+        new(InventoryBag.Equipment, 0, "406_fake-0101", 406, 31, 0, 2, 1, 1, 1),
+        new(InventoryBag.Commodities, 1, "5080_fake-0102", 5080, 1, 0, 2, 177, 9999, 7),
+        new(InventoryBag.Commodities, 2, "382001_fake-0103", 382001, 1, 0, 100, 6, 999, 42),
+        new(InventoryBag.Commodities, 4, "5080_fake-0104", 5080, 1, 0, 2, 3, 9999, 7),
     ];
 
     private const float TartarusChoiceSeconds = 3f;
@@ -107,6 +119,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Camera = new Camera(player.Position + new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90),
             Ui = ui,
             Bag = ReferenceEquals(ui, InventoryOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeBag : null,
+            Stash = ReferenceEquals(ui, StashOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeStash : null,
+            StashItems = ReferenceEquals(ui, StashOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeStashItems : null,
             ChatOpen = false,
             Paused = false,
             Area = MapAt(now),
@@ -166,8 +180,11 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         return new CombatStats(now, effective, effective * 1.3, (long)(effective / 4.0e5));
     }
 
-    internal static GameUi UiAt(long now) =>
-        now / (double)Stopwatch.Frequency % UiCycleSeconds < InventoryOpenSeconds ? InventoryOpen : GameUi.Empty;
+    internal static GameUi UiAt(long now)
+    {
+        var seconds = now / (double)Stopwatch.Frequency % UiCycleSeconds;
+        return seconds < InventoryOpenSeconds ? InventoryOpen : seconds >= StashOpenFromSeconds && seconds < StashOpenFromSeconds + StashOpenSeconds ? StashOpen : GameUi.Empty;
+    }
 
     internal static MapInfo MapAt(long now)
     {
@@ -214,6 +231,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             {
                 var min = new Vector2(2430 + 95 * (slot % BagColumns), 330 + 95 * (slot / BagColumns));
                 return new BagCell(slot, min, min + new Vector2(90, 90));
+            })]);
+
+    private static StashView BuildStash() =>
+        new(0, new Vector2(1920, 320), new Vector2(2640, 740),
+            [.. Enumerable.Range(0, Offsets.StashCells).Select(slot =>
+            {
+                var min = new Vector2(1930 + 100 * (slot % Offsets.StashColumns), 330 + 80 * (slot / Offsets.StashColumns));
+                return new BagCell(slot, min, min + new Vector2(90, 70));
             })]);
 
     private static Terrain BuildTerrain()

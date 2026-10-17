@@ -132,6 +132,31 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeStashFollowsTheOpenStashPageAndIsGated()
+    {
+        var open = 6 * Stopwatch.Frequency;
+        var bagOpen = Stopwatch.Frequency;
+        try
+        {
+            Game.InventoryAsked = 0;
+            Assert.Equal((null, null), (At(open).Stash, At(open).StashItems));
+
+            Game.InventoryAsked = open;
+            var state = At(open);
+            Assert.Contains(state.Ui.Panels, p => p.Kind == PanelKind.Stash);
+            Assert.Equal(Enumerable.Range(0, 35), state.Stash!.Cells.Select(c => c.Slot));
+            Assert.Equal(state.Stash.Cells.Length, state.Stash.Cells.Select(c => c.Min).Distinct().Count());
+            Assert.Contains(state.StashItems!, i => i.Bag == InventoryBag.Equipment);
+            Assert.DoesNotContain(state.StashItems!, i => i.Slot == 3);
+            Assert.All(state.StashItems!, i => Assert.Contains(state.Stash.Cells, c => c.Slot == i.Slot));
+
+            Game.InventoryAsked = bagOpen;
+            Assert.Equal((null, null), (At(bagOpen).Stash, At(bagOpen).StashItems));
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void FakeBagFollowsTheOpenInventory()
     {
         var open = Stopwatch.Frequency;
@@ -313,6 +338,7 @@ public class FakeGameSourceTests
 
         Assert.Contains(samples, ui => ui.Panels.Any(p => p.Kind == PanelKind.Inventory));
         Assert.Contains(samples, ui => ReferenceEquals(ui, GameUi.Empty));
+        Assert.Contains(samples, ui => ui.Panels.Any(p => p.Kind == PanelKind.Stash));
         Assert.All(samples.SelectMany(ui => ui.Panels).Where(p => p.Kind == PanelKind.Inventory), p =>
         {
             Assert.False(p.FullScreen);

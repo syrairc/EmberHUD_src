@@ -8,6 +8,8 @@ public class GameInventoryTests
     public void InventoryIsNullByDefault()
     {
         Assert.Null(GameState.Empty.Inventory);
+        Assert.Null(GameState.Empty.Stash);
+        Assert.Null(GameState.Empty.StashItems);
     }
 
     [Fact]

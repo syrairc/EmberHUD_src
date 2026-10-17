@@ -106,6 +106,7 @@ internal sealed class LiveReader
         var chatHeld = _chatSeenAt is { } seenAt && now - seenAt < Offsets.ChatHoldMilliseconds;
         bool? chatOpen = chatSeen || chatHeld ? true : uiClean ? false : null;
         if (chatSeen || !uiClean) _chatSeenAt = now;
+        var stash = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _ui.ReadStash() : null;
         state = new GameState
         {
             Status = status,
@@ -125,6 +126,8 @@ internal sealed class LiveReader
             Paused = _paused.Read(),
             Trade = _ui.ReadTrade(),
             Bag = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _ui.ReadBag() : null,
+            Stash = stash,
+            StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
             Combat = _combat?.Snapshot,

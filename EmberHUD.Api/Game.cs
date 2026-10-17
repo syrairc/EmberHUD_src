@@ -146,6 +146,10 @@ public sealed record GameState
 
     public BagView? Bag { get; init; }
 
+    public StashView? Stash { get; init; }
+
+    public InventoryItem[]? StashItems { get; init; }
+
     public MapInfo? Area { get; init; }
 
     public WoodStakeStats? WoodStake { get; init; }
@@ -299,6 +303,8 @@ public readonly record struct TradeListing(int Slot, string Name, long Quantity,
 public readonly record struct BagCell(int Slot, Vector2 Min, Vector2 Max);
 
 public sealed record BagView(InventoryBag Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
+
+public sealed record StashView(int Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
 
 public sealed record Camera
 {

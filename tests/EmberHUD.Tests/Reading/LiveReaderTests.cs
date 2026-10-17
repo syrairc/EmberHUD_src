@@ -191,6 +191,48 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void StashIsNullWhenNobodyAskedOrNoStashPageIsOpen()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var inventory = new InventoryReader(world.Memory, FakeWorld.Module);
+        Game.InventoryAsked = 0;
+        Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, inventory).TryRead(out var state, out _));
+        Assert.Equal((null, null), (state.Stash, state.StashItems));
+        Game.WantInventory();
+        try
+        {
+            Assert.True(new LiveReader(world.Memory, FakeWorld.Module, 0, null, inventory).TryRead(out state, out _));
+            Assert.Equal((null, null), (state.Stash, state.StashItems));
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
+    public void OpenStashPublishesViewAndItemsOfTheSameTab()
+    {
+        var stash = GameUiReaderStashTests.Open([1, 4, 1]);
+        stash.World.PublishEntities();
+        var f = new Reading.InventoryReaderTests.Fixture(true, stash.World.Memory, FakeWorld.Module);
+        var tab0 = f.Lua.NewTable(0, 3);
+        f.Lua.SetIntKeyTable(tab0, 0, f.Item("1_a", 1, 1, 1));
+        f.Lua.SetIntKeyTable(f.Bags, Offsets.StashTabFirstKey, tab0);
+        var tab1 = f.Lua.NewTable(0, 3);
+        f.Lua.SetIntKeyTable(tab1, 9, f.Item("2_b", 2, 4, 9));
+        f.Lua.SetIntKeyTable(f.Bags, Offsets.StashTabFirstKey + 1, tab1);
+        Game.WantInventory();
+        try
+        {
+            Assert.True(new LiveReader(stash.World.Memory, FakeWorld.Module, 0, null, f.Reader()).TryRead(out var state, out _));
+            Assert.Equal(1, state.Stash!.Tab);
+            var item = Assert.Single(state.StashItems!);
+            Assert.Equal(("2_b", 9), (item.Id, item.Slot));
+            Assert.Contains(state.Stash.Cells, c => c.Slot == item.Slot);
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void InventoryIsNullWithoutAReader()
     {
         var world = new FakeWorld();

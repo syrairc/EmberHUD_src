@@ -37,7 +37,7 @@ public class InventoryReaderTests
             return table;
         }
 
-        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true)
+        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true, int type = 7)
         {
             var record = Lua.NewTable(0, 4);
             Lua.SetString(record, Offsets.LuaItemId, id);
@@ -47,7 +47,7 @@ public class InventoryReaderTests
             Lua.SetInt(record, Offsets.LuaItemRareValue, 3);
             if (withCount) Lua.SetInt(record, Offsets.LuaItemCount, count);
             Lua.SetInt(record, Offsets.LuaItemStackMax, stackMax);
-            Lua.SetInt(record, Offsets.LuaItemType, 7);
+            Lua.SetInt(record, Offsets.LuaItemType, type);
             var item = Lua.NewTable(0, 1);
             Lua.SetTable(item, Offsets.LuaItemRecord, record);
             return item;

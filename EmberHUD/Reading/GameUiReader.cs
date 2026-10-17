@@ -51,6 +51,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _failingSince.Clear();
             if (++_tradeMisses >= 2) _tradePage = 0;
             if (++_bagMisses >= 2) _bagPage = 0;
+            if (++_stashMisses >= 2) _stashPage = 0;
             ui = _last = GameUi.Empty;
             return false;
         }
@@ -65,6 +66,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
 
         nint tradePage = 0;
         nint bagPage = 0;
+        nint stashPage = 0;
         var gameMinimapHidden = false;
         _panels.Clear();
         _pagesSeen.Clear();
@@ -108,6 +110,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             if (!widgetVisible.Value || !pageVisible.Value) continue;
             if (root.PageClass == Offsets.TradePageClassName) tradePage = root.Page;
             if (root.Spec.Kind == PanelKind.Inventory) bagPage = root.Page;
+            if (root.Spec.Kind == PanelKind.Stash) stashPage = root.Page;
             if (RectOf(root.Page, root.Spec.RectChild, origin) is not { } rect)
             {
                 complete &= !knownChat && !Failing(slot, now);
@@ -134,6 +137,13 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _bagMisses = 0;
         }
         else if (++_bagMisses >= 2) _bagPage = 0;
+
+        if (stashPage != 0)
+        {
+            _stashPage = stashPage;
+            _stashMisses = 0;
+        }
+        else if (++_stashMisses >= 2) _stashPage = 0;
 
         if (resolvedAny || _roots.Count != _rootsSeen.Count)
         {
