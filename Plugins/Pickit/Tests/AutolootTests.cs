@@ -37,6 +37,30 @@ public sealed class AutolootTests
     }
 
     [Test]
+    public void PausedGameNeverPresses()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Step(new GameState { Paused = true });
+        Check.Equal(0, rig.Sent.Count, "hold key while paused");
+        var near = NearOnly();
+        near.Step(Near(Item(10)) with { Paused = true });
+        Check.Equal(0, near.Sent.Count, "near item while paused");
+    }
+
+    [Test]
+    public void UnknownPauseStillPressesAndPausingReleases()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Step(new GameState { Paused = null });
+        Check.Equal("down A", string.Join(",", rig.Sent));
+        rig.Step(new GameState { Paused = true });
+        Check.Equal("down A,up A", string.Join(",", rig.Sent));
+        Check.That(!rig.Engine.Holding, "released");
+        rig.Step(new GameState { Paused = false });
+        Check.Equal("down A,up A,down A", string.Join(",", rig.Sent));
+    }
+
+    [Test]
     public void ReleasesWhenHoldKeyLetGo()
     {
         var rig = new Rig { Held = { Key.Space } };

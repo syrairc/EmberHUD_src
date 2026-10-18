@@ -17,7 +17,7 @@ sealed class Autoloot
         }
         var key = s.PickupKey.Key;
         if (!Holding && isDown(key)) return;
-        var wanted = (s.HoldKeyEnabled && isDown(s.HoldKey.Key)) || (s.NearEnabled && NearOwnedItem(s, state));
+        var wanted = state.Paused != true && ((s.HoldKeyEnabled && isDown(s.HoldKey.Key)) || (s.NearEnabled && NearOwnedItem(s, state)));
         if (wanted && !Holding) Holding = down(key);
         else if (!wanted && Holding)
         {
