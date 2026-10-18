@@ -130,6 +130,7 @@ internal sealed class LiveReader
             Explored = explored,
             Camera = pawn != 0 ? _world.ReadCamera(pawn) : null,
             Ui = ui,
+            BossBar = _ui.ReadBossBar(),
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
             Trade = _ui.ReadTrade(),

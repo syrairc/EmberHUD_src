@@ -133,6 +133,62 @@ public sealed class PlateRendererTests
         Check.That(min > 450 && max < 550 && Math.Abs((top + bottom) / 2 - 314) < 3, $"{min}..{max} {top}..{bottom}");
     }
 
+    static readonly ScreenRect TopBar = new(new Vector2(400, 100), new Vector2(1000, 130));
+
+    static List<(Vector2 Pos, Vector2 Uv)> BossText(TextRow row, HAlign align = HAlign.Center) =>
+        Drawn(NameColour, () => PlateRenderer.DrawBossBarHp(new TextLine { Enabled = true, Template = "{hp} / {hpmax}", Align = align, Style = new TextStyle { Color = NameColour } }, row, Data(45_000_000, 126_000_000), TopBar));
+
+    [Test]
+    public void BossBarHpIsCentredOnTheBarByDefault()
+    {
+        var text = BossText(TextRow.OnBar);
+        var (min, max) = Across(text);
+        var (top, bottom) = Down(text);
+        Check.That(min > 400 && max < 1000 && Math.Abs((min + max) / 2 - 700) < 3, $"{min}..{max}");
+        Check.That(Math.Abs((top + bottom) / 2 - 115) < 4, $"{top}..{bottom}");
+    }
+
+    [Test]
+    public void BossBarHpCanSitAboveOrBelowTheBar()
+    {
+        Check.That(Down(BossText(TextRow.Above)).Max <= 100, "above the bar");
+        Check.That(Down(BossText(TextRow.Below)).Min >= 130, "below the bar");
+    }
+
+    [Test]
+    public void BossBarHpFollowsTheAlignment()
+    {
+        Check.That(Across(BossText(TextRow.OnBar, HAlign.Left)).Min >= 400 && Across(BossText(TextRow.OnBar, HAlign.Left)).Min < 410, "left edge");
+        Check.That(Across(BossText(TextRow.OnBar, HAlign.Right)).Max <= 1000 && Across(BossText(TextRow.OnBar, HAlign.Right)).Max > 990, "right edge");
+    }
+
+    static GameState BossFight() => GameState.Empty with
+    {
+        BossBar = new BossBar(TopBar, 0.36f),
+        Entities = [new Entity(7, 1, Vector3.Zero, EntityKind.Monster, Rarity.Boss) { Name = "Ghost", Life = 45_000_000, MaxLife = 126_000_000 }],
+    };
+
+    [Test]
+    public void BossBarHpIsOffByDefaultAndDrawsWhenEnabled()
+    {
+        Check.Equal(0, Rendered(BossFight()));
+        Check.That(Rendered(BossFight(), s => s.BossBarHp.Enabled = true) > 0, "nothing drawn");
+    }
+
+    [Test]
+    public void BossBarHpNeedsABossBarAndAMatchingBoss()
+    {
+        Check.Equal(0, Rendered(GameState.Empty with { Entities = BossFight().Entities }, s => s.BossBarHp.Enabled = true));
+        Check.Equal(0, Rendered(BossFight() with { BossBar = new BossBar(TopBar, 0.9f) }, s => s.BossBarHp.Enabled = true));
+    }
+
+    [Test]
+    public void BossBarHpHidesBehindFullScreenPanels()
+    {
+        var covered = BossFight() with { Ui = new GameUi([new GamePanel("Map", PanelKind.WorldMap, Vector2.Zero, Viewport, true)]) };
+        Check.Equal(0, Rendered(covered, s => s.BossBarHp.Enabled = true));
+    }
+
     static GameState Casting(bool casting) => GameState.Empty with
     {
         Camera = Forward,

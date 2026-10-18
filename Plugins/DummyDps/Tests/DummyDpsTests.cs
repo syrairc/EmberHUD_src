@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -59,6 +60,45 @@ public sealed class DummyDpsTests
     public void ExactRowsUseFullDigits()
     {
         Check.Equal("6,100,000,000,000", Main.Rows(Capped, true)[0].Value);
+    }
+
+    [Test]
+    public void BossLineShowsTheCurrentDps()
+    {
+        var meter = new CombatMeter();
+        meter.Add(0, 0, 1, 5);
+        meter.Add(1, 1_000_000, 1, 5);
+        meter.Add(2, 3_000_000, 1, 5);
+        Check.Equal("DPS 3.00M", Main.BossLine(meter, false));
+        Check.Equal("DPS 3,000,000", Main.BossLine(meter, true));
+    }
+
+    [Test]
+    public void BossLineWaitsForAFight()
+    {
+        Check.Equal("", Main.BossLine(new CombatMeter(), false));
+    }
+
+    [Test]
+    public void BossReadoutNeedsTheOptionAndABossBar()
+    {
+        var bar = new BossBar(new ScreenRect(new Vector2(10, 10), new Vector2(110, 30)), 0.5f);
+        var state = new GameState { BossBar = bar };
+        Check.That(Main.BossReadout(state, new CombatTab { ShowOnBossBar = true }, true), "option on and bar up");
+        Check.That(!Main.BossReadout(state, new CombatTab(), true), "option off");
+        Check.That(!Main.BossReadout(new GameState(), new CombatTab { ShowOnBossBar = true }, true), "no bar");
+        var covered = state with { Ui = new GameUi([new GamePanel("Map", PanelKind.WorldMap, Vector2.Zero, new Vector2(100, 100), true)]) };
+        Check.That(!Main.BossReadout(covered, new CombatTab { ShowOnBossBar = true }, true), "hidden behind a full-screen panel");
+        Check.That(Main.BossReadout(covered, new CombatTab { ShowOnBossBar = true }, false), "panel hiding off");
+    }
+
+    [Test]
+    public void CombatIsReadForTheBossReadoutEvenWithThePanelOff()
+    {
+        var state = new GameState();
+        Check.That(!Main.CombatWanted(state, new CombatTab { Show = false }, true), "nothing asks for it");
+        Check.That(Main.CombatWanted(state, new CombatTab { Show = false, ShowOnBossBar = true }, true), "boss readout asks for it");
+        Check.That(Main.CombatWanted(state, new CombatTab(), true), "panel asks for it");
     }
 
     [Test]

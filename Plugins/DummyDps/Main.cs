@@ -51,8 +51,17 @@ public sealed class Main : Plugin<Settings>
     internal static bool Visible(WoodStakeStats? stats, int areaId, int keptArea, bool keepAfterStop) =>
         stats is not null && (stats.Running || keepAfterStop && stats.Seconds > 0 && areaId == keptArea);
 
+    internal static bool CombatWanted(GameState state, CombatTab combat, bool hideBehindPanels) =>
+        (combat.Show || combat.ShowOnBossBar) && !(combat.HideInTown && state.Area is { IsTown: true } && state.WoodStake is not { Running: true }) && !(hideBehindPanels && state.Ui.AnyFullScreen);
+
     internal static bool CombatVisible(GameState state, CombatTab combat, bool hideBehindPanels) =>
-        combat.Show && !(combat.HideInTown && state.Area is { IsTown: true } && state.WoodStake is not { Running: true }) && !(hideBehindPanels && state.Ui.AnyFullScreen);
+        combat.Show && CombatWanted(state, combat, hideBehindPanels);
+
+    internal static bool BossReadout(GameState state, CombatTab combat, bool hideBehindPanels) =>
+        combat.ShowOnBossBar && state.BossBar is not null && !(hideBehindPanels && state.Ui.AnyFullScreen);
+
+    internal static string BossLine(CombatMeter meter, bool exact) =>
+        meter.HasFight ? $"DPS {(exact ? Exact((long)meter.Dps) : Compact((long)meter.Dps))}" : "";
 
     internal static List<Row> CombatRows(CombatMeter meter, bool exact)
     {
@@ -77,7 +86,7 @@ public sealed class Main : Plugin<Settings>
     {
         if (Game.State.WoodStake is { Running: true })
             _keptArea = Game.State.AreaId;
-        if (CombatVisible(Game.State, Settings.Combat, Settings.General.HideBehindPanels)) Game.WantCombat();
+        if (CombatWanted(Game.State, Settings.Combat, Settings.General.HideBehindPanels)) Game.WantCombat();
         if (_countedOverkill != Settings.Combat.CountOverkill)
         {
             _countedOverkill = Settings.Combat.CountOverkill;
@@ -103,6 +112,11 @@ public sealed class Main : Plugin<Settings>
             DrawPanel(_panel, "dummydps", "Training dummy", Rows(state.WoodStake!, general.Exact), ref general.X, ref general.Y, ref general.Width);
         if (CombatVisible(state, combat, general.HideBehindPanels) && _meter.HasFight)
             DrawPanel(_combatPanel, "combatdps", "Combat DPS", CombatRows(_meter, combat.Exact), ref combat.X, ref combat.Y, ref combat.Width);
+        if (BossReadout(state, combat, general.HideBehindPanels) && BossLine(_meter, combat.Exact) is { Length: > 0 } line)
+        {
+            var bar = state.BossBar!.Rect;
+            Draw.Text(line, new Vector2((bar.Min.X + bar.Max.X) / 2, bar.Max.Y + combat.BossBarOffsetY), Settings.Look.Values, Align.Center);
+        }
     }
 
     void DrawPanel(Overlay panel, string id, string title, List<Row> rows, ref int x, ref int y, ref int width)

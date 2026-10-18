@@ -220,6 +220,8 @@ public sealed record GameState
 
     public GameMinimap? GameMinimap { get; init; }
 
+    public BossBar? BossBar { get; init; }
+
     public bool? ChatOpen { get; init; }
 
     public bool? Paused { get; init; }
@@ -249,6 +251,8 @@ public readonly record struct QuestTarget(int Id, Vector2 Position)
 }
 
 public sealed record GameMinimap(bool Open, float WorldWidth);
+
+public sealed record BossBar(ScreenRect Rect, float Percent);
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
 {

@@ -12,6 +12,26 @@ public sealed class ResolverTests
     static PlateStyle Styled(float offsetY) => new() { OffsetY = offsetY };
 
     [Test]
+    public void TheBossOnTheBarIsTheBossWhoseHealthMatchesIt()
+    {
+        var near = Make(rarity: Rarity.Boss, name: "Near", life: 36, maxLife: 100);
+        var far = Make(rarity: Rarity.Boss, name: "Far", life: 90, maxLife: 100);
+        Check.Equal("Near", Resolver.BossOnBar([far, near], 0.364f)!.Value.Name);
+        Check.Equal("Far", Resolver.BossOnBar([far, near], 0.9f)!.Value.Name);
+    }
+
+    [Test]
+    public void NoBossMatchesWhenNothingIsCloseOrEligible()
+    {
+        Check.That(Resolver.BossOnBar([Make(rarity: Rarity.Boss, life: 90)], 0.2f) is null, "too far from the bar");
+        Check.That(Resolver.BossOnBar([Make(rarity: Rarity.Rare, life: 20)], 0.2f) is null, "not a boss");
+        Check.That(Resolver.BossOnBar([Make(rarity: Rarity.Boss, life: 20, friendly: true)], 0.2f) is null, "friendly");
+        Check.That(Resolver.BossOnBar([Make(rarity: Rarity.Boss, life: 20, hidden: true)], 0.2f) is null, "hidden");
+        Check.That(Resolver.BossOnBar([Make(rarity: Rarity.Boss, life: 0, maxLife: 0)], 0f) is null, "no health pool");
+        Check.That(Resolver.BossOnBar([], 0.5f) is null, "no entities");
+    }
+
+    [Test]
     public void MonsterRaritiesMapToBuckets()
     {
         Check.Equal(Bucket.Normal, Resolver.BucketOf(Make(rarity: Rarity.Normal)));

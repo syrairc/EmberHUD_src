@@ -152,6 +152,23 @@ internal sealed class FakeUi
         return (box, detailRoot);
     }
 
+    public (nint Hud, nint View, nint Bar) AddBossBar(float percent, Vector2 position, Vector2 size, float scale = 1, byte viewVisibility = 4, byte barVisibility = 0, bool hosted = false)
+    {
+        var hud = Widget(UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var hudRoot = Widget(PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
+        var view = Widget(UserClass(Offsets.BossBarViewClassName), Offsets.BossBarViewClassName + "_1", Vector2.Zero, new Vector2(1200, 200), viewVisibility);
+        var viewRoot = Widget(PanelClass("CanvasPanel"), "CanvasMain", Vector2.Zero, new Vector2(1200, 200));
+        var bar = Widget(_world.AddClass("ProgressBar"), Offsets.BossBarTrack, position, size, barVisibility);
+        WeakPtr(bar + Offsets.UWidgetSlate, Slate(position, size, scale));
+        _world.Memory.Write(bar + Offsets.BossBarPercent, percent);
+        SetTree(hud, hudRoot);
+        SetChildren(hudRoot, view);
+        SetTree(view, viewRoot);
+        SetChildren(viewRoot, bar);
+        AddRoot(hosted ? Host(hud) : hud);
+        return (hud, view, bar);
+    }
+
     public nint AddPad(int[] cfgIds, bool hosted = false)
     {
         var pad = Widget(UserClass(Offsets.PadPageClassName), Offsets.PadPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
