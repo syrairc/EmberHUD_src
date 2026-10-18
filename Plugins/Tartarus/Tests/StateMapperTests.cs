@@ -177,11 +177,31 @@ public sealed class StateMapperTests
     }
 
     [Test]
-    public void EventMarkersAreListedAsNotMapped()
+    public void MarkedCellsBecomeMarkedInTheSimulatorAndAreListed()
     {
         var marked = Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, true), new TartarusCell(5, false, -1, TartarusBeast.Unknown, false, true));
-        Check.That(Map(Board(Operation(), marked)).Assumed.Any(line => line.Contains("Event markers")));
+        var mapped = Map(Board(Operation(), marked));
+        Check.That(mapped.Assumed.Any(line => line.Contains("Event markers")));
+        Check.That(mapped.Run!.Cells[5].Marked);
         Check.That(!Map(Board(Operation())).Assumed.Any(line => line.Contains("Event markers")));
+    }
+
+    [Test]
+    public void TheLiveObjectiveCarriesItsProgressAndPayState()
+    {
+        var walk = Map(Board(Operation()) with { Tasks = [new TartarusTask(5, 18, 7, false)] }).Run!.Objective;
+        Check.Equal(new Objective(ObjectiveKind.Walk, 7, false), walk);
+        var done = Map(Board(Operation()) with { Tasks = [new TartarusTask(4, 2, 2, true)] }).Run!.Objective;
+        Check.Equal(new Objective(ObjectiveKind.Incident, 2, true), done);
+        Check.Equal(ObjectiveKind.None, Map(Board(Operation())).Run!.Objective.Kind);
+    }
+
+    [Test]
+    public void AnUnknownObjectiveIsListedAndLeftOut()
+    {
+        var result = Map(Board(Operation()) with { Tasks = [new TartarusTask(3, 10, 0, false)] });
+        Check.Equal(ObjectiveKind.None, result.Run!.Objective.Kind);
+        Check.That(result.Assumed.Any(line => line.Contains("Objective 3")));
     }
 
     [Test]

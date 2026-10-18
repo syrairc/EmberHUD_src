@@ -48,7 +48,22 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
             : [];
         var chromatics = _lua.TryGetTable(manager, Offsets.LuaTartarusArchive, out var archive) ? _lua.IntKeyedTables(archive).Count() : 0;
 
-        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics);
+        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics) { Tasks = ReadTasks(manager) };
+    }
+
+    private TartarusTask[] ReadTasks(LuaTable manager)
+    {
+        if (!_lua.TryGetTable(manager, Offsets.LuaTartarusTasks, out var tasks)) return [];
+        List<TartarusTask> list = [];
+        foreach (var (key, table) in _lua.IntKeyedTables(tasks).Take(Offsets.MaxTartarusTasks))
+        {
+            if (!TryGetInt(table, Offsets.LuaTartarusTaskTarget, out var target)) continue;
+            var id = TryGetInt(table, Offsets.LuaTartarusTaskId, out var read) ? read : key is >= int.MinValue and <= int.MaxValue ? (int)key : 0;
+            TryGetInt(table, Offsets.LuaTartarusTaskProgress, out var progress);
+            var completed = _lua.TryGetString(table, Offsets.LuaTartarusTaskState, out var state) && state.EndsWith(Offsets.TartarusTaskCompletedSuffix, StringComparison.Ordinal);
+            list.Add(new TartarusTask(id, target, progress, completed));
+        }
+        return [.. list];
     }
 
     private TartarusChoice? ReadChoice(LuaTable manager, int position, int size)

@@ -43,6 +43,15 @@ public static class StateMapper
         [148] = ToolId.Skewer,
     };
 
+    static ObjectiveKind? ObjectiveOf(int taskId) => taskId switch
+    {
+        1 => ObjectiveKind.King,
+        2 => ObjectiveKind.Consume,
+        4 => ObjectiveKind.Incident,
+        5 => ObjectiveKind.Walk,
+        _ => null,
+    };
+
     internal static ToolId? ToolOf(int relicId) => Tools.TryGetValue(relicId, out var tool) ? tool : null;
 
     public static MapResult Map(TartarusState state, TrackedRun tracked, Rules rules)
@@ -51,13 +60,18 @@ public static class StateMapper
         var problem = Check(state);
         if (problem is not null || tracked is null) return new MapResult(null, [.. assumed], problem ?? "No tracked run.");
 
-        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks, event kinds and objective progress are assumed none.", "Tool uses left are assumed to be the defaults."]);
+        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks and event kinds are assumed none.", "Tool uses left are assumed to be the defaults."]);
         var run = new Run(rules with { Days = state.MaxDay, RingSize = state.Size }, new Rng(1)) { Day = state.Day, Position = state.Position, Chromatics = state.Chromatics };
         if (tracked.SwapUsedToday) assumed.Add("The swap was used today, and the game still offers devours after it, so the simulator is told the swap is unused.");
         foreach (var id in (tracked.ToolsHeld ?? []).Union(state.Instruments).Order())
         {
             if (Tools.TryGetValue(id, out var tool)) run.Held.Add(tool);
             else assumed.Add($"Tool {id} is not known to the simulator, so it is left out.");
+        }
+        foreach (var task in state.Tasks ?? [])
+        {
+            if (ObjectiveOf(task.Id) is { } kind) run.Objective = new Objective(kind, task.Progress, task.Completed);
+            else assumed.Add($"Objective {task.Id} is not known to the simulator, so it is left out.");
         }
         var rarityOnly = false;
         var speciesOnly = false;
@@ -73,7 +87,9 @@ public static class StateMapper
         if (speciesOnly) assumed.Add("A locked cell with only its species shown is treated as any species.");
         if (rarityOnly) assumed.Add("A locked cell with only its rarity shown is treated as that rarity or better.");
 
-        if (state.Cells.Any(cell => cell.EventMarker)) assumed.Add("Event markers on cells are not mapped, so a marked cell is treated as plain.");
+        var marked = state.Cells.Where(cell => cell.EventMarker && cell.Index != 0).ToArray();
+        foreach (var cell in marked) run.Cells[cell.Index].Marked = true;
+        if (marked.Length > 0) assumed.Add("Event markers: the event behind a marked cell is unknown, so a random one is assumed when it is reached.");
         var refused = ApplyChoice(state.Choice!, state, run, assumed, out var unsupported);
         if (refused is not null || unsupported is not null) return new MapResult(null, [.. assumed.Distinct()], refused, unsupported);
         var disagreement = Devour(state, run);

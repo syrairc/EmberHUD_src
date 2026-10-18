@@ -169,13 +169,13 @@ public sealed partial class Run
             ChainArmed = false;
         }
         Position = destination;
-        var fired = chain || destination == Office ? null : Cells[destination].Event;
+        var fired = chain || destination == Office ? null : Cells[destination].Event ?? (Cells[destination].Marked ? RandomEvent() : null);
         if (Locked(destination))
         {
             OpenDoor(destination);
             OnPatrolOpen(destination);
         }
-        else Cells[destination] = Cells[destination] with { Event = null };
+        else Cells[destination] = Cells[destination] with { Event = null, Marked = false };
         if (!ratway)
         {
             Shackles(steps);

@@ -27,6 +27,18 @@ public sealed class EventTests
     }
 
     [Test]
+    public void MarkedCellRaisesAnEventOnArrivalAndTheMarkerIsSpent()
+    {
+        var run = Boards.At(Phase.Patrol, 0, (1, Beast.Rat, 1));
+        run.Doors = [2];
+        run.Cells[2] = run.Cells[2] with { Marked = true };
+        run.Apply(new Move(MoveKind.Door, 2));
+        Check.Equal(Phase.Event, run.Phase);
+        Check.That(run.PendingEvent is not null);
+        Check.That(!run.Cells[2].Marked);
+    }
+
+    [Test]
     public void ChainReactionDoesWhatTheRulesSay()
     {
         var run = Confirmed(EventKind.ChainReaction, 3, (3, Beast.Wolf, 1));

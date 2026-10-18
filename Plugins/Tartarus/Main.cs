@@ -66,6 +66,7 @@ public sealed class Main : Plugin<Settings>
         key.Add(state.Choice?.Complete);
         foreach (var cell in state.Cells ?? []) key.Add(cell);
         foreach (var instrument in state.Instruments ?? []) key.Add(instrument);
+        foreach (var task in state.Tasks ?? []) key.Add(task);
         foreach (var option in state.Choice?.Options ?? []) key.Add(option);
         return key.ToHashCode();
     }
@@ -105,17 +106,22 @@ public sealed class Main : Plugin<Settings>
     static bool GlowCards(TartarusChoice choice, OptionAdvice[] advice)
     {
         var instrument = choice.Kind == TartarusChoiceKind.Instrument;
-        if (!instrument && choice.Kind != TartarusChoiceKind.Operation) return false;
+        var doors = choice.Kind == TartarusChoiceKind.Doors;
+        if (!instrument && !doors && choice.Kind != TartarusChoiceKind.Operation) return false;
         var pageName = instrument ? "S16BoardRelicPop_C" : "S16BoardMain_C";
         if (Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == pageName).Parts is not { Length: > 0 } parts) return false;
+        var onCard = Enumerable.Range(0, choice.Options.Length).Where(i => instrument || doors || choice.Options[i].Kind is TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End);
+        if (doors) onCard = onCard.OrderBy(i => choice.Options[i].Param).ThenBy(i => choice.Options[i].Cell);
         var card = 0;
-        for (var i = 0; i < choice.Options.Length; i++)
+        foreach (var i in onCard)
         {
-            if (!instrument && choice.Options[i].Kind is not (TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End)) continue;
-            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : $"List_S16Board_Bottom_Actions[{card++}]";
-            if (!advice[i].Glow) continue;
+            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : $"{(doors ? "List_S16Board_Bottom_Routes" : "List_S16Board_Bottom_Actions")}[{card++}]";
             foreach (var part in parts)
-                if (part.Name == name) Draw.GlowRect(part.Min, part.Max, GameColors.Positive);
+            {
+                if (part.Name != name) continue;
+                if (advice[i].Glow) Draw.GlowRect(part.Min, part.Max, advice[i].Top ? GameColors.Positive : GameColors.Gold);
+                if (advice[i].Reason.Length > 0) Draw.Text(advice[i].Reason, new Vector2((part.Min.X + part.Max.X) / 2, part.Max.Y + 18), advice[i].Glow ? (advice[i].Top ? GameColors.Positive : GameColors.Gold) : GameColors.TextDim, Align.Center | Align.Middle);
+            }
         }
         return true;
     }
@@ -124,19 +130,19 @@ public sealed class Main : Plugin<Settings>
     {
         if (!Settings.ShowPanel || Advice is not { } advice || _state is not { Cells: not null, Choice: { Options: not null } choice } state || advice.Options.Length != choice.Options.Length) return;
         var summary = advice.Summary.Split('\n');
-        var rows = new (string Left, string Right, bool Glow)[choice.Options.Length];
+        var rows = new (string Left, string Right, bool Glow, bool Top)[choice.Options.Length];
         for (var i = 0; i < rows.Length; i++)
         {
             var option = choice.Options[i];
             var entry = advice.Options[i];
-            rows[i] = (Names.Option(option, state, Settings.ReplaceIsExecute), entry.Reason, entry.Glow);
+            rows[i] = (Names.Option(option, state, Settings.ReplaceIsExecute), entry.Reason, entry.Glow, entry.Top);
         }
 
         var cards = Settings.HighlightCards && GlowCards(choice, advice.Options);
         const float Pad = 8;
         const float Gap = 24;
         var width = 0f;
-        foreach (var (left, right, _) in rows) width = MathF.Max(width, Draw.MeasureText(left, _style).X + Gap + Draw.MeasureText(right, _style).X);
+        foreach (var (left, right, _, _) in rows) width = MathF.Max(width, Draw.MeasureText(left, _style).X + Gap + Draw.MeasureText(right, _style).X);
         foreach (var line in summary) width = MathF.Max(width, Draw.MeasureText(line, _style).X);
         var rowHeight = Draw.RowHeight(_style);
         _overlay.Locked = Settings.Lock;
@@ -148,10 +154,10 @@ public sealed class Main : Plugin<Settings>
         Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
         if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.None);
         var y = origin.Y + Pad;
-        foreach (var (left, right, glow) in rows)
+        foreach (var (left, right, glow, top) in rows)
         {
             var at = new Vector2(origin.X + Pad, y);
-            if (glow && !cards) Draw.GlowRect(at - new Vector2(3, 1), at + new Vector2(width + 3, rowHeight - 1), GameColors.Positive);
+            if (glow && !cards) Draw.GlowRect(at - new Vector2(3, 1), at + new Vector2(width + 3, rowHeight - 1), top ? GameColors.Positive : GameColors.Gold);
             Draw.Row(at, width, left, right, _style);
             y += rowHeight;
         }

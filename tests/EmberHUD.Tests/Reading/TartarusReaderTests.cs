@@ -426,6 +426,41 @@ public class TartarusReaderTests
         Assert.Equal(2, f.Reader().Read()!.Chromatics);
     }
 
+    private static void Task(Fixture f, LuaTable tasks, long key, long? id, long? target, long? progress, string? state)
+    {
+        var task = f.Lua.NewTable(0, 4);
+        if (id is { } i) f.Lua.SetInt(task, Offsets.LuaTartarusTaskId, i);
+        if (target is { } t) f.Lua.SetInt(task, Offsets.LuaTartarusTaskTarget, t);
+        if (progress is { } p) f.Lua.SetInt(task, Offsets.LuaTartarusTaskProgress, p);
+        if (state is not null) f.Lua.SetString(task, Offsets.LuaTartarusTaskState, state);
+        f.Lua.SetIntKeyTable(tasks, key, task);
+    }
+
+    [Fact]
+    public void TasksReadProgressAndCompletion()
+    {
+        var f = new Fixture();
+        var tasks = f.Lua.NewTable(4, 1);
+        f.Lua.SetTable(f.Manager, Offsets.LuaTartarusTasks, tasks);
+        Task(f, tasks, 11, 11, 3, null, "S16WardenTaskStateRunning");
+        Task(f, tasks, 12, 12, 2, 2, "S16WardenTaskStateCompleted");
+        Assert.Equal([new TartarusTask(11, 3, 0, false), new TartarusTask(12, 2, 2, true)], f.Reader().Read()!.Tasks.OrderBy(t => t.Id));
+    }
+
+    [Fact]
+    public void TasksAreEmptyWithoutTheTable() => Assert.Empty(new Fixture().Reader().Read()!.Tasks);
+
+    [Fact]
+    public void BadTaskEntriesAreSkippedAndAMissingIdFallsBackToTheKey()
+    {
+        var f = new Fixture();
+        var tasks = f.Lua.NewTable(4, 1);
+        f.Lua.SetTable(f.Manager, Offsets.LuaTartarusTasks, tasks);
+        Task(f, tasks, 1, 1, null, 1, "S16WardenTaskStateRunning");
+        Task(f, tasks, 7, null, 4, 1, null);
+        Assert.Equal([new TartarusTask(7, 4, 1, false)], f.Reader().Read()!.Tasks);
+    }
+
     [Fact]
     public void ReturnsNullWhenBoardPageIsClosed() => Assert.Null(new Fixture(pageOpen: false).Reader().Read());
 

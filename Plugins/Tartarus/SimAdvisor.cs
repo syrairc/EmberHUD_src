@@ -8,7 +8,7 @@ namespace Tartarus;
 
 public readonly record struct ValueRange(double Low, double High);
 
-public sealed record OptionAdvice(int OptionId, ValueRange Value, bool Glow, string Reason);
+public sealed record OptionAdvice(int OptionId, ValueRange Value, bool Glow, string Reason, bool Top = false);
 
 public sealed record Advice(OptionAdvice[] Options, string Summary);
 
@@ -20,8 +20,9 @@ public static class SimAdvisor
         var found = options.Select(option => map.Run is null ? null : ranked?.FirstOrDefault(entry => Matches(entry.Move, option))).ToArray();
         var glow = new bool[options.Length];
         var core = Core(map, ranked, found, glow, settings);
+        var top = Enumerable.Range(0, options.Length).Where(i => glow[i]).OrderByDescending(i => found[i]!.Value).Cast<int?>().FirstOrDefault();
         var advice = options.Select((option, i) => found[i] is { } entry
-            ? new OptionAdvice(option.Id, new ValueRange(entry.Value - entry.Spread, entry.Value + entry.Spread), glow[i], entry.Value.ToString("0.00", CultureInfo.InvariantCulture))
+            ? new OptionAdvice(option.Id, new ValueRange(entry.Value - entry.Spread, entry.Value + entry.Spread), glow[i], entry.Value.ToString("0.00", CultureInfo.InvariantCulture), top == i)
             : new OptionAdvice(option.Id, default, false, "")).ToArray();
         var notes = settings.ShowAssumed && map.Assumed.Length > 0 ? $"assumed: {string.Join('\n', map.Assumed)}\n" : "";
         return new Advice(advice, notes + core);

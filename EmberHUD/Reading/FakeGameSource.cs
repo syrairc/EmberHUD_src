@@ -193,7 +193,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         var doors = now / (double)Stopwatch.Frequency % (2 * TartarusChoiceSeconds) < TartarusChoiceSeconds;
         return new TartarusState(5, 16, 7, 20, FakeTartarusCells,
             doors ? new TartarusChoice(1, TartarusChoiceKind.Doors, FakeDoors, true) : new TartarusChoice(2, TartarusChoiceKind.Operation, FakeOperations, true),
-            [], 0);
+            [], 0) { Tasks = [new TartarusTask(1, 3, 1, false), new TartarusTask(2, 2, 2, true)] };
     }
 
     internal static TarotState TarotAt(long now) =>

@@ -48,6 +48,6 @@ public enum EventKind : byte
 
 public readonly record struct PreyMark(int Lion, int Target, int Rounds, int Next);
 
-public record struct Cell(bool Open, Beast Beast, int Tier, bool Known, bool Seen = false, int AtLeast = 0, Marker Markers = Marker.None, int NestDay = 0, EventKind? Event = null);
+public record struct Cell(bool Open, Beast Beast, int Tier, bool Known, bool Seen = false, int AtLeast = 0, Marker Markers = Marker.None, int NestDay = 0, EventKind? Event = null, bool Marked = false);
 
 public readonly record struct StepResult(bool Ok, string? Why);

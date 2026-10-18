@@ -55,6 +55,7 @@ public sealed class SimAdvisorTests
         var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), [Rank(5, 2.0), Rank(3, 1.95), Rank(7, 0.5)], Defaults);
         Check.Equal("1,2", string.Join(',', Glowing(advice)));
         Check.Equal("2 best", advice.Summary);
+        Check.Equal("2", string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId)));
     }
 
     [Test]
