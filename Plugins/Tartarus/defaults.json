@@ -1,1 +1,1 @@
-{}
+{ "ShowAssumed": true, "Playouts": 300, "CloseMargin": 0.1, "ChromaticCap": 10, "EaterKeepsBeast": false, "SecondMealFromTier": 3, "ReplaceIsExecute": false, "EventChance": 5 }

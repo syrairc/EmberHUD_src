@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
+using System.Threading;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -17,10 +19,61 @@ public sealed class MainTests
     static Main Run(TartarusChoice? choice, Settings? settings = null)
     {
         TestGame.Set(new GameState { Tartarus = State(choice) });
-        var plugin = new Main();
+        var plugin = new Main { Logger = { DataDirectory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N")) } };
         if (settings is not null) typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(plugin, [settings]);
         plugin.Tick();
         return plugin;
+    }
+
+    static TartarusState RealBoard()
+    {
+        var cells = Enumerable.Range(0, 8).Select(index => index switch
+        {
+            1 => new TartarusCell(1, true, 3, TartarusBeast.Lion, false, false),
+            2 => new TartarusCell(2, true, 3, TartarusBeast.Wolf, true, false),
+            _ => new TartarusCell(index, false, -1, TartarusBeast.Unknown, false, false),
+        }).ToArray();
+        var choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Consume, 2, 0), new(2, TartarusOptionKind.End, -1, 0)], true);
+        return new TartarusState(1, 8, 5, 20, cells, choice, [], 0);
+    }
+
+    [Test]
+    public void TickThinksThenAdvisesARealBoardWithoutBlocking()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "tartarus-" + Guid.NewGuid().ToString("N"));
+        var plugin = new Main { Logger = { DataDirectory = directory } };
+        try
+        {
+            TestGame.Set(new GameState { Tartarus = RealBoard() });
+            typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(plugin, [new Settings { Playouts = 30 }]);
+            plugin.Tick();
+            Check.That(plugin.Advice is not null);
+            Check.That(SpinWait.SpinUntil(() =>
+            {
+                plugin.Tick();
+                return plugin.Advice!.Summary.EndsWith("best");
+            }, 30000), plugin.Advice!.Summary);
+            TestFrame.Run(plugin.Render);
+        }
+        finally
+        {
+            plugin.Dispose();
+            try { Directory.Delete(directory, true); } catch (IOException) { }
+        }
+    }
+
+    [Test]
+    public void GarbageStateGivesNoAdviceAndNoException()
+    {
+        var plugin = Run(null);
+        foreach (var state in new TartarusState?[] { RealBoard() with { Instruments = null! }, RealBoard() with { Choice = RealBoard().Choice! with { Options = null! } }, RealBoard() with { Size = -1 }, null })
+        {
+            TestGame.Set(new GameState { Tartarus = state });
+            plugin.Tick();
+            TestFrame.Run(plugin.Render);
+            Check.That(plugin.Advice is null || plugin.Advice.Options.All(option => !option.Glow));
+        }
+        plugin.Dispose();
     }
 
     [Test]
@@ -133,9 +186,9 @@ public sealed class MainTests
     }
 
     [Test]
-    public void SettingsFieldsAreUnchanged()
+    public void SettingsFields()
     {
-        string[] expected = ["ShowPanel", "PanelX", "PanelY", "TierBase", "RainbowMult", "ChainUpside", "CloseMargin", "UnsureWidthRatio", "PriorLowPercentile", "PriorHighPercentile", "LateDays", "StandardDays", "ChromaticCap", "DoorPrior", "ReplacePrior"];
+        string[] expected = ["ShowPanel", "Lock", "MoveKey", "PanelX", "PanelY", "HighlightCards", "CardsX", "CardsY", "CardsWidth", "CardsHeight", "ShowAssumed", "Playouts", "CloseMargin", "ChromaticCap", "EaterKeepsBeast", "SecondMealFromTier", "ReplaceIsExecute", "EventChance"];
         var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
         Array.Sort(expected);
         Array.Sort(actual);
