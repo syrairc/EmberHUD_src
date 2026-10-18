@@ -1,6 +1,7 @@
 using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
+using EmberHUD.Ui;
 
 namespace Pickit;
 
@@ -67,9 +68,9 @@ public sealed class SettingsUiTests
     }
 
     [Test]
-    public void NormalizeClampsNumberStyles()
+    public void NormalizeRepairsNumberStyles()
     {
-        var settings = new Settings { GroundNumbers = null!, InventoryNumbers = new NumberStyle { Scale = 50 } };
+        var settings = new Settings { GroundNumbers = null!, InventoryNumbers = new TextStyle { Scale = 50 } };
         settings.Normalize();
         Check.Equal(1f, settings.GroundNumbers.Scale);
         Check.Equal(3f, settings.InventoryNumbers.Scale);
@@ -78,6 +79,14 @@ public sealed class SettingsUiTests
         settings.Normalize();
         Check.Equal(0.5f, settings.GroundNumbers.Scale);
         Check.Equal(1f, settings.InventoryNumbers.Scale);
+    }
+
+    [Test]
+    public void DefaultNumberStylesAreReadableAndIndependent()
+    {
+        var settings = new Settings();
+        Check.That(settings.GroundNumbers.StrokeEnabled && settings.InventoryNumbers.StrokeEnabled, "stroke");
+        Check.That(!ReferenceEquals(settings.GroundNumbers, settings.InventoryNumbers), "separate");
     }
 
     [Test]

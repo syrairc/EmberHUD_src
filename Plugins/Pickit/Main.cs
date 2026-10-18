@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Numerics;
 using EmberHUD;
+using EmberHUD.Ui;
 
 namespace Pickit;
 
 public sealed class Main : Plugin<Settings>
 {
-    const float MinNumberSize = 9;
-
     readonly Autoloot _autoloot = new();
+    readonly TextStyle _numberStyle = new();
 
     public override void Initialize() => Settings.Normalize();
 
@@ -68,15 +68,15 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    void DrawGem(Gems.Gem gem, bool tierNumber, NumberStyle numbers)
+    void DrawGem(Gems.Gem gem, bool tierNumber, TextStyle numbers)
     {
         var style = Settings.Tiers[Math.Clamp(gem.Tier, 0, Settings.Tiers.Count - 1)];
         EmberHUD.Draw.Icon(style.Icon, gem.Centre, gem.Radius, style.Color);
         if (!tierNumber) return;
         var text = Math.Min(gem.Tier, 99).ToString();
-        var size = Math.Max(MinNumberSize, 1.1f * gem.Radius) * numbers.Scale;
-        if (numbers.Outline) EmberHUD.Draw.TextOutlined(text, gem.Centre, numbers.Color, Color.Black, 1, Align.Center | Align.Middle, size);
-        else EmberHUD.Draw.Text(text, gem.Centre, numbers.Color, Align.Center | Align.Middle, size);
+        _numberStyle.CopyFrom(numbers);
+        _numberStyle.Scale = numbers.Scale * Math.Clamp(gem.Radius / 8, 0.75f, 4);
+        EmberHUD.Draw.Text(text, gem.Centre, _numberStyle, Align.Center | Align.Middle);
     }
 
     static PanelKind? OpenKind(GameUi ui)

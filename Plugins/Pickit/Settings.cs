@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using EmberHUD;
+using EmberHUD.Ui;
 
 namespace Pickit;
 
@@ -11,13 +12,6 @@ public sealed class TierStyle
     public string Icon = "svg:gem";
     public Color Color = Color.White;
     public float Scale = 1;
-}
-
-public sealed class NumberStyle
-{
-    public Color Color = Color.White;
-    public float Scale = 1;
-    public bool Outline = true;
 }
 
 public sealed class Settings : PluginSettings
@@ -38,8 +32,8 @@ public sealed class Settings : PluginSettings
     public float InventoryScale = 1;
     public bool GroundTierNumbers = false;
     public bool InventoryTierNumbers = false;
-    public NumberStyle GroundNumbers = new();
-    public NumberStyle InventoryNumbers = new();
+    public TextStyle GroundNumbers = TextStyle.Speech();
+    public TextStyle InventoryNumbers = TextStyle.Speech();
     public bool DebugRects = false;
 
     public const int TierCount = 10;
@@ -70,9 +64,9 @@ public sealed class Settings : PluginSettings
         }
     }
 
-    static NumberStyle Normalized(NumberStyle? style)
+    static TextStyle Normalized(TextStyle? style)
     {
-        style ??= new();
+        style ??= TextStyle.Speech();
         style.Scale = Clamp(style.Scale, 0.5f, 3, 1);
         return style;
     }

@@ -260,18 +260,18 @@ public sealed class MainTests
     }
 
     [Test]
-    public void OutlineOffDrawsFewerVertices()
+    public void StrokeOffDrawsFewerVertices()
     {
         var plugin = Plugin();
         plugin.Settings.GroundTierNumbers = true;
         var outlined = Drawn(plugin, WithItem()).Count;
-        plugin.Settings.GroundNumbers.Outline = false;
+        plugin.Settings.GroundNumbers.StrokeEnabled = false;
         var plain = Drawn(plugin, WithItem()).Count;
         Check.That(plain < outlined, "ground");
         plugin.Settings.InventoryTierNumbers = true;
         var bag = BagState(Owned(0, [1], []));
         var bagOutlined = Drawn(plugin, bag).Count;
-        plugin.Settings.InventoryNumbers.Outline = false;
+        plugin.Settings.InventoryNumbers.StrokeEnabled = false;
         Check.That(Drawn(plugin, bag).Count < bagOutlined, "inventory");
     }
 
@@ -289,5 +289,18 @@ public sealed class MainTests
         Check.That(!Drawn(plugin, WithItem()).Any(v => v.Col == Abgr(Lime)), "ground unaffected");
         Check.That(Drawn(plugin, BagState(Owned(0, [1], []))).Any(v => v.Col == Abgr(Lime)), "bag styled");
         Check.That(Drawn(plugin, StashState(Owned(0, [1], []))).Any(v => v.Col == Abgr(Lime)), "stash styled");
+    }
+
+    [Test]
+    public void GroundStyleSizeAndStrokeDoNotChangeInventoryVertices()
+    {
+        var plugin = Plugin();
+        plugin.Settings.GroundTierNumbers = true;
+        plugin.Settings.InventoryTierNumbers = true;
+        var bag = BagState(Owned(0, [1], []));
+        var before = Drawn(plugin, bag).Select(v => v.Pos).ToArray();
+        plugin.Settings.GroundNumbers.Scale = 3;
+        plugin.Settings.GroundNumbers.StrokeEnabled = false;
+        Check.That(before.SequenceEqual(Drawn(plugin, bag).Select(v => v.Pos)), "bag unchanged");
     }
 }
