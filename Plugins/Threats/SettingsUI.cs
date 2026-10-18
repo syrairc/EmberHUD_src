@@ -13,6 +13,8 @@ public sealed partial class Settings
 
         Controls.Section("Telegraphs");
         RarityRow("Monsters", ref TelegraphNormal, ref TelegraphMagic, ref TelegraphRare, ref TelegraphBoss, "tg");
+        Setting.Checkbox("Hide short casts", ref HideShortCasts, "Hides telegraphs whose total cast time is below the minimum below");
+        Setting.Slider("Minimum cast time", ref MinCastSeconds, 0.1f, 5, "Seconds");
         Setting.Slider("Placeholder radius", ref PlaceholderRadius, 50, 1000, "v1 area is a placeholder circle at the locked target point, NOT the real hit box");
         Setting.Color("Outline colour", ref TelegraphColour);
         Setting.Color("Fill colour", ref TelegraphFillColour);

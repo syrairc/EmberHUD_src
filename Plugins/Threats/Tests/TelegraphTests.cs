@@ -184,6 +184,42 @@ public sealed class TelegraphTests
     }
 
     [Test]
+    public void ShortCastsAreHiddenOnlyWhenTheOptionIsOnAndTheTotalCastTimeIsBelowTheMinimum()
+    {
+        var settings = Configured();
+        settings.MinCastSeconds = 1;
+        Check.That(Telegraphed(Forward, CastAt(0, 0.5f), settings, Target).Count > 0, "hidden while the option is off");
+        settings.HideShortCasts = true;
+        Check.Equal(0, Telegraphed(Forward, CastAt(0, 0.5f), settings, Target, inside: false).Count);
+        Check.That(Telegraphed(Forward, CastAt(0, 1.5f), settings, Target).Count > 0, "long cast hidden");
+        Check.That(Telegraphed(Forward, CastAt(0, 1), settings, Target).Count > 0, "a cast exactly at the minimum is hidden");
+        Check.That(Telegraphed(Forward, CastAt(0.5f, 0.4f), settings, Target).Count == 0, "total 0.8s from progress still drawn");
+    }
+
+    [Test]
+    public void TheTotalCastTimeComesFromProgressSoALongCastIsNotHiddenLateInTheWindup()
+    {
+        var settings = Configured();
+        settings.HideShortCasts = true;
+        settings.MinCastSeconds = 1;
+        Check.That(!settings.TooShort(CastAt(0.9f, 0.2f)), "total 2s, 0.2s left");
+        Check.That(settings.TooShort(CastAt(0.5f, 0.4f)), "total 0.8s");
+        Check.That(!settings.TooShort(CastAt(0.5f, 0.6f)), "total 1.2s");
+    }
+
+    [Test]
+    public void ZeroDurationIsNeverHiddenAndBadValuesNeverHide()
+    {
+        var settings = Configured();
+        settings.HideShortCasts = true;
+        settings.MinCastSeconds = 1;
+        Check.That(!settings.TooShort(CastAt(0, 0)), "zero duration");
+        Check.That(!settings.TooShort(CastAt(float.NaN, float.NaN)), "nan");
+        settings.MinCastSeconds = float.NaN;
+        Check.That(!settings.TooShort(CastAt(0, 0.5f)), "nan minimum");
+    }
+
+    [Test]
     public void BadFillOpacityDoesNotThrow()
     {
         foreach (var opacity in new[] { float.NaN, float.PositiveInfinity, -2f, 7f })
