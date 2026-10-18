@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <Content Include="..\..\offsets\layout.want" Link="layout.want" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\Plugins\Tartarus\Tests\Oracle\*.json" Link="Plugins\Tartarus\Tests\Oracle\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="EmberHUD.Host.Overlay" />

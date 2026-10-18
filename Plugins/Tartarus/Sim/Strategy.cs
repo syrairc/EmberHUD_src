@@ -113,6 +113,7 @@ public static class Strategy
         var size = run.Cells.Length;
         var range = Math.Min(run.Rules.DoorWindow, size - 1);
         var best = (Move: legal[0], Score: double.NegativeInfinity);
+        Span<double> dist = stackalloc double[5];
         foreach (var move in legal)
         {
             var door = move.Cell;
@@ -136,7 +137,7 @@ public static class Strategy
             {
                 if (cell.Known && cell.Tier >= 0 || cell.AtLeast > 0)
                 {
-                    Span<double> dist = stackalloc double[5];
+                    dist.Clear();
                     if (cell.Known && cell.Tier >= 0) dist[Math.Min(Tiers.Ultimate, cell.Tier)] = 1;
                     else Floor(worth.OpenDist, cell.AtLeast, dist);
                     worth.Tagged(dist);

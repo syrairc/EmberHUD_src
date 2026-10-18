@@ -71,7 +71,7 @@ public sealed class RunTracker : IDisposable
 
     public void Dispose() => Save();
 
-    static bool Valid(TartarusState? state) =>
+    static bool Valid([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] TartarusState? state) =>
         state is { Cells: not null, Instruments: not null } && state.Size is > 0 and <= 64 && state.Cells.Length == state.Size && state.Day is >= 1 and <= 100;
 
     static bool Matches(TrackedRun saved, TartarusState state) =>
