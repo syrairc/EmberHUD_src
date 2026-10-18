@@ -62,6 +62,8 @@ public static class TestGame
 
     public static void UseScene(Func<SceneEntity[]>? list) => Scene.Lister = list;
 
+    public static void UseFightScan(Func<System.Numerics.Vector2, float, FightProbe[]>? list) => FightScan.Lister = list;
+
     public static void UseLua(Func<string, int, int, string, LuaDump?>? dump) => Lua.Dumper = dump;
 
     public static void UseTextures(Action<string, byte[], int, int>? upload, Func<string, Sprite?>? resolve, Action<string>? release = null)

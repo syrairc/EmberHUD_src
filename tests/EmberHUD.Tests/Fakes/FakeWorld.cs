@@ -259,13 +259,28 @@ internal sealed class FakeWorld
         PublishFighters();
     }
 
-    public nint AddArea(uint id, (double X, double Y) centre, uint radius, byte camp, double scale = 1, uint kind = 1, bool damage = false)
+    public nint AddArea(uint id, (double X, double Y) centre, uint radius, byte camp, double scale = 1, uint kind = 1, bool damage = false, uint ownerId = 0, byte ownerCamp = 1)
     {
         var side = Alloc(0x100);
         Memory.Write(side + Offsets.SideCamp, camp);
         var extra = new List<(int, nint)> { (Offsets.BuffAreaComponentId, Alloc(0x100)), (Offsets.SideComponentId, side) };
         if (damage) extra.Add((Offsets.DamageDataComponentId, Alloc(0x100)));
+        if (ownerId != 0)
+        {
+            if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
+            var attachment = Alloc(0x100);
+            Memory.Write(attachment + Offsets.AttachmentOwnerId, ownerId);
+            extra.Add((Offsets.AttachmentComponentId, attachment));
+        }
         return AddHazard(id, centre, radius, scale, kind, [.. extra]);
+    }
+
+    public nint AddRing(uint id, uint ownerId, (double X, double Y) centre, uint radius, uint width, double scale = 1, byte ownerCamp = 1, uint kindBits = 0)
+    {
+        if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
+        var attachment = Alloc(0x100);
+        Memory.Write(attachment + Offsets.AttachmentOwnerId, ownerId);
+        return AddHazard(id, centre, radius, scale, (uint)Offsets.ShapeRing | kindBits, width, (Offsets.DamageDataComponentId, Alloc(0x100)), (Offsets.AttachmentComponentId, attachment));
     }
 
     public nint AddRock(uint id, uint ownerId, (double X, double Y) centre, uint radius, byte ownerCamp = 1, bool bullet = false)
@@ -278,13 +293,17 @@ internal sealed class FakeWorld
         return AddHazard(id, centre, radius, 1, 1, [.. extra]);
     }
 
-    private nint AddHazard(uint id, (double X, double Y) centre, uint radius, double scale, uint kind, params (int Component, nint Address)[] extra)
+    private nint AddHazard(uint id, (double X, double Y) centre, uint radius, double scale, uint kind, params (int Component, nint Address)[] extra) =>
+        AddHazard(id, centre, radius, scale, kind, 0, extra);
+
+    private nint AddHazard(uint id, (double X, double Y) centre, uint radius, double scale, uint kind, uint ringWidth, params (int Component, nint Address)[] extra)
     {
         var shape = Alloc(0x100);
         var transform = Alloc(0x100);
         var scaleComponent = Alloc(0x100);
         Memory.Write(shape + Offsets.ShapeKind, kind);
         Memory.Write(shape + Offsets.ShapeRadius, radius);
+        Memory.Write(shape + Offsets.ShapeRingWidth, ringWidth);
         Memory.WriteArray(transform + Offsets.TransformPosition, new[] { centre.X, centre.Y });
         Memory.Write(scaleComponent + Offsets.ScaleValue, scale);
         return AddFightEntity(id, [(Offsets.ShapeComponentId, shape), (Offsets.TransformComponentId, transform), (Offsets.ScaleComponentId, scaleComponent), .. extra]);

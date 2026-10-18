@@ -72,6 +72,7 @@ internal sealed class LiveGameSource : IGameSource
             Loc.Getter = null;
             Loc.Finder = null;
             Scene.Lister = null;
+            FightScan.Lister = null;
             Lua.Dumper = null;
             return;
         }
@@ -88,6 +89,9 @@ internal sealed class LiveGameSource : IGameSource
         Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
         Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
         Scene.Lister = () => Guarded(sceneGate, () => world.TryReadScene(out var scene, out _) ? world.ListScene(scene, names) : [], []);
+        var probes = new FightProbeReader(backend, moduleBase);
+        var probeGate = new Lock();
+        FightScan.Lister = (at, radius) => Guarded(probeGate, () => probes.Near(at, radius), []);
         Lua.Dumper = (path, max, skip, filter) => Guarded(luaGate, () => DumpLua(luaReader, path, max, skip, filter), new LuaDump(false, "", [], 0));
     }
 

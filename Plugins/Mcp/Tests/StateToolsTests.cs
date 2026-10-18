@@ -316,6 +316,43 @@ public sealed class StateToolsTests
         }
     }
 
+    [Test]
+    public void FightEntitiesListsProbesFromThePlayer()
+    {
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(new Vector3(100, 0, 0), Vector2.UnitX) });
+        Vector2 askedAt = default;
+        float askedRadius = 0;
+        TestGame.UseFightScan((at, radius) =>
+        {
+            (askedAt, askedRadius) = (at, radius);
+            return [new FightProbe(9, new Vector2(130, 40), [16, 124], 1, 300, 0, 0, double.NaN, 2, 77)];
+        });
+        try
+        {
+            var row = Wire.Run(Tools, "fight_entities")["entities"]![0]!;
+            Check.Equal(new Vector2(100, 0), askedAt);
+            Check.Equal(600f, askedRadius);
+            Check.Equal(9, (int)row["id"]!);
+            Check.Equal(50d, (double)row["distance"]!);
+            Check.Equal("16,124", string.Join(',', row["components"]!.AsArray().Select(c => (int)c!)));
+            Check.Equal(300u, (uint)row["shapeRadius"]!);
+            Check.That(row["scale"] is null, "no Scale component is null");
+            Check.Equal(2, (int)row["camp"]!);
+            Check.Equal(77, (int)row["ownerId"]!);
+        }
+        finally
+        {
+            TestGame.UseFightScan(null);
+        }
+    }
+
+    [Test]
+    public void FightEntitiesNeedsAPlayer()
+    {
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12 });
+        Check.That(Wire.Fails(Tools, "fight_entities", null).Contains("player"), "needs a player");
+    }
+
     static string Ids(JsonObject result) => string.Join(',', result["entities"]!.AsArray().Select(row => (int)row!["id"]!));
 
     [Test]

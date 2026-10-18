@@ -302,7 +302,10 @@ public readonly record struct Projectile(int Id, int OwnerId, Rarity OwnerRarity
 
 public enum HazardKind { Area, Damage }
 
-public readonly record struct GroundHazard(int Id, HazardKind Kind, Vector2 Centre, float Radius);
+public readonly record struct GroundHazard(int Id, HazardKind Kind, Vector2 Centre, float Radius)
+{
+    public float InnerRadius { get; init; }
+}
 
 public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)
 {
@@ -429,6 +432,15 @@ public static class Scene
     internal static Func<SceneEntity[]>? Lister { get; set; }
 
     public static SceneEntity[] Entities() => Lister?.Invoke() ?? [];
+}
+
+public readonly record struct FightProbe(int Id, Vector2 Position, int[] Components, uint ShapeKind, uint ShapeRadius, uint ExtentA, uint ExtentB, double Scale, int Camp, int OwnerId);
+
+public static class FightScan
+{
+    internal static Func<Vector2, float, FightProbe[]>? Lister { get; set; }
+
+    public static FightProbe[] Near(Vector2 at, float radius) => Lister?.Invoke(at, radius) ?? [];
 }
 
 public static class Loc

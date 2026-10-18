@@ -43,6 +43,8 @@ internal static class StateTools
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
+        new("fight_entities", "Fighters in the fight world near the player, which the scene list and Game.State often miss (ground rings, bullets, auras). Per fighter: id, x / y, distance, component ids, shape kind (1 circle, 2 rect) with radius and extents, scale (null = no Scale component), side camp (-1 none, 1 hostile, 2 player), owner id. Nearest first. radius is world units around the player (default 600), limit defaults to 100, max 500. Empty without a live game.",
+            Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
     ];
@@ -286,6 +288,29 @@ internal static class StateTools
                 ["distance"] = Num.F(Distance(entity) ?? float.NaN),
                 ["address"] = entity.Address == 0 ? null : Hex.Of(entity.Address),
             };
+        });
+    }
+
+    static JsonObject FightEntities(Args args)
+    {
+        var limit = args.Int("limit", 100, 1, 500);
+        var radius = args.OptFloat("radius") ?? 600;
+        var player = Game.State.Player ?? throw new ToolError("fight_entities needs a player position and there is none yet");
+        var at = new Vector2(player.Position.X, player.Position.Y);
+        return Page(FightScan.Near(at, radius), limit, probe => new JsonObject
+        {
+            ["id"] = probe.Id,
+            ["x"] = Num.F(probe.Position.X),
+            ["y"] = Num.F(probe.Position.Y),
+            ["distance"] = Num.F(Vector2.Distance(probe.Position, at)),
+            ["components"] = new JsonArray([.. probe.Components.Select(component => (JsonNode)component)]),
+            ["shapeKind"] = probe.ShapeKind,
+            ["shapeRadius"] = probe.ShapeRadius,
+            ["extentA"] = probe.ExtentA,
+            ["extentB"] = probe.ExtentB,
+            ["scale"] = double.IsFinite(probe.Scale) ? Math.Round(probe.Scale, 3) : null,
+            ["camp"] = probe.Camp,
+            ["ownerId"] = probe.OwnerId,
         });
     }
 

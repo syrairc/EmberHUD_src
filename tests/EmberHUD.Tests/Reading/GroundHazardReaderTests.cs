@@ -45,6 +45,60 @@ public class GroundHazardReaderTests
     }
 
     [Fact]
+    public void AnAreaOwnedByAHostileFighterIsHostileWhateverItsOwnCamp()
+    {
+        var (world, reader) = Rig();
+        world.AddArea(37363, Pool, 100, 3, ownerId: 29743);
+        var hazard = Assert.Single(reader.Read([Monster(5000, 5000)]));
+        Assert.Equal(HazardKind.Area, hazard.Kind);
+        Assert.Equal(100, hazard.Radius);
+    }
+
+    [Fact]
+    public void AnAreaOwnedByThePlayerSideStaysDropped()
+    {
+        var (world, reader) = Rig();
+        world.AddArea(37363, Pool, 100, 3, ownerId: 23880, ownerCamp: 2);
+        Assert.Empty(reader.Read([Monster(5000, 5000)]));
+    }
+
+    [Fact]
+    public void ReadsAnExpandingRingFromAHostileOwner()
+    {
+        var (world, reader) = Rig();
+        world.AddRing(37645, 29743, Pool, 100, 10, scale: 8.4375);
+        var ring = Assert.Single(reader.Read([Monster(5000, 5000)]));
+        Assert.Equal(HazardKind.Damage, ring.Kind);
+        Assert.Equal(843.75f, ring.Radius);
+        Assert.Equal(759.375f, ring.InnerRadius);
+        Assert.Equal(new Vector2(-1144.79f, 22562.14f), ring.Centre);
+    }
+
+    [Fact]
+    public void ARingKindIsReadFromTheLowByteOnly()
+    {
+        var (world, reader) = Rig();
+        world.AddRing(37793, 29743, Pool, 100, 10, kindBits: 0x680000);
+        Assert.Single(reader.Read([Monster(5000, 5000)]));
+    }
+
+    [Fact]
+    public void PlayerOwnedRingsAreDropped()
+    {
+        var (world, reader) = Rig();
+        world.AddRing(1, 23880, Pool, 100, 10, ownerCamp: 2);
+        Assert.Empty(reader.Read([Monster(5000, 5000)]));
+    }
+
+    [Fact]
+    public void AWidthLargerThanTheRadiusFillsTheDisc()
+    {
+        var (world, reader) = Rig();
+        world.AddRing(1, 29743, Pool, 100, 500);
+        Assert.Equal(0f, Assert.Single(reader.Read([Monster(5000, 5000)])).InnerRadius);
+    }
+
+    [Fact]
     public void StackedAreasCollapseToOne()
     {
         var (world, reader) = Rig();

@@ -37,9 +37,12 @@ internal sealed class GroundHazardReader(IReadBackend memory, nint moduleBase)
         Span<double> pair = stackalloc double[2];
         if (!_fight.TryReadComponent(fighter, Offsets.ShapeComponentId, out var shape) || shape == 0 ||
             !_fight.TryReadComponent(fighter, Offsets.TransformComponentId, out var transform) || transform == 0 ||
-            !memory.TryRead(shape + Offsets.ShapeKind, out uint kind) || kind != Offsets.ShapeCircle ||
+            !memory.TryRead(shape + Offsets.ShapeKind, out uint kind) ||
             !memory.TryRead(shape + Offsets.ShapeRadius, out uint radius) || radius == 0 || radius > Offsets.MaxHazardSize ||
             !memory.TryRead(transform + Offsets.TransformPosition, pair)) return false;
+
+        var ring = (kind & 0xFF) == Offsets.ShapeRing;
+        if (kind != Offsets.ShapeCircle && !ring) return false;
 
         var centre = new Vector2((float)pair[0], (float)pair[1]);
         if (!float.IsFinite(centre.X) || !float.IsFinite(centre.Y) || !TryReadScale(fighter, out var scale)) return false;
@@ -47,11 +50,13 @@ internal sealed class GroundHazardReader(IReadBackend memory, nint moduleBase)
         var scaled = (float)(radius * scale);
         if (!float.IsFinite(scaled) || scaled <= 0 || scaled > Offsets.MaxHazardSize) return false;
 
+        if (ring) return TryReadRing(world, fighter, id, shape, centre, scaled, scale, out hazard);
+
         var hasArea = _fight.TryReadComponent(fighter, Offsets.BuffAreaComponentId, out var area) && area != 0;
         if (hasArea)
         {
             if (!_fight.TryReadComponent(fighter, Offsets.SideComponentId, out var side) || side == 0 ||
-                !memory.TryRead(side + Offsets.SideCamp, out byte camp) || camp != Offsets.HostileCamp ||
+                !memory.TryRead(side + Offsets.SideCamp, out byte camp) || camp != Offsets.HostileCamp && !OwnedByHostile(world, fighter) ||
                 monsters.Exists(m => Vector2.Distance(m, centre) <= Offsets.AuraTolerance)) return false;
         }
         else if (!IsRock(world, fighter)) return false;
@@ -60,9 +65,24 @@ internal sealed class GroundHazardReader(IReadBackend memory, nint moduleBase)
         return true;
     }
 
+    private bool TryReadRing(nint world, nint fighter, int id, nint shape, Vector2 centre, float outer, double scale, out GroundHazard hazard)
+    {
+        hazard = default;
+        if (_fight.TryReadComponent(fighter, Offsets.BulletComponentId, out var bullet) && bullet != 0 ||
+            !memory.TryRead(shape + Offsets.ShapeRingWidth, out uint width) || width == 0 ||
+            !OwnedByHostile(world, fighter)) return false;
+
+        var inner = Math.Max(0f, outer - (float)(width * scale));
+        hazard = new GroundHazard(id, HazardKind.Damage, centre, outer) { InnerRadius = float.IsFinite(inner) ? inner : 0 };
+        return true;
+    }
+
     private bool IsRock(nint world, nint fighter) =>
         _fight.TryReadComponent(fighter, Offsets.DamageDataComponentId, out var damage) && damage != 0 &&
         !(_fight.TryReadComponent(fighter, Offsets.BulletComponentId, out var bullet) && bullet != 0) &&
+        OwnedByHostile(world, fighter);
+
+    private bool OwnedByHostile(nint world, nint fighter) =>
         _fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) && attachment != 0 &&
         memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) && _fight.IsHostile(world, ownerId);
 
