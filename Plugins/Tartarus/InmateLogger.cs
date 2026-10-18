@@ -93,6 +93,7 @@ sealed class InmateLogger
             _minigame.Run = Math.Max(_minigame.Run, Minigame.Entries.Select(entry => entry.Run).DefaultIfEmpty(0).Max() + 1);
         }
 
+        if (_minigame.Event(state.Tartarus, Now()) is { } landed) Minigame.Add(landed);
         foreach (var pull in _minigame.Update(state.Tartarus, Now(), seconds)) Minigame.Add(pull);
         if (!Minigame.Loaded && seconds - _lastMinigameLoad >= SaveEverySeconds)
         {

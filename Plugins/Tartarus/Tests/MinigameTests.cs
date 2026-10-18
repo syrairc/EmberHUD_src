@@ -147,6 +147,39 @@ public sealed class MinigameTests
         });
     }
 
+    static TartarusState EventBoard(int choiceId, int eventId, int day, params TartarusCell[] cells) =>
+        new(3, 16, day, 9, cells, new(choiceId, TartarusChoiceKind.Event, [new(1, TartarusOptionKind.Confirm, -1, eventId)], true), [], 0);
+
+    [Test]
+    public void EventScreenIsLoggedOncePerChoiceAndDay()
+    {
+        var logger = Logger();
+        var marked = new TartarusCell(3, false, -1, TartarusBeast.Unknown, false, true);
+        Step(logger, Board(marked), 1);
+        var landed = logger.Event(EventBoard(7, 212, 4, Cell(3, 2, 11, TartarusBeast.Lion)), T0.AddSeconds(2))!;
+        Check.Equal(new EventEntry(T0.AddSeconds(2), 1, 4, 3, 212, "Extra Portion", true, 1, 2, true), landed);
+        Check.That(logger.Event(EventBoard(7, 212, 4, Cell(3, 2, 11)), T0.AddSeconds(3)) is null);
+        Check.That(logger.Event(EventBoard(8, 212, 4, Cell(3, 2, 11)), T0.AddSeconds(4)) is not null);
+        Check.That(logger.Event(Board(Cell(3, 2, 11)), T0.AddSeconds(5)) is null);
+        var closed = Logger().Event(EventBoard(1, 999, 1, Cell(3, 2, 11, open: false)), T0)!;
+        Check.That(!closed.Open && closed.Species == -1 && closed.Tier == -1 && !closed.Marked && closed.Name == "Event 999");
+    }
+
+    [Test]
+    public void EventsRoundTripAndOldFilesStillLoad()
+    {
+        InTemp(dir =>
+        {
+            var store = new MinigameStore();
+            store.Add(new EventEntry(T0, 1, 2, 3, 251, "Transfer of Convicts", true, 0, 1, false));
+            store.Save(dir);
+            Check.Equal(1, MinigameStore.Load(dir).Events.Count);
+            File.WriteAllText(Path.Combine(dir, "minigame.json"), "{\"Entries\":[]}");
+            var old = MinigameStore.Load(dir);
+            Check.That(old.Loaded && old.Events.Count == 0);
+        });
+    }
+
     [Test]
     public void BrokenStoreLoadsEmptyAndKeepsBad()
     {

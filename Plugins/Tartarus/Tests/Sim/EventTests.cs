@@ -188,6 +188,54 @@ public sealed class EventTests
     }
 
     [Test]
+    public void ExtraPortionDoesWhatTheRulesSay()
+    {
+        var run = Confirmed(EventKind.ExtraPortion, 4, (4, Beast.Wolf, 0), (5, Beast.Rat, 1), (6, Beast.Lion, 2), (7, Beast.Lion, 0));
+        Check.Equal(3, run.Tiers().Sum() - (3 - 12));
+        var few = Confirmed(EventKind.ExtraPortion, 4, (4, Beast.Wolf, 0), (5, Beast.Rat, 1));
+        Check.Equal(2, few.Tiers().Sum() - (1 - 14));
+    }
+
+    [Test]
+    public void SharedFortuneDoesWhatTheRulesSay()
+    {
+        var run = Confirmed(EventKind.SharedFortune, 4, (4, Beast.Wolf, 0), (5, Beast.Wolf, 1), (6, Beast.Wolf, 0), (7, Beast.Lion, 0));
+        Check.Equal(2, run.Cells[4].Tier);
+        Check.That(run.Cells[5].Tier == 1 && run.Cells[6].Tier == 0 && run.Cells[7].Tier == 0);
+    }
+
+    [Test]
+    public void ArchenemyDoesWhatTheRulesSay()
+    {
+        for (ulong seed = 1; seed <= 30; seed++)
+        {
+            var run = Boards.Event(seed, EventKind.Archenemy, 4, (4, Beast.Wolf, 2));
+            run.Cells[9] = run.Cells[9] with { Markers = Marker.Nest, NestDay = 9 };
+            run.Apply(Confirm);
+            var opened = run.Where(cell => cell.Open).Where(index => index != 4).ToArray();
+            Check.Equal(1, opened.Length);
+            Check.That(opened[0] != 9 && run.Meals(4).Contains(opened[0]), "the opened inmate is not a meal");
+        }
+    }
+
+    [Test]
+    public void TransferOfConvictsDoesWhatTheRulesSay()
+    {
+        var run = Confirmed(EventKind.TransferOfConvicts, 4, (4, Beast.Wolf, 2));
+        var copies = run.Where(cell => cell.Open);
+        Check.Equal(2, copies.Length);
+        Check.Equal(run.Cells[4], run.Cells[copies.First(index => index != 4)]);
+    }
+
+    [Test]
+    public void DefaultEventPoolIsStillTheOldTen()
+    {
+        var pool = Run.Start(new Rules(), 1).EventPool;
+        Check.Equal(10, pool.Count);
+        Check.That(!pool.Contains(EventKind.ExtraPortion) && !pool.Contains(EventKind.SharedFortune) && !pool.Contains(EventKind.Archenemy) && !pool.Contains(EventKind.TransferOfConvicts));
+    }
+
+    [Test]
     public void EventsHideBehindAboutFivePercentOfLockedCells()
     {
         const int runs = 3000;

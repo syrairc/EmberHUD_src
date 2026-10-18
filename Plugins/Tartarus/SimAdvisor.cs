@@ -37,10 +37,9 @@ public static class SimAdvisor
 
         if (found.Length == 1) return "only option";
 
-        var best = found.Max(entry => entry!.Value - entry.Spread);
-        var close = found.Select(entry => entry!.Value + entry.Spread + settings.CloseMargin * Math.Abs(best) >= best).ToArray();
+        var best = found.Max(entry => entry!.Value);
+        var close = found.Select(entry => entry!.Value >= best - settings.CloseMargin * Math.Abs(best)).ToArray();
         var count = close.Count(inSet => inSet);
-        if (count == found.Length && count > 1) return "no clear best";
         Array.Copy(close, glow, glow.Length);
         return $"{count} best";
     }

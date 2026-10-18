@@ -44,6 +44,7 @@ public enum EventKind : byte
 {
     ChainReaction, Execution, BehindClosedDoors, RavenousAppetite, HighRiskConvict, CrowWhispers, TasteOfFreedom, UsurpationI, SewerRatway, TreasureHunt,
     UsurpationII, UsurpationIII, UsurpationIV,
+    ExtraPortion, SharedFortune, Archenemy, TransferOfConvicts,
 }
 
 public readonly record struct PreyMark(int Lion, int Target, int Rounds, int Next);

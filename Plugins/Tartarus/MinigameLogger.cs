@@ -11,11 +11,22 @@ public sealed class MinigameLogger(Func<int, int, int> collected)
     const int MaxCollectableTier = 3;
 
     readonly HashSet<int> seen = [];
+    readonly HashSet<(int Choice, int Day)> eventsSeen = [];
     Dictionary<int, TartarusCell>? previous;
     int previousChromatics;
     double? nullSince;
 
     public int Run { get; set; } = 1;
+
+    public EventEntry? Event(TartarusState? state, DateTime now)
+    {
+        if (state?.Choice is not { Kind: TartarusChoiceKind.Event } choice || !eventsSeen.Add((choice.Id, state.Day))) return null;
+        var eventId = choice.Options.Where(option => option.Kind == TartarusOptionKind.Confirm).Select(option => option.Param).FirstOrDefault();
+        var here = state.Cells.Where(cell => cell.Index == state.Position).Select(cell => (TartarusCell?)cell).FirstOrDefault();
+        var inmate = here is { Open: true, Beast: not TartarusBeast.Unknown, Tier: >= 0 } open ? open : (TartarusCell?)null;
+        var marked = previous is not null && previous.TryGetValue(state.Position, out var before) && before.EventMarker;
+        return new(now, Run, state.Day, state.Position, eventId, Names.Event(eventId), here is { Open: true }, inmate is { } found ? (int)found.Beast - 1 : -1, inmate?.Tier ?? -1, marked);
+    }
 
     public IReadOnlyList<PullEntry> Update(TartarusState? state, DateTime now, double nowSeconds)
     {
@@ -27,6 +38,7 @@ public sealed class MinigameLogger(Func<int, int, int> collected)
             {
                 previous = null;
                 seen.Clear();
+                eventsSeen.Clear();
                 Run++;
             }
             return [];

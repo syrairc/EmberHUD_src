@@ -59,11 +59,12 @@ public sealed class SimAdvisorTests
     }
 
     [Test]
-    public void EqualOptionsAreNoClearBest()
+    public void EqualOptionsAllGlowAndOneIsTop()
     {
         var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), [Rank(5, 1.0), Rank(3, 1.0), Rank(7, 1.0)], Defaults);
-        Check.Equal(0, Glowing(advice).Length);
-        Check.Equal("no clear best", advice.Summary);
+        Check.Equal(3, Glowing(advice).Length);
+        Check.Equal(1, advice.Options.Count(o => o.Top));
+        Check.Equal("3 best", advice.Summary);
     }
 
     [Test]

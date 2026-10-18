@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -73,6 +74,18 @@ public sealed partial class Run
             case EventKind.TreasureHunt:
                 Hunt();
                 break;
+            case EventKind.ExtraPortion:
+                foreach (var inmate in Sample(Inmates(), 3)) Raise(inmate, 1);
+                break;
+            case EventKind.SharedFortune:
+                Share(cell);
+                break;
+            case EventKind.Archenemy:
+                Nemesis(cell);
+                break;
+            case EventKind.TransferOfConvicts:
+                Transfer(cell);
+                break;
             default:
                 Usurp(kind);
                 break;
@@ -86,6 +99,33 @@ public sealed partial class Run
         var victims = Inmates().Where(other => other != cell && Cells[other].Tier < executioner.Tier && Offset(executioner.Beast, Cells[other].Beast) == 1).ToList();
         foreach (var victim in victims) Lock(victim);
         if (victims.Count > 0) Raise(cell, victims.Count);
+    }
+
+    void Share(int cell)
+    {
+        if (cell < 0 || !Cells[cell].Open) return;
+        // guess: the game's "Code" is the beast species
+        var same = Inmates().Count(other => other != cell && Cells[other].Beast == Cells[cell].Beast);
+        if (same > 0) Raise(cell, same);
+    }
+
+    void Nemesis(int cell)
+    {
+        if (cell < 0 || !Cells[cell].Open) return;
+        var doors = LockedCells().Where(door => !Cells[door].Markers.HasFlag(Marker.Nest)).ToList();
+        if (doors.Count == 0) return;
+        var door = doors[Pick(doors.Count)];
+        var eater = Cells[cell];
+        var beasts = Enum.GetValues<Beast>().Where(beast => Eats(eater, beast)).ToList();
+        OpenDoor(door);
+        if (beasts.Count > 0 && eater.Tier < Tiers.Chromatic) Cells[door] = new Cell(true, beasts[Pick(beasts.Count)], eater.Tier, false);
+    }
+
+    void Transfer(int cell)
+    {
+        if (cell < 0 || !Cells[cell].Open) return;
+        var locked = LockedCells();
+        if (locked.Count > 0) Cells[locked[Pick(locked.Count)]] = new Cell(true, Cells[cell].Beast, Cells[cell].Tier, false);
     }
 
     void Disguise(int cell)

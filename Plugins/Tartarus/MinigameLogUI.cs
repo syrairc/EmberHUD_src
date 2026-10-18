@@ -55,6 +55,24 @@ static class MinigameLogUI
             Tables.End();
         }
 
+        ImGui.SeparatorText("Events");
+        if (Tables.Begin("events", [("Day", 40), ("Cell", 40), ("Event", 0), ("Inmate", 0)]))
+        {
+            var landed = store.Events.AsEnumerable().Reverse().Take(20).ToArray();
+            for (var i = 0; i < landed.Length; i++)
+            {
+                var entry = landed[i];
+                using (Tables.Row(i))
+                {
+                    Cell(entry.Day.ToString());
+                    Cell((entry.Cell + 1).ToString());
+                    Cell(entry.Name);
+                    Cell(entry.Species is >= 0 and < 4 && entry.Tier is >= 0 and < 6 ? $"{Inmates.SpeciesName((InmateSpecies)entry.Species)} {Tiers[entry.Tier]}" : "-");
+                }
+            }
+            Tables.End();
+        }
+
         ImGui.Separator();
         var armed = Environment.TickCount64 - _armedAt < ConfirmMs;
         if (ImGui.Button(armed ? "Click again to clear the minigame log" : "Clear##minigame"))

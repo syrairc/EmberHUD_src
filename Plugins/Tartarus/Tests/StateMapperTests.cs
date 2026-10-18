@@ -235,14 +235,27 @@ public sealed class StateMapperTests
     }
 
     [Test]
-    public void EventAndOtherChoicesAreNotSimulatedYetAndNotAMismatch()
+    public void OtherChoicesAndUnknownEventsAreNotSimulatedYetAndNotAMismatch()
     {
-        foreach (var kind in new[] { TartarusChoiceKind.Event, TartarusChoiceKind.Other })
+        foreach (var board in new[] { Board(Picks(TartarusChoiceKind.Other, TartarusOptionKind.Confirm, 213)), Board(Picks(TartarusChoiceKind.Event, TartarusOptionKind.Confirm, 299)) })
         {
-            var result = Map(Board(Picks(kind, TartarusOptionKind.Confirm, 213)));
-            Check.That(result.Run is null && result.Mismatch is null, kind.ToString());
-            Check.That(result.Unsupported!.Contains("not simulated yet"), kind.ToString());
+            var result = Map(board);
+            Check.That(result.Run is null && result.Mismatch is null);
+            Check.That(result.Unsupported!.Contains("not simulated yet"));
         }
+    }
+
+    [Test]
+    public void AnEventScreenMapsToThePendingEventOnTheCurrentCell()
+    {
+        var state = Board(Picks(TartarusChoiceKind.Event, TartarusOptionKind.Confirm, 213));
+        var result = Map(state);
+        var run = result.Run!;
+        Check.That(result.Mismatch is null && result.Unsupported is null);
+        Check.Equal(Phase.Event, run.Phase);
+        Check.Equal(EventKind.SharedFortune, run.PendingEvent);
+        Check.Equal(state.Position, run.EventCell);
+        Check.That(run.EventPool.Count == 14 && run.EventPool.Contains(EventKind.Archenemy) && run.EventPool.Contains(EventKind.TransferOfConvicts));
     }
 
     [Test]

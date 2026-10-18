@@ -17,7 +17,7 @@ static class SettingsUI
     {
         Setting.Slider("Playouts", ref s.Playouts, 20, 2000, "Simulated runs per option, more is steadier but slower to appear");
         var margin = (float)s.CloseMargin;
-        if (Setting.Slider("Close margin", ref margin, 0, 1, "Options within this share of the best still count as best")) s.CloseMargin = margin;
+        if (Setting.Slider("Close margin", ref margin, 0, 1, "Options within this share of the best value also glow, in yellow")) s.CloseMargin = margin;
     }
 
     public static void DrawRules(Settings s)

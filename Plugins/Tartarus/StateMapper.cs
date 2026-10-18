@@ -52,6 +52,27 @@ public static class StateMapper
         _ => null,
     };
 
+    static readonly Dictionary<int, EventKind> Events = new()
+    {
+        [201] = EventKind.HighRiskConvict,
+        [202] = EventKind.TasteOfFreedom,
+        [203] = EventKind.BehindClosedDoors,
+        [211] = EventKind.RavenousAppetite,
+        [212] = EventKind.ExtraPortion,
+        [213] = EventKind.SharedFortune,
+        [221] = EventKind.Archenemy,
+        [222] = EventKind.Execution,
+        [231] = EventKind.CrowWhispers,
+        [232] = EventKind.TreasureHunt,
+        [241] = EventKind.SewerRatway,
+        [242] = EventKind.ChainReaction,
+        [251] = EventKind.TransferOfConvicts,
+        [252] = EventKind.UsurpationI,
+        [253] = EventKind.UsurpationII,
+        [254] = EventKind.UsurpationIII,
+        [255] = EventKind.UsurpationIV,
+    };
+
     internal static ToolId? ToolOf(int relicId) => Tools.TryGetValue(relicId, out var tool) ? tool : null;
 
     public static MapResult Map(TartarusState state, TrackedRun tracked, Rules rules)
@@ -60,7 +81,7 @@ public static class StateMapper
         var problem = Check(state);
         if (problem is not null || tracked is null) return new MapResult(null, [.. assumed], problem ?? "No tracked run.");
 
-        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks and event kinds are assumed none.", "Tool uses left are assumed to be the defaults."]);
+        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks are assumed none, and a marked cell's event is drawn from the 17 the game has.", "Tool uses left are assumed to be the defaults."]);
         var run = new Run(rules with { Days = state.MaxDay, RingSize = state.Size }, new Rng(1)) { Day = state.Day, Position = state.Position, Chromatics = state.Chromatics };
         if (tracked.SwapUsedToday) assumed.Add("The swap was used today, and the game still offers devours after it, so the simulator is told the swap is unused.");
         foreach (var id in (tracked.ToolsHeld ?? []).Union(state.Instruments).Order())
@@ -87,6 +108,7 @@ public static class StateMapper
         if (speciesOnly) assumed.Add("A locked cell with only its species shown is treated as any species.");
         if (rarityOnly) assumed.Add("A locked cell with only its rarity shown is treated as that rarity or better.");
 
+        run.Pool.AddRange([EventKind.ExtraPortion, EventKind.SharedFortune, EventKind.Archenemy, EventKind.TransferOfConvicts]);
         var marked = state.Cells.Where(cell => cell.EventMarker && cell.Index != 0).ToArray();
         foreach (var cell in marked) run.Cells[cell.Index].Marked = true;
         if (marked.Length > 0) assumed.Add("Event markers: the event behind a marked cell is unknown, so a random one is assumed when it is reached.");
@@ -160,6 +182,17 @@ public static class StateMapper
                     run.Queue.Add(new Offer(MoveKind.Reward, rewards));
                     assumed.Add("The part of the day left after the reward is assumed to be just ending it.");
                 }
+                return null;
+            case TartarusChoiceKind.Event:
+                var confirm = choice.Options.FirstOrDefault(option => option.Kind == TartarusOptionKind.Confirm);
+                if (confirm.Kind != TartarusOptionKind.Confirm || !Events.TryGetValue(confirm.Param, out var happening))
+                {
+                    unsupported = $"Event {confirm.Param} is not simulated yet.";
+                    return null;
+                }
+                run.Phase = Sim.Phase.Event;
+                run.PendingEvent = happening;
+                run.EventCell = state.Position;
                 return null;
             default:
                 unsupported = $"A {choice.Kind} choice is not simulated yet.";

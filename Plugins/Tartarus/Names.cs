@@ -40,6 +40,29 @@ public static class Names
         [148] = "Skewered Rat Heads: Colossal Rat",
     };
 
+    static readonly Dictionary<int, string> Events = new()
+    {
+        [201] = "High-Risk Convict",
+        [202] = "Taste of Freedom",
+        [203] = "Behind Closed Doors",
+        [211] = "Ravenous Appetite",
+        [212] = "Extra Portion",
+        [213] = "Shared Fortune",
+        [221] = "Archenemy",
+        [222] = "Execution Efficiency",
+        [231] = "Crow Whispers",
+        [232] = "Treasure Hunt",
+        [241] = "Sewer Ratway",
+        [242] = "Chain Reaction",
+        [251] = "Transfer of Convicts",
+        [252] = "Usurpation I",
+        [253] = "Usurpation II",
+        [254] = "Usurpation III",
+        [255] = "Usurpation IV",
+    };
+
+    public static string Event(int eventId) => Events.GetValueOrDefault(eventId, $"Event {eventId}");
+
     static readonly Dictionary<int, string> Rewards = new()
     {
         [1] = "Three-Headed Thumb Ring",
