@@ -133,6 +133,20 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public async Task ForceStagesTheInstalledVersionButNotAnOlderOne()
+    {
+        using var setup = new Setup();
+        using var service = setup.Create(Releasing("1.0.6"));
+        await service.CheckOnce(force: true);
+        Assert.Equal("1.0.6", service.Staged!.Version);
+
+        using var older = new Setup();
+        using var olderService = older.Create(Releasing("1.0.5"));
+        await olderService.CheckOnce(force: true);
+        Assert.Null(olderService.Staged);
+    }
+
+    [Fact]
     public async Task FourPartAssemblyVersionDoesNotLookNewerThanTheSameTag()
     {
         using var setup = new Setup();
