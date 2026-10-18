@@ -179,11 +179,13 @@ public class TartarusReaderTests
             choice.Options);
     }
 
-    [Fact]
-    public void InstrumentReadsRelicIds()
+    [Theory]
+    [InlineData(8)]
+    [InlineData(2)]
+    public void InstrumentReadsRelicIds(int type)
     {
         var f = new Fixture();
-        var choice = ReadChoice(f, Offsets.TartarusChoiceInstrument,
+        var choice = ReadChoice(f, type,
             Option(f, 41, (Offsets.LuaTartarusRelic, Child(f, (Offsets.LuaTartarusRelicId, 106)))),
             Option(f, 42, (Offsets.LuaTartarusRelic, Child(f, (Offsets.LuaTartarusRelicId, 131)))),
             Option(f, 43, (Offsets.LuaTartarusRelic, Child(f, (Offsets.LuaTartarusRelicId, 123)))));
@@ -219,6 +221,21 @@ public class TartarusReaderTests
         var choice = ReadChoice(f, 99, Option(f, 71));
         Assert.Equal(TartarusChoiceKind.Other, choice.Kind);
         Assert.Equal(TartarusOptionKind.Other, choice.Options.Single().Kind);
+    }
+
+    [Fact]
+    public void LazyDevourReadsItsTargetFromTheBytes()
+    {
+        var f = new Fixture();
+        var lazyDevour = f.Lua.NewTable(2, 0);
+        f.Lua.SetIntKeyString(lazyDevour, 1, "rpc.S16WardenDevourOperationOption");
+        f.Lua.SetIntKeyBytes(lazyDevour, 2, Convert.FromHexString("080612060A025034 1003".Replace(" ", "")));
+        var op = f.Lua.NewTable(0, 2);
+        f.Lua.SetInt(op, Offsets.LuaTartarusOperationType, Offsets.TartarusOpDevour);
+        f.Lua.SetTable(op, Offsets.LuaTartarusDevour, lazyDevour);
+        var choice = ReadChoice(f, Offsets.TartarusChoiceOperation, Option(f, 21, (Offsets.LuaTartarusOperation, op)));
+        Assert.True(choice.Complete);
+        Assert.Equal(new TartarusOption(21, TartarusOptionKind.Consume, 6, 0), choice.Options.Single());
     }
 
     [Fact]

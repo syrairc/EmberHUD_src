@@ -79,7 +79,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
             var t when t == Offsets.TartarusChoiceDice => TartarusChoiceKind.Doors,
             var t when t == Offsets.TartarusChoiceOperation => TartarusChoiceKind.Operation,
             var t when t == Offsets.TartarusChoiceOffice => TartarusChoiceKind.Office,
-            var t when t == Offsets.TartarusChoiceInstrument => TartarusChoiceKind.Instrument,
+            var t when t == Offsets.TartarusChoiceInstrument || t == Offsets.TartarusChoiceRelicPick =>TartarusChoiceKind.Instrument,
             var t when t == Offsets.TartarusChoiceReward => TartarusChoiceKind.Reward,
             var t when t == Offsets.TartarusChoiceEvent => TartarusChoiceKind.Event,
             _ => TartarusChoiceKind.Other,
@@ -151,7 +151,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         switch (type)
         {
             case var t when t == Offsets.TartarusOpDevour:
-                if (!TryGetNested(operation, Offsets.LuaTartarusDevour, Offsets.LuaTartarusTarget, out cell)) return false;
+                if (!TryGetNested(operation, Offsets.LuaTartarusDevour, Offsets.LuaTartarusTarget, out cell) && !TryLazyTarget(operation, out cell)) return false;
                 kind = TartarusOptionKind.Consume;
                 break;
             case var t when t == Offsets.TartarusOpReplace: kind = TartarusOptionKind.Replace; break;
@@ -159,6 +159,18 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
             case var t when t == Offsets.TartarusOpStopChain: kind = TartarusOptionKind.StopChain; break;
         }
 
+        return true;
+    }
+
+    private bool TryLazyTarget(LuaTable operation, out int cell)
+    {
+        cell = -1;
+        if (!_lua.TryGetTable(operation, Offsets.LuaTartarusDevour, out var devour) ||
+            !_lua.TryGetBytesAt(devour, Offsets.TartarusLazyBytesKey, out var bytes) ||
+            !Protobuf.TryParse(bytes, out var fields)) return false;
+        var target = fields.LastOrDefault(field => field.Number == Offsets.TartarusProtoTarget).Varint;
+        if (target is < 0 or > int.MaxValue) return false;
+        cell = (int)target;
         return true;
     }
 

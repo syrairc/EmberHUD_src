@@ -106,19 +106,21 @@ public sealed class Main : Plugin<Settings>
     static bool GlowCards(TartarusChoice choice, OptionAdvice[] advice)
     {
         var instrument = choice.Kind == TartarusChoiceKind.Instrument;
+        var reward = choice.Kind == TartarusChoiceKind.Reward;
+        var popup = instrument || reward;
         var doors = choice.Kind == TartarusChoiceKind.Doors;
-        if (!instrument && !doors && choice.Kind != TartarusChoiceKind.Operation) return false;
-        var pageName = instrument ? "S16BoardRelicPop_C" : "S16BoardMain_C";
+        if (!popup && !doors && choice.Kind is not (TartarusChoiceKind.Operation or TartarusChoiceKind.Office)) return false;
+        var pageName = instrument ? "S16BoardRelicPop_C" : reward ? "S16BoardColoredPop_C" : "S16BoardMain_C";
         if (Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == pageName).Parts is not { Length: > 0 } parts) return false;
-        var onCard = Enumerable.Range(0, choice.Options.Length).Where(i => instrument || doors || choice.Options[i].Kind is TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End);
+        var onCard = Enumerable.Range(0, choice.Options.Length).Where(i => popup || doors || choice.Options[i].Kind is TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End or TartarusOptionKind.Instigate or TartarusOptionKind.Bestow);
         if (doors) onCard = onCard.OrderBy(i => choice.Options[i].Param).ThenBy(i => choice.Options[i].Cell);
         var cardsShown = parts.Any(part => part.Name.StartsWith("List_S16Board_Bottom_"));
-        var picking = !instrument && !doors && !cardsShown;
+        var picking = !popup && !doors && !cardsShown;
         if (picking) onCard = onCard.Where(i => choice.Options[i].Kind == TartarusOptionKind.Consume);
         var card = 0;
         foreach (var i in onCard)
         {
-            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : picking ? $"S16BoardCell_{choice.Options[i].Cell + 1}" : $"{(doors ? "List_S16Board_Bottom_Routes" : "List_S16Board_Bottom_Actions")}[{card++}]";
+            var name = popup ? $"S16Board{(instrument ? "Relic" : "Colored")}OptCell_{i + 1}" : picking ? $"S16BoardCell_{choice.Options[i].Cell + 1}" : $"{(doors ? "List_S16Board_Bottom_Routes" : "List_S16Board_Bottom_Actions")}[{card++}]";
             foreach (var part in parts)
             {
                 if (part.Name != name) continue;
@@ -126,7 +128,7 @@ public sealed class Main : Plugin<Settings>
                 if (advice[i].Reason.Length > 0) Draw.Text(advice[i].Reason, new Vector2((part.Min.X + part.Max.X) / 2, part.Max.Y + 18), advice[i].Glow ? (advice[i].Top ? GameColors.Positive : GameColors.Gold) : GameColors.TextDim, Align.Center | Align.Middle);
             }
         }
-        return picking || cardsShown || instrument;
+        return picking || cardsShown || popup;
     }
 
     public override void Render()
