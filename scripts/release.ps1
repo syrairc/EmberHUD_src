@@ -10,7 +10,7 @@ if (-not $Out -and -not $Public) {
 if (-not $Out) { $Out = Join-Path $PSScriptRoot "..\..\$outName" }
 $Out = [IO.Path]::GetFullPath($Out, (Get-Location).ProviderPath).TrimEnd('\', '/')
 $skipPlugins = 'bin', 'obj'
-if ($Public) { $skipPlugins += 'Inspector', 'Sample', 'Mcp', 'Tartarus' }
+if ($Public) { $skipPlugins += 'Inspector', 'Sample', 'Mcp', 'Tartarus', 'Tarot' }
 $work = Join-Path ([IO.Path]::GetTempPath()) "emberhud-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
 $obfuscated = Join-Path $work 'obfuscated'

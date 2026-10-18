@@ -20,6 +20,7 @@ internal sealed class LiveReader
     private readonly InventoryReader? _inventory;
     private readonly CharacterReader? _character;
     private readonly TartarusReader? _tartarus;
+    private readonly TarotReader? _tarot;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
     private readonly ProjectileReader _projectiles;
@@ -32,8 +33,9 @@ internal sealed class LiveReader
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, Func<long>? clockMilliseconds = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, TarotReader? tarot = null, Func<long>? clockMilliseconds = null)
     {
+        _tarot = tarot;
         _character = character;
         _memory = memory;
         _combat = combat;
@@ -136,6 +138,7 @@ internal sealed class LiveReader
             Combat = _combat?.Snapshot,
             Inventory = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _inventory?.Read() : null,
             Tartarus = Game.TartarusWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds) ? _tartarus?.Read() : null,
+            Tarot = Game.TarotWanted(Stopwatch.GetTimestamp(), Offsets.TarotWantedSeconds) ? _tarot?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
         };

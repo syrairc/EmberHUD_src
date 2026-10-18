@@ -122,6 +122,26 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return false;
     }
 
+    public bool TryGetBytesAt(LuaTable table, long index, out byte[] value)
+    {
+        value = [];
+        if (!TryReadHeader(table, out var header)) return false;
+
+        if (index >= 1 && index <= header.ArraySize)
+        {
+            return TryReadValue(header.Array + (nint)(index - 1) * Offsets.LuaTValueSize, out var raw, out var tag) && IsString(tag) && TryReadBytes((nint)raw, out value);
+        }
+
+        if (!TryReadNodes(header, out var nodes)) return false;
+        for (var i = 0; i < nodes.Length; i += Offsets.LuaNodeSize)
+        {
+            if (NodeKeyTag(nodes, i) != Offsets.LuaTagInt || MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey)) != index) continue;
+            return IsString(NodeTag(nodes, i)) && TryReadBytes((nint)MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue)), out value);
+        }
+
+        return false;
+    }
+
     public IEnumerable<(long Key, LuaTable Value)> IntKeyedTables(LuaTable table)
     {
         if (!TryReadHeader(table, out var header)) yield break;
@@ -312,6 +332,15 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         if (keyHash != hash) return false;
         return memory.TryRead(keyAddress + Offsets.LuaStringLength, out int length) && length == wanted.Length &&
                memory.TryReadArray(keyAddress + Offsets.LuaStringChars, length, out byte[] chars) && chars.AsSpan().SequenceEqual(wanted);
+    }
+
+    private static bool IsString(uint tag) => tag == Offsets.LuaTagShortString || tag == Offsets.LuaTagLongString;
+
+    private bool TryReadBytes(nint address, out byte[] value)
+    {
+        value = [];
+        return address != 0 && memory.TryRead(address + Offsets.LuaStringLength, out int length) && length >= 0 && length <= Offsets.MaxTarotBlob &&
+               memory.TryReadArray(address + Offsets.LuaStringChars, length, out value);
     }
 
     private bool TryReadString(nint address, out string value, bool cut = false)

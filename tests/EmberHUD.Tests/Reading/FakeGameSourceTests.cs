@@ -132,6 +132,26 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeTarotIsABoard()
+    {
+        Game.TarotAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Tarot);
+        try
+        {
+            Game.WantTarot();
+            Assert.NotNull(At(Stopwatch.GetTimestamp()).Tarot);
+            var board = FakeGameSource.TarotAt(0);
+
+            Assert.Equal(TarotPhase.Board, board.Phase);
+            Assert.Equal(40, board.Tiles.Length);
+            Assert.Equal(7, board.Tiles[30].Chest);
+            Assert.Equal(0, board.Position);
+            Assert.Equal(1, FakeGameSource.TarotAt(Stopwatch.Frequency).Position);
+        }
+        finally { Game.TarotAsked = 0; }
+    }
+
+    [Fact]
     public void FakeStashFollowsTheOpenStashPageAndIsGated()
     {
         var open = 6 * Stopwatch.Frequency;

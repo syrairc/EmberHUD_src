@@ -86,6 +86,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly TartarusOption[] FakeDoors = [new(1, TartarusOptionKind.Door, 1, 1), new(2, TartarusOptionKind.Door, 2, 2), new(3, TartarusOptionKind.Door, 3, 3)];
     private static readonly TartarusOption[] FakeOperations = [new(4, TartarusOptionKind.Consume, 4, 0), new(5, TartarusOptionKind.Replace, 5, 0)];
 
+    private static readonly TarotTile[] FakeTarotTiles =
+    [
+        .. Enumerable.Range(0, 40).Select(i => i switch
+        {
+            5 => new TarotTile(i, 2010, 2),
+            13 => new TarotTile(i, 2010, 4),
+            30 => new TarotTile(i, 2010, 7),
+            7 or 8 => new TarotTile(i, 1000, 0),
+            10 => new TarotTile(i, 1051, 0),
+            _ => new TarotTile(i, 10000, 0),
+        }),
+    ];
+
+    private static readonly TarotCard[] FakeTarotHand = [new(1, 3), new(2, 13), new(3, 24)];
+
     private readonly List<Vector2> _trail = [];
     private ExploredTrail _published = new([], TrailRadius);
     private int _trailArea = -1;
@@ -131,6 +146,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
+            Tarot = Game.TarotWanted(now, Offsets.TarotWantedSeconds) ? TarotAt(now) : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
             GameMinimap = new GameMinimap(true, 51892f),
@@ -170,6 +186,9 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             doors ? new TartarusChoice(1, TartarusChoiceKind.Doors, FakeDoors, true) : new TartarusChoice(2, TartarusChoiceKind.Operation, FakeOperations, true),
             [], 0);
     }
+
+    internal static TarotState TarotAt(long now) =>
+        new(TarotPhase.Board, 1, 0, 3, (int)(now / Stopwatch.Frequency % FakeTarotTiles.Length), FakeTarotTiles, FakeTarotHand, [2], 0);
 
     internal static CombatStats CombatAt(long now)
     {

@@ -459,4 +459,40 @@ public class LuaReaderTests
         Assert.False(reader.TryGetIntAt(table, 2, out _));
         Assert.False(reader.TryGetIntAt(table, 40, out _));
     }
+
+    [Fact]
+    public void TryGetBytesAtReturnsTheRawBytes()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 3, 2);
+        byte[] blob = [0x0A, 0x03, 0x10, 0x90, 0x4E, 0x00, 0x1F];
+        byte[] longBlob = [.. Enumerable.Range(0, 100).Select(i => (byte)(i * 7))];
+        lua.SetIntKeyBytes(t, 2, blob);
+        lua.SetIntKeyBytes(t, 40, longBlob);
+        lua.SetIntKeyTable(t, 3, lua.NewTable(0, 0));
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        Assert.True(reader.TryGetBytesAt(table, 2, out var array));
+        Assert.True(reader.TryGetBytesAt(table, 40, out var node));
+        Assert.Equal(blob, array);
+        Assert.Equal(longBlob, node);
+        Assert.False(reader.TryGetBytesAt(table, 1, out _));
+        Assert.False(reader.TryGetBytesAt(table, 3, out _));
+        Assert.False(reader.TryGetBytesAt(table, 99, out _));
+    }
+
+    [Fact]
+    public void TryGetBytesAtRejectsOverTheCap()
+    {
+        var (_, lua, reader) = Fixture();
+        var t = Nested(lua, lua.Globals, "t", 3, 2);
+        lua.SetIntKeyBytes(t, 1, new byte[Offsets.MaxTarotBlob]);
+        lua.SetIntKeyBytes(t, 2, new byte[Offsets.MaxTarotBlob + 1]);
+        Assert.True(reader.TryOpen(out var globals));
+        Assert.True(reader.TryGetTable(globals, "t", out var table));
+
+        Assert.True(reader.TryGetBytesAt(table, 1, out _));
+        Assert.False(reader.TryGetBytesAt(table, 2, out _));
+    }
 }

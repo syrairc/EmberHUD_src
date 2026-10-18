@@ -268,6 +268,26 @@ public class LiveReaderTests
         finally { Game.TartarusAsked = 0; }
     }
 
+    [Fact]
+    public void TarotOnlyWhileWanted()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, tarot: Reading.TarotReaderTests.Fixture.Board(hp: 3).Reader());
+        try
+        {
+            Game.TarotAsked = 0;
+            Assert.True(reader.TryRead(out var idle, out _));
+            Assert.Null(idle.Tarot);
+
+            Game.WantTarot();
+            Assert.True(reader.TryRead(out var asked, out _));
+            Assert.Equal(TarotPhase.Board, asked.Tarot!.Phase);
+            Assert.Equal(3, asked.Tarot.Hp);
+        }
+        finally { Game.TarotAsked = 0; }
+    }
+
     private static CharacterReader CharacterWith(FakeWorld world)
     {
         world.SetLocalPlayer(11);

@@ -60,7 +60,24 @@ internal sealed class FakeLua
 
     public void SetTable(LuaTable t, string key, LuaTable value) => SetNode(t, MainPosition(t, key), key, value.Address, Offsets.LuaTagTable);
 
+    public void ReplaceTable(LuaTable t, string key, LuaTable value)
+    {
+        var (logSize, _, _, node) = _tables[t.Address];
+        for (var i = 0; i < 1 << logSize; i++)
+        {
+            var slot = node + i * Offsets.LuaNodeSize;
+            var keyBytes = new byte[8];
+            _memory.TryRead(slot + Offsets.LuaNodeKey, keyBytes);
+            if (BitConverter.ToInt64(keyBytes) == Intern(key)) _memory.Write(slot + Offsets.LuaNodeValue, (long)value.Address);
+        }
+    }
+
     public void SetIntKeyTable(LuaTable t, long key, LuaTable value) => SetIntKey(t, key, value.Address, Offsets.LuaTagTable);
+
+    public void SetIntKeyString(LuaTable t, long key, string value) => SetIntKeyBytes(t, key, Encoding.UTF8.GetBytes(value));
+
+    public void SetIntKeyBytes(LuaTable t, long key, byte[] value) =>
+        SetIntKey(t, key, Intern(value), value.Length > 40 ? Offsets.LuaTagLongString : Offsets.LuaTagShortString);
 
     public void SetIntKey(LuaTable t, long key, long value, int tag)
     {
@@ -135,6 +152,14 @@ internal sealed class FakeLua
         _memory.Write(at + Offsets.LuaStringLength, (long)bytes.Length);
         _memory.WriteArray(at + Offsets.LuaStringChars, bytes);
         return _strings[text] = at;
+    }
+
+    private nint Intern(byte[] bytes)
+    {
+        var at = Alloc(Offsets.LuaStringChars + bytes.Length + 1);
+        _memory.Write(at + Offsets.LuaStringLength, (long)bytes.Length);
+        _memory.WriteArray(at + Offsets.LuaStringChars, bytes);
+        return at;
     }
 
     private nint Alloc(int size)

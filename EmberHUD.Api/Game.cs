@@ -13,6 +13,7 @@ public static class Game
     static long _groundHazardsAsked;
     static long _characterAsked;
     static long _tartarusAsked;
+    static long _tarotAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -122,6 +123,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantTarot() => Interlocked.Exchange(ref _tarotAsked, Stopwatch.GetTimestamp());
+
+    internal static long TarotAsked
+    {
+        get => Interlocked.Read(ref _tarotAsked);
+        set => Interlocked.Exchange(ref _tarotAsked, value);
+    }
+
+    internal static bool TarotWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _tarotAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -178,6 +193,8 @@ public sealed record GameState
     public InventoryItem[]? Inventory { get; init; }
 
     public TartarusState? Tartarus { get; init; }
+
+    public TarotState? Tarot { get; init; }
 
     public Buff[]? Buffs { get; init; }
 

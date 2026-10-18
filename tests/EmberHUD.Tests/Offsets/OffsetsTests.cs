@@ -324,6 +324,48 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void TarotKeysExist()
+    {
+        Assert.Equal("S9GamePlayMgr", Offsets.LuaTarotManager);
+        Assert.Equal("PlayRound", Offsets.LuaTarotRound);
+        Assert.Equal("S9Data", Offsets.LuaTarotData);
+        Assert.Equal("State", Offsets.LuaTarotState);
+        Assert.Equal("StateData", Offsets.LuaTarotStateData);
+        Assert.Equal("CardPlay", Offsets.LuaTarotCardPlay);
+        Assert.Equal("HP", Offsets.LuaTarotHp);
+        Assert.Equal("TileMap", Offsets.LuaTarotTileMap);
+        Assert.Equal("Tiles", Offsets.LuaTarotTiles);
+        Assert.Equal("CurrentInx", Offsets.LuaTarotPosition);
+        Assert.Equal("CfgID", Offsets.LuaTarotCfg);
+        Assert.Equal("ID", Offsets.LuaTarotId);
+        Assert.Equal("S9Reward", Offsets.LuaTarotReward);
+        Assert.Equal("CardGroup", Offsets.LuaTarotCardGroup);
+        Assert.Equal("Cards", Offsets.LuaTarotCards);
+        Assert.Equal("RecvRewards", Offsets.LuaTarotRecvRewards);
+        Assert.Equal("playNum", Offsets.LuaTarotPlayNum);
+        Assert.Equal("ChallengeTimes", Offsets.LuaTarotChallengeTimes);
+        Assert.Equal("S9GamePlayStateCardCollect", Offsets.TarotStateCollect);
+        Assert.Equal("S9GamePlayStateCardPlay", Offsets.TarotStateBoard);
+        Assert.Equal("S9GamePlayStateFinalPlay", Offsets.TarotStateFinal);
+        Assert.Equal(1, Offsets.TarotProtoTileMapTiles);
+        Assert.Equal(2, Offsets.TarotProtoTileMapPosition);
+        Assert.Equal(2, Offsets.TarotLazyBytesKey);
+        Assert.Equal(2, Offsets.TarotProtoTileCfg);
+        Assert.Equal(4, Offsets.TarotProtoTileReward);
+        Assert.Equal(2, Offsets.TarotProtoRewardCfg);
+        Assert.Equal(1, Offsets.TarotProtoGroupCards);
+        Assert.Equal(1, Offsets.TarotProtoCardId);
+        Assert.Equal(2, Offsets.TarotProtoCardCfg);
+        Assert.Equal(7, Offsets.TarotChestRarities);
+        Assert.Equal(100, Offsets.TarotRefreshMilliseconds);
+        Assert.Equal(3, Offsets.TarotWantedSeconds);
+        Assert.Equal(256, Offsets.MaxTarotTiles);
+        Assert.Equal(32, Offsets.MaxTarotCards);
+        Assert.Equal(32, Offsets.MaxTarotRewards);
+        Assert.Equal(65536, Offsets.MaxTarotBlob);
+    }
+
+    [Fact]
     public void LuaGlobalRvaIsSetForTheCurrentBuild()
     {
         var original = Offsets.Build;
