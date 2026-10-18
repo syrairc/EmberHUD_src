@@ -6,28 +6,47 @@ namespace EmberHUD.Host.Reading;
 internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
 {
     private readonly FightComponents _fight = new(memory, moduleBase);
+    private Dictionary<int, (Vector2 Position, Vector2 Heading)> _seen = [];
 
     public Projectile[] Read(Entity[] entities)
     {
-        if (entities.Length == 0 || !_fight.TryReadWorld(out var world)) return [];
+        if (entities.Length == 0 || !_fight.TryReadWorld(out var world))
+        {
+            _seen = [];
+            return [];
+        }
 
         var owners = new Dictionary<int, Rarity>(entities.Length);
         foreach (var entity in entities)
             if (entity.Kind == EntityKind.Monster) owners[entity.Id] = entity.Rarity;
 
         var found = new List<Projectile>(16);
+        var seen = new Dictionary<int, (Vector2, Vector2)>(_seen.Count);
         memory.TryWalkBuckets(world + Offsets.FightWorldEntityBucketCount, world + Offsets.FightWorldEntityBuckets, Offsets.MaxBuckets, Offsets.NodeSize, Offsets.NodeNext, Offsets.MaxEntities,
             (_, node) =>
             {
                 var fighter = (nint)BitConverter.ToInt64(node[Offsets.NodeEntity..]);
-                if (fighter != 0 && TryReadProjectile(world, fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, out var projectile))
+                if (fighter != 0 && TryReadProjectile(world, fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, seen, out var projectile))
                     found.Add(projectile);
                 return true;
             });
+        _seen = seen;
         return [.. found];
     }
 
-    private bool TryReadProjectile(nint world, nint fighter, int id, Dictionary<int, Rarity> owners, out Projectile projectile)
+    private Vector2 Heading(int id, bool laser, Vector2 position, Vector2 facing, Dictionary<int, (Vector2, Vector2)> seen)
+    {
+        var heading = facing;
+        if (!laser && _seen.TryGetValue(id, out var before))
+        {
+            var moved = position - before.Position;
+            heading = moved.Length() >= Offsets.MinHeadingStep ? Vector2.Normalize(moved) : before.Heading;
+        }
+        if (!laser) seen[id] = (position, heading);
+        return heading;
+    }
+
+    private bool TryReadProjectile(nint world, nint fighter, int id, Dictionary<int, Rarity> owners, Dictionary<int, (Vector2, Vector2)> seen, out Projectile projectile)
     {
         projectile = default;
         Span<double> pair = stackalloc double[2];
@@ -49,7 +68,7 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
         var length = direction.Length();
         if (!float.IsFinite(length) || length < 0.5f) return false;
 
-        projectile = new Projectile(id, ownerId, rarity, position, origin, direction / length, radius, (float)speed);
+        projectile = new Projectile(id, ownerId, rarity, position, origin, Heading(id, laser, position, direction / length, seen), radius, (float)speed);
         return true;
     }
 

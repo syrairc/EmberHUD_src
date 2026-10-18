@@ -40,6 +40,40 @@ public class ProjectileReaderTests
     }
 
     [Fact]
+    public void OrbitingBulletsHeadAlongTheirMovementNotTheirStaleTransformDirection()
+    {
+        var (world, reader) = Rig();
+        var bullet = Good(world);
+        reader.Read([Owner()]);
+        world.Memory.WriteArray(bullet.Transform + Offsets.TransformPosition, new[] { Position.X, Position.Y + 40 });
+        var projectile = Assert.Single(reader.Read([Owner()]));
+        Assert.Equal(0, projectile.Direction.X, 3);
+        Assert.Equal(1, projectile.Direction.Y, 3);
+    }
+
+    [Fact]
+    public void BulletsKeepTheirLastMovementDirectionWhileStandingStill()
+    {
+        var (world, reader) = Rig();
+        var bullet = Good(world);
+        reader.Read([Owner()]);
+        world.Memory.WriteArray(bullet.Transform + Offsets.TransformPosition, new[] { Position.X, Position.Y + 40 });
+        reader.Read([Owner()]);
+        var projectile = Assert.Single(reader.Read([Owner()]));
+        Assert.Equal(1, projectile.Direction.Y, 3);
+    }
+
+    [Fact]
+    public void MovingLasersKeepTheirOwnHeading()
+    {
+        var (world, reader) = Rig();
+        var transform = world.AddLaser(60, 7, Position, (0.2537, 0.9673), (5000, 100));
+        reader.Read([Owner()]);
+        world.Memory.WriteArray(transform + Offsets.TransformPosition,new[] { Position.X + 40, Position.Y });
+        Assert.Equal(0.2537f, Assert.Single(reader.Read([Owner()])).Direction.X, 3);
+    }
+
+    [Fact]
     public void OwnBulletsAreDropped()
     {
         var (world, reader) = Rig();

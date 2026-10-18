@@ -227,7 +227,7 @@ internal sealed class FakeWorld
         return new FakeBullet(bullet, shape, move, transform, attachment);
     }
 
-    public void AddLaser(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (uint A, uint B) rect, byte ownerCamp = 1, double speed = 0, bool damage = true)
+    public nint AddLaser(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (uint A, uint B) rect, byte ownerCamp = 1, double speed = 0, bool damage = true)
     {
         if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
         var attachment = Alloc(0x100);
@@ -244,6 +244,7 @@ internal sealed class FakeWorld
         var components = new List<(int, nint)> { (Offsets.AttachmentComponentId, attachment), (Offsets.MoveComponentId, move), (Offsets.ShapeComponentId, shape), (Offsets.TransformComponentId, transform) };
         if (damage) components.Add((Offsets.DamageDataComponentId, Alloc(0x100)));
         AddFightEntity(id, [.. components]);
+        return transform;
     }
 
     public void AddSideFighter(uint id, byte camp)
