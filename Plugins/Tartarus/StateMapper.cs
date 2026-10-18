@@ -82,7 +82,7 @@ public static class StateMapper
         if (problem is not null || tracked is null) return new MapResult(null, [.. assumed], problem ?? "No tracked run.");
 
         assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks are assumed none, and a marked cell's event is drawn from the 17 the game has.", "Tool uses left are assumed to be the defaults."]);
-        var run = new Run(rules with { Days = state.MaxDay, RingSize = state.Size }, new Rng(1)) { Day = state.Day, Position = state.Position, Chromatics = state.Chromatics };
+        var run = new Run(rules with { Days = state.MaxDay, RingSize = state.Size, ReplaceAfterConsume = true }, new Rng(1)) { Day = state.Day, Position = state.Position, Chromatics = state.Chromatics };
         if (tracked.SwapUsedToday) assumed.Add("The swap was used today, and the game still offers devours after it, so the simulator is told the swap is unused.");
         foreach (var id in (tracked.ToolsHeld ?? []).Union(state.Instruments).Order())
         {
@@ -114,7 +114,7 @@ public static class StateMapper
         if (marked.Length > 0) assumed.Add("Event markers: the event behind a marked cell is unknown, so a random one is assumed when it is reached.");
         var refused = ApplyChoice(state.Choice!, state, run, assumed, out var unsupported);
         if (refused is not null || unsupported is not null) return new MapResult(null, [.. assumed.Distinct()], refused, unsupported);
-        var disagreement = Devour(state, run);
+        var disagreement = Devour(state, run, assumed);
         return new MapResult(disagreement is null ? run : null, [.. assumed.Distinct()], disagreement);
     }
 
@@ -199,12 +199,23 @@ public static class StateMapper
                 return null;
         }
     }
-    static string? Devour(TartarusState state, Run run)
+    static string? Devour(TartarusState state, Run run, List<string> assumed)
     {
         if (state.Choice!.Kind != TartarusChoiceKind.Operation) return null;
-        var offered = run.Legal().Where(move => move.Kind == MoveKind.Consume).Select(move => move.Cell).ToHashSet();
+        var hunters = Enumerable.Range(1, run.Cells.Length - 1).Where(cell => run.Cells[cell].Open && run.Meals(cell).Count > 0).ToHashSet();
         var marked = state.Cells.Where(cell => cell.DevourTarget).Select(cell => cell.Index).ToHashSet();
-        var differ = offered.Union(marked).Except(offered.Intersect(marked)).Order().ToArray();
-        return differ.Length == 0 ? null : $"The game and the simulator disagree about devouring cell {differ[0] + 1}.";
+        hunters.SymmetricExceptWith(marked);
+        if (hunters.Count > 0) return $"The game and the simulator disagree about cell {hunters.Min() + 1} being able to eat.";
+        var offered = state.Choice.Options.Where(option => option.Kind == TartarusOptionKind.Consume).Select(option => option.Cell).ToHashSet();
+        var simOffered = run.Legal().Where(move => move.Kind == MoveKind.Consume).Select(move => move.Cell).ToHashSet();
+        if (offered.SetEquals(simOffered)) return null;
+        if (offered.Count == 0 && run.Chaining < 0)
+        {
+            run.Consumed = true;
+            assumed.Add("The game marks an inmate that can eat but offers no devour, so something already ate today.");
+            return null;
+        }
+        var differ = offered.Union(simOffered).Except(offered.Intersect(simOffered)).Order().First();
+        return $"The game and the simulator disagree about devouring cell {differ + 1}.";
     }
 }

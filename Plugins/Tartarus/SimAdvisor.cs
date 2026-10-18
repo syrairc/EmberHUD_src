@@ -21,11 +21,23 @@ public static class SimAdvisor
         var glow = new bool[options.Length];
         var core = Core(map, ranked, found, glow, settings);
         var top = Enumerable.Range(0, options.Length).Where(i => glow[i]).OrderByDescending(i => found[i]!.Value).Cast<int?>().FirstOrDefault();
+        top = NormalCannotRollWorse(map.Run, options, found, glow) ?? top;
         var advice = options.Select((option, i) => found[i] is { } entry
             ? new OptionAdvice(option.Id, new ValueRange(entry.Value - entry.Spread, entry.Value + entry.Spread), glow[i], entry.Value.ToString("0.00", CultureInfo.InvariantCulture), top == i)
             : new OptionAdvice(option.Id, default, false, "")).ToArray();
         var notes = settings.ShowAssumed && map.Assumed.Length > 0 ? $"assumed: {string.Join('\n', map.Assumed)}\n" : "";
         return new Advice(advice, notes + core);
+    }
+
+    static int? NormalCannotRollWorse(Run? run, TartarusOption[] options, Ranked?[] found, bool[] glow)
+    {
+        if (run is not { Phase: Phase.Manage } || run.Cells[run.Position] is not { Open: true, Tier: 0 }) return null;
+        var replace = Array.FindIndex(options, option => option.Kind == TartarusOptionKind.Replace);
+        var end = Array.FindIndex(options, option => option.Kind == TartarusOptionKind.End);
+        if (replace < 0 || end < 0 || found[replace] is not { } swap || found[end] is not { } stay) return null;
+        if (stay.Value - swap.Value > 2 * Math.Sqrt(swap.Spread * swap.Spread + stay.Spread * stay.Spread)) return null;
+        glow[replace] = glow[end] = true;
+        return replace;
     }
 
     static string Core(MapResult map, Ranked[]? ranked, Ranked?[] found, bool[] glow, Settings settings)

@@ -18,7 +18,7 @@ public sealed class StateMapperTests
         [.. Enumerable.Range(0, 8).Select(index => cells.FirstOrDefault(cell => cell.Index == index, Locked(index)))];
 
     static TartarusState Board(TartarusChoice? choice, TartarusCell[]? cells = null, int maxDay = 20, int[]? tools = null) =>
-        new(1, 8, 5, maxDay, cells ?? Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, true), Open(4, TartarusBeast.Rat, 1)), choice, tools ?? [], 2);
+        new(1, 8, 5, maxDay, cells ?? Ring(Open(1, TartarusBeast.Lion, 3, true), Open(2, TartarusBeast.Wolf, 3), Open(4, TartarusBeast.Rat, 1)), choice, tools ?? [], 2);
 
     static TrackedRun Tracked() => new() { Day = 5, Size = 8 };
 
@@ -30,7 +30,7 @@ public sealed class StateMapperTests
         var tracked = Tracked();
         tracked.SeenCells = [3];
         tracked.SwapUsedToday = true;
-        var result = Map(Board(Operation(), Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, true), Locked(3, -1), Open(4, TartarusBeast.Rat, 1)), tools: [112, 131]), tracked);
+        var result = Map(Board(Operation(), Ring(Open(1, TartarusBeast.Lion, 3, true), Open(2, TartarusBeast.Wolf, 3), Locked(3, -1), Open(4, TartarusBeast.Rat, 1)), tools: [112, 131]), tracked);
         var run = result.Run!;
         Check.Equal("", result.Mismatch ?? "");
         Check.Equal(8, run.Cells.Length);
@@ -119,7 +119,7 @@ public sealed class StateMapperTests
     {
         var wrong = Map(Board(Operation(), Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, false), Open(4, TartarusBeast.Rat, 1, true))));
         Check.That(wrong.Run is null);
-        Check.That(wrong.Mismatch!.Contains("cell 3"));
+        Check.That(wrong.Mismatch!.Contains("cell 2"));
         Check.That(Map(Board(Operation())).Mismatch is null);
     }
 
@@ -146,8 +146,8 @@ public sealed class StateMapperTests
     {
         var cells = Enumerable.Range(0, 16).Select(index => index switch
         {
-            1 => Open(1, TartarusBeast.Lion, 3),
-            2 => Open(2, TartarusBeast.Wolf, 3, true),
+            1 => Open(1, TartarusBeast.Lion, 3, true),
+            2 => Open(2, TartarusBeast.Wolf, 3),
             5 => Open(5, TartarusBeast.Mammoth, 1),
             9 => Open(9, TartarusBeast.Rat, 0),
             12 => Locked(12, 2),
@@ -179,7 +179,7 @@ public sealed class StateMapperTests
     [Test]
     public void MarkedCellsBecomeMarkedInTheSimulatorAndAreListed()
     {
-        var marked = Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, true), new TartarusCell(5, false, -1, TartarusBeast.Unknown, false, true));
+        var marked = Ring(Open(1, TartarusBeast.Lion, 3, true), Open(2, TartarusBeast.Wolf, 3), new TartarusCell(5, false, -1, TartarusBeast.Unknown, false, true));
         var mapped = Map(Board(Operation(), marked));
         Check.That(mapped.Assumed.Any(line => line.Contains("Event markers")));
         Check.That(mapped.Run!.Cells[5].Marked);
@@ -202,6 +202,27 @@ public sealed class StateMapperTests
         var result = Map(Board(Operation()) with { Tasks = [new TartarusTask(3, 10, 0, false)] });
         Check.Equal(ObjectiveKind.None, result.Run!.Objective.Kind);
         Check.That(result.Assumed.Any(line => line.Contains("Objective 3")));
+    }
+
+    static TartarusChoice ReplaceOrEnd() => new(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Replace, -1, 0), new(2, TartarusOptionKind.End, -1, 0)], true);
+
+    [Test]
+    public void TheMarkIsOnInmatesThatCanEatNotOnTheirMeals()
+    {
+        var cells = Ring(Open(1, TartarusBeast.Lion, 4), Open(2, TartarusBeast.Wolf, 1, true), Open(3, TartarusBeast.Rat, 1));
+        var result = Map(Board(ReplaceOrEnd(), cells));
+        Check.That(result.Run is not null && result.Mismatch is null, result.Mismatch);
+        Check.That(result.Run!.Legal().All(move => move.Kind != MoveKind.Consume) && !result.Assumed.Any(line => line.Contains("already ate")));
+    }
+
+    [Test]
+    public void AnEaterWithAMealButNoConsumeOptionMeansSomethingAlreadyAte()
+    {
+        var cells = Ring(Open(1, TartarusBeast.Lion, 2, true), Open(2, TartarusBeast.Wolf, 2));
+        var result = Map(Board(ReplaceOrEnd(), cells));
+        Check.That(result.Run is not null && result.Mismatch is null, result.Mismatch);
+        Check.That(result.Run!.Legal().Any(move => move.Kind == MoveKind.Replace) && result.Run.Legal().All(move => move.Kind != MoveKind.Consume));
+        Check.That(result.Assumed.Any(line => line.Contains("already ate")));
     }
 
     [Test]
@@ -275,7 +296,7 @@ public sealed class StateMapperTests
         var high = new TartarusCell(5, false, 5, TartarusBeast.Lion, false, false);
         var species = new TartarusCell(6, false, -1, TartarusBeast.Wolf, false, false);
         var rarity = new TartarusCell(7, false, 5, TartarusBeast.Unknown, false, false);
-        var result = Map(Board(Operation(), Ring(Open(1, TartarusBeast.Lion, 3), Open(2, TartarusBeast.Wolf, 3, true), Open(4, TartarusBeast.Rat, 1), high, species, rarity)));
+        var result = Map(Board(Operation(), Ring(Open(1, TartarusBeast.Lion, 3, true), Open(2, TartarusBeast.Wolf, 3), Open(4, TartarusBeast.Rat, 1), high, species, rarity)));
         var run = result.Run!;
         Check.Equal(Tiers.Ultimate, run.Cells[5].Tier);
         Check.Equal(Tiers.Ultimate, run.Cells[7].AtLeast);

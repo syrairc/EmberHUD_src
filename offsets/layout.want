@@ -371,7 +371,7 @@ HpBarBossClassName = "HpBarMonsterBoss_C"
 HpBarBossCanvas = 0x298
 HpBarBossTrack = 0x330
 GamePanels = "PCBag_C,Inventory,PCBagMain;WareHouse_C,Stash,;WorldMapTitle_C,WorldMap,;Skill_C,Skills,;Talent_C,Talents,;NewStore_C,Vendor,;Setting_C,Settings,;MysteryArea_C,Other,;MysteryMapDetail_C,Other,;S9Taro_C,Other,"
-PanelParts = "S16BoardRelicPop_C:S16BoardRelicOptCell_1,S16BoardRelicOptCell_2,S16BoardRelicOptCell_3,Btn_S16Board_RelicPop_Confirm;S16BoardMain_C:List_S16Board_Bottom_Actions[],List_S16Board_Bottom_Routes[]"
+PanelParts = "S16BoardRelicPop_C:S16BoardRelicOptCell_1,S16BoardRelicOptCell_2,S16BoardRelicOptCell_3,Btn_S16Board_RelicPop_Confirm;S16BoardMain_C:List_S16Board_Bottom_Actions[],List_S16Board_Bottom_Routes[],S16BoardCell_1,S16BoardCell_2,S16BoardCell_3,S16BoardCell_4,S16BoardCell_5,S16BoardCell_6,S16BoardCell_7,S16BoardCell_8,S16BoardCell_9,S16BoardCell_10,S16BoardCell_11,S16BoardCell_12,S16BoardCell_13,S16BoardCell_14,S16BoardCell_15,S16BoardCell_16"
 HudPages = "MiniMap_C CtrlPad_C HpBarPlayerBot_C Fight_C TipBtnHoverItem_C FightUnderAttack_C ScrollNoticeItem_C GamepadTipsItem_C"
 GameMinimapPage = "MiniMap_C"
 

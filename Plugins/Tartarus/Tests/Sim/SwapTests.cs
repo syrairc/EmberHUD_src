@@ -140,4 +140,17 @@ public sealed class SwapTests
         for (var index = 0; index < frequencies.Length; index++)
             OracleData.CheckFrequency(frequencies[index], index, run => Outcomes(frequencies[index], run));
     }
+
+    [Test]
+    public void ReplaceAfterConsumeLetsBothHappenInOneDay()
+    {
+        foreach (var independent in new[] { false, true })
+        {
+            var run = new Run(new Rules { EventChance = 0, ReplaceAfterConsume = independent }, new Rng(1)) { Phase = Phase.Manage, Position = 1 };
+            run.Cells[1] = new Cell(true, Beast.Lion, 2, false);
+            run.Cells[2] = new Cell(true, Beast.Wolf, 2, false);
+            run.Apply(new Move(MoveKind.Consume, 2));
+            Check.Equal(independent, run.Legal().Any(move => move.Kind == MoveKind.Replace));
+        }
+    }
 }

@@ -112,10 +112,13 @@ public sealed class Main : Plugin<Settings>
         if (Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == pageName).Parts is not { Length: > 0 } parts) return false;
         var onCard = Enumerable.Range(0, choice.Options.Length).Where(i => instrument || doors || choice.Options[i].Kind is TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End);
         if (doors) onCard = onCard.OrderBy(i => choice.Options[i].Param).ThenBy(i => choice.Options[i].Cell);
+        var cardsShown = parts.Any(part => part.Name.StartsWith("List_S16Board_Bottom_"));
+        var picking = !instrument && !doors && !cardsShown;
+        if (picking) onCard = onCard.Where(i => choice.Options[i].Kind == TartarusOptionKind.Consume);
         var card = 0;
         foreach (var i in onCard)
         {
-            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : $"{(doors ? "List_S16Board_Bottom_Routes" : "List_S16Board_Bottom_Actions")}[{card++}]";
+            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : picking ? $"S16BoardCell_{choice.Options[i].Cell + 1}" : $"{(doors ? "List_S16Board_Bottom_Routes" : "List_S16Board_Bottom_Actions")}[{card++}]";
             foreach (var part in parts)
             {
                 if (part.Name != name) continue;
@@ -123,7 +126,7 @@ public sealed class Main : Plugin<Settings>
                 if (advice[i].Reason.Length > 0) Draw.Text(advice[i].Reason, new Vector2((part.Min.X + part.Max.X) / 2, part.Max.Y + 18), advice[i].Glow ? (advice[i].Top ? GameColors.Positive : GameColors.Gold) : GameColors.TextDim, Align.Center | Align.Middle);
             }
         }
-        return true;
+        return picking || cardsShown || instrument;
     }
 
     public override void Render()

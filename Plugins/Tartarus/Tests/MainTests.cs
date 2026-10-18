@@ -29,8 +29,8 @@ public sealed class MainTests
     {
         var cells = Enumerable.Range(0, 8).Select(index => index switch
         {
-            1 => new TartarusCell(1, true, 3, TartarusBeast.Lion, false, false),
-            2 => new TartarusCell(2, true, 3, TartarusBeast.Wolf, true, false),
+            1 => new TartarusCell(1, true, 3, TartarusBeast.Lion, true, false),
+            2 => new TartarusCell(2, true, 3, TartarusBeast.Wolf, false, false),
             _ => new TartarusCell(index, false, -1, TartarusBeast.Unknown, false, false),
         }).ToArray();
         var choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Consume, 2, 0), new(2, TartarusOptionKind.End, -1, 0)], true);

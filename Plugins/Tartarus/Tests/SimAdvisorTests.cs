@@ -128,6 +128,28 @@ public sealed class SimAdvisorTests
         }, Mapped(), [new(new Move(MoveKind.Reward, Param: 2), 1.5, 0.05), new(new Move(MoveKind.Reward, Param: 0), 0.5, 0.05)], Defaults))));
     }
 
+    static Advice ReplaceOrEnd(int tier, double replace, double end, double spread)
+    {
+        var run = Boards.At(Phase.Manage, 1, (1, Beast.Mammoth, tier));
+        var state = Doors(3) with { Choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Replace, -1, 0), new(2, TartarusOptionKind.End, -1, 0)], true) };
+        return SimAdvisor.Advise(state, new MapResult(run, [], null), [new(new Move(MoveKind.End), end, spread), new(new Move(MoveKind.Replace), replace, spread)], Defaults);
+    }
+
+    [Test]
+    public void ANormalInmateCannotRollWorseSoReplaceWinsAtNoiseLevel()
+    {
+        var advice = ReplaceOrEnd(0, 3.97, 4.01, 0.05);
+        Check.Equal("1", string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId)));
+        Check.Equal("2", string.Join(',', advice.Options.Where(o => o.Glow && !o.Top).Select(o => o.OptionId)));
+    }
+
+    [Test]
+    public void EndStillWinsWhenItIsClearlyAheadOrTheInmateIsNotNormal()
+    {
+        Check.Equal("2", string.Join(',', ReplaceOrEnd(0, 3.0, 4.0, 0.05).Options.Where(o => o.Top).Select(o => o.OptionId)));
+        Check.Equal("2", string.Join(',', ReplaceOrEnd(2, 3.97, 4.01, 0.05).Options.Where(o => o.Top).Select(o => o.OptionId)));
+    }
+
     [Test]
     public void GarbageStateGivesNoAdviceAndNoException()
     {
@@ -145,7 +167,7 @@ public sealed class SimAdvisorTests
         foreach (var maxDay in new[] { 20, 30 })
         {
             var cells = Enumerable.Range(0, 8).Select(index => index is 1 or 2
-                ? new TartarusCell(index, true, 3, index == 1 ? TartarusBeast.Lion : TartarusBeast.Wolf, index == 2, false)
+                ? new TartarusCell(index, true, 3, index == 1 ? TartarusBeast.Lion : TartarusBeast.Wolf, index == 1, false)
                 : new TartarusCell(index, false, -1, TartarusBeast.Unknown, false, false)).ToArray();
             var choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Consume, 2, 0), new(2, TartarusOptionKind.End, -1, 0)], true);
             var state = new TartarusState(1, 8, 5, maxDay, cells, choice, [], 0);
@@ -162,8 +184,8 @@ public sealed class SimAdvisorTests
     {
         TartarusCell Cell(int index) => index switch
         {
-            1 => new TartarusCell(1, true, 4, TartarusBeast.Lion, false, false),
-            2 => new TartarusCell(2, true, 4, TartarusBeast.Wolf, true, false),
+            1 => new TartarusCell(1, true, 4, TartarusBeast.Lion, true, false),
+            2 => new TartarusCell(2, true, 4, TartarusBeast.Wolf, false, false),
             _ => new TartarusCell(index, false, -1, TartarusBeast.Unknown, false, false),
         };
         var choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Consume, 2, 0), new(2, TartarusOptionKind.StopChain, -1, 0)], true);

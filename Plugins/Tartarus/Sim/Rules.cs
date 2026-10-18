@@ -8,6 +8,7 @@ public sealed record Rules
     public int DoorWindow { get; init; } = 6;
     public int SecondMealFromTier { get; init; } = 3;
     public bool ReplaceIsExecute { get; init; }
+    public bool ReplaceAfterConsume { get; init; }
     public int ChromaticCap { get; init; } = 10;
     public bool EaterKeepsBeast { get; init; }
     public int EventChance { get; init; } = 5;

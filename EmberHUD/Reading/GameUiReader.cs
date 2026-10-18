@@ -293,6 +293,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
                 continue;
             }
 
+            if (!Visible(cached.Widget)) continue;
             var index = 0;
             foreach (var item in PanelContents(cached.Widget, Offsets.MaxWidgetNodes))
                 if (Visible(item) && Geometry(item, origin) is { } itemRect)

@@ -6,13 +6,14 @@ namespace Tartarus.Sim;
 
 public sealed partial class Run
 {
-    bool CanManage => Phase == Phase.Manage && Chaining < 0 && !Consumed && !Replaced && Cells[Position].Open;
+    bool CanManage => Phase == Phase.Manage && Chaining < 0 && Cells[Position].Open;
 
     IEnumerable<Move> ManageMoves()
     {
         if (!CanManage) yield break;
-        foreach (var meal in Meals(Position)) yield return new Move(MoveKind.Consume, meal);
-        if (ReplaceTierWeights().Sum() > 0) yield return new Move(MoveKind.Replace);
+        if (!Consumed && (Rules.ReplaceAfterConsume || !Replaced))
+            foreach (var meal in Meals(Position)) yield return new Move(MoveKind.Consume, meal);
+        if (!Replaced && (Rules.ReplaceAfterConsume || !Consumed) && ReplaceTierWeights().Sum() > 0) yield return new Move(MoveKind.Replace);
     }
 
     internal IReadOnlyList<int> Meals(int eaterCell)
