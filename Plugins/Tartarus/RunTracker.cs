@@ -15,10 +15,13 @@ public sealed class TrackedRun
     public int[] ToolsHeld { get; set; } = [];
     public bool SwapUsedToday { get; set; }
     public HashSet<int> SeenCells { get; set; } = [];
+    public int ChainArmedAt { get; set; } = -1;
 }
 
 public sealed class RunTracker : IDisposable
 {
+    const int ChainReactionId = 242;
+
     readonly string path;
     readonly Func<double> seconds;
     TrackedRun run;
@@ -96,6 +99,8 @@ public sealed class RunTracker : IDisposable
         run.Day = state.Day;
         run.ToolsHeld = [.. run.ToolsHeld.Union(state.Instruments).Order()];
         run.SeenCells.UnionWith(state.Cells.Where(cell => cell.Open || cell.Tier >= 0).Select(cell => cell.Index).Where(index => index >= 0 && index < state.Size));
+        if (run.ChainArmedAt >= 0 && state.Position != run.ChainArmedAt) run.ChainArmedAt = -1;
+        if (state.Choice is { Kind: TartarusChoiceKind.Event, Options: not null } happening && happening.Options.Any(option => option.Param == ChainReactionId)) run.ChainArmedAt = state.Position;
         if (state.Choice is { Kind: TartarusChoiceKind.Operation, Complete: true, Options: not null } operation)
             run.SwapUsedToday = operation.Options.All(option => option.Kind != TartarusOptionKind.Replace);
     }

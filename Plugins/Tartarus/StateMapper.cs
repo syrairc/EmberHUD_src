@@ -112,6 +112,7 @@ public static class StateMapper
         var marked = state.Cells.Where(cell => cell.EventMarker && cell.Index != 0).ToArray();
         foreach (var cell in marked) run.Cells[cell.Index].Marked = true;
         if (marked.Length > 0) assumed.Add("Event markers: the event behind a marked cell is unknown, so a random one is assumed when it is reached.");
+        if (tracked.ChainArmedAt >= 0 && state.Choice?.Kind != TartarusChoiceKind.Event) run.ChainArmed = true;
         var refused = ApplyChoice(state.Choice!, state, run, assumed, out var unsupported);
         if (refused is not null || unsupported is not null) return new MapResult(null, [.. assumed.Distinct()], refused, unsupported);
         var disagreement = Devour(state, run, assumed);
@@ -145,6 +146,7 @@ public static class StateMapper
                 if (doors.Length == 0 || doors.Any(door => door < 0 || door >= state.Size)) return "The doors for today are not readable.";
                 run.Phase = Sim.Phase.Patrol;
                 run.Doors = doors;
+                run.Ratway = doors.Length >= state.Size - 1;
                 return null;
             case TartarusChoiceKind.Operation:
                 run.Phase = Sim.Phase.Manage;

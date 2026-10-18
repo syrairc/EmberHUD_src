@@ -209,4 +209,17 @@ public sealed class RunTrackerTests
             Check.That(tracker.Update(state with { Cells = cells }).SeenCells.Contains(4));
         });
     }
+
+    [Test]
+    public void ChainReactionStaysArmedUntilTheWardenMoves()
+    {
+        InTemp(dir =>
+        {
+            using var tracker = new RunTracker(dir, () => 0);
+            var chain = new TartarusChoice(1, TartarusChoiceKind.Event, [new TartarusOption(1, TartarusOptionKind.Confirm, -1, 242)], true);
+            Check.That(tracker.Update(Board(2, choice: chain) with { Position = 3 }).ChainArmedAt == 3);
+            Check.That(tracker.Update(Board(2, choice: Operation(true)) with { Position = 3 }).ChainArmedAt == 3);
+            Check.That(tracker.Update(Board(2, choice: Operation(true)) with { Position = 5 }).ChainArmedAt == -1);
+        });
+    }
 }

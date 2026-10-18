@@ -226,6 +226,24 @@ public sealed class StateMapperTests
     }
 
     [Test]
+    public void AnArmedChainReactionIsPassedToTheSimulator()
+    {
+        var tracked = Tracked();
+        tracked.ChainArmedAt = 1;
+        Check.That(Map(Board(Operation()), tracked).Run!.ChainArmed);
+        Check.That(!Map(Board(Operation())).Run!.ChainArmed);
+    }
+
+    [Test]
+    public void AllCellsAsDoorsMeansTheSewerRatway()
+    {
+        var all = new TartarusChoice(1, TartarusChoiceKind.Doors, [.. Enumerable.Range(1, 7).Select(cell => new TartarusOption(cell, TartarusOptionKind.Door, cell, cell))], true);
+        Check.That(Map(Board(all)).Run!.Ratway);
+        var three = new TartarusChoice(1, TartarusChoiceKind.Doors, [new TartarusOption(1, TartarusOptionKind.Door, 3, 2), new TartarusOption(2, TartarusOptionKind.Door, 5, 4)], true);
+        Check.That(!Map(Board(three)).Run!.Ratway);
+    }
+
+    [Test]
     public void InstrumentChoiceOffersTheKnownToolsAndListsTheRest()
     {
         var state = Board(Picks(TartarusChoiceKind.Instrument, TartarusOptionKind.Instrument, 106, 143, 131), Ring()) with { Day = 1 };
