@@ -15,6 +15,7 @@ public class InventoryReaderTests
         public readonly LuaTable Bags;
         public readonly nint Module;
         public long Now;
+        public LuaTable LastRecord;
 
         public Fixture(bool withManager = true, FakeMemory? memory = null, nint? module = null)
         {
@@ -37,21 +38,71 @@ public class InventoryReaderTests
             return table;
         }
 
-        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true, int type = 7)
+        public LuaTable Item(string id, int baseId, int count, int stackMax, bool withCount = true, int type = 7, int specialId = 0)
         {
-            var record = Lua.NewTable(0, 4);
+            var record = LastRecord = Lua.NewTable(0, 4);
             Lua.SetString(record, Offsets.LuaItemId, id);
             Lua.SetInt(record, Offsets.LuaItemBaseId, baseId);
             Lua.SetInt(record, Offsets.LuaItemLevel, 10);
             Lua.SetInt(record, Offsets.LuaItemQuality, 2);
             Lua.SetInt(record, Offsets.LuaItemRareValue, 3);
+            if (specialId != 0) Lua.SetInt(record, Offsets.LuaItemSpecialId, specialId);
             if (withCount) Lua.SetInt(record, Offsets.LuaItemCount, count);
             Lua.SetInt(record, Offsets.LuaItemStackMax, stackMax);
             Lua.SetInt(record, Offsets.LuaItemType, type);
-            var item = Lua.NewTable(0, 1);
+            var item = Lua.NewTable(0, 4);
             Lua.SetTable(item, Offsets.LuaItemRecord, record);
             return item;
         }
+
+        public LuaTable Rows(int[] ids, bool badFirst = false)
+        {
+            var table = Lua.NewTable(ids.Length + 1, 1);
+            var key = 1;
+            if (badFirst) Lua.SetIntKeyTable(table, key++, Lua.NewTable(0, 1));
+            foreach (var id in ids)
+            {
+                var row = Lua.NewTable(0, 2);
+                Lua.SetInt(row, Offsets.LuaGroundAffixId, id);
+                Lua.SetIntKeyTable(table, key++, row);
+            }
+
+            return table;
+        }
+
+        public void ShapeA(LuaTable table, int[] prefixes, int[] suffixes, bool badFirst = false)
+        {
+            Lua.SetTable(table, Offsets.LuaGroundPrefix, Rows(prefixes, badFirst));
+            Lua.SetTable(table, Offsets.LuaGroundSuffix, Rows(suffixes));
+        }
+
+        public void ShapeB(LuaTable table, int[] prefixes, int[] suffixes)
+        {
+            var list = Lua.NewTable(0, 2);
+            Lua.SetTable(list, Offsets.LuaItemPrefixInfoList, Rows(prefixes));
+            Lua.SetTable(list, Offsets.LuaItemSuffixInfoList, Rows(suffixes));
+            Lua.SetTable(table, Offsets.LuaItemAffixList, list);
+        }
+
+        public InventoryItem OnlyItem(LuaTable entry)
+        {
+            Lua.SetIntKeyTable(Bag(0, 1), 0, entry);
+            return Assert.Single(Reader().Read()!);
+        }
+    }
+
+    [Fact]
+    public void SpecialIdMarksLegendary()
+    {
+        var f = new Fixture();
+        var bag = f.Bag(0, 2);
+        f.Lua.SetIntKeyTable(bag, 0, f.Item("1_a", 1, 1, 1, specialId: 112333));
+        f.Lua.SetIntKeyTable(bag, 1, f.Item("2_b", 2, 1, 1));
+
+        var items = f.Reader().Read()!;
+
+        Assert.True(items[0].Legendary);
+        Assert.False(items[1].Legendary);
     }
 
     [Fact]
@@ -75,6 +126,94 @@ public class InventoryReaderTests
         Assert.Equal(new InventoryItem(InventoryBag.Commodities, 0, "9_x", 9, 10, 2, 3, 177, 1000, 7), items[3]);
         Assert.Equal([177, 6, 2], items.Where(i => i.Bag == InventoryBag.Commodities).Select(i => i.Count));
         Assert.Equal(new InventoryItem(InventoryBag.Commodities, 2, "7_z", 7, 10, 2, 3, 2, 50, 7), items[5]);
+    }
+
+    [Fact]
+    public void ReadsShapeAOnTheRawRecord()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeA(f.LastRecord, [10, 11], [20]);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([10, 11], item.PrefixIds);
+        Assert.Equal([20], item.SuffixIds);
+    }
+
+    [Fact]
+    public void ReadsShapeAOnTheEntryTable()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeA(entry, [10], [20, 21]);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([10], item.PrefixIds);
+        Assert.Equal([20, 21], item.SuffixIds);
+    }
+
+    [Fact]
+    public void ReadsShapeBFromAffixList()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeB(f.LastRecord, [30], [40, 41]);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([30], item.PrefixIds);
+        Assert.Equal([40, 41], item.SuffixIds);
+    }
+
+    [Fact]
+    public void ReadsShapeBOnTheEntryTable()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeB(entry, [30], []);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([30], item.PrefixIds);
+        Assert.Equal([], item.SuffixIds);
+    }
+
+    [Fact]
+    public void ShapeAWinsWhenBothExist()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeB(f.LastRecord, [30], [40]);
+        f.ShapeA(f.LastRecord, [10], [20]);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([10], item.PrefixIds);
+        Assert.Equal([20], item.SuffixIds);
+    }
+
+    [Fact]
+    public void NoAffixTablesGivesEmptyArrays()
+    {
+        var f = new Fixture();
+        var item = f.OnlyItem(f.Item("1_a", 1, 1, 1));
+        Assert.Empty(item.PrefixIds);
+        Assert.Empty(item.SuffixIds);
+    }
+
+    [Fact]
+    public void BadAffixRowIsSkipped()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        f.ShapeA(f.LastRecord, [10, 11], [20], badFirst: true);
+        var item = f.OnlyItem(entry);
+        Assert.Equal([10, 11], item.PrefixIds);
+        Assert.Equal([20], item.SuffixIds);
+    }
+
+    [Fact]
+    public void CapsPerSide()
+    {
+        var f = new Fixture();
+        var entry = f.Item("1_a", 1, 1, 1);
+        var many = Enumerable.Range(1, Offsets.MaxGroundAffixes + 5).ToArray();
+        f.ShapeA(f.LastRecord, many, many);
+        var item = f.OnlyItem(entry);
+        Assert.Equal(many.Take(Offsets.MaxGroundAffixes), item.PrefixIds);
+        Assert.Equal(many.Take(Offsets.MaxGroundAffixes), item.SuffixIds);
     }
 
     [Fact]
@@ -139,6 +278,34 @@ public class InventoryReaderTests
 
         f.Now += 1;
         Assert.Equal(2, reader.Read()!.Length);
+    }
+
+    [Fact]
+    public void ReadsBagCapacitiesByTab()
+    {
+        var f = new Fixture();
+        var manager = f.Lua.NewTable(0, 1);
+        var capacity = f.Lua.NewTable(0, 4);
+        int[] sizes = [56, 60, 100, 120];
+        for (var bag = 0; bag < sizes.Length; bag++) f.Lua.SetIntKey(capacity, Offsets.InventoryTabFirst + bag, sizes[bag], Offsets.LuaTagInt);
+        f.Lua.SetTable(manager, Offsets.LuaBagCapacity, capacity);
+        f.Lua.SetTable(f.Lua.Globals, Offsets.LuaBagManager, manager);
+        var reader = f.Reader();
+
+        reader.Read();
+
+        Assert.Equal(sizes, reader.Capacities);
+    }
+
+    [Fact]
+    public void MissingBagCapacityIsNullAndItemsStillRead()
+    {
+        var f = new Fixture();
+        f.Lua.SetIntKeyTable(f.Bag(0, 1), 0, f.Item("1_a", 1, 1, 1));
+        var reader = f.Reader();
+
+        Assert.Single(reader.Read()!);
+        Assert.Null(reader.Capacities);
     }
 
     [Fact]

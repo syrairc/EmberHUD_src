@@ -250,15 +250,21 @@ public class OffsetsTests
         Assert.Equal(64, Offsets.MaxSkills);
         Assert.Equal("ItemMgr", Offsets.LuaItemManager);
         Assert.Equal("ItemList", Offsets.LuaItemBags);
+        Assert.Equal("BagMgr", Offsets.LuaBagManager);
+        Assert.Equal("BagCapacity", Offsets.LuaBagCapacity);
         Assert.Equal("_Raw_Data", Offsets.LuaItemRecord);
         Assert.Equal("ItemId", Offsets.LuaItemId);
         Assert.Equal("ConfigBaseId", Offsets.LuaItemBaseId);
         Assert.Equal("Level", Offsets.LuaItemLevel);
         Assert.Equal("Quality", Offsets.LuaItemQuality);
         Assert.Equal("RareValue", Offsets.LuaItemRareValue);
+        Assert.Equal("ConfigSpecialId", Offsets.LuaItemSpecialId);
         Assert.Equal("BagNum", Offsets.LuaItemCount);
         Assert.Equal("MaxNum", Offsets.LuaItemStackMax);
         Assert.Equal("Type1", Offsets.LuaItemType);
+        Assert.Equal("AffixList", Offsets.LuaItemAffixList);
+        Assert.Equal("PrefixInfoList", Offsets.LuaItemPrefixInfoList);
+        Assert.Equal("SuffixInfoList", Offsets.LuaItemSuffixInfoList);
     }
 
     [Fact]
@@ -363,6 +369,50 @@ public class OffsetsTests
         Assert.Equal(32, Offsets.MaxTarotCards);
         Assert.Equal(32, Offsets.MaxTarotRewards);
         Assert.Equal(65536, Offsets.MaxTarotBlob);
+    }
+
+    [Fact]
+    public void GroundItemKeysExist()
+    {
+        Assert.Equal("GroundMgr", Offsets.LuaGroundManager);
+        Assert.Equal("GroundItems", Offsets.LuaGroundItems);
+        Assert.Equal("DropItem", Offsets.LuaGroundDropItem);
+        Assert.Equal("belongState", Offsets.LuaGroundBelong);
+        Assert.Equal("DropId", Offsets.LuaGroundDropId);
+        Assert.Equal("item", Offsets.LuaGroundItem);
+        Assert.Equal("Prefix", Offsets.LuaGroundPrefix);
+        Assert.Equal("Suffix", Offsets.LuaGroundSuffix);
+        Assert.Equal("ConfigSpecialId", Offsets.LuaGroundSpecialId);
+        Assert.Equal("UniqueItmId", Offsets.LuaGroundUniqueId);
+        Assert.Equal("BaseId", Offsets.LuaGroundBaseId);
+        Assert.Equal("Num", Offsets.LuaGroundCount);
+        Assert.Equal("RareValue", Offsets.LuaGroundRareValue);
+        Assert.Equal("Level", Offsets.LuaGroundLevel);
+        Assert.Equal("Id", Offsets.LuaGroundAffixId);
+        Assert.Equal(100, Offsets.GroundItemsRefreshMilliseconds);
+        Assert.Equal(3, Offsets.GroundItemsWantedSeconds);
+        Assert.Equal(200, Offsets.MaxGroundItems);
+        Assert.Equal(1, Offsets.GroundCommodityMaxLevel);
+        Assert.Equal(12, Offsets.MaxGroundAffixes);
+    }
+
+    [Fact]
+    public void NameTagKeysExist()
+    {
+        Assert.Equal("DropMgr", Offsets.DropMgrClassName);
+        Assert.Equal(0x3E8, Offsets.DropMgrNameTagGroups);
+        Assert.Equal(144, Offsets.NameTagGroupStride);
+        Assert.Equal(8, Offsets.NameTagGroupValue);
+        Assert.Equal(0, Offsets.NameTagGroupWorldPos);
+        Assert.Equal(0x10, Offsets.NameTagGroupScreenRects);
+        Assert.Equal(0x74, Offsets.NameTagGroupInScreen);
+        Assert.Equal(0x78, Offsets.NameTagGroupScreenPos);
+        Assert.Equal(32, Offsets.ScreenRectStride);
+        Assert.Equal(4, Offsets.ScreenRectBox);
+        Assert.Equal(128, Offsets.MaxNameTagGroups);
+        Assert.Equal(64, Offsets.MaxScreenRects);
+        Assert.Equal(1000, Offsets.MaxLabelPixels);
+        Assert.Equal(5, Offsets.DropMgrRescanSeconds);
     }
 
     [Fact]

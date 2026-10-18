@@ -142,6 +142,13 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return false;
     }
 
+    public int[] AffixIds(LuaTable parent, string key) =>
+        TryGetTable(parent, key, out var table)
+            ? [.. IntKeyedTables(table).OrderBy(r => r.Key).Take(Offsets.MaxGroundAffixes)
+                .Select(r => (ok: TryGetInt(r.Value, Offsets.LuaGroundAffixId, out var id) && id is >= int.MinValue and <= int.MaxValue, id))
+                .Where(r => r.ok).Select(r => (int)r.id)]
+            : [];
+
     public IEnumerable<(long Key, LuaTable Value)> IntKeyedTables(LuaTable table)
     {
         if (!TryReadHeader(table, out var header)) yield break;

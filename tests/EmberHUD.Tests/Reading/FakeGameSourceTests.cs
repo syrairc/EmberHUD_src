@@ -105,6 +105,7 @@ public class FakeGameSourceTests
             Assert.Equal(2, inventory.Count(i => i.Bag == InventoryBag.Commodities));
             Assert.Equal(inventory.Length, inventory.Select(i => (i.Bag, i.Slot)).Distinct().Count());
             Assert.All(inventory, i => Assert.NotEqual("", i.Id));
+            Assert.Contains(inventory, i => i.Bag == InventoryBag.Equipment && i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0);
         }
         finally { Game.InventoryAsked = 0; }
     }
@@ -152,6 +153,25 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameSourceServesGroundItemsOnlyWhenAsked()
+    {
+        Game.GroundItemsAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).GroundItems);
+        try
+        {
+            Game.WantGroundItems();
+            var items = At(Stopwatch.GetTimestamp()).GroundItems!;
+
+            Assert.Equal(3, items.Length);
+            Assert.Contains(items, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length == 0);
+            Assert.Contains(items, i => i.PrefixIds.Length == 0 && i.SuffixIds.Length > 0);
+            Assert.Contains(items, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0 && !i.Owned);
+            Assert.All(items, i => Assert.True(i.LabelMax.X > i.LabelMin.X && i.LabelMax.Y > i.LabelMin.Y));
+        }
+        finally { Game.GroundItemsAsked = 0; }
+    }
+
+    [Fact]
     public void FakeStashFollowsTheOpenStashPageAndIsGated()
     {
         var open = 6 * Stopwatch.Frequency;
@@ -169,6 +189,7 @@ public class FakeGameSourceTests
             Assert.Contains(state.StashItems!, i => i.Bag == InventoryBag.Equipment);
             Assert.DoesNotContain(state.StashItems!, i => i.Slot == 3);
             Assert.All(state.StashItems!, i => Assert.Contains(state.Stash.Cells, c => c.Slot == i.Slot));
+            Assert.Contains(state.StashItems!, i => i.PrefixIds.Length > 0 && i.SuffixIds.Length > 0);
 
             Game.InventoryAsked = bagOpen;
             Assert.Equal((null, null), (At(bagOpen).Stash, At(bagOpen).StashItems));

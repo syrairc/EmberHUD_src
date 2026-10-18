@@ -46,7 +46,7 @@ public static class Weight
 
     internal static string Fmt(float v, int decimals) => v.ToString("F" + Math.Max(0, decimals), CultureInfo.InvariantCulture);
 
-    internal static Color Lerp(Color[]? stops, float t)
+    public static Color Lerp(Color[]? stops, float t)
     {
         if (stops is not { Length: > 0 }) return Color.FromArgb(0, 0, 0, 0);
         if (stops.Length == 1) return stops[0];

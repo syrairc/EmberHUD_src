@@ -21,6 +21,7 @@ internal sealed class LiveReader
     private readonly CharacterReader? _character;
     private readonly TartarusReader? _tartarus;
     private readonly TarotReader? _tarot;
+    private readonly GroundItemReader? _groundItems;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
     private readonly ProjectileReader _projectiles;
@@ -33,7 +34,7 @@ internal sealed class LiveReader
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, TarotReader? tarot = null, Func<long>? clockMilliseconds = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, GroundItemReader? groundItems = null, TarotReader? tarot = null, Func<long>? clockMilliseconds = null)
     {
         _tarot = tarot;
         _character = character;
@@ -41,6 +42,7 @@ internal sealed class LiveReader
         _combat = combat;
         _inventory = inventory;
         _tartarus = tartarus;
+        _groundItems = groundItems;
         var names = new Names(memory, moduleBase);
         _world = new LogicWorldReader(memory, moduleBase);
         _terrain = new TerrainReader(memory, firstAreaId);
@@ -110,7 +112,8 @@ internal sealed class LiveReader
         var chatHeld = _chatSeenAt is { } seenAt && now - seenAt < Offsets.ChatHoldMilliseconds;
         bool? chatOpen = chatSeen || chatHeld ? true : uiClean ? false : null;
         if (chatSeen || !uiClean) _chatSeenAt = now;
-        var stash = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _ui.ReadStash() : null;
+        var inventoryWanted = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds);
+        var stash = inventoryWanted ? _ui.ReadStash() : null;
         state = new GameState
         {
             Status = status,
@@ -130,15 +133,17 @@ internal sealed class LiveReader
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
             Trade = _ui.ReadTrade(),
-            Bag = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _ui.ReadBag() : null,
+            Bag = inventoryWanted ? _ui.ReadBag() : null,
             Stash = stash,
             StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
             WoodStake = _woodStake.Read(),
             Combat = _combat?.Snapshot,
-            Inventory = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds) ? _inventory?.Read() : null,
+            Inventory = inventoryWanted ? _inventory?.Read() : null,
+            BagCapacities = inventoryWanted ? _inventory?.Capacities : null,
             Tartarus = Game.TartarusWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds) ? _tartarus?.Read() : null,
             Tarot = Game.TarotWanted(Stopwatch.GetTimestamp(), Offsets.TarotWantedSeconds) ? _tarot?.Read() : null,
+            GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
         };

@@ -42,6 +42,13 @@ public static class TestGame
         return Game.TarotAsked != 0;
     }
 
+    public static bool GroundItemsAskedDuring(Action run)
+    {
+        Game.GroundItemsAsked = 0;
+        run();
+        return Game.GroundItemsAsked != 0;
+    }
+
     public static void UseGameIcons(Func<string, Sprite?>? resolver) => Draw.GameIcons = resolver is null ? null : texture => resolver(texture.ToString());
     public static void UseSvgIcons(Func<string, int, Color, Color, Sprite?>? resolver) => Draw.SvgIcons = resolver;
 

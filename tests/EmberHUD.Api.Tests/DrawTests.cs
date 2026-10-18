@@ -892,6 +892,45 @@ public sealed class DrawTests
     }
 
     [Fact]
+    public void SegmentedBarLightsTheFirstSegmentsOnAGradientAndWraps()
+    {
+        Vector2 size = default;
+        var xs = new List<float>();
+        var ys = new List<float>();
+        var colours = new List<uint>();
+        TestFrame.Run(() =>
+        {
+            var list = Draw.Foreground;
+            var before = list.VtxBuffer.Size;
+            size = Draw.SegmentedBar(new Vector2(10, 20), 5, 2, new Vector2(4, 6), 1, 3, [Color.Lime, Color.Red], Color.Gray, list);
+            Assert.Equal(5 * 4, list.VtxBuffer.Size - before);
+            for (var i = 0; i < 5; i++)
+            {
+                var corner = list.VtxBuffer[before + i * 4];
+                xs.Add(corner.Pos.X);
+                ys.Add(corner.Pos.Y);
+                colours.Add(corner.Col);
+            }
+        });
+        Assert.Equal([10f, 15f, 20f, 10f, 15f], xs);
+        Assert.Equal([20f, 20f, 20f, 27f, 27f], ys);
+        Assert.Equal(EColor.U32(Color.Lime), colours[0]);
+        Assert.NotEqual(EColor.U32(Color.Lime), colours[1]);
+        Assert.NotEqual(EColor.U32(Color.Gray), colours[1]);
+        Assert.Equal([EColor.U32(Color.Gray)], colours.Skip(2).Distinct());
+        Assert.Equal(new Vector2(14, 13), size);
+    }
+
+    [Fact]
+    public void SegmentedBarWithNothingToDrawIsEmpty() => TestFrame.Run(() =>
+    {
+        var list = Draw.Foreground;
+        var before = list.VtxBuffer.Size;
+        Assert.Equal(Vector2.Zero, Draw.SegmentedBar(Vector2.Zero, 0, 0, new Vector2(4, 6), 1, 0, [Color.Lime, Color.Red], Color.Gray, list));
+        Assert.Equal(0, list.VtxBuffer.Size - before);
+    });
+
+    [Fact]
     public void TheIconCacheKeepsOneEntryPerStringAndStaysBounded() => TestFrame.Run(() =>
     {
         Draw.ParsedIcons.Clear();

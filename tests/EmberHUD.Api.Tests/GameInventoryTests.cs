@@ -76,4 +76,20 @@ public class GameGroundHazardsTests
         Assert.True(Game.GroundHazardsWanted(now, 3));
         Assert.False(Game.GroundHazardsWanted(now + 4 * Stopwatch.Frequency, 3));
     }
+
+    [Fact]
+    public void InventoryItemAffixesDefaultToEmpty()
+    {
+        var item = new InventoryItem(InventoryBag.Equipment, 0, "a", 1, 1, 0, 0, 1, 1, 0);
+        Assert.Empty(item.PrefixIds);
+        Assert.Empty(item.SuffixIds);
+    }
+
+    [Fact]
+    public void InventoryItemKeepsAffixesWithInit()
+    {
+        var item = new InventoryItem(InventoryBag.Equipment, 0, "a", 1, 1, 0, 0, 1, 1, 0) { PrefixIds = [1, 2], SuffixIds = [3] };
+        Assert.Equal([1, 2], item.PrefixIds);
+        Assert.Equal([3], item.SuffixIds);
+    }
 }

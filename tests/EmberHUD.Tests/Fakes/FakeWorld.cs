@@ -9,6 +9,10 @@ internal readonly record struct FakeMinimap(nint Widget, nint Material);
 
 internal readonly record struct FakeIcon(int Type, float X, float Y, int Zorder = 0, int EntityId = 0, float Size = 1, uint? Area = null, float Rotation = 0);
 
+internal readonly record struct FakeNameTagLabel(int DropId, Vector2 Min, Vector2 Max, bool Valid = true, bool Allocated = true);
+
+internal readonly record struct FakeNameTagGroup(int Key, Vector3 WorldPos, Vector2 ScreenPos, FakeNameTagLabel[] Labels, bool InScreen = true);
+
 internal sealed class FakeWorld
 {
     public static readonly nint Module = unchecked((nint)0x1_4000_0000L);
@@ -493,6 +497,31 @@ internal sealed class FakeWorld
         Memory.Write(obj + Offsets.UObjectName + Offsets.FNameNumber, nameNumber);
         PlaceObject(_nextObjectIndex++, obj);
         return obj;
+    }
+
+    public nint AddDropMgr(FakeNameTagGroup[] groups, string className = "DropMgr", string objectName = "DropMgr_0")
+    {
+        var manager = Alloc(Offsets.DropMgrNameTagGroups + Offsets.TMapHeaderSize + 0x10);
+        Memory.Write(manager + Offsets.UObjectClass, AddClass(className));
+        Memory.Write(manager + Offsets.UObjectName, AddName(objectName));
+        PlaceObject(_nextObjectIndex++, manager);
+        WriteTMap(manager + Offsets.DropMgrNameTagGroups, Offsets.NameTagGroupStride, groups.Length, _ => true, (at, i) =>
+        {
+            var group = groups[i];
+            var value = at + Offsets.NameTagGroupValue;
+            Memory.Write(at, group.Key);
+            Memory.WriteArray(value + Offsets.NameTagGroupWorldPos, new[] { group.WorldPos.X, group.WorldPos.Y, group.WorldPos.Z });
+            Memory.Write(value + Offsets.NameTagGroupInScreen, (byte)(group.InScreen ? 1 : 0));
+            Memory.WriteArray(value + Offsets.NameTagGroupScreenPos, new[] { group.ScreenPos.X, group.ScreenPos.Y });
+            WriteTMap(value + Offsets.NameTagGroupScreenRects, Offsets.ScreenRectStride, group.Labels.Length, j => group.Labels[j].Allocated, (rectAt, j) =>
+            {
+                var label = group.Labels[j];
+                Memory.Write(rectAt, label.DropId);
+                Memory.WriteArray(rectAt + Offsets.ScreenRectBox, new[] { label.Min.X, label.Min.Y, label.Max.X, label.Max.Y });
+                Memory.Write(rectAt + Offsets.ScreenRectBox + 16, (byte)(label.Valid ? 1 : 0));
+            });
+        });
+        return manager;
     }
 
     public nint[] AddComponents(nint actor, params string[] classNames)

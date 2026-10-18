@@ -144,8 +144,15 @@ public sealed class PlateRendererTests
     {
         var plain = Rendered(Casting(false));
         Check.Equal(plain, Rendered(Casting(true)));
-        Check.That(Rendered(Casting(true), s => s.CastBar.Enabled = true) > plain, "cast bar drew nothing");
-        Check.Equal(plain, Rendered(Casting(false), s => s.CastBar.Enabled = true));
+        Check.That(Rendered(Casting(true), s => s.Buckets[(int)Bucket.Normal].CastBar!.Enabled = true) > plain, "cast bar drew nothing");
+        Check.Equal(plain, Rendered(Casting(false), s => s.Buckets[(int)Bucket.Normal].CastBar!.Enabled = true));
+    }
+
+    [Test]
+    public void ACastBarOnAnotherBucketDoesNotDrawOnThisMonster()
+    {
+        var plain = Rendered(Casting(false));
+        Check.Equal(plain, Rendered(Casting(true), s => s.Buckets[(int)Bucket.Boss].CastBar!.Enabled = true));
     }
 
     [Test]
@@ -155,7 +162,7 @@ public sealed class PlateRendererTests
         asked.SetValue(null, 0L);
         Rendered(Casting(false));
         Check.Equal(0L, (long)asked.GetValue(null)!);
-        Rendered(Casting(false), s => s.CastBar.Enabled = true);
+        Rendered(Casting(false), s => s.Buckets[(int)Bucket.Normal].CastBar!.Enabled = true);
         Check.That((long)asked.GetValue(null)! != 0, "WantCasts was not called");
     }
 

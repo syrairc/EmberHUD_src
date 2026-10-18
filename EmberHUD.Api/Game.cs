@@ -14,6 +14,7 @@ public static class Game
     static long _characterAsked;
     static long _tartarusAsked;
     static long _tarotAsked;
+    static long _groundItemsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
 
@@ -137,6 +138,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantGroundItems() => Interlocked.Exchange(ref _groundItemsAsked, Stopwatch.GetTimestamp());
+
+    internal static long GroundItemsAsked
+    {
+        get => Interlocked.Read(ref _groundItemsAsked);
+        set => Interlocked.Exchange(ref _groundItemsAsked, value);
+    }
+
+    internal static bool GroundItemsWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _groundItemsAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -192,9 +207,12 @@ public sealed record GameState
 
     public InventoryItem[]? Inventory { get; init; }
 
+    public int[]? BagCapacities { get; init; }
+
     public TartarusState? Tartarus { get; init; }
 
     public TarotState? Tarot { get; init; }
+    public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }
 
@@ -332,7 +350,12 @@ public readonly record struct Skill(int CfgId, int Slot, double CooldownRemainin
     public bool Ready => CooldownRemaining <= 0;
 }
 
-public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type);
+public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int BaseId, int Level, int Quality, int RareValue, int Count, int StackMax, int Type)
+{
+    public int[] PrefixIds { get; init; } = [];
+    public int[] SuffixIds { get; init; } = [];
+    public bool Legendary { get; init; }
+}
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 

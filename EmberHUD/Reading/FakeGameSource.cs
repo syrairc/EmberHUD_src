@@ -60,7 +60,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly InventoryItem[] FakeInventory =
     [
-        new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0),
+        new(InventoryBag.Equipment, 0, "406_fake-0001", 406, 31, 0, 2, 1, 1, 0) { PrefixIds = [1001, 1002], SuffixIds = [2001], Legendary = true },
         new(InventoryBag.Skills, 0, "7507_fake-0002", 7507, 4, 0, 1, 1, 1, 6),
         new(InventoryBag.Commodities, 0, "5080_fake-0003", 5080, 1, 0, 2, 177, 9999, 7),
         new(InventoryBag.Commodities, 1, "382001_fake-0004", 382001, 1, 0, 100, 6, 999, 42),
@@ -69,7 +69,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly InventoryItem[] FakeStashItems =
     [
-        new(InventoryBag.Equipment, 0, "406_fake-0101", 406, 31, 0, 2, 1, 1, 1),
+        new(InventoryBag.Equipment, 0, "406_fake-0101", 406, 31, 0, 2, 1, 1, 1) { PrefixIds = [1003], SuffixIds = [2002, 2003] },
         new(InventoryBag.Commodities, 1, "5080_fake-0102", 5080, 1, 0, 2, 177, 9999, 7),
         new(InventoryBag.Commodities, 2, "382001_fake-0103", 382001, 1, 0, 100, 6, 999, 42),
         new(InventoryBag.Commodities, 4, "5080_fake-0104", 5080, 1, 0, 2, 3, 9999, 7),
@@ -100,6 +100,13 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     ];
 
     private static readonly TarotCard[] FakeTarotHand = [new(1, 3), new(2, 13), new(3, 24)];
+
+    private static readonly GroundItem[] FakeGroundItems =
+    [
+        new(1, new(1620, 640), new(1820, 670), new(1000, 1000, 0), true, [106060407, 140060404], []),
+        new(2, new(1620, 700), new(1820, 730), new(1010, 1000, 0), true, [], [200060101]),
+        new(3, new(1620, 760), new(1820, 790), new(1020, 1000, 0), false, [106060405], [200060103, 200060106]) { Legendary = true },
+    ];
 
     private readonly List<Vector2> _trail = [];
     private ExploredTrail _published = new([], TrailRadius);
@@ -145,8 +152,10 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
+            BagCapacities = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? [56, 60, 100, 120] : null,
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
             Tarot = Game.TarotWanted(now, Offsets.TarotWantedSeconds) ? TarotAt(now) : null,
+            GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
             GameMinimap = new GameMinimap(true, 51892f),

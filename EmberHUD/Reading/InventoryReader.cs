@@ -9,6 +9,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
     private readonly LuaReader _lua = new(memory, moduleBase);
     private long _nextRefresh;
     private InventoryItem[]? _items;
+    public int[]? Capacities { get; private set; }
     private static readonly HashSet<int> StashGearTypes = [.. Offsets.StashGearTypes.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)];
     private long _stashNextRefresh;
     private int _stashTab = -1;
@@ -65,7 +66,24 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             }
         }
 
+        Capacities = ReadCapacities(globals);
         return [.. items];
+    }
+
+    private int[]? ReadCapacities(LuaTable globals)
+    {
+        if (!_lua.TryGetTable(globals, Offsets.LuaBagManager, out var manager) ||
+            !_lua.TryGetTable(manager, Offsets.LuaBagCapacity, out var table))
+            return null;
+
+        var sizes = new int[Offsets.InventoryTabCount];
+        for (var bag = 0; bag < sizes.Length; bag++)
+        {
+            if (!_lua.TryGetIntAt(table, Offsets.InventoryTabFirst + bag, out var size) || size < 0 || size > Offsets.MaxInventoryItems) return null;
+            sizes[bag] = (int)size;
+        }
+
+        return sizes;
     }
 
     private bool TryReadItem(InventoryBag bag, long slot, LuaTable entry, out InventoryItem item)
@@ -83,8 +101,28 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             !TryGetInt(record, Offsets.LuaItemType, out var type))
             return false;
 
-        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type);
+        var (prefixes, suffixes) = ReadAffixes(record, entry);
+        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes, Legendary = TryGetInt(record, Offsets.LuaItemSpecialId, out var specialId) && specialId != 0 };
         return true;
+    }
+
+    private (int[] Prefixes, int[] Suffixes) ReadAffixes(LuaTable record, LuaTable entry)
+    {
+        LuaTable[] sources = [record, entry];
+        foreach (var source in sources)
+        {
+            var (prefixes, suffixes) = (_lua.AffixIds(source, Offsets.LuaGroundPrefix), _lua.AffixIds(source, Offsets.LuaGroundSuffix));
+            if (prefixes.Length + suffixes.Length > 0) return (prefixes, suffixes);
+        }
+
+        foreach (var source in sources)
+        {
+            if (!_lua.TryGetTable(source, Offsets.LuaItemAffixList, out var list)) continue;
+            var (prefixes, suffixes) = (_lua.AffixIds(list, Offsets.LuaItemPrefixInfoList), _lua.AffixIds(list, Offsets.LuaItemSuffixInfoList));
+            if (prefixes.Length + suffixes.Length > 0) return (prefixes, suffixes);
+        }
+
+        return ([], []);
     }
 
     private bool TryGetInt(LuaTable record, string key, out int value)

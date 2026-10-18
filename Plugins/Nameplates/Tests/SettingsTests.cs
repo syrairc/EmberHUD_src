@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Drawing;
 using System.Numerics;
 using EmberHUD.Ui;
@@ -105,30 +106,46 @@ public sealed class SettingsTests
     }
 
     [Test]
-    public void CastBarIsOffByDefault() => Check.That(!new Settings().CastBar.Enabled);
+    public void CastBarIsOffByDefaultInEveryBucket() => Check.That(new Settings().Buckets.All(b => !b.CastBar!.Enabled));
 
     [Test]
     public void NormalizeRepairsANullCastBar()
     {
-        var s = new Settings { CastBar = null! };
+        var s = new Settings();
+        s.Buckets[(int)Bucket.Rare].CastBar = null;
         s.Normalize();
-        Check.That(s.CastBar.Bar != null && s.CastBar.Text != null && s.CastBar.Bar.Texture != null);
-        s.CastBar = new CastBarSettings { Bar = null!, Text = new TextLine { Template = null!, Style = null! } };
+        var cast = s.Buckets[(int)Bucket.Rare].CastBar!;
+        Check.That(cast.Bar != null && cast.Text != null && cast.Bar.Texture != null);
+        s.Buckets[(int)Bucket.Rare].CastBar = new CastBarSettings { Bar = null!, Text = new TextLine { Template = null!, Style = null! } };
         s.Normalize();
-        Check.That(s.CastBar.Bar != null && s.CastBar.Text.Template != null && s.CastBar.Text.Style != null);
+        cast = s.Buckets[(int)Bucket.Rare].CastBar!;
+        Check.That(cast.Bar != null && cast.Text.Template != null && cast.Text.Style != null);
     }
 
     [Test]
-    public void CastBarSettingsRoundTripThroughJson()
+    public void CastBarSettingsRoundTripThroughJsonPerBucket()
     {
         var s = new Settings();
-        s.CastBar.Enabled = true;
-        s.CastBar.OffsetY = 31;
-        s.CastBar.Bar.Fill = Color.FromArgb(1, 2, 3, 4);
+        var rare = s.Buckets[(int)Bucket.Rare].CastBar!;
+        rare.Enabled = true;
+        rare.OffsetY = 31;
+        rare.Bar.Fill = Color.FromArgb(1, 2, 3, 4);
         var loaded = Load(Serialize(s));
-        Check.That(loaded.CastBar.Enabled);
-        Check.Equal(31f, loaded.CastBar.OffsetY);
-        Check.Equal(Color.FromArgb(1, 2, 3, 4), loaded.CastBar.Bar.Fill);
+        Check.That(loaded.Buckets[(int)Bucket.Rare].CastBar!.Enabled);
+        Check.Equal(31f, loaded.Buckets[(int)Bucket.Rare].CastBar!.OffsetY);
+        Check.Equal(Color.FromArgb(1, 2, 3, 4), loaded.Buckets[(int)Bucket.Rare].CastBar!.Bar.Fill);
+        Check.That(!loaded.Buckets[(int)Bucket.Normal].CastBar!.Enabled);
+    }
+
+    [Test]
+    public void TheOldGlobalCastBarMovesIntoEveryBucket()
+    {
+        var s = Load("""{"CastBar":{"Enabled":true,"OffsetY":31},"Buckets":[{},{},{},{}]}""");
+        s.Normalize();
+        Check.That(s.CastBar is null);
+        var casts = s.Buckets.Take(4).Select(b => b.CastBar!).ToArray();
+        Check.That(casts.All(c => c.Enabled && c.OffsetY == 31));
+        Check.That(casts.Distinct().Count() == 4, "buckets share one cast bar instance");
     }
 
     [Test]
