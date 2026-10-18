@@ -73,6 +73,63 @@ public class ProjectileReaderTests
     }
 
     [Fact]
+    public void ParkedBulletsWithNoMoveDirectionAreDroppedBecauseTheirDirectionIsStale()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, speed: 0, moveDirection: false);
+        Assert.Empty(reader.Read([Owner()]));
+    }
+
+    [Fact]
+    public void ParkedRectanglesAreKeptWithoutAMoveDirectionBecauseARectangleHasAHeading()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, radius: 0, speed: 0, rect: (3100, 3100), moveDirection: false);
+        Assert.Single(reader.Read([Owner()]));
+    }
+
+    [Fact]
+    public void MovingBulletsAreKeptWithoutAMoveDirection()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, moveDirection: false);
+        Assert.Single(reader.Read([Owner()]));
+    }
+
+    [Fact]
+    public void ParkedWaveTelegraphsWithAMoveDirectionAreKept()
+    {
+        var (world, reader) = Rig();
+        world.AddBullet(50, 7, Position, Direction, Origin, speed: 0);
+        Assert.Single(reader.Read([Owner()]));
+    }
+
+    [Fact]
+    public void ABulletlessHostileRectWithDamageIsALaserAlongItsOwnDirection()
+    {
+        var (world, reader) = Rig();
+        world.AddLaser(60, 7, Position, (0.2537, 0.9673), (5000, 100));
+        var laser = Assert.Single(reader.Read([Owner()]));
+        Assert.Equal(60, laser.Id);
+        Assert.Equal(7, laser.OwnerId);
+        Assert.Equal(new Vector2(4127.27f, 4389.85f), laser.Position);
+        Assert.Equal(100, laser.Radius);
+        Assert.Equal(0.2537f, laser.Direction.X, 3);
+        Assert.Equal(0.9673f, laser.Direction.Y, 3);
+    }
+
+    [Fact]
+    public void LaserLikeRectsAreDroppedWithoutDamageOrWhenOwnedByUs()
+    {
+        var (world, reader) = Rig();
+        world.AddLaser(60, 7, Position, Direction, (5000, 100), damage: false);
+        Assert.Empty(reader.Read([Owner()]));
+        var (own, ownReader) = Rig();
+        own.AddLaser(61, 7, Position, Direction, (5000, 100), ownerCamp: 2);
+        Assert.Empty(ownReader.Read([Owner()]));
+    }
+
+    [Fact]
     public void UnknownOwnerIsDropped()
     {
         var (world, reader) = Rig();

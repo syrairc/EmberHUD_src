@@ -192,7 +192,7 @@ internal sealed class FakeWorld
 
     internal readonly record struct FakeBullet(nint Bullet, nint Shape, nint Move, nint Transform, nint Attachment);
 
-    public FakeBullet AddBullet(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (double X, double Y) origin, float radius = 240, double speed = 1200, byte ownerCamp = 1, (uint A, uint B)? rect = null)
+    public FakeBullet AddBullet(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (double X, double Y) origin, float radius = 240, double speed = 1200, byte ownerCamp = 1, (uint A, uint B)? rect = null, bool moveDirection = true)
     {
         if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
         var entity = Alloc(0x200);
@@ -214,6 +214,7 @@ internal sealed class FakeWorld
         }
 
         Memory.Write(move + Offsets.MoveSpeed, speed);
+        if (moveDirection) Memory.WriteArray(move + Offsets.MoveDirection, new[] { direction.X, direction.Y });
         var index = new byte[153];
         index[Offsets.AttachmentComponentId] = 1;
         index[Offsets.BulletComponentId] = 2;
@@ -224,6 +225,25 @@ internal sealed class FakeWorld
         _fighters[id] = new FakeFighter(entity, bullet, []);
         PublishFighters();
         return new FakeBullet(bullet, shape, move, transform, attachment);
+    }
+
+    public void AddLaser(uint id, uint ownerId, (double X, double Y) position, (double X, double Y) direction, (uint A, uint B) rect, byte ownerCamp = 1, double speed = 0, bool damage = true)
+    {
+        if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
+        var attachment = Alloc(0x100);
+        var shape = Alloc(0x100);
+        var move = Alloc(0x100);
+        var transform = Alloc(0x100);
+        Memory.Write(attachment + Offsets.AttachmentOwnerId, ownerId);
+        Memory.WriteArray(transform + Offsets.TransformPosition, new[] { position.X, position.Y });
+        Memory.WriteArray(transform + Offsets.TransformDirection, new[] { direction.X, direction.Y });
+        Memory.Write(shape + Offsets.ShapeKind, (uint)Offsets.ShapeRect);
+        Memory.Write(shape + Offsets.ShapeExtentA, rect.A);
+        Memory.Write(shape + Offsets.ShapeExtentB, rect.B);
+        Memory.Write(move + Offsets.MoveSpeed, speed);
+        var components = new List<(int, nint)> { (Offsets.AttachmentComponentId, attachment), (Offsets.MoveComponentId, move), (Offsets.ShapeComponentId, shape), (Offsets.TransformComponentId, transform) };
+        if (damage) components.Add((Offsets.DamageDataComponentId, Alloc(0x100)));
+        AddFightEntity(id, [.. components]);
     }
 
     public void AddSideFighter(uint id, byte camp)

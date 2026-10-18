@@ -67,6 +67,7 @@ ShapeRect = 2
 ShapeExtentA = 104
 ShapeExtentB = 108
 MoveSpeed = 0x38
+MoveDirection = 0x48
 MaxProjectileSpeed = 20000
 MaxProjectileRadius = 5000
 ProjectileWantedSeconds = 3

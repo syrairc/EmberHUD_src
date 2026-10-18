@@ -31,15 +31,17 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
     {
         projectile = default;
         Span<double> pair = stackalloc double[2];
-        if (!_fight.TryReadComponent(fighter, Offsets.BulletComponentId, out var bullet) || bullet == 0 ||
-            !_fight.TryReadComponent(fighter, Offsets.TransformComponentId, out var transform) || transform == 0 ||
+        _fight.TryReadComponent(fighter, Offsets.BulletComponentId, out var bullet);
+        var laser = bullet == 0;
+        if (!_fight.TryReadComponent(fighter, Offsets.TransformComponentId, out var transform) || transform == 0 ||
             !_fight.TryReadComponent(fighter, Offsets.ShapeComponentId, out var shape) || shape == 0 ||
             !_fight.TryReadComponent(fighter, Offsets.MoveComponentId, out var move) || move == 0 ||
             !memory.TryRead(transform + Offsets.TransformPosition, pair) || !IsFinite(pair, out var position) ||
             !memory.TryRead(transform + Offsets.TransformDirection, pair) || !IsFinite(pair, out var direction) ||
-            !memory.TryRead(bullet + Offsets.BulletOrigin, pair) || !IsFinite(pair, out var origin) ||
+            !TryReadOrigin(bullet, position, out var origin) ||
             !TryReadRadius(shape, out var radius) || radius == 0 || radius > Offsets.MaxProjectileRadius ||
             !memory.TryRead(move + Offsets.MoveSpeed, out double speed) || !double.IsFinite(speed) || speed < 0 || speed > Offsets.MaxProjectileSpeed ||
+            laser && !IsHostileRect(fighter, shape) || !laser && speed < 1 && !IsRect(shape) && !HasMoveDirection(move) ||
             !_fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) || attachment == 0 ||
             !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity) || !_fight.IsHostile(world, ownerId))
             return false;
@@ -50,6 +52,25 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
         projectile = new Projectile(id, ownerId, rarity, position, origin, direction / length, radius, (float)speed);
         return true;
     }
+
+    private bool TryReadOrigin(nint bullet, Vector2 position, out Vector2 origin)
+    {
+        origin = position;
+        if (bullet == 0) return true;
+        Span<double> pair = stackalloc double[2];
+        return memory.TryRead(bullet + Offsets.BulletOrigin, pair) && IsFinite(pair, out origin);
+    }
+
+    private bool HasMoveDirection(nint move)
+    {
+        Span<double> pair = stackalloc double[2];
+        return memory.TryRead(move + Offsets.MoveDirection, pair) && IsFinite(pair, out var direction) && direction.Length() >= 0.5f;
+    }
+
+    private bool IsRect(nint shape) => memory.TryRead(shape + Offsets.ShapeKind, out uint kind) && kind == Offsets.ShapeRect;
+
+    private bool IsHostileRect(nint fighter, nint shape) =>
+        IsRect(shape) && _fight.TryReadComponent(fighter, Offsets.DamageDataComponentId, out var damage) && damage != 0;
 
     private bool TryReadRadius(nint shape, out uint radius)
     {
