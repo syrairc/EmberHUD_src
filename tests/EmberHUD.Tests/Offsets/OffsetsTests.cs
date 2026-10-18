@@ -109,6 +109,24 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void TheEighteenthBuildHasItsOwnRvas()
+    {
+        var original = Offsets.Build;
+        try
+        {
+            Assert.True(Offsets.SelectBuild(125921720));
+            Assert.Equal(0x6BAFA78, Offsets.LogicWorldGlobalRva);
+            Assert.Equal(0x6BB0CD0, Offsets.WoodStakeMgrGlobalRva);
+            Assert.Equal(0x8147E00, Offsets.LuaGlobalRva);
+            Assert.Equal(0x710, Offsets.FightMapNpc);
+        }
+        finally
+        {
+            Offsets.Build = original;
+        }
+    }
+
+    [Fact]
     public void TheSeventeenthBuildHasItsOwnRvasAndMovedStructOffsets()
     {
         var original = Offsets.Build;
@@ -143,13 +161,16 @@ public class OffsetsTests
     [Theory]
     [InlineData(123144120, true, 123144120)]
     [InlineData(124465080, true, 124465080)]
+    [InlineData(125921720, true, 125921720)]
     [InlineData(126258104, true, 126258104)]
     [InlineData(127223224, true, 127223224)]
     [InlineData(123804599, false, 123144120)]
     [InlineData(123804600, false, 124465080)]
     [InlineData(124000000, false, 124465080)]
-    [InlineData(125361591, false, 124465080)]
-    [InlineData(125361592, false, 126258104)]
+    [InlineData(125193399, false, 124465080)]
+    [InlineData(125193400, false, 125921720)]
+    [InlineData(126089912, false, 125921720)]
+    [InlineData(126089913, false, 126258104)]
     [InlineData(126740663, false, 126258104)]
     [InlineData(126740664, false, 127223224)]
     [InlineData(100, false, 123144120)]
