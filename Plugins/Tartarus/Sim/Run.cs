@@ -26,9 +26,9 @@ public sealed partial class Run
     public static Run Start(Rules rules, ulong seed)
     {
         var run = new Run(rules, new Rng(seed));
-        for (var cell = 1; cell < run.Cells.Length; cell++) run.RollEvent(cell);
+        run.SpawnEvent(rules.EventStartChance);
         run.Objective = new Objective(run.Pick(2) == 0 ? ObjectiveKind.King : ObjectiveKind.Walk);
-        for (var i = 0; i < rules.StartTools; i++) run.OfferTools(false);
+        for (var i = 0; i < rules.StartTools; i++) run.OfferTools();
         if (run.Queue.Count == 0) run.RollDoors();
         return run;
     }
@@ -62,6 +62,8 @@ public sealed partial class Run
     internal bool Consumed { get; set; }
 
     internal bool Replaced { get; set; }
+
+    internal bool Hunted { get; set; }
 
     public Run Clone()
     {
@@ -109,6 +111,9 @@ public sealed partial class Run
             case MoveKind.Replace:
                 Replace();
                 break;
+            case MoveKind.Hunt:
+                Stalk(move.Cell);
+                break;
             case MoveKind.StopChain:
                 Chaining = -1;
                 break;
@@ -130,6 +135,7 @@ public sealed partial class Run
                 EndDay();
                 break;
         }
+        if (move.Kind is MoveKind.Consume or MoveKind.Replace or MoveKind.Hunt or MoveKind.StopChain or MoveKind.Confirm or MoveKind.Skip && Chaining < 0) SpawnEvent(Rules.EventActionChance);
         return new StepResult(true, null);
     }
 
@@ -162,9 +168,7 @@ public sealed partial class Run
             for (var step = 1; step <= steps; step++)
             {
                 var passed = (Position + step) % Cells.Length;
-                if (!Locked(passed)) continue;
-                if (chain) OpenDoor(passed);
-                else if (step < steps) Cells[passed].Seen = true;
+                if (chain && Locked(passed)) OpenDoor(passed);
             }
             ChainArmed = false;
         }
@@ -181,6 +185,7 @@ public sealed partial class Run
             Shackles(steps);
             Progress(ObjectiveKind.Walk, steps);
         }
+        SpawnEvent(Rules.EventWalkChance);
         if (destination == Office && Rules.Card == StartCard.Tyranny) Tyranny();
         if (fired is { } kind)
         {
@@ -210,15 +215,21 @@ public sealed partial class Run
 
     bool Roll(int percent) => Pick(100) < percent;
 
-    void Lock(int cell)
+    void Fill(int cell, Cell inmate)
     {
-        Cells[cell] = new Cell(false, Beast.Mammoth, -1, false);
-        RollEvent(cell);
+        Cells[cell] = inmate;
+        Progress(ObjectiveKind.Doors, 1);
     }
 
-    void RollEvent(int cell)
+    void Lock(int cell) => Cells[cell] = new Cell(false, Beast.Mammoth, -1, false);
+
+    void SpawnEvent(int percent)
     {
-        if (Rules.EventChance > 0 && Roll(Rules.EventChance)) Cells[cell] = Cells[cell] with { Event = RandomEvent() };
+        if (percent <= 0 || !Roll(percent)) return;
+        var free = LockedCells().Where(cell => !Cells[cell].HasEvent && !Cells[cell].Markers.HasFlag(Marker.Nest)).ToList();
+        if (free.Count == 0) return;
+        var chosen = free[Pick(free.Count)];
+        Cells[chosen] = Cells[chosen] with { Event = RandomEvent(), Seen = true };
     }
 
     EventKind? RandomEvent() => Pool.Count > 0 ? Pool[Pick(Pool.Count)] : null;
@@ -233,7 +244,7 @@ public sealed partial class Run
         {
             Chromatics++;
             Lock(cell);
-            Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
+            for (var pick = 0; pick < (Rules.Card == StartCard.Opulence ? 3 : 1); pick++) Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
         }
         else Cells[cell] = Cells[cell] with { Tier = tier };
         return tier;
@@ -250,7 +261,7 @@ public sealed partial class Run
         var cell = Cells[index];
         if (fresh || cell.Tier < 0 || Holds(ToolId.Hook) && cell.Tier == 0 && !cell.Known)
             cell = Occupied(cell, Math.Max(floor, Holds(ToolId.Hook) ? 1 : 0));
-        Cells[index] = new Cell(true, cell.Beast, cell.Tier, false);
+        Fill(index, new Cell(true, cell.Beast, cell.Tier, false));
     }
 
     int DrawDoorTier(int floor)

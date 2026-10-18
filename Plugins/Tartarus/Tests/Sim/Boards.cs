@@ -4,11 +4,13 @@ namespace Tartarus.Sim;
 
 static class Boards
 {
+    public static readonly Rules Quiet = new() { EventStartChance = 0, EventMorningChance = 0, EventWalkChance = 0, EventActionChance = 0 };
+
     public static Run At(Phase phase, int position, params (int Cell, Beast Beast, int Tier)[] inmates) => At(1, phase, position, inmates);
 
     public static Run At(ulong seed, Phase phase, int position, params (int Cell, Beast Beast, int Tier)[] inmates)
     {
-        var run = new Run(new Rules { EventChance = 0 }, new Rng(seed)) { Phase = phase, Position = position };
+        var run = new Run(Boards.Quiet, new Rng(seed)) { Phase = phase, Position = position };
         foreach (var (cell, beast, tier) in inmates) run.Cells[cell] = new Cell(true, beast, tier, false);
         return run;
     }

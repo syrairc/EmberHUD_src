@@ -18,10 +18,16 @@ public sealed class DoorTests
     static readonly Dictionary<string, string> SkippedFrequencies = new()
     {
         ["run objective drawn at the start of a run"] = "drawn by Run.Start, checked in ObjectiveTests.ObjectiveAndStartingPickFrequenciesMatchTheOracle",
+        ["event at the start of a run (72%)"] = "drawn by Run.Start, checked in EventTests.OracleStartEventFrequencyIsWithinTolerance",
     };
 
     static IEnumerable<string> Outcomes(Run run, OracleFrequency frequency)
     {
+        if (frequency.Measure.StartsWith("events:"))
+        {
+            foreach (var key in OracleData.SpawnKeys(run, frequency.Before)) yield return key;
+            yield break;
+        }
         if (frequency.Action.Kind == "patrol")
         {
             var cell = run.Cells[frequency.Action.Cell];
@@ -60,7 +66,7 @@ public sealed class DoorTests
     {
         for (ulong seed = 1; seed <= 30; seed++)
         {
-            var run = Run.Start(new Rules { EventChance = 0, StartTools = 0 }, seed);
+            var run = Run.Start(Boards.Quiet with { StartTools = 0 }, seed);
             while (!run.Over)
             {
                 while (run.Offers.Count > 0) run.Apply(run.Legal()[0]);
@@ -95,7 +101,7 @@ public sealed class DoorTests
     [Test]
     public void ApplyingADoorMovesTheWardenAndOpensALockedCell()
     {
-        var run = Run.Start(new Rules { EventChance = 0, StartTools = 0 }, 5);
+        var run = Run.Start(Boards.Quiet with { StartTools = 0 }, 5);
         var door = Doors(run)[0];
         Check.That(!run.Cells[door].Open);
         var result = run.Apply(new Move(MoveKind.Door, door));
@@ -110,7 +116,7 @@ public sealed class DoorTests
     [Test]
     public void CloneIsIndependent()
     {
-        var run = Run.Start(new Rules { EventChance = 0, StartTools = 0 }, 9);
+        var run = Run.Start(Boards.Quiet with { StartTools = 0 }, 9);
         var copy = run.Clone();
         run.Apply(new Move(MoveKind.Door, Doors(run)[0]));
         Check.Equal(0, copy.Position);
@@ -157,7 +163,7 @@ public sealed class DoorTests
     [Test]
     public void CloneDrawsTheSameDoorsAndTiersAsTheRun()
     {
-        var run = Run.Start(new Rules { EventChance = 0, StartTools = 0 }, 11);
+        var run = Run.Start(Boards.Quiet with { StartTools = 0 }, 11);
         var copy = run.Clone();
         for (var day = 0; day < 8; day++)
         {

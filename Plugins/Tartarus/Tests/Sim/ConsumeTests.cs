@@ -56,22 +56,32 @@ public sealed class ConsumeTests
     {
         foreach (var eater in Enum.GetValues<Beast>())
         {
-            var run = Board(null, null, (Warden, eater, 1));
+            var run = Board(new Rules { SecondMealFromTier = 5 }, null, (Warden, eater, 1));
             foreach (var meal in Enum.GetValues<Beast>()) run.Cells[6 + (int)meal] = new Cell(true, meal, 1, false);
             Same([6 + ((int)eater + 1) % 4], Meals(run));
         }
     }
 
     [Test]
-    public void SecondMealOnlyFromTheConfiguredTier()
+    public void SecondMealsAtEveryRarityByDefaultAndFromTheConfiguredTier()
     {
         Run Mammoth(Rules rules, int tier) => Board(rules, null, (Warden, Beast.Mammoth, tier), (6, Beast.Wolf, tier));
-        Same([], Meals(Mammoth(new Rules(), 2)));
+        Same([6], Meals(Mammoth(new Rules(), 0)));
+        Same([6], Meals(Mammoth(new Rules(), 1)));
         Same([6], Meals(Mammoth(new Rules(), 3)));
-        Same([6], Meals(Mammoth(new Rules { SecondMealFromTier = 0 }, 0)));
+        Same([], Meals(Mammoth(new Rules { SecondMealFromTier = 3 }, 2)));
+        Same([6], Meals(Mammoth(new Rules { SecondMealFromTier = 3 }, 3)));
         Same([], Meals(Mammoth(new Rules { SecondMealFromTier = 4 }, 3)));
-        Same([6], Meals(Board(null, null, (Warden, Beast.Lion, 3), (6, Beast.Rat, 3))));
+        Same([6], Meals(Board(null, null, (Warden, Beast.Lion, 1), (6, Beast.Rat, 1))));
         Same([], Meals(Board(null, null, (Warden, Beast.Wolf, 3), (6, Beast.Lion, 3))));
+    }
+
+    [Test]
+    public void MaulLetsAMammothEatBothItsMealsAtAHigherRarity()
+    {
+        var run = Board(new Rules(), null, (Warden, Beast.Mammoth, 1), (6, Beast.Lion, 3), (7, Beast.Wolf, 2), (8, Beast.Rat, 3));
+        run.Held.Add(ToolId.Maul);
+        Same([6, 7], Meals(run));
     }
 
     [Test]
@@ -149,12 +159,48 @@ public sealed class ConsumeTests
     }
 
     [Test]
-    public void AtTheChromaticCapTheEaterStopsAtUltimate()
+    public void AtTheChromaticCapTheEaterStopsAtUltimateAndKeepsItsBeast()
     {
         var run = Board(new Rules { ChromaticCap = 0 }, OnlyRat, (Warden, Beast.Wolf, 4), (6, Beast.Rat, 4));
         run.Apply(Eat(6));
         Check.Equal(0, run.Chromatics);
-        Check.Equal(new Cell(true, Beast.Rat, 4, false), run.Cells[Warden]);
+        Check.Equal(new Cell(true, Beast.Wolf, 4, false), run.Cells[Warden]);
+    }
+
+    [Test]
+    public void WithTenInTheVaultNoRouteRaisesAnInmateToRainbow()
+    {
+        var bestow = Boards.At(Phase.Office, 0, (5, Beast.Wolf, 4));
+        bestow.Chromatics = 10;
+        bestow.Apply(new Move(MoveKind.Bestow));
+        Check.Equal(10, bestow.Chromatics);
+        Check.Equal(4, bestow.Cells[5].Tier);
+
+        var execution = Boards.Event(EventKind.Execution, 4, (4, Beast.Wolf, 3), (5, Beast.Rat, 0), (6, Beast.Rat, 1), (7, Beast.Rat, 2));
+        execution.Chromatics = 10;
+        execution.Apply(new Move(MoveKind.Confirm));
+        Check.Equal(10, execution.Chromatics);
+        Check.Equal(4, execution.Cells[4].Tier);
+
+        var tusk = Boards.At(Phase.Manage, 5, (5, Beast.Wolf, 4), (6, Beast.Rat, 4), (7, Beast.Rat, 4));
+        tusk.Chromatics = 10;
+        tusk.Cells[5] = tusk.Cells[5] with { Markers = Marker.Tusk };
+        tusk.Apply(new Move(MoveKind.Replace));
+        Check.Equal(10, tusk.Chromatics);
+        Check.That(tusk.Cells.All(cell => !cell.Open || cell.Tier <= 4), "an inmate went past Ultimate");
+    }
+
+    [Test]
+    public void AReplaceNeverPassesTenRainbows()
+    {
+        for (ulong seed = 1; seed <= 200; seed++)
+        {
+            var run = new Run(Boards.Quiet, new Rng(seed)) { Phase = Phase.Manage, Position = 5, Chromatics = 10 };
+            run.Cells[5] = new Cell(true, Beast.Wolf, 3, false);
+            run.Apply(new Move(MoveKind.Replace));
+            Check.Equal(10, run.Chromatics);
+            Check.That(!run.Cells[5].Open || run.Cells[5].Tier <= 4, "the Replace put a Rainbow on the board");
+        }
     }
 
     [Test]

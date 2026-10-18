@@ -15,7 +15,7 @@ public sealed partial class Run
         if (Holds(ToolId.Blacklist) && LockedCells().Count <= 5)
             foreach (var inmate in Sample(Inmates(), 2)) Raise(inmate, 1);
         if (Holds(ToolId.Fire) && Roll(35) && Cells[cell].Open && LockedCells() is { Count: > 0 } dark)
-            Cells[dark[Pick(dark.Count)]] = new Cell(true, Cells[cell].Beast, Cells[cell].Tier, false);
+            Fill(dark[Pick(dark.Count)], new Cell(true, Cells[cell].Beast, Cells[cell].Tier, false));
         if (Holds(ToolId.Keys) && Roll(80))
             foreach (var side in new[] { cell - 1, cell + 1 })
             {
@@ -55,6 +55,15 @@ public sealed partial class Run
             {
                 var chosen = bare[Pick(bare.Count)];
                 Cells[chosen] = Cells[chosen] with { Markers = Cells[chosen].Markers | Marker.Tusk };
+            }
+        }
+        if (Holds(ToolId.Claws))
+        {
+            var bare = LockedCells().Where(cell => !Cells[cell].Markers.HasFlag(Marker.Scratch) && !Cells[cell].Markers.HasFlag(Marker.Nest)).ToList();
+            if (bare.Count > 0)
+            {
+                var chosen = bare[Pick(bare.Count)];
+                Cells[chosen] = Reveal(chosen) with { Known = true, Markers = Cells[chosen].Markers | Marker.Scratch };
             }
         }
         if (Holds(ToolId.IronBox))

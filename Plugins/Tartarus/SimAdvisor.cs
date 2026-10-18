@@ -14,33 +14,29 @@ public sealed record Advice(OptionAdvice[] Options, string Summary);
 
 public static class SimAdvisor
 {
-    public static Advice Advise(TartarusState state, MapResult map, Ranked[]? ranked, Settings settings)
+    public static Advice Advise(TartarusState state, MapResult map, Ranked[]? ranked, Settings settings, Move? instant = null)
     {
         if (state?.Choice is not { Options: { } options } || map is null) return new Advice([], "");
         var found = options.Select(option => map.Run is null ? null : ranked?.FirstOrDefault(entry => Matches(entry.Move, option))).ToArray();
         var glow = new bool[options.Length];
-        var core = Core(map, ranked, found, glow, settings);
-        var top = Enumerable.Range(0, options.Length).Where(i => glow[i]).OrderByDescending(i => found[i]!.Value).Cast<int?>().FirstOrDefault();
-        top = NormalCannotRollWorse(map.Run, options, found, glow) ?? top;
+        var core = Core(map, ranked, found, glow);
+        int? top = glow.Any(on => on) ? Array.IndexOf(found, Pick(ranked!)) : null;
+        if (ranked is null && instant is { } early && core == "thinking" && Array.FindIndex(options, option => Matches(early, option)) is var guess and >= 0) glow[guess] = true;
+        if (ranked is null && glow.Any(on => on)) top = Array.IndexOf(glow, true);
         var advice = options.Select((option, i) => found[i] is { } entry
             ? new OptionAdvice(option.Id, new ValueRange(entry.Value - entry.Spread, entry.Value + entry.Spread), glow[i], entry.Value.ToString("0.00", CultureInfo.InvariantCulture), top == i)
-            : new OptionAdvice(option.Id, default, false, "")).ToArray();
+            : new OptionAdvice(option.Id, default, glow[i], "", top == i)).ToArray();
         var notes = settings.ShowAssumed && map.Assumed.Length > 0 ? $"assumed: {string.Join('\n', map.Assumed)}\n" : "";
         return new Advice(advice, notes + core);
     }
 
-    static int? NormalCannotRollWorse(Run? run, TartarusOption[] options, Ranked?[] found, bool[] glow)
-    {
-        if (run is not { Phase: Phase.Manage } || run.Cells[run.Position] is not { Open: true, Tier: 0 }) return null;
-        var replace = Array.FindIndex(options, option => option.Kind == TartarusOptionKind.Replace);
-        var end = Array.FindIndex(options, option => option.Kind == TartarusOptionKind.End);
-        if (replace < 0 || end < 0 || found[replace] is not { } swap || found[end] is not { } stay) return null;
-        if (stay.Value - swap.Value > 2 * Math.Sqrt(swap.Spread * swap.Spread + stay.Spread * stay.Spread)) return null;
-        glow[replace] = glow[end] = true;
-        return replace;
-    }
+    const double SwitchMin = 0.05;
 
-    static string Core(MapResult map, Ranked[]? ranked, Ranked?[] found, bool[] glow, Settings settings)
+    static bool Close(Ranked best, Ranked other) => best.Value - other.Value <= Math.Max(1.96 * other.GapSe, SwitchMin);
+
+    static Ranked Pick(Ranked[] ranked) => ranked.FirstOrDefault(entry => entry.Strategy) is { } mine && Close(ranked[0], mine) ? mine : ranked[0];
+
+    static string Core(MapResult map, Ranked[]? ranked, Ranked?[] found, bool[] glow)
     {
         if (map.Mismatch is not null) return $"mismatch: {map.Mismatch}";
         if (map.Unsupported is not null) return map.Unsupported;
@@ -49,11 +45,9 @@ public static class SimAdvisor
 
         if (found.Length == 1) return "only option";
 
-        var best = found.Max(entry => entry!.Value);
-        var close = found.Select(entry => entry!.Value >= best - settings.CloseMargin * Math.Abs(best)).ToArray();
-        var count = close.Count(inSet => inSet);
-        Array.Copy(close, glow, glow.Length);
-        return $"{count} best";
+        var pick = Pick(ranked);
+        for (var i = 0; i < found.Length; i++) glow[i] = found[i] == pick || Close(ranked[0], found[i]!);
+        return $"{glow.Count(on => on)} best";
     }
 
     static bool Matches(Move move, TartarusOption option) => option.Kind switch

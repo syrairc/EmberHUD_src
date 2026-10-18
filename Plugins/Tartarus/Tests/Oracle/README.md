@@ -1,6 +1,10 @@
 # Tartarus oracle data
 
-Recorded from the reference simulator (`RE\tartarus-simulator`, `js\engine.js` and `js\solver.js`, never edited) by `E:\EmberHUD\RE\tartarus-sim-oracle\record.js` (not committed, not shipped). The rules in plain words are in `E:\EmberHUD\docs\superpowers\research\tartarus-sim-rules.md`. Every file here is plain JSON, one scenario or frequency per line.
+Recorded from the reference simulator (clone `E:\EmberHUD\RE\tartarus-simulator-new`, commit `bc528594`, 2026-10-18, `js\engine.js` and `js\solver.js`, never edited) by the scripts in `E:\EmberHUD\RE\tartarus-sim-oracle\` (not committed, not shipped). The rules in plain words are in `E:\EmberHUD\docs\superpowers\research\tartarus-sim-rules.md`. Every file here is plain JSON, one scenario or frequency per line.
+
+Re-run: `cd E:\EmberHUD\RE\tartarus-sim-oracle`, then `node record.js <this folder>` (about 3 min, writes every file but `strategy.json`, env `REF` = reference root, default `E:/EmberHUD/RE/tartarus-simulator-new`, `NOSOLVER=1` skips the solver boards), `node solver-only.js <this folder>` (about 8 min, `ROLLOUTS=1000`, rewrites `solver.json`), `node strategy.js <out.json> 300` for `strategy.json`. A scenario is kept only when 4 different seeds give the identical result board.
+
+Changes of the 2026-10-18 re-record against the old reference (`4416defb`): the scripts take the reference root from `REF`; the reference has no `eventChance` any more, only `eventStartChance` / `eventMorningChance` / `eventWalkChance` / `eventActionChance` (72 / 5 / 9 / 4), so the baseline sets all four to 0 and the chance runs set the one they measure. New scenarios: second meals at every rarity, Instigate (1 event, 2 on a board with none, on a locked door or beside an inmate), Usurpation putting the next one on a free cell, Extra Portion, Filthy Claws, Blood-Stained Trap and its Hunt (`action.kind` `hunt`, `used.hunt`), Behind Cell Doors, vault cap 10 (`vault` setup), Opulence, the four event chances. Dropped: the 5 % event behind a re-sealed cell (events now turn up on any free locked cell), "Mammoth Rare may not eat a Wolf" and the Instigate-on-two-cells scenarios (rules changed), the Casket / Brand scenarios were re-pinned to a one-meal beast (Lion and Mammoth now have two). Not recorded: Replace after a Hunt - the reference `swap()` does not check the Hunt, only its move list (`canSwapNow`) does, so the API call would succeed; we refuse it through `Legal()`.
 
 Files: `doors`, `consume`, `swap`, `office`, `events`, `markers`, `tools`, `objectives` each hold `{ "scenarios": [...], "frequencies": [...] }`. `solver.json` is described at the bottom.
 
@@ -15,10 +19,10 @@ Files: `doors`, `consume`, `swap`, `office`, `events`, `markers`, `tools`, `obje
   "chromatics": 0,                   Chromatics vaulted (the reference calls them Rainbows)
   "tools": ["saw", ...],             tool ids in pick order
   optional (absent = default):
-  "used": { "swap": 0-1, "devour": 0-1 },        today's flags, absent = both 0
-  "objective": { "id": "king"|"walk"|"consume"|"incident", "progress": int },   absent = no objective
+  "used": { "swap": 0-1, "devour": 0-1, "hunt": 1 },        today's flags, absent = all 0 (hunt only when set)
+  "objective": { "id": "king"|"walk"|"consume"|"incident"|"doors", "progress": int },   absent = no objective
   "milestone": true,                 objective already paid
-  "startEvent": "cagefight" | "ironlaw" | "tyranny",
+  "startEvent": "cagefight" | "ironlaw" | "tyranny" | "opulence",
   "chain": true,                     Chain reaction armed for the next patrol
   "ratway": true,                    Sewer Ratway move pending (phase "patrol", destinations = every cell but the office)
   "eventPool": ["chain", ...],       only when it differs from the default pool (see below)
@@ -52,9 +56,9 @@ Cell:
 
 The office is always cell 0, never holds anyone and never has markers. A locked cell that is not listed with `hidden` has an occupant nobody has rolled; a scenario never opens one unless it is a frequency.
 
-Event ids: `chain execution trickster appetite convict crow freedom usurp1 usurp2 usurp3 usurp4 ratway hunt`. Default pool (order matters for `eventPool`): `chain execution trickster appetite convict crow freedom usurp1 ratway hunt`.
+Event ids: `chain execution trickster appetite convict crow freedom usurp1 usurp2 usurp3 usurp4 ratway hunt portion`. Default pool (order matters for `eventPool`): `chain execution trickster appetite convict crow freedom usurp1 ratway hunt portion`.
 
-Tool ids (29): `revenge muzzle saw keys rope fire ironbox skewer hook pestle scales tongs guillotine axe shackles collar forged dogtag cage blacklist shortchain maiden whip ravenous scapegoat stake coin crown maul`. Gift ids (Warden's Treasure): `ring horn wine brand`.
+Tool ids (31): `revenge muzzle saw keys rope fire ironbox skewer hook pestle scales tongs guillotine axe shackles collar forged dogtag cage blacklist shortchain maiden whip ravenous scapegoat stake coin crown maul claws trap`. Gift ids (Warden's Treasure): `ring horn wine brand`.
 
 An `after` board lists only what the rules decide. Cells that were locked and stay locked keep their `hidden` and markers; a cell that is eaten, removed or leaves for the vault becomes a locked cell with no `hidden` and no markers (nothing new is rolled for it).
 
@@ -77,6 +81,7 @@ An `after` board lists only what the rules decide. Cells that were locked and st
 | `chain` | next meal of a waiting chain | target cell | | |
 | `stopChain` | stop the waiting chain (the game's Cancel) | | | |
 | `swap` | Replace the warden's inmate | | | |
+| `hunt` | Blood-Stained Trap: the Lion in the warden's cell marks a prey | target cell | | |
 | `office` | Instigate or Bestow | | | `instigate` / `bestow` |
 | `event` | accept or skip the pending event | | 1 accept, 0 skip | |
 | `endDay` | end the day (next morning is rolled, see below) | | | |
@@ -94,18 +99,18 @@ Expectation, all of them must hold:
 
 ### params
 
-Every scenario and frequency was recorded with the reference defaults plus `eventChance 0` (no event appears behind a cell that seals again), `startTools 0` and `drillDays 20`, plus the entries in its own `params` object (the reference's names):
+Every scenario and frequency was recorded with the reference defaults plus the four event chances at 0, `startTools 0` and `drillDays 20`, plus the entries in its own `params` object (the reference's names):
 
 | param | default | meaning |
 |---|---|---|
-| `eventChance` | 0 here (reference 5) | % chance a locked cell hides an event |
+| `eventStartChance` / `eventMorningChance` / `eventWalkChance` / `eventActionChance` | 0 here (reference 72 / 5 / 9 / 4) | % chance a seen event turns up on a random free locked cell at the start of a run / each morning / after the patrol's walk / after a Consume, Replace, Hunt or special event |
 | `beastWeights` | [25,25,25,25] mammoth lion wolf rat | beast of every new inmate and of a consume's re-roll. One-hot = that draw is pinned to that beast |
 | `tierWeights` | [40,38,12,8,2] | rarity behind a door (and for High-Risk Convict, tiers 3-4 only). One-hot = pinned |
 | `swapWeights` | [52,32,9,6,1.5] | rarity of a Replace. One-hot = pinned |
 | `chainStop` | true | a chain waits for the player's pick after every bite; false = single-meal bites are taken by themselves |
 | `scratchStacksBase` | true | scratch bite gains 2 + 1, false = 2 |
 | `nestTier` | 2 | tier of the hatched Rat |
-| others used | | `swapsPerDay 1`, `doubleEatTier 3`, `ivoryCount 4`, `ivoryIncludesSwapped true`, `preyRounds 3`, `nestDays 2`, `executionSameTier false`, `executionRerolls false`, `patrolRange 6`, `destinations 3`, `reusableCells true`, `rewards true` |
+| others used | | `swapsPerDay 1`, `doubleEatTier 0`, `ivoryCount 4`, `ivoryIncludesSwapped true`, `preyRounds 3`, `nestDays 2`, `executionSameTier false`, `executionRerolls false`, `patrolRange 6`, `destinations 3`, `reusableCells true`, `rewards true` |
 
 ## Frequency
 
@@ -124,6 +129,14 @@ Every scenario and frequency was recorded with the reference defaults plus `even
   "bestAction": action, "bestValue": number, "agree": bool, "decisive": bool } ] }
 ```
 
-`mean` is the average Chromatics vaulted by the end of the run when that option is played first and the reference strategy plays the rest, with everything hidden re-rolled each playout (locked cells, events behind unseen doors). `options` are sorted best first. `policy` marks the option the reference's own one-shot strategy would pick. `margin` = (best - second) / paired standard error of that difference. `agree` = the two seeds picked the same best option; `decisive` = they agree and both margins are at least 3, so only `decisive` boards may assert the best option; for the others assert that our best option is within the reference's `se`-scaled noise of its best (value gap under 3 paired standard errors, or under 0.05 Chromatics). Boards use the `params` in this file (eventChance 5, the reference default). Two options can be symmetric (same species and rarity in two cells) and then only the value, not the cell, is comparable.
+`mean` is the average Chromatics vaulted by the end of the run when that option is played first and the reference strategy plays the rest, with everything hidden re-rolled each playout (locked cells, events behind unseen doors). `options` are sorted best first. `policy` marks the option the reference's own one-shot strategy would pick. `margin` = (best - second) / paired standard error of that difference. `agree` = the two seeds picked the same best option; `decisive` = they agree and both margins are at least 3, so only `decisive` boards may assert the best option; for the others assert that our best option is within the reference's `se`-scaled noise of its best (value gap under 3 paired standard errors, or under 0.05 Chromatics). Boards use the `params` in this file (the reference's four event chances). Two options can be symmetric (same species and rarity in two cells) and then only the value, not the cell, is comparable.
 
-`strategy` is the reference strategy played start to finish on 500 seeded runs (seeds `S0`..`S499`, `eventChance 5`, `startTools 0`, 20 days, rewards on): mean Chromatics, its standard error, `hist` = runs per Chromatic count. Recorded by `E:\EmberHUD\RE\tartarus-sim-oracle\solver-only.js` (not committed, rewrites only `solver.json`: the 36 boards of `g5.js` plus this block). Our `Strategy` is not the reference, its mean may sit a little under (`StrategyRunsAtLeastAsWellAsTheReferenceNumbers` allows a tolerance of about three standard errors).
+`strategy` is the reference strategy played start to finish on 500 seeded runs (seeds `S0`..`S499`, the reference's event chances, `startTools 0`, 20 days, rewards on): mean Chromatics, its standard error, `hist` = runs per Chromatic count. Recorded by `E:\EmberHUD\RE\tartarus-sim-oracle\solver-only.js` (not committed, rewrites only `solver.json`: the 36 boards of `g5.js` plus this block). Our `Strategy` is not the reference, its mean may sit a little under (`StrategyRunsAtLeastAsWellAsTheReferenceNumbers` allows a tolerance of about 2.7 standard errors).
+
+## strategy.json
+
+```
+{ "reference": "bc52859", "note", "boards": [ { "name", "board": Board (with destinations when phase is patrol), "action": action, "label", "why" } ] }
+```
+
+The reference strategy's single decision on each board (`SOLVER.instant`, no playouts, profile `rewards`), with its label and reason as the reference words them. The first board is the live board of 2026-10-18 (day 6, warden on the Rare Rat in cell 6, doors 8, 9 and 12, reference pick cell 12), the second a Magic inmate with no meal (Replace). The rest are random scene-editor boards over every phase (patrol, manage, chain, office, event, tool and gift picks). Recorded by `E:\EmberHUD\RE\tartarus-sim-oracle\strategy.js` (`node strategy.js <out.json> 300`, env `REF` = reference root). `StrategyTests` replays each into a `Run` and asks our `Strategy.Choose` (Rng 1) for the same move. Gift picks score the Thumb Ring and the Brass Horn on 3 random trials in the reference too, so a near tie there can come out either way.

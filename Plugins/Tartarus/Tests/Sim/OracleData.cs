@@ -21,7 +21,7 @@ sealed record OraclePrey(int Lion, int Prey, int Rounds, int Next);
 
 sealed record OracleCell(int I, bool Open, string Beast, int Tier, OracleHidden? Hidden, OracleMarkers? Markers);
 
-sealed record OracleUsed(int Swap, int Devour);
+sealed record OracleUsed(int Swap, int Devour, int Hunt);
 
 sealed record OracleBoard(int Position, int Day, int MaxDay, string Phase, int Chromatics, string[] Tools, OracleCell[] Cells, int[]? Destinations, OracleUsed? Used, int? Chaining, string? StartEvent, bool Chain, bool Ratway, string[]? EventPool, OraclePrey[]? Prey, OraclePending? PendingEvent, OracleObjective? Objective, bool Milestone, OraclePick[]? Pending);
 
@@ -29,7 +29,7 @@ sealed record OracleAction(string Kind, int Cell, int Param, string? Id, OracleA
 
 sealed record OracleResult(bool? Ok, int[]? Targets, int[]? ChainTargets);
 
-sealed record OracleParams(double[]? BeastWeights, double[]? TierWeights, double[]? SwapWeights, bool? ChainStop, int? EventChance);
+sealed record OracleParams(double[]? BeastWeights, double[]? TierWeights, double[]? SwapWeights, bool? ChainStop, int? EventStartChance, int? EventMorningChance, int? EventWalkChance, int? EventActionChance);
 
 sealed record OracleScenario(string Name, OracleBoard Before, OracleBoard After, OracleAction Action, OracleResult? Result, OracleParams? Params, bool Random, string? Branch);
 
@@ -53,11 +53,12 @@ static class OracleData
         ["convict"] = EventKind.HighRiskConvict, ["crow"] = EventKind.CrowWhispers, ["freedom"] = EventKind.TasteOfFreedom, ["usurp1"] = EventKind.UsurpationI,
         ["usurp2"] = EventKind.UsurpationII, ["usurp3"] = EventKind.UsurpationIII, ["usurp4"] = EventKind.UsurpationIV, ["ratway"] = EventKind.SewerRatway,
         ["hunt"] = EventKind.TreasureHunt,
+        ["portion"] = EventKind.ExtraPortion,
     };
 
     public static readonly Dictionary<string, ObjectiveKind> ObjectiveIds = new()
     {
-        ["king"] = ObjectiveKind.King, ["walk"] = ObjectiveKind.Walk, ["consume"] = ObjectiveKind.Consume, ["incident"] = ObjectiveKind.Incident,
+        ["king"] = ObjectiveKind.King, ["walk"] = ObjectiveKind.Walk, ["consume"] = ObjectiveKind.Consume, ["incident"] = ObjectiveKind.Incident, ["doors"] = ObjectiveKind.Doors,
     };
 
     public static string IdOf(EventKind kind) => EventIds.First(pair => pair.Value == kind).Key;
@@ -66,8 +67,8 @@ static class OracleData
 
     public static Run ToRun(OracleBoard board, ulong seed, OracleParams? parameters = null)
     {
-        var card = board.StartEvent switch { "cagefight" => StartCard.CageFight, "ironlaw" => StartCard.IronLaw, "tyranny" => StartCard.Tyranny, _ => StartCard.None };
-        var run = new Run(new Rules { Days = board.MaxDay, EventChance = parameters?.EventChance ?? 0, StartTools = 0, Card = card }, new Rng(seed))
+        var card = board.StartEvent switch { "cagefight" => StartCard.CageFight, "ironlaw" => StartCard.IronLaw, "tyranny" => StartCard.Tyranny, "opulence" => StartCard.Opulence, _ => StartCard.None };
+        var run = new Run(Boards.Quiet with { Days = board.MaxDay, StartTools = 0, Card = card, EventStartChance = parameters?.EventStartChance ?? 0, EventMorningChance = parameters?.EventMorningChance ?? 0, EventWalkChance = parameters?.EventWalkChance ?? 0, EventActionChance = parameters?.EventActionChance ?? 0 }, new Rng(seed))
         {
             Position = board.Position,
             Day = board.Day,
@@ -76,6 +77,7 @@ static class OracleData
             Doors = board.Destinations ?? [],
             Consumed = board.Used?.Devour > 0,
             Replaced = board.Used?.Swap > 0,
+            Hunted = board.Used?.Hunt > 0,
             Chaining = board.Chaining ?? -1,
             ChainArmed = board.Chain,
             Ratway = board.Ratway,
@@ -115,6 +117,7 @@ static class OracleData
         if (run.Chromatics != expected.Chromatics) return $"chromatics {run.Chromatics}, expected {expected.Chromatics}";
         if (run.Consumed != expected.Used?.Devour > 0) return $"consumed {run.Consumed}";
         if (run.Replaced != expected.Used?.Swap > 0) return $"replaced {run.Replaced}";
+        if (run.Hunted != expected.Used?.Hunt > 0) return $"hunted {run.Hunted}";
         if (run.Chaining != (expected.Chaining ?? -1)) return $"chaining {run.Chaining}, expected {expected.Chaining}";
         if (run.ChainArmed != expected.Chain) return $"chain armed {run.ChainArmed}";
         if (run.Ratway != expected.Ratway) return $"ratway {run.Ratway}";
@@ -152,7 +155,7 @@ static class OracleData
         return null;
     }
 
-    static readonly string[] DefaultPool = ["chain", "execution", "trickster", "appetite", "convict", "crow", "freedom", "usurp1", "ratway", "hunt"];
+    static readonly string[] DefaultPool = ["chain", "execution", "trickster", "appetite", "convict", "crow", "freedom", "usurp1", "ratway", "hunt", "portion"];
 
     static string? MarkerDifference(Cell got, OracleCell want)
     {
@@ -165,6 +168,14 @@ static class OracleData
         return matches ? null : $"event {got.Event}, expected {waiting}";
     }
 
+    public static IEnumerable<string> SpawnKeys(Run run, OracleBoard? before = null)
+    {
+        var made = Enumerable.Range(0, run.Cells.Length).Where(cell => before?.Cells[cell].Markers?.Event is null && run.Cells[cell].Event is not null).ToArray();
+        yield return $"events:{made.Length}";
+        foreach (var cell in made) yield return $"seen:{run.Cells[cell].Seen}".ToLowerInvariant();
+        foreach (var cell in made) yield return $"cell:{cell}";
+    }
+
     public static Move MoveOf(OracleAction action) => action.Kind switch
     {
         "patrol" => new Move(MoveKind.Door, action.Cell),
@@ -172,6 +183,7 @@ static class OracleData
         "chain" => new Move(MoveKind.Consume, action.Cell),
         "stopChain" => new Move(MoveKind.StopChain),
         "swap" => new Move(MoveKind.Replace),
+        "hunt" => new Move(MoveKind.Hunt, action.Cell),
         "office" => new Move(action.Id == "instigate" ? MoveKind.Instigate : MoveKind.Bestow),
         "event" => new Move(action.Param == 1 ? MoveKind.Confirm : MoveKind.Skip),
         "choose" when Enum.TryParse<RewardId>(action.Id, true, out var reward) => new Move(MoveKind.Reward, Param: (int)reward),

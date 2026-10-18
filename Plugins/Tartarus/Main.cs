@@ -15,6 +15,7 @@ public sealed class Main : Plugin<Settings>
     TartarusState? _state;
     RunTracker? _tracker;
     MapResult? _map;
+    Move? _instant;
     int _boardKey;
     int _generation;
     PracticeSession? _practice;
@@ -42,12 +43,24 @@ public sealed class Main : Plugin<Settings>
         {
             _map = StateMapper.Map(state, tracked, rules);
             _boardKey = key;
+            _instant = Instant(_map.Run);
             _generation++;
             _worker.Playouts = Settings.ClampedPlayouts;
             if (_map.Run is { } run) _worker.Submit(run, _generation);
         }
         var (ranked, generation) = _worker.Latest;
-        return SimAdvisor.Advise(state, _map, generation == _generation ? ranked : null, Settings);
+        return SimAdvisor.Advise(state, _map, generation == _generation ? ranked : null, Settings, _instant);
+    }
+
+    static Move? Instant(Run? run)
+    {
+        if (run is null) return null;
+        try { return Strategy.Choose(run, new Rng(1)); }
+        catch (Exception error)
+        {
+            Log.Error(error, "tartarus instant pick");
+            return null;
+        }
     }
 
     int BoardKey(TartarusState state, TrackedRun tracked, Rules rules)

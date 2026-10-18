@@ -12,8 +12,9 @@ public sealed partial class Run
             return;
         }
         Day++;
-        Consumed = Replaced = false;
+        Consumed = Replaced = Hunted = false;
         Morning();
+        SpawnEvent(Rules.EventMorningChance);
         Phase = Phase.Patrol;
         RollDoors();
     }

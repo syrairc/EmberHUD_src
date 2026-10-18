@@ -12,11 +12,12 @@ public sealed partial class Run
 
     internal List<Offer> Queue { get; set; } = [];
 
-    static int Target(ObjectiveKind kind) => kind switch
+    internal static int Target(ObjectiveKind kind) => kind switch
     {
         ObjectiveKind.Walk => 18,
         ObjectiveKind.Consume => 4,
         ObjectiveKind.Incident => 2,
+        ObjectiveKind.Doors => 10,
         _ => int.MaxValue,
     };
 
@@ -33,19 +34,17 @@ public sealed partial class Run
         if (Objective.Kind == ObjectiveKind.King && !Objective.Paid) Pay();
     }
 
-    void Pay()
+    internal void Pay()
     {
         Objective = Objective with { Paid = true };
-        OfferTools(true);
+        OfferTools();
     }
 
-    void OfferTools(bool first)
+    void OfferTools()
     {
         var options = Sample([.. Enum.GetValues<ToolId>().Where(tool => !Holds(tool)).Select(tool => (int)tool)], 3);
         if (options.Count == 0) return;
-        var offer = new Offer(MoveKind.Instrument, [.. options]);
-        if (first) Queue.Insert(0, offer);
-        else Queue.Add(offer);
+        Queue.Add(new Offer(MoveKind.Instrument, [.. options]));
     }
 
     void Choose(Move move)
@@ -69,10 +68,14 @@ public sealed partial class Run
                 OpenRandom(3);
                 break;
             case RewardId.Horn:
-                foreach (var eater in Inmates())
+                var eaten = new List<int>();
+                foreach (var eater in Inmates().Where(cell => Meals(cell).Count > 0).ToList())
                 {
-                    var meals = Cells[eater].Open ? Meals(eater).Where(meal => Cells[meal].Open).ToList() : [];
-                    if (meals.Count > 0) Eat(eater, meals[Pick(meals.Count)], false);
+                    var meals = Cells[eater].Open && !eaten.Contains(eater) ? Meals(eater).Where(meal => Cells[meal].Open).ToList() : [];
+                    if (meals.Count == 0) continue;
+                    var meal = meals[Pick(meals.Count)];
+                    eaten.Add(meal);
+                    Eat(eater, meal, false);
                 }
                 break;
             case RewardId.Wine:

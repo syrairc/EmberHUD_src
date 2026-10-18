@@ -25,7 +25,7 @@ public sealed partial class Run
     internal List<EventKind> Pool { get; set; } =
     [
         EventKind.ChainReaction, EventKind.Execution, EventKind.BehindClosedDoors, EventKind.RavenousAppetite, EventKind.HighRiskConvict,
-        EventKind.CrowWhispers, EventKind.TasteOfFreedom, EventKind.UsurpationI, EventKind.SewerRatway, EventKind.TreasureHunt,
+        EventKind.CrowWhispers, EventKind.TasteOfFreedom, EventKind.UsurpationI, EventKind.SewerRatway, EventKind.TreasureHunt, EventKind.ExtraPortion,
     ];
 
     internal bool Ratway { get; set; }
@@ -125,7 +125,7 @@ public sealed partial class Run
     {
         if (cell < 0 || !Cells[cell].Open) return;
         var locked = LockedCells();
-        if (locked.Count > 0) Cells[locked[Pick(locked.Count)]] = new Cell(true, Cells[cell].Beast, Cells[cell].Tier, false);
+        if (locked.Count > 0) Fill(locked[Pick(locked.Count)], new Cell(true, Cells[cell].Beast, Cells[cell].Tier, false));
     }
 
     void Disguise(int cell)
@@ -178,8 +178,7 @@ public sealed partial class Run
         Pool.Remove(kind);
         if (usurpation.Next is not { } next) return;
         if (!Pool.Contains(next)) Pool.Add(next);
-        if (kind != EventKind.UsurpationI) return;
-        var free = LockedCells().Where(door => Cells[door].Event is null && !Cells[door].Markers.HasFlag(Marker.Nest)).ToList();
+        var free = InstigateCells();
         if (free.Count == 0) return;
         var chosen = free[Pick(free.Count)];
         Cells[chosen] = Cells[chosen] with { Event = next, Seen = true };

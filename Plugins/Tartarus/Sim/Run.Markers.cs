@@ -25,7 +25,7 @@ public sealed partial class Run
         Prey.RemoveAll(mark => mark.Rounds <= 0 || !PreyHolds(mark));
         for (var cell = 1; cell < Cells.Length; cell++)
             if (Cells[cell].Markers.HasFlag(Marker.Nest) && Cells[cell].NestDay <= Day)
-                Cells[cell] = new Cell(true, Beast.Rat, Tiers.Rare, false);
+                Fill(cell, new Cell(true, Beast.Rat, Tiers.Rare, false));
         MorningTools();
     }
 }

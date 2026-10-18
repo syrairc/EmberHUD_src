@@ -33,9 +33,8 @@ public sealed class SimAdvisorTests
     [Test]
     public void HandEditedSettingsAreClampedOnUse()
     {
-        var rules = new Settings { ChromaticCap = -5, EventChance = 900, Playouts = 0 }.ToRules();
+        var rules = new Settings { ChromaticCap = -5, Playouts = 0 }.ToRules();
         Check.Equal(1, rules.ChromaticCap);
-        Check.Equal(100, rules.EventChance);
         Check.Equal(20, new Settings { Playouts = 0 }.ClampedPlayouts);
     }
 
@@ -52,7 +51,7 @@ public sealed class SimAdvisorTests
     [Test]
     public void CloseOptionsBothGlow()
     {
-        var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), [Rank(5, 2.0), Rank(3, 1.95), Rank(7, 0.5)], Defaults);
+        var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), [Rank(5, 2.0), Rank(3, 1.97), Rank(7, 0.5)], Defaults);
         Check.Equal("1,2", string.Join(',', Glowing(advice)));
         Check.Equal("2 best", advice.Summary);
         Check.Equal("2", string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId)));
@@ -97,6 +96,33 @@ public sealed class SimAdvisorTests
     }
 
     [Test]
+    public void ThinkingShowsTheStrategyPickAtOnce()
+    {
+        var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), null, Defaults, new Move(MoveKind.Door, 5));
+        Check.Equal("thinking", advice.Summary);
+        Check.Equal("2", string.Join(',', Glowing(advice)));
+        Check.Equal("2", string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId)));
+    }
+
+    [Test]
+    public void ThinkingWithAPickNoOptionMatchesShowsNothing()
+    {
+        var advice = SimAdvisor.Advise(Doors(3, 5), Mapped(), null, Defaults, new Move(MoveKind.Hunt, 4));
+        Check.Equal("thinking", advice.Summary);
+        Check.Equal(0, Glowing(advice).Length);
+        Check.Equal(0, advice.Options.Count(o => o.Top));
+    }
+
+    [Test]
+    public void AStrategyPickWithoutAnOptionHasNoTopButCloseOptionsStillGlow()
+    {
+        var hunt = new Ranked(new Move(MoveKind.Hunt, 4), 2.0, 0.05, 0, true);
+        var advice = SimAdvisor.Advise(Doors(3, 5), Mapped(), [hunt, Rank(5, 1.99), Rank(3, 0.5)], Defaults);
+        Check.Equal("2", string.Join(',', Glowing(advice)));
+        Check.Equal(0, advice.Options.Count(o => o.Top));
+    }
+
+    [Test]
     public void ThinkingWhileNoRankingYet()
     {
         var advice = SimAdvisor.Advise(Doors(3, 5), Mapped(), null, Defaults);
@@ -128,26 +154,30 @@ public sealed class SimAdvisorTests
         }, Mapped(), [new(new Move(MoveKind.Reward, Param: 2), 1.5, 0.05), new(new Move(MoveKind.Reward, Param: 0), 0.5, 0.05)], Defaults))));
     }
 
-    static Advice ReplaceOrEnd(int tier, double replace, double end, double spread)
+    static Advice ReplaceOrEnd(double end, double replace, double gapSe)
     {
-        var run = Boards.At(Phase.Manage, 1, (1, Beast.Mammoth, tier));
+        var run = Boards.At(Phase.Manage, 1, (1, Beast.Wolf, 1));
         var state = Doors(3) with { Choice = new TartarusChoice(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Replace, -1, 0), new(2, TartarusOptionKind.End, -1, 0)], true) };
-        return SimAdvisor.Advise(state, new MapResult(run, [], null), [new(new Move(MoveKind.End), end, spread), new(new Move(MoveKind.Replace), replace, spread)], Defaults);
+        return SimAdvisor.Advise(state, new MapResult(run, [], null), [new(new Move(MoveKind.End), end, 0.05), new(new Move(MoveKind.Replace), replace, 0.05, gapSe, true)], Defaults);
+    }
+
+    static string Top(Advice advice) => string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId));
+
+    [Test]
+    public void TheStrategyPickStandsWhileTheBestMoveLeadsByLessThanItsPairedMarginOrFiveHundredths()
+    {
+        var noise = ReplaceOrEnd(4.01, 3.97, 0.01);
+        Check.Equal("1", Top(noise));
+        Check.Equal("1,2", string.Join(',', Glowing(noise)));
+        Check.Equal("1", Top(ReplaceOrEnd(4.2, 3.97, 0.2)));
     }
 
     [Test]
-    public void ANormalInmateCannotRollWorseSoReplaceWinsAtNoiseLevel()
+    public void AClearlyBetterMoveReplacesTheStrategyPick()
     {
-        var advice = ReplaceOrEnd(0, 3.97, 4.01, 0.05);
-        Check.Equal("1", string.Join(',', advice.Options.Where(o => o.Top).Select(o => o.OptionId)));
-        Check.Equal("2", string.Join(',', advice.Options.Where(o => o.Glow && !o.Top).Select(o => o.OptionId)));
-    }
-
-    [Test]
-    public void EndStillWinsWhenItIsClearlyAheadOrTheInmateIsNotNormal()
-    {
-        Check.Equal("2", string.Join(',', ReplaceOrEnd(0, 3.0, 4.0, 0.05).Options.Where(o => o.Top).Select(o => o.OptionId)));
-        Check.Equal("2", string.Join(',', ReplaceOrEnd(2, 3.97, 4.01, 0.05).Options.Where(o => o.Top).Select(o => o.OptionId)));
+        var clear = ReplaceOrEnd(4.1, 3.97, 0.03);
+        Check.Equal("2", Top(clear));
+        Check.Equal("2", string.Join(',', Glowing(clear)));
     }
 
     [Test]

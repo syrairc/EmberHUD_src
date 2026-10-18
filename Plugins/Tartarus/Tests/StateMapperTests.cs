@@ -193,15 +193,17 @@ public sealed class StateMapperTests
         Check.Equal(new Objective(ObjectiveKind.Walk, 7, false), walk);
         var done = Map(Board(Operation()) with { Tasks = [new TartarusTask(4, 2, 2, true)] }).Run!.Objective;
         Check.Equal(new Objective(ObjectiveKind.Incident, 2, true), done);
+        var doors = Map(Board(Operation()) with { Tasks = [new TartarusTask(3, 10, 4, false)] }).Run!.Objective;
+        Check.Equal(new Objective(ObjectiveKind.Doors, 4, false), doors);
         Check.Equal(ObjectiveKind.None, Map(Board(Operation())).Run!.Objective.Kind);
     }
 
     [Test]
     public void AnUnknownObjectiveIsListedAndLeftOut()
     {
-        var result = Map(Board(Operation()) with { Tasks = [new TartarusTask(3, 10, 0, false)] });
+        var result = Map(Board(Operation()) with { Tasks = [new TartarusTask(9, 10, 0, false)] });
         Check.Equal(ObjectiveKind.None, result.Run!.Objective.Kind);
-        Check.That(result.Assumed.Any(line => line.Contains("Objective 3")));
+        Check.That(result.Assumed.Any(line => line.Contains("Objective 9")));
     }
 
     static TartarusChoice ReplaceOrEnd() => new(1, TartarusChoiceKind.Operation, [new(1, TartarusOptionKind.Replace, -1, 0), new(2, TartarusOptionKind.End, -1, 0)], true);

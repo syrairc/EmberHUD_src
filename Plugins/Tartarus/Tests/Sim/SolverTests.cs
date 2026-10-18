@@ -26,10 +26,10 @@ public sealed class SolverTests
 
     const double MeanValueGap = 0.1;
 
-    // about three standard errors of two 500-run means; ours 1.94 on these seeds, 2.05 over 20000 runs, reference 2.14; Strategy is a rollout policy, the solver on top of it reaches 2.29
+    // recorded reference strategy mean 3.226 +- 0.092 over 500 runs; tolerance 0.25 is about 2.7 standard errors
     const double MeanTolerance = 0.25;
 
-    static readonly OracleParams RecordedParams = new(null, null, null, null, 5);
+    static readonly OracleParams RecordedParams = new(null, null, null, null, 72, 5, 9, 4);
 
     static readonly Lazy<SolverFile> Recorded = new(() =>
     {
@@ -50,6 +50,18 @@ public sealed class SolverTests
             .SequenceEqual(legal.Order(Comparer<Move>.Create((a, b) => (a.Kind, a.Cell, a.Param).CompareTo((b.Kind, b.Cell, b.Param))))), "ranking does not list each legal move once");
         for (var i = 1; i < ranked.Length; i++) Check.That(ranked[i - 1].Value >= ranked[i].Value, "ranking is not best first");
         Check.That(ranked.All(entry => entry.Spread >= 0 && entry.Value >= 0));
+    }
+
+    [Test]
+    public void RankMarksTheStrategyPickAndGivesPairedMarginsAgainstTheLeader()
+    {
+        var run = Crowded();
+        var ranked = Solver.Rank(run, 40, new Rng(2));
+        Check.Equal(Strategy.Choose(run, new Rng(1)), ranked.Single(entry => entry.Strategy).Move);
+        Check.Equal(0.0, ranked[0].GapSe);
+        Check.That(ranked.Skip(1).All(entry => entry.GapSe > 0), "a trailing option has no paired margin");
+        var only = Solver.Rank(Boards.Event(EventKind.TreasureHunt, 4, (4, Beast.Wolf, 1)), 40, new Rng(1));
+        Check.That(only.Single().Strategy, "the only move is the strategy's pick");
     }
 
     [Test]

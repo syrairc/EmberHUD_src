@@ -36,7 +36,7 @@ public sealed class ToolTests
 
     static Run Board(ToolId[] tools, double[]? beasts, params (int Cell, Beast Beast, int Tier)[] inmates)
     {
-        var run = new Run(new Rules { EventChance = 0 }, new Rng(1)) { Position = Warden, Phase = Phase.Manage, Chance = new Chance(beasts) };
+        var run = new Run(Boards.Quiet, new Rng(1)) { Position = Warden, Phase = Phase.Manage, Chance = new Chance(beasts) };
         run.Held.AddRange(tools);
         foreach (var (cell, beast, tier) in inmates) run.Cells[cell] = new Cell(true, beast, tier, false);
         return run;
@@ -46,7 +46,7 @@ public sealed class ToolTests
     public void EachToolDoesWhatTheRulesSay()
     {
         var names = Enum.GetValues<ToolId>().Select(Id).ToHashSet();
-        Check.Equal(29, names.Count);
+        Check.Equal(31, names.Count);
         foreach (var tool in Enum.GetValues<ToolId>())
         {
             if (tool == ToolId.Hook) continue;
@@ -65,7 +65,7 @@ public sealed class ToolTests
     {
         for (ulong seed = 1; seed <= 200; seed++)
         {
-            var run = new Run(new Rules { EventChance = 0, StartTools = 0 }, new Rng(seed)) { Position = 0, Phase = Phase.Patrol, Doors = [3] };
+            var run = new Run(Boards.Quiet with { StartTools = 0 }, new Rng(seed)) { Position = 0, Phase = Phase.Patrol, Doors = [3] };
             run.Held.Add(ToolId.Hook);
             run.Apply(new Move(MoveKind.Door, 3));
             Check.That(run.Cells[3].Tier >= 1, "a Normal inmate came out of a door");
@@ -73,11 +73,14 @@ public sealed class ToolTests
     }
 
     [Test]
-    public void MuzzleCountsTheEaterAmongTheFour()
+    public void MuzzleBonusWhenFourOrFewerInmatesBeforeTheMealGoesMealIncluded()
     {
-        var run = Board([ToolId.Muzzle], [0, 0, 0, 1], (Warden, Beast.Wolf, 1), (6, Beast.Rat, 1), (8, Beast.Mammoth, 0), (9, Beast.Mammoth, 0), (10, Beast.Mammoth, 0));
-        run.Apply(new Move(MoveKind.Consume, 6));
-        Check.Equal(4, run.Cells[Warden].Tier);
+        var four = Board([ToolId.Muzzle], [0, 0, 0, 1], (Warden, Beast.Wolf, 1), (6, Beast.Rat, 1), (8, Beast.Mammoth, 0), (9, Beast.Mammoth, 0));
+        four.Apply(new Move(MoveKind.Consume, 6));
+        Check.Equal(4, four.Cells[Warden].Tier);
+        var five = Board([ToolId.Muzzle], [0, 0, 0, 1], (Warden, Beast.Wolf, 1), (6, Beast.Rat, 1), (8, Beast.Mammoth, 0), (9, Beast.Mammoth, 0), (10, Beast.Mammoth, 0));
+        five.Apply(new Move(MoveKind.Consume, 6));
+        Check.Equal(2, five.Cells[Warden].Tier);
     }
 
     [Test]
@@ -174,6 +177,65 @@ public sealed class ToolTests
         Check.Equal(3, run.Cells[8].Tier);
         Check.Equal(3, run.Cells[9].Tier);
         Check.Equal(1, run.PreyMarks.Count);
+    }
+
+    [Test]
+    public void ClawsScratchOneFreeLockedCellEachMorningAndShowItsRarity()
+    {
+        var run = Board([ToolId.Claws], null, (Warden, Beast.Wolf, 2));
+        for (var cell = 1; cell < run.Cells.Length; cell++)
+            if (cell is not (Warden or 9)) run.Cells[cell] = run.Cells[cell] with { Markers = cell % 2 == 0 ? Marker.Scratch : Marker.Nest, NestDay = 99 };
+        run.Apply(new Move(MoveKind.End));
+        Check.That(run.Cells[9].Markers.HasFlag(Marker.Scratch) && run.Cells[9].Known && run.Cells[9].Tier >= 0, "the free cell was not scratched and shown");
+        Check.Equal(Marker.Nest, run.Cells[1].Markers);
+        run.Phase = Phase.Manage;
+        run.Apply(new Move(MoveKind.End));
+        Check.Equal(Marker.Scratch, run.Cells[2].Markers);
+    }
+
+    static Run Hunter(params (int Cell, Beast Beast, int Tier)[] inmates) => Board([ToolId.Trap], null, [(Warden, Beast.Lion, 2), .. inmates]);
+
+    static int[] Hunts(Run run) => [.. run.Legal().Where(move => move.Kind == MoveKind.Hunt).Select(move => move.Cell)];
+
+    [Test]
+    public void TrapHuntIsOfferedOnlyToALionForInmatesItCanConsume()
+    {
+        var run = Hunter((6, Beast.Wolf, 2), (7, Beast.Rat, 2), (8, Beast.Mammoth, 2), (9, Beast.Wolf, 3));
+        Check.That(Hunts(run).SequenceEqual([6, 7]));
+        run.Held.Clear();
+        Check.Equal(0, Hunts(run).Length);
+        var wolf = Board([ToolId.Trap], null, (Warden, Beast.Wolf, 2), (6, Beast.Rat, 2));
+        Check.Equal(0, Hunts(wolf).Length);
+    }
+
+    [Test]
+    public void TrapHuntMarksOnePreyIsTheDaysActionAndBothRiseEachMorning()
+    {
+        var run = Hunter((6, Beast.Wolf, 2));
+        run.Apply(new Move(MoveKind.Hunt, 6));
+        Check.That(run.PreyMarks.SequenceEqual([new PreyMark(Warden, 6, 3, 2)]));
+        Check.That(run.Legal().SequenceEqual([new Move(MoveKind.End)]), "a Hunt leaves no Consume, Replace or second Hunt");
+        run.Apply(new Move(MoveKind.End));
+        Check.Equal(3, run.Cells[Warden].Tier);
+        Check.Equal(3, run.Cells[6].Tier);
+    }
+
+    [Test]
+    public void TrapHuntNeedsAFreshDayAndSkipsInmatesWearingAPreyMark()
+    {
+        var consumed = Hunter((6, Beast.Wolf, 2), (7, Beast.Rat, 2));
+        consumed.Chance = new Chance([0, 1, 0, 0]);
+        consumed.Apply(new Move(MoveKind.Consume, 6));
+        Check.Equal(0, Hunts(consumed).Length);
+        var replaced = Hunter((6, Beast.Wolf, 2));
+        replaced.Chance = new Chance([0, 1, 0, 0]);
+        replaced.Apply(new Move(MoveKind.Replace));
+        Check.Equal(0, Hunts(replaced).Length);
+        var worn = Hunter((6, Beast.Wolf, 2), (7, Beast.Rat, 2), (11, Beast.Lion, 2), (12, Beast.Wolf, 2));
+        worn.Prey.Add(new PreyMark(11, 6, 3, 2));
+        Check.That(Hunts(worn).SequenceEqual([7, 12]));
+        worn.Prey.Add(new PreyMark(Warden, 7, 3, 2));
+        Check.Equal(0, Hunts(worn).Length);
     }
 
     [Test]

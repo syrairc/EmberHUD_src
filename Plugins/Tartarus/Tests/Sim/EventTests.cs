@@ -150,6 +150,48 @@ public sealed class EventTests
     }
 
     [Test]
+    public void EachUsurpationPutsTheNextOneOnAFreeCellAtOnce()
+    {
+        foreach (var (kind, next) in new[] { (EventKind.UsurpationII, EventKind.UsurpationIII), (EventKind.UsurpationIII, EventKind.UsurpationIV) })
+        {
+            var run = Boards.Event(kind, 4, (4, Beast.Wolf, 0), (5, Beast.Rat, 0));
+            run.Pool = [kind];
+            run.Apply(Confirm);
+            var placed = run.Where(cell => cell.Event == next);
+            Check.Equal(1, placed.Length);
+            Check.That(run.Cells[placed[0]].Seen && placed[0] != 0);
+        }
+        var last = Boards.Event(EventKind.UsurpationIV, 4, (4, Beast.Wolf, 0));
+        last.Pool = [EventKind.UsurpationIV];
+        last.Apply(Confirm);
+        Check.Equal(0, last.Where(cell => cell.Event is not null).Length);
+    }
+
+    [Test]
+    public void TheNextUsurpationCanLandOnAnInmatesOpenCell()
+    {
+        var run = Boards.Event(EventKind.UsurpationII, 4, (4, Beast.Wolf, 0));
+        foreach (var cell in Enumerable.Range(1, 15)) if (cell != 4) run.Cells[cell] = new Cell(true, Beast.Rat, 0, false);
+        run.Pool = [EventKind.UsurpationII];
+        run.Apply(Confirm);
+        var placed = run.Where(cell => cell.Event == EventKind.UsurpationIII);
+        Check.Equal(1, placed.Length);
+        Check.That(run.Cells[placed[0]].Open && run.Cells[placed[0]].Seen);
+    }
+
+    [Test]
+    public void TheNextUsurpationSkipsNestsAndCellsWithAnEvent()
+    {
+        var run = Boards.Event(EventKind.UsurpationII, 4, (4, Beast.Wolf, 0));
+        foreach (var cell in Enumerable.Range(1, 15)) if (cell != 4 && cell != 9) run.Cells[cell] = run.Cells[cell] with { Event = EventKind.Execution };
+        run.Cells[9] = run.Cells[9] with { Markers = Marker.Nest };
+        run.Pool = [EventKind.UsurpationII];
+        run.Apply(Confirm);
+        Check.Equal(1, run.Where(cell => cell.Event == EventKind.UsurpationIII).Length);
+        Check.That(run.Cells[4].Event == EventKind.UsurpationIII);
+    }
+
+    [Test]
     public void UsurpationIVDoesWhatTheRulesSay()
     {
         var run = Boards.Event(EventKind.UsurpationIV, 4, (4, Beast.Wolf, 0), (5, Beast.Rat, 3));
@@ -228,25 +270,117 @@ public sealed class EventTests
     }
 
     [Test]
-    public void DefaultEventPoolIsStillTheOldTen()
+    public void DefaultEventPoolIsTheOldTenPlusExtraPortion()
     {
         var pool = Run.Start(new Rules(), 1).EventPool;
-        Check.Equal(10, pool.Count);
-        Check.That(!pool.Contains(EventKind.ExtraPortion) && !pool.Contains(EventKind.SharedFortune) && !pool.Contains(EventKind.Archenemy) && !pool.Contains(EventKind.TransferOfConvicts));
+        Check.Equal(11, pool.Count);
+        Check.That(pool.Contains(EventKind.ExtraPortion) && !pool.Contains(EventKind.SharedFortune) && !pool.Contains(EventKind.Archenemy) && !pool.Contains(EventKind.TransferOfConvicts));
+    }
+
+    static Run Locked(Rules rules) => new(rules, new Rng(3)) { Phase = Phase.Manage, Position = 1 };
+
+    static int[] Eventful(Run run) => run.Where(cell => cell.Event is not null);
+
+    [Test]
+    public void ARunStartsWithOneSeenEventOnALockedDoorAboutSeventyTwoPercentOfTheTime()
+    {
+        const int runs = 3000;
+        var with = 0;
+        for (ulong seed = 1; seed <= runs; seed++)
+        {
+            var events = Eventful(Run.Start(new Rules(), seed));
+            Check.That(events.Length <= 1, "more than one event at the start");
+            with += events.Length;
+        }
+        var share = with / (double)runs;
+        Check.That(Math.Abs(share - 0.72) <= 4 * Math.Sqrt(0.72 * 0.28 / runs), $"share {share:F4}");
+        var sure = Run.Start(Boards.Quiet with { EventStartChance = 100 }, 1);
+        var placed = Eventful(sure);
+        Check.Equal(1, placed.Length);
+        Check.That(sure.Cells[placed[0]].Seen && !sure.Cells[placed[0]].Open && placed[0] != 0);
+        Check.Equal(0, Eventful(Run.Start(Boards.Quiet, 1)).Length);
     }
 
     [Test]
-    public void EventsHideBehindAboutFivePercentOfLockedCells()
+    public void ANewEventSkipsOpenCellsNestsCellsWithAnEventAndTheOffice()
     {
-        const int runs = 3000;
-        var hidden = 0;
-        for (ulong seed = 1; seed <= runs; seed++)
-            hidden += Run.Start(new Rules(), seed).Where(cell => cell.Event is not null).Length;
-        var share = hidden / (runs * 15.0);
-        var tolerance = 4 * Math.Sqrt(0.05 * 0.95 / (runs * 15)) + 1.0 / (runs * 15);
-        Check.That(Math.Abs(share - 0.05) <= tolerance, $"share {share:F4}");
-        Check.Equal(0, Run.Start(new Rules { EventChance = 0 }, 1).Where(cell => cell.Event is not null).Length);
-        Check.Equal(15, Run.Start(new Rules { EventChance = 100 }, 1).Where(cell => cell.Event is not null).Length);
+        for (ulong seed = 1; seed <= 40; seed++)
+        {
+            var morning = new Run(Boards.Quiet with { EventMorningChance = 100 }, new Rng(seed)) { Phase = Phase.Manage, Position = 1 };
+            morning.Cells[3] = new Cell(true, Beast.Rat, 1, false);
+            morning.Cells[4] = morning.Cells[4] with { Markers = Marker.Nest };
+            morning.Cells[5] = morning.Cells[5] with { Event = EventKind.CrowWhispers };
+            morning.Apply(new Move(MoveKind.End));
+            var made = Eventful(morning).Except([5]).ToArray();
+            Check.Equal(1, made.Length);
+            Check.That(made[0] is not (0 or 3 or 4), $"event on cell {made[0]}");
+        }
+    }
+
+    [Test]
+    public void EachMorningMayBringOneSeenEventOnALockedDoor()
+    {
+        var sure = new Run(Boards.Quiet with { EventMorningChance = 100 }, new Rng(2)) { Phase = Phase.Manage, Position = 1 };
+        sure.Apply(new Move(MoveKind.End));
+        var placed = Eventful(sure);
+        Check.Equal(1, placed.Length);
+        Check.That(sure.Cells[placed[0]].Seen && !sure.Cells[placed[0]].Open);
+        var never = new Run(Boards.Quiet, new Rng(2)) { Phase = Phase.Manage, Position = 1 };
+        never.Apply(new Move(MoveKind.End));
+        Check.Equal(0, Eventful(never).Length);
+    }
+
+    [Test]
+    public void ThePatrolsWalkMayBringOneSeenEventAndPassingDoorsShowsNothing()
+    {
+        var run = new Run(Boards.Quiet with { EventWalkChance = 100 }, new Rng(2)) { Phase = Phase.Patrol, Position = 0, Doors = [4] };
+        run.Cells[2] = run.Cells[2] with { Event = EventKind.CrowWhispers };
+        run.Apply(new Move(MoveKind.Door, 4));
+        var placed = Eventful(run).Except([2]).ToArray();
+        Check.Equal(1, placed.Length);
+        Check.That(run.Cells[placed[0]].Seen && !run.Cells[placed[0]].Open && placed[0] != 4);
+        Check.That(!run.Cells[2].Seen && !run.Cells[3].Seen, "walking past a door showed its event");
+    }
+
+    [Test]
+    public void AMoveMayBringOneEventOnceItsChainIsOver()
+    {
+        Run Board(Func<Run, Move> act)
+        {
+            var run = new Run(Boards.Quiet with { EventActionChance = 100 }, new Rng(2)) { Phase = Phase.Manage, Position = 5, Chance = new Chance([0, 0, 1, 0]) };
+            run.Cells[5] = new Cell(true, Beast.Wolf, 1, false);
+            run.Cells[6] = new Cell(true, Beast.Rat, 1, false);
+            run.Cells[7] = new Cell(true, Beast.Rat, 2, false);
+            run.Apply(act(run));
+            return run;
+        }
+        var replace = Board(_ => new Move(MoveKind.Replace));
+        Check.Equal(1, Eventful(replace).Length);
+        var eaten = Board(_ => new Move(MoveKind.Consume, 6));
+        Check.That(eaten.Chaining >= 0, "the meal should leave a chain to continue");
+        Check.Equal(0, Eventful(eaten).Length);
+        eaten.Apply(new Move(MoveKind.StopChain));
+        Check.Equal(1, Eventful(eaten).Length);
+        var chained = Board(_ => new Move(MoveKind.Consume, 6));
+        chained.Apply(new Move(MoveKind.Consume, 7));
+        Check.That(chained.Chaining < 0 && Eventful(chained).Length == 1, "a chain's last bite should roll once");
+        var event_ = Boards.Event(EventKind.ChainReaction, 4, (4, Beast.Wolf, 1));
+        Check.Equal(0, Eventful(event_).Length);
+        var acted = new Run(Boards.Quiet with { EventActionChance = 100 }, new Rng(2)) { Phase = Phase.Event, Position = 4, PendingEvent = EventKind.CrowWhispers, EventCell = 4 };
+        acted.Cells[4] = new Cell(true, Beast.Wolf, 1, false);
+        acted.Apply(new Move(MoveKind.Skip));
+        Check.Equal(1, Eventful(acted).Length);
+    }
+
+    [Test]
+    public void AnEmptiedCellSealsWithoutAnEventAndRerollsLeaveEventsAlone()
+    {
+        var run = new Run(Boards.Quiet with { EventStartChance = 100 }, new Rng(2)) { Phase = Phase.Manage, Position = 5 };
+        run.Cells[6] = new Cell(true, Beast.Wolf, 4, false);
+        run.Raise(6, 1);
+        Check.That(run.Cells[6].Event is null);
+        run.Cells[9] = run.Cells[9] with { Event = EventKind.CrowWhispers };
+        for (ulong seed = 1; seed <= 20; seed++) Check.That(run.Reroll(new Rng(seed)).Cells[9].Event == EventKind.CrowWhispers);
     }
 
     [Test]
@@ -294,6 +428,13 @@ public sealed class EventTests
     }
 
     [Test]
+    public void OracleStartEventFrequencyIsWithinTolerance()
+    {
+        var frequency = OracleData.Load("doors").Frequencies.Single(candidate => candidate.Name == "event at the start of a run (72%)");
+        OracleData.CheckCounts(frequency, trial => OracleData.SpawnKeys(Run.Start(Boards.Quiet with { StartTools = 0, EventStartChance = frequency.Params!.EventStartChance!.Value }, (ulong)trial + 1)));
+    }
+
+    [Test]
     public void OracleEventFrequenciesAreWithinTolerance()
     {
         var all = OracleData.Load("events").Frequencies;
@@ -329,6 +470,10 @@ public sealed class EventTests
                 yield return $"tier:{run.Cells[cell].Tier}";
                 yield return $"beast:{Name(run.Cells[cell].Beast)}";
             }
+        }
+        else if (frequency.Measure.StartsWith("next:"))
+        {
+            foreach (var cell in Enumerable.Range(0, 16).Where(cell => run.Cells[cell].Event == EventKind.UsurpationII)) yield return $"next:{cell}";
         }
         else if (frequency.Measure.StartsWith("open:"))
         {

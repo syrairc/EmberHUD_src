@@ -100,12 +100,85 @@ public sealed class ObjectiveTests
     }
 
     [Test]
+    public void BehindCellDoorsCountsEveryCellThatOpensAndPaysAtTen()
+    {
+        var run = Walking(new Objective(ObjectiveKind.Doors, 9), 0, 3);
+        run.Apply(new Move(MoveKind.Door, 3));
+        Check.That(run.Objective.Paid && run.Objective.Progress == 10 && run.Offers.Count == 1);
+        var ring = Boards.At(Phase.Manage, 5, (5, Beast.Wolf, 4), (6, Beast.Rat, 4));
+        ring.Objective = new Objective(ObjectiveKind.Doors);
+        ring.Apply(new Move(MoveKind.Consume, 6));
+        ring.Apply(new Move(MoveKind.Reward, Param: (int)RewardId.Ring));
+        Check.Equal(3, ring.Objective.Progress);
+        var nest = Boards.At(Phase.Manage, 5, (5, Beast.Wolf, 1));
+        nest.Objective = new Objective(ObjectiveKind.Doors);
+        nest.Cells[4] = nest.Cells[4] with { Markers = Marker.Nest, NestDay = 2 };
+        nest.Apply(new Move(MoveKind.End));
+        Check.Equal(1, nest.Objective.Progress);
+        var other = Walking(new Objective(ObjectiveKind.Consume), 0, 3);
+        other.Apply(new Move(MoveKind.Door, 3));
+        Check.Equal(0, other.Objective.Progress);
+    }
+
+    [Test]
+    public void OpulenceQueuesThreePicksPerRainbowAndAPickThatMakesOneBringsThreeMore()
+    {
+        var plain = Boards.At(Phase.Manage, 5, (5, Beast.Wolf, 4), (6, Beast.Rat, 4));
+        plain.Apply(new Move(MoveKind.Consume, 6));
+        Check.Equal(1, plain.Offers.Count);
+        var run = new Run(Boards.Quiet with { Card = StartCard.Opulence }, new Rng(1)) { Phase = Phase.Manage, Position = 5 };
+        run.Cells[5] = new Cell(true, Beast.Wolf, 4, false);
+        run.Cells[6] = new Cell(true, Beast.Rat, 4, false);
+        run.Apply(new Move(MoveKind.Consume, 6));
+        Check.That(run.Offers.Count == 3 && run.Offers.All(offer => offer.Kind == MoveKind.Reward && offer.Options.Length == 4));
+        var horn = new Run(Boards.Quiet with { Card = StartCard.Opulence }, new Rng(1)) { Phase = Phase.Manage, Position = 5 };
+        horn.Cells[5] = new Cell(true, Beast.Wolf, 4, false);
+        horn.Cells[6] = new Cell(true, Beast.Rat, 4, false);
+        horn.Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
+        horn.Apply(new Move(MoveKind.Reward, Param: (int)RewardId.Horn));
+        Check.Equal(1, horn.Chromatics);
+        Check.Equal(3, horn.Offers.Count);
+    }
+
+    [Test]
+    public void HornFeedsOnlyInmatesThatHadAMealAtTheStartNeverANewcomer()
+    {
+        var late = new Run(Boards.Quiet, new Rng(1)) { Phase = Phase.Manage, Position = 1, Chance = new Chance(BeastWeights: [0, 1, 0, 0]) };
+        late.Cells[1] = new Cell(true, Beast.Wolf, 1, false);
+        late.Cells[2] = new Cell(true, Beast.Rat, 1, false);
+        late.Cells[4] = new Cell(true, Beast.Mammoth, 2, false);
+        late.Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
+        late.Apply(new Move(MoveKind.Reward, Param: (int)RewardId.Horn));
+        Check.Equal(new Cell(true, Beast.Lion, 2, false), late.Cells[1]);
+        Check.Equal(new Cell(true, Beast.Mammoth, 2, false), late.Cells[4]);
+        var reopened = new Run(Boards.Quiet, new Rng(1)) { Phase = Phase.Manage, Position = 1, Chance = new Chance([1, 0, 0, 0], [0, 1, 0, 0, 0], null, _ => 0) };
+        reopened.Held.Add(ToolId.Cage);
+        reopened.Cells[1] = new Cell(true, Beast.Wolf, 1, false);
+        reopened.Cells[2] = new Cell(true, Beast.Rat, 1, false);
+        reopened.Cells[3] = new Cell(true, Beast.Lion, 1, false);
+        reopened.Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
+        reopened.Apply(new Move(MoveKind.Reward, Param: (int)RewardId.Horn));
+        Check.Equal(new Cell(true, Beast.Mammoth, 1, false), reopened.Cells[2]);
+        Check.Equal(new Cell(true, Beast.Lion, 1, false), reopened.Cells[3]);
+    }
+
+    [Test]
     public void ToolPickComesBeforeTheRewardPick()
     {
         var run = Boards.At(Phase.Office, 0, (5, Beast.Wolf, 4));
         run.Objective = new Objective(ObjectiveKind.King);
         run.Apply(new Move(MoveKind.Bestow));
         Check.That(run.Offers.Select(offer => offer.Kind).SequenceEqual([MoveKind.Instrument, MoveKind.Reward]));
+    }
+
+    [Test]
+    public void ObjectiveToolJoinsTheEndOfAQueuedRewardPick()
+    {
+        var run = Boards.At(Phase.Manage, 5, (5, Beast.Wolf, 3), (6, Beast.Rat, 3));
+        run.Objective = new Objective(ObjectiveKind.King);
+        run.Queue.Add(new Offer(MoveKind.Reward, [0, 1, 2, 3]));
+        run.Pay();
+        Check.That(run.Offers.Select(offer => offer.Kind).SequenceEqual([MoveKind.Reward, MoveKind.Instrument]));
     }
 
     [Test]
@@ -126,12 +199,12 @@ public sealed class ObjectiveTests
         Check.That(cage.Legal().Where(move => move.Kind == MoveKind.Consume).Select(move => move.Cell).SequenceEqual([6, 7]));
         cage.Apply(new Move(MoveKind.Consume, 6));
         Check.Equal(new Cell(true, Beast.Mammoth, 3, false), cage.Cells[5]);
-        var tyranny = new Run(new Rules { Card = StartCard.Tyranny, EventChance = 0 }, new Rng(1)) { Position = 14, Phase = Phase.Patrol, Doors = [0] };
+        var tyranny = new Run(Boards.Quiet with { Card = StartCard.Tyranny }, new Rng(1)) { Position = 14, Phase = Phase.Patrol, Doors = [0] };
         tyranny.Cells[5] = new Cell(true, Beast.Wolf, 0, false);
         tyranny.Apply(new Move(MoveKind.Door, 0));
         Check.Equal(Phase.Office, tyranny.Phase);
         Check.Equal(3, tyranny.Cells[5].Tier);
-        Check.Equal(6, tyranny.Where(cell => cell.Event is not null).Length);
+        Check.Equal(4, tyranny.Where(cell => cell.Event is not null).Length);
     }
 
     [Test]
@@ -155,7 +228,7 @@ public sealed class ObjectiveTests
     public void ObjectiveAndStartingPickFrequenciesMatchTheOracle()
     {
         var all = OracleData.Load("objectives").Frequencies;
-        var doors = OracleData.Load("doors").Frequencies.Single(frequency => frequency.Action.Kind == "newRun");
+        var doors = OracleData.Load("doors").Frequencies.Single(frequency => frequency.Name == "run objective drawn at the start of a run");
         OracleData.CheckCounts(doors, trial => [$"objective:{Run.Start(new Rules(), (ulong)trial + 1).Objective.Kind.ToString().ToLowerInvariant()}"]);
         foreach (var frequency in all)
         {

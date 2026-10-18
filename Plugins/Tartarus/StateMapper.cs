@@ -47,6 +47,7 @@ public static class StateMapper
     {
         1 => ObjectiveKind.King,
         2 => ObjectiveKind.Consume,
+        3 => ObjectiveKind.Doors,
         4 => ObjectiveKind.Incident,
         5 => ObjectiveKind.Walk,
         _ => null,
@@ -81,7 +82,7 @@ public static class StateMapper
         var problem = Check(state);
         if (problem is not null || tracked is null) return new MapResult(null, [.. assumed], problem ?? "No tracked run.");
 
-        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks are assumed none, and a marked cell's event is drawn from the 17 the game has.", "Tool uses left are assumed to be the defaults."]);
+        assumed.AddRange(["Start card and scratch marks are assumed to be none.", "Rat nests, prey and tusk marks are assumed none, and a marked cell's event is drawn from the 14 the game has.", "Tool uses left are assumed to be the defaults."]);
         var run = new Run(rules with { Days = state.MaxDay, RingSize = state.Size, ReplaceAfterConsume = true }, new Rng(1)) { Day = state.Day, Position = state.Position, Chromatics = state.Chromatics };
         if (tracked.SwapUsedToday) assumed.Add("The swap was used today, and the game still offers devours after it, so the simulator is told the swap is unused.");
         foreach (var id in (tracked.ToolsHeld ?? []).Union(state.Instruments).Order())
@@ -108,7 +109,7 @@ public static class StateMapper
         if (speciesOnly) assumed.Add("A locked cell with only its species shown is treated as any species.");
         if (rarityOnly) assumed.Add("A locked cell with only its rarity shown is treated as that rarity or better.");
 
-        run.Pool.AddRange([EventKind.ExtraPortion, EventKind.SharedFortune, EventKind.Archenemy, EventKind.TransferOfConvicts]);
+        run.Pool.AddRange([EventKind.SharedFortune, EventKind.Archenemy, EventKind.TransferOfConvicts]);
         var marked = state.Cells.Where(cell => cell.EventMarker && cell.Index != 0).ToArray();
         foreach (var cell in marked) run.Cells[cell.Index].Marked = true;
         if (marked.Length > 0) assumed.Add("Event markers: the event behind a marked cell is unknown, so a random one is assumed when it is reached.");

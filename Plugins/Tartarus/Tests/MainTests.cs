@@ -188,7 +188,7 @@ public sealed class MainTests
     [Test]
     public void SettingsFields()
     {
-        string[] expected = ["ShowPanel", "Lock", "MoveKey", "PanelX", "PanelY", "HighlightCards", "ShowAssumed", "Playouts", "CloseMargin", "ChromaticCap", "EaterKeepsBeast", "SecondMealFromTier", "ReplaceIsExecute", "EventChance"];
+        string[] expected = ["ShowPanel", "Lock", "MoveKey", "PanelX", "PanelY", "HighlightCards", "ShowAssumed", "Playouts", "ChromaticCap", "EaterKeepsBeast", "SecondMealFromTier", "ReplaceIsExecute"];
         var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
         Array.Sort(expected);
         Array.Sort(actual);

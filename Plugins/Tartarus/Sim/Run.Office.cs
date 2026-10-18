@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Tartarus.Sim;
@@ -24,9 +25,12 @@ public sealed partial class Run
 
     void Plant()
     {
-        var free = LockedCells().Where(cell => Cells[cell].Event is null && !Cells[cell].Markers.HasFlag(Marker.Nest)).ToList();
-        foreach (var cell in Sample(free, 2)) Cells[cell] = Cells[cell] with { Event = RandomEvent(), Seen = true };
+        foreach (var cell in Sample(InstigateCells(), InstigateCount)) Cells[cell] = Cells[cell] with { Event = RandomEvent(), Seen = true };
     }
+
+    internal List<int> InstigateCells() => Enumerable.Range(1, Cells.Length - 1).Where(cell => !Cells[cell].HasEvent && (Cells[cell].Open || !Cells[cell].Markers.HasFlag(Marker.Nest))).ToList();
+
+    internal int InstigateCount => Cells.Any(cell => cell.HasEvent) ? 1 : 2;
 
     void Tyranny()
     {

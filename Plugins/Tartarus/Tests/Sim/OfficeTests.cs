@@ -48,14 +48,35 @@ public sealed class OfficeTests
     }
 
     [Test]
-    public void InstigatePlacesAnEventBehindALockedCell()
+    public void InstigateMakesTwoSeenEventsOnABoardWithNoneAndOneOnABoardWithOne()
     {
         var run = Boards.At(Phase.Office, 0, (5, Beast.Wolf, 1));
         run.Apply(new Move(MoveKind.Instigate));
         var marked = run.Where(cell => cell.Event is not null);
         Check.Equal(2, marked.Length);
-        Check.That(marked.All(cell => !run.Cells[cell].Open && run.Cells[cell].Seen && run.EventPool.Contains(run.Cells[cell].Event!.Value)), "event on an open cell, unseen or outside the pool");
+        Check.That(marked.All(cell => run.Cells[cell].Seen && run.EventPool.Contains(run.Cells[cell].Event!.Value)), "event unseen or outside the pool");
         Check.Equal(Phase.Manage, run.Phase);
+        for (ulong seed = 1; seed <= 20; seed++)
+        {
+            var one = Boards.At(seed, Phase.Office, 0, (5, Beast.Wolf, 1));
+            one.Cells[9] = one.Cells[9] with { Event = EventKind.CrowWhispers };
+            one.Apply(new Move(MoveKind.Instigate));
+            Check.Equal(2, one.Where(cell => cell.Event is not null).Length);
+        }
+    }
+
+    [Test]
+    public void InstigateAlsoUsesOpenCellsWithAnInmateAndNeverTheOfficeOrEmptyOnes()
+    {
+        var run = Boards.At(Phase.Office, 0, (5, Beast.Wolf, 1));
+        for (var cell = 1; cell < 16; cell++) if (cell != 5) run.Cells[cell] = run.Cells[cell] with { Event = EventKind.CrowWhispers };
+        run.Apply(new Move(MoveKind.Instigate));
+        Check.That(run.Cells[5].Open && run.Cells[5].Seen && run.Cells[5].Event is not null, "the inmate's open cell got no event");
+        Check.That(run.Cells[0].Event is null);
+        var lonely = Boards.At(Phase.Office, 0, (5, Beast.Wolf, 1));
+        for (var cell = 1; cell < 16; cell++) if (cell != 5) lonely.Cells[cell] = lonely.Cells[cell] with { Markers = Marker.Nest };
+        lonely.Apply(new Move(MoveKind.Instigate));
+        Check.That(lonely.Where(cell => cell.Event is not null).SequenceEqual([5]), "only the inmate's cell was free");
     }
 
     [Test]
@@ -99,16 +120,16 @@ public sealed class OfficeTests
         for (var index = 0; index < frequencies.Length; index++)
         {
             var frequency = frequencies[index];
-            OracleData.CheckFrequency(frequency, index, run => frequency.Action.Id == "bestow" ? Rose(frequency, run) : Placed(run));
+            OracleData.CheckFrequency(frequency, index, run => frequency.Action.Id == "bestow" ? Rose(frequency, run) : Placed(frequency, run));
         }
     }
 
     static IEnumerable<string> Rose(OracleFrequency frequency, Run run) =>
         Enumerable.Range(0, run.Cells.Length).Where(cell => run.Cells[cell].Tier != frequency.Before!.Cells[cell].Tier && frequency.Before.Cells[cell].Open).Select(cell => $"rose:{cell}");
 
-    static IEnumerable<string> Placed(Run run)
+    static IEnumerable<string> Placed(OracleFrequency frequency, Run run)
     {
-        var marked = run.Where(cell => cell.Event is not null);
+        var marked = Enumerable.Range(0, 16).Where(cell => frequency.Before!.Cells[cell].Markers?.Event is null && run.Cells[cell].Event is not null).ToArray();
         yield return $"count:{marked.Length}";
         foreach (var cell in marked)
         {

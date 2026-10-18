@@ -81,7 +81,7 @@ public sealed class SwapTests
     [Test]
     public void DayEndsAtRulesDays()
     {
-        var run = Run.Start(new Rules { Days = 3, EventChance = 0, StartTools = 0 }, 4);
+        var run = Run.Start(Boards.Quiet with { Days = 3, StartTools = 0 }, 4);
         for (var day = 1; day <= 3; day++)
         {
             Check.Equal(day, run.Day);
@@ -146,7 +146,7 @@ public sealed class SwapTests
     {
         foreach (var independent in new[] { false, true })
         {
-            var run = new Run(new Rules { EventChance = 0, ReplaceAfterConsume = independent }, new Rng(1)) { Phase = Phase.Manage, Position = 1 };
+            var run = new Run(Boards.Quiet with { ReplaceAfterConsume = independent }, new Rng(1)) { Phase = Phase.Manage, Position = 1 };
             run.Cells[1] = new Cell(true, Beast.Lion, 2, false);
             run.Cells[2] = new Cell(true, Beast.Wolf, 2, false);
             run.Apply(new Move(MoveKind.Consume, 2));
