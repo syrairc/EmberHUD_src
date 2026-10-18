@@ -14,6 +14,8 @@ internal sealed class LiveGameSource : IGameSource
     private long _nextAttach;
     private int _lastAreaId;
     private string? _attachFailure;
+    private long _attachedAt;
+    private bool _healTried;
 
     public bool TryRead(out GameState state, out string? failure)
     {
@@ -29,8 +31,16 @@ internal sealed class LiveGameSource : IGameSource
 
         var ok = _reader!.TryRead(out state, out failure);
         if (ok) _lastAreaId = state.AreaId;
+        else if (_game is not null && RvaHeal.ShouldRetryHeal(_game.ExactBuild, _healTried, (long)Stopwatch.GetElapsedTime(_attachedAt).TotalMilliseconds, failure))
+        {
+            _healTried = true;
+            RvaHeal.TryApply(_game.ExePath, HealCache, out var note);
+            Log.Warn(note);
+        }
         return ok;
     }
+
+    private static string HealCache => Path.Combine(AppContext.BaseDirectory, "Config", "rva-heal.txt");
 
     public void Dispose() => Detach();
 
@@ -41,7 +51,14 @@ internal sealed class LiveGameSource : IGameSource
         _nextAttach = now + AttachRetryTicks;
         if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
         if (!GameProcess.TryAttach(pid, out _game, out _attachFailure)) return false;
-        if (!_game!.ExactBuild) Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
+        _attachedAt = Stopwatch.GetTimestamp();
+        _healTried = false;
+        if (!_game!.ExactBuild)
+        {
+            Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
+            RvaHeal.TryApply(_game.ExePath, HealCache, out var note);
+            Log.Warn(note);
+        }
         _combat = new CombatReader(_game.Backend, _game.ModuleBase);
         _poller = new CombatPoller(_combat.Poll, () => Game.CombatWanted(Stopwatch.GetTimestamp(), Offsets.CombatWantedSeconds), Log.Warn);
         _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase), new CharacterReader(_game.Backend, _game.ModuleBase), new TartarusReader(_game.Backend, _game.ModuleBase), new GroundItemReader(_game.Backend, _game.ModuleBase), new TarotReader(_game.Backend, _game.ModuleBase));

@@ -46,12 +46,14 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
     private readonly Dictionary<int, (EntityKind Kind, nint Value)> _kinds = [];
     private readonly List<(int Key, nint Value)> _pairs = [];
 
+    internal const string NotCreated = "logic world not created yet";
+
     public bool TryReadScene(out nint scene, out string? failure)
     {
         scene = 0;
         if (!memory.TryReadPtr(moduleBase + Offsets.LogicWorldGlobalRva, out var world))
         {
-            failure = "logic world not created yet";
+            failure = NotCreated;
             return false;
         }
 

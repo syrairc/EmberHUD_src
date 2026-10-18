@@ -4,6 +4,11 @@ namespace EmberHUD.Host;
 
 internal static class RvaHeal
 {
+    internal const long RetryAfterMs = 20_000;
+
+    internal static bool ShouldRetryHeal(bool exactBuild, bool alreadyTried, long msSinceAttach, string? failure) =>
+        exactBuild && !alreadyTried && msSinceAttach >= RetryAfterMs && failure == EmberHUD.Host.Reading.LogicWorldReader.NotCreated;
+
     public static bool TryApply(string exePath, string cachePath, out string note) =>
         TryApply(exePath, cachePath, Offsets.Sigs, Offsets.Relations, out note);
 
