@@ -18,7 +18,6 @@ public sealed class Main : Plugin<Settings>
     Move? _instant;
     int _boardKey;
     int _generation;
-    PracticeSession? _practice;
 
     internal InmateLogger Logger { get; } = new();
 
@@ -84,21 +83,8 @@ public sealed class Main : Plugin<Settings>
         return key.ToHashCode();
     }
 
-    void DrawPractice()
-    {
-        var rules = Settings.ToRules() with { Days = 30 };
-        if (_practice is null || _practice.Rules != rules)
-        {
-            _practice?.Dispose();
-            _practice = new PracticeSession(rules, (ulong)Random.Shared.NextInt64());
-        }
-        _practice.Playouts = Settings.ClampedPlayouts;
-        PracticeUI.Draw(_practice);
-    }
-
     public override void Dispose()
     {
-        _practice?.Dispose();
         _worker.Dispose();
         _tracker?.Dispose();
         Logger.Dispose();
@@ -108,10 +94,7 @@ public sealed class Main : Plugin<Settings>
     public override void DrawSettings() => Layout.TabBar("tartarus",
         ("Panel", () => SettingsUI.DrawPanel(Settings)),
         ("Advice", () => SettingsUI.DrawAdvice(Settings)),
-        ("Rules", () => SettingsUI.DrawRules(Settings)),
-        ("Practice", DrawPractice),
-        ("Inmate log", Logger.DrawPage),
-        ("Minigame log", Logger.DrawMinigamePage));
+        ("Rules", () => SettingsUI.DrawRules(Settings)));
 
     readonly Overlay _overlay = new();
     int _unusedWidth, _unusedHeight;
@@ -130,6 +113,15 @@ public sealed class Main : Plugin<Settings>
         var cardsShown = parts.Any(part => part.Name.StartsWith("List_S16Board_Bottom_"));
         var picking = !popup && !doors && !cardsShown;
         if (picking) onCard = onCard.Where(i => choice.Options[i].Kind == TartarusOptionKind.Consume);
+        else if (!popup && !doors)
+        {
+            var consumes = onCard.Where(i => choice.Options[i].Kind == TartarusOptionKind.Consume).ToList();
+            if (consumes.Count > 1)
+            {
+                var shown = consumes.OrderByDescending(i => advice[i].Top).ThenByDescending(i => advice[i].Glow).ThenByDescending(i => advice[i].Value.Low + advice[i].Value.High).First();
+                onCard = onCard.Where(i => choice.Options[i].Kind != TartarusOptionKind.Consume || i == shown).ToList();
+            }
+        }
         var card = 0;
         foreach (var i in onCard)
         {
