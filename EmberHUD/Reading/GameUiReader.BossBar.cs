@@ -31,13 +31,9 @@ internal sealed partial class GameUiReader
         if (now < _bossBarRetryAt) return;
         _bossBarRetryAt = now + Offsets.RectChildRetryMilliseconds;
         if (!TryHud(out var hud)) return;
-        foreach (var item in PanelContents(WidgetTreeRoot(hud), Offsets.MaxWidgetNodes))
-        {
-            if (!names.TryReadClassName(item, out var itemClass) || itemClass != Offsets.BossBarViewClassName) continue;
-            var bar = FindChild(item, Offsets.BossBarTrack);
-            if (bar == 0) continue;
-            (_bossView, _bossBar) = (item, bar);
-            return;
-        }
+        var view = FindWidget(hud, widget => names.TryReadClassName(widget, out var widgetClass) && widgetClass == Offsets.BossBarViewClassName);
+        if (view == 0) return;
+        var bar = FindChild(view, Offsets.BossBarTrack);
+        if (bar != 0) (_bossView, _bossBar) = (view, bar);
     }
 }

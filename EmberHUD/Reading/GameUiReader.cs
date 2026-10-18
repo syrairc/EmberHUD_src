@@ -369,15 +369,20 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     internal nint FindChild(nint page, string childName)
     {
         var (baseName, number) = SplitName(childName);
+        return FindWidget(page, widget =>
+            memory.TryRead(widget + Offsets.UObjectName, out uint nameIndex) && memory.TryRead(widget + Offsets.UObjectName + Offsets.FNameNumber, out uint nameNumber) &&
+            nameNumber == number && names.TryRead(nameIndex, out var widgetName) && widgetName == baseName);
+    }
+
+    private nint FindWidget(nint page, Func<nint, bool> matches)
+    {
         Queue<(nint Widget, int Depth)> queue = [];
         HashSet<nint> visited = [];
         Enqueue(WidgetTreeRoot(page), 0);
         while (queue.TryDequeue(out var next) && visited.Count < Offsets.MaxWidgetNodes)
         {
             var (widget, depth) = next;
-            if (memory.TryRead(widget + Offsets.UObjectName, out uint nameIndex) && memory.TryRead(widget + Offsets.UObjectName + Offsets.FNameNumber, out uint nameNumber) &&
-                nameNumber == number && names.TryRead(nameIndex, out var widgetName) && widgetName == baseName)
-                return widget;
+            if (matches(widget)) return widget;
             if (depth >= Offsets.MaxWidgetDepth || !memory.TryReadPtr(widget + Offsets.UObjectClass, out var cls)) continue;
             if (IsA(cls, Offsets.PanelWidgetClassName))
                 foreach (var child in PanelContents(widget, Offsets.MaxWidgetNodes)) Enqueue(child, depth + 1);
