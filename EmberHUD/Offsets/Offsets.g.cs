@@ -2,7 +2,7 @@ namespace EmberHUD.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0x2A, 0x57, 0xE7, 0x59, 0x8C, 0x9F, 0xF9, 0x5B, 0x60, 0x01, 0xA0, 0xA2, 0x9E, 0xC4, 0xBC, 0x81, 0x90, 0x80, 0x96, 0x78, 0x46, 0x86, 0x3A, 0xFA, 0xBD, 0x72, 0xE0, 0x32, 0xDB, 0x1B, 0x1D, 0xFC];
+    internal static ReadOnlySpan<byte> Seed => [0xB5, 0x6F, 0xC8, 0xB3, 0x56, 0xE8, 0xAD, 0x49, 0x69, 0x08, 0x79, 0xB9, 0x40, 0x63, 0x3A, 0xDD, 0xBD, 0xE3, 0x97, 0x31, 0xE5, 0xEB, 0x95, 0x21, 0xDF, 0x73, 0x92, 0xE6, 0xE0, 0x95, 0xF0, 0xB0];
     internal static int WorldScene => T[0];
     internal static int PlayerMgrEntity => T[1];
     internal static int MiniMapMgrWidget => T[2];
@@ -708,5 +708,8 @@ internal static partial class Offsets
     internal static string TarotStateCollect => S[168];
     internal static string TarotStateBoard => S[169];
     internal static string TarotStateFinal => S[170];
+    internal static readonly string[] BuildKeys = ["BuffMap", "BuffMapCount", "ComponentSkill", "ComponentSkillCfg", "LogicWorldGlobalRva", "FightMgrGlobalRva", "PlayerMgrGlobalRva", "MiniMapMgrGlobalRva", "WoodStakeMgrGlobalRva", "GObjectsGlobalRva", "FNamePoolRva", "GEngineGlobalRva", "MonsterCfgBucketsRva", "MonsterCfgBucketCountRva", "LanguageRva", "LanguageBucketsRva", "LanguageBucketCountRva", "MapIconInfoBucketsRva", "MapIconInfoBucketCountRva", "FightMapNpc", "FightMapPortal", "FightMapInteractive", "FightMapFollower", "FightMapServant", "FightMapGamePlay", "FightMapElevator", "FightMapObject", "FightMapDestructible", "EntityHasPosition", "EntityPosition", "EntityHeaderSize", "EntityRole", "WoodStakeStatistic", "WoodStakeUnlimitedTotal", "LuaGlobalRva"];
+    internal const int PerBuildStart = 499;
+    internal static string[] SigLines => S[171..];
     internal static readonly long[] BuildSizes = [123144120, 124465080, 126258104, 127223224, 125921720];
 }

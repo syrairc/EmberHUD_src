@@ -18,7 +18,7 @@ public class OffsetsTests
     {
         var builds = new Dictionary<long, Dictionary<string, long>>();
         Dictionary<string, long>? current = null;
-        foreach (var line in WantLines().SkipWhile(line => !line.StartsWith("[build")))
+        foreach (var line in WantLines().SkipWhile(line => !line.StartsWith("[build")).TakeWhile(line => line != "[sigs]"))
         {
             if (line.StartsWith("[build"))
             {
