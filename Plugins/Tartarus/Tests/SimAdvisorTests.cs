@@ -31,6 +31,16 @@ public sealed class SimAdvisorTests
     }
 
     [Test]
+    public void AnExtraOptionTheSimulatorCannotPlayIsLeftOutOfTheRanking()
+    {
+        var state = new TartarusState(1, 16, 5, 20, [], new TartarusChoice(1, TartarusChoiceKind.Doors, [Door(1, 3), Door(2, 5), new TartarusOption(4, TartarusOptionKind.Other, -1, 0)], true), [], 0);
+        var advice = SimAdvisor.Advise(state, Mapped(), [Rank(5, 2.0), Rank(3, 1.0)], Defaults);
+        Check.Equal("2", string.Join(',', Glowing(advice)));
+        Check.Equal("1 best", advice.Summary);
+        Check.Equal(0, advice.Options[2].Reason.Length);
+    }
+
+    [Test]
     public void HandEditedSettingsAreClampedOnUse()
     {
         var rules = new Settings { ChromaticCap = -5, Playouts = 0 }.ToRules();

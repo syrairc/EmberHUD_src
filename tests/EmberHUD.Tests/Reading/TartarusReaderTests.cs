@@ -262,6 +262,16 @@ public class TartarusReaderTests
     }
 
     [Fact]
+    public void InstrumentOptionWithoutARelicIsAnExtraOptionAndTheChoiceStaysComplete()
+    {
+        var f = new Fixture();
+        var choice = ReadChoice(f, Offsets.TartarusChoiceInstrument, Option(f, 1, (Offsets.LuaTartarusRelic, Child(f, (Offsets.LuaTartarusRelicId, 111)))), Option(f, 4));
+        Assert.True(choice.Complete);
+        Assert.Equal(new TartarusOption(1, TartarusOptionKind.Instrument, -1, 111), choice.Options[0]);
+        Assert.Equal(new TartarusOption(4, TartarusOptionKind.Other, -1, 0), choice.Options[1]);
+    }
+
+    [Fact]
     public void OnlyTheFrontChoiceIsRead()
     {
         var f = new Fixture();

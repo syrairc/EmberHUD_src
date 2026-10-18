@@ -123,6 +123,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
                 optionKind = office switch { var t when t == Offsets.TartarusInstigate => TartarusOptionKind.Instigate, var t when t == Offsets.TartarusBestow => TartarusOptionKind.Bestow, _ => TartarusOptionKind.Other };
                 break;
             case TartarusChoiceKind.Instrument:
+                if (!_lua.TryGetTable(table, Offsets.LuaTartarusRelic, out _)) break;
                 ok = TryGetNested(table, Offsets.LuaTartarusRelic, Offsets.LuaTartarusRelicId, out param);
                 optionKind = TartarusOptionKind.Instrument;
                 break;
