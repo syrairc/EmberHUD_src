@@ -23,11 +23,11 @@ public static class Names
         [4] = "Brand of Original Sin",
     };
 
-    public static string Option(TartarusOption option, TartarusState state) => option.Kind switch
+    public static string Option(TartarusOption option, TartarusState state, bool execute = false) => option.Kind switch
     {
         TartarusOptionKind.Door => Door(option, state),
         TartarusOptionKind.Consume => $"Consume cell {option.Cell + 1}",
-        TartarusOptionKind.Replace => "Replace",
+        TartarusOptionKind.Replace => execute ? "Execute" : "Replace",
         TartarusOptionKind.End => "End",
         TartarusOptionKind.StopChain => "Stop chain",
         TartarusOptionKind.Instigate => "Instigate",
