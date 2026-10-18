@@ -29,6 +29,8 @@ public sealed class Main : Plugin<Settings>
 
     internal Watches Watching { get; } = new();
 
+    internal Marks Marking { get; } = new();
+
     internal bool StartFailed { get; private set; }
 
     string RecordingsDirectory => Path.Combine(DataDirectory, "recordings");
@@ -40,6 +42,7 @@ public sealed class Main : Plugin<Settings>
     public override void Tick()
     {
         var state = Game.State;
+        if (state.AreaId != _lastAreaId) Marking.Clear(null);
         if (!ReferenceEquals(state.Entities, _lastEntities) || state.Status != _lastStatus || state.AreaId != _lastAreaId)
         {
             _lastEntities = state.Entities;
@@ -55,11 +58,14 @@ public sealed class Main : Plugin<Settings>
         }
         if (Server is null && !StartFailed) Start();
         Watching.Sample();
+        Marking.Tick(Clock());
     }
 
     public override void Render()
     {
-        if (Server is not { } http || !Settings.ShowStatusDot) return;
+        if (Server is not { } http) return;
+        Marking.Render(ImGui.GetIO().DisplaySize);
+        if (!Settings.ShowStatusDot) return;
         var colour = Clock() - _stateChangedAt > 2000 ? GameColors.Negative
             : http.InFlight > 0 || http.MsSinceRequest < 500 ? GameColors.Gold
             : GameColors.Positive;
@@ -77,7 +83,7 @@ public sealed class Main : Plugin<Settings>
             return;
         }
         ImGui.TextUnformatted($"Listening on {http.Url}");
-        ImGui.TextUnformatted($"Watches {Watching.Count}, recorder {(Recorder.Active ? $"{Recorder.CurrentFile}, {Recorder.Frames} frames" : "idle")}");
+        ImGui.TextUnformatted($"Watches {Watching.Count}, marks {Marking.Count}, recorder {(Recorder.Active ? $"{Recorder.CurrentFile}, {Recorder.Frames} frames" : "idle")}");
         if (ImGui.SmallButton("Copy token")) ImGui.SetClipboardText(_token);
         ImGui.SameLine();
         if (ImGui.SmallButton("Copy claude mcp add command")) ImGui.SetClipboardText($"claude mcp add --transport http emberhud {http.Url} --header \"X-Bridge-Token: {_token}\"");
@@ -106,6 +112,7 @@ public sealed class Main : Plugin<Settings>
                 .. LocTools.Create(),
                 .. WatchTools.Create(Watching),
                 .. RecordTools.Create(Recorder, Recordings),
+                .. MarkTools.Create(Marking, () => Clock()),
                 .. ScreenTools.Create(() => Settings.AllowScreenshots, Path.Combine(DataDirectory, "screenshots")),
             ];
             Server = Http.Start(new Rpc(tools, HostVersion), _token, Settings.Port);
@@ -139,5 +146,6 @@ public sealed class Main : Plugin<Settings>
         Server = null;
         _recorder?.Close();
         Watching.StopAll();
+        Marking.Clear(null);
     }
 }
