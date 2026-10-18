@@ -26,6 +26,8 @@ internal sealed class SetupPage
     Task? _extract;
     volatile string _progress = "";
     volatile string? _iconStatus;
+    const string DumpPopup = "Dump debug information";
+    string _dump = "";
 
     public SetupPage(string root, IEnumerable<string> users, Func<string, string?> pickFolder, Func<string, string?> pickProgram, Func<ProcessStartInfo, Process?> start, Action<GameInstall, Action<string>>? applyFlag = null, Func<GameInstall, bool>? flagApplied = null)
     {
@@ -245,6 +247,20 @@ internal sealed class SetupPage
         });
     }
 
+    void DrawDump()
+    {
+        if (ImGui.Button("Dump debug info"))
+        {
+            _dump = DebugInfo.Describe("setup", typeof(SetupPage).Assembly.GetName().Version ?? new Version(0, 0, 0), _root, Config.GameDirectory, _registered, DebugInfo.IsElevated(), DebugInfo.GameAccess());
+            ImGui.OpenPopup(DumpPopup);
+        }
+        Text.Tip("Copies your EmberHUD and Torchlight versions, the game folder, and whether each runs as administrator to the clipboard. You see exactly what first.");
+        ImGui.SetNextWindowSizeConstraints(new Vector2(480, 0), new Vector2(760, 600));
+        if (!Layout.ConfirmModal(DumpPopup, $"{DebugInfo.Disclosure}{Environment.NewLine}{Environment.NewLine}{_dump}{Environment.NewLine}{Environment.NewLine}Copy this to the clipboard?", out var confirmed) || !confirmed) return;
+        ImGui.SetClipboardText(_dump);
+        Message = "debug info copied";
+    }
+
     void DrawFooter()
     {
         ImGui.Separator();
@@ -253,6 +269,8 @@ internal sealed class SetupPage
         ImGui.BeginDisabled(_extract is { IsCompleted: false });
         if (Controls.PrimaryButton("Save & Launch")) SaveAndLaunch();
         ImGui.EndDisabled();
+        ImGui.SameLine();
+        DrawDump();
         if (Message.Length > 0)
         {
             ImGui.SameLine();

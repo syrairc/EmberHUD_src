@@ -76,7 +76,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
 
         var kind = type switch
         {
-            var t when t == Offsets.TartarusChoiceDice => TartarusChoiceKind.Doors,
+            var t when t == Offsets.TartarusChoiceDice || t == Offsets.TartarusChoiceAnyRoom => TartarusChoiceKind.Doors,
             var t when t == Offsets.TartarusChoiceOperation => TartarusChoiceKind.Operation,
             var t when t == Offsets.TartarusChoiceOffice => TartarusChoiceKind.Office,
             var t when t == Offsets.TartarusChoiceInstrument || t == Offsets.TartarusChoiceRelicPick =>TartarusChoiceKind.Instrument,
@@ -111,9 +111,9 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         switch (kind)
         {
             case TartarusChoiceKind.Doors:
-                ok = TryGetNested(table, Offsets.LuaTartarusDice, Offsets.LuaTartarusStep, out param);
                 optionKind = TartarusOptionKind.Door;
-                cell = ((position + param) % size + size) % size;
+                if (TryGetNested(table, Offsets.LuaTartarusDice, Offsets.LuaTartarusStep, out param)) cell = ((position + param) % size + size) % size;
+                else if (ok = TryGetNested(table, Offsets.LuaTartarusOptionCell, Offsets.LuaTartarusCellIndex, out cell)) param = ((cell - position) % size + size) % size;
                 break;
             case TartarusChoiceKind.Operation:
                 ok = TryReadOperation(table, out optionKind, out cell);

@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Ui;
@@ -14,6 +15,8 @@ public sealed class Main : Plugin<Settings>
     const float TileGap = 2;
     const int TilesPerRow = 4;
     readonly TextStyle _style = TextStyle.Hud();
+    readonly Overlay _overlay = new();
+    int _unusedWidth, _unusedHeight;
 
     public override void Tick() => Game.WantTarot();
 
@@ -21,8 +24,6 @@ public sealed class Main : Plugin<Settings>
     {
         if (!Settings.ShowPanel || Game.State.Tarot is not { } state) return;
         var rowHeight = Draw.RowHeight(_style);
-        var origin = ImGui.GetIO().DisplaySize * new Vector2(Settings.PanelX, Settings.PanelY);
-        var at = origin + new Vector2(Pad);
         var rows = Rows(state);
         var width = 0f;
         foreach (var (left, right, _) in rows) width = MathF.Max(width, Draw.MeasureText(left, _style).X + Gap + Draw.MeasureText(right, _style).X);
@@ -33,7 +34,16 @@ public sealed class Main : Plugin<Settings>
         var hasTaken = state.Phase == TarotPhase.Board && state.Taken.Length > 0;
         width = MathF.Max(width, TilesPerRow * (side + TileGap));
         var height = rowHeight * (rows.Count + (hasTaken ? 1 : 0) + tileRows);
-        Draw.RectFilled(origin, origin + new Vector2(width, height) + new Vector2(Pad * 2), GameColors.LabelBackground, 4);
+        var size = new Vector2(width, height) + new Vector2(Pad * 2);
+        _overlay.Locked = Settings.Lock;
+        _overlay.MoveHeld = Settings.MoveKey.Key != Key.None && Input.IsDown(Settings.MoveKey.Key);
+        var origin = new Vector2(Settings.PanelX, Settings.PanelY);
+        var (hovered, _, active) = _overlay.Handle("tarot", ref origin, size, ref Settings.PanelX, ref Settings.PanelY, ref _unusedWidth, 60, 4000, ref _unusedHeight, 0, 0, Overlay.ResizeEdge.None);
+        if (hovered || active) Overlay.ClickBlocker("tarot", origin, size);
+        Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
+        if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.None);
+        if (Settings.HighlightCard) GlowBestCard(state);
+        var at = origin + new Vector2(Pad);
         foreach (var (left, right, colour) in rows)
         {
             Draw.Row(at, width, left, "", _style);
@@ -60,6 +70,17 @@ public sealed class Main : Plugin<Settings>
             DrawTile(min, side, tile);
             if (rowStart + i == state.Position) Draw.Rect(min - new Vector2(1), min + new Vector2(side + 1), GameColors.Text, 2);
         }
+    }
+
+    static void GlowBestCard(TarotState state)
+    {
+        if (state.Phase != TarotPhase.Board) return;
+        var best = Board.BestCard(state);
+        if (best < 0) return;
+        var cards = Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == "S9Taro_C").Parts?.OrderBy(part => part.Min.X).ToArray();
+        if (cards is null || cards.Length != state.Hand.Length) return;
+        var score = Board.BestMove(state, state.Hand[best])!.Value.Score;
+        Draw.GlowRect(cards[best].Min, cards[best].Max, score > 0 ? GameColors.Positive : GameColors.Gold);
     }
 
     static void DrawTile(Vector2 min, float side, TarotTile tile)
@@ -92,12 +113,17 @@ public sealed class Main : Plugin<Settings>
         return rows;
     }
 
-    static string Outcome(TarotState state, TarotCard card) =>
-        Board.Landing(state, card) is { } landing && landing != state.Position ? $"-> {landing + 1} {Board.Kind(state.Tiles[landing])}" : "";
+    static string Outcome(TarotState state, TarotCard card)
+    {
+        if (Board.BestMove(state, card) is not { } move || move.Landing == state.Position) return "";
+        var pick = Board.Steps(card.CfgId) is null ? $"{(move.Steps > 0 ? "Advance" : "Retreat")} {Math.Abs(move.Steps)} " : "";
+        return $"{pick}-> {move.Landing + 1} {Board.Kind(state.Tiles[move.Landing])}";
+    }
 
     static Color OutcomeColour(TarotState state, TarotCard card)
     {
-        if (Board.Landing(state, card) is not { } landing || landing == state.Position) return GameColors.TextDim;
+        if (Board.BestMove(state, card) is not { } move || move.Landing == state.Position) return GameColors.TextDim;
+        var landing = move.Landing;
         var tile = state.Tiles[landing];
         return Board.Kind(tile) switch
         {

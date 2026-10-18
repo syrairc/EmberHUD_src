@@ -126,7 +126,7 @@ var window = new SettingsWindow(sdk, plugins, themes, logs, updates, () =>
 {
     updates.RequestRestart();
     overlay.Stop();
-});
+}, new DebugPanel(root, updates.Installed, logs));
 using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle, command =>
 {
     if (command == TrayCommand.Settings) window.Toggle();

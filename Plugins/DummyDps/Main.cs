@@ -81,6 +81,8 @@ public sealed class Main : Plugin<Settings>
     internal readonly CombatMeter _meter = new();
     bool _countedOverkill;
     int _keptArea = int.MinValue;
+    double? _pausedFrom;
+    double _pausedTotal;
 
     public override void Tick()
     {
@@ -93,8 +95,19 @@ public sealed class Main : Plugin<Settings>
             _meter.Reset();
         }
 
-        if (Game.State.Combat is { } combat)
-            _meter.Add(combat.Seconds, Settings.Combat.CountOverkill ? combat.Raw : combat.Effective, Game.State.AreaId, Settings.Combat.Window);
+        if (Game.State.Combat is not { } combat) return;
+        if (Game.State.Paused == true)
+        {
+            _pausedFrom ??= combat.Seconds;
+            return;
+        }
+
+        if (_pausedFrom is { } from)
+        {
+            _pausedTotal += combat.Seconds - from;
+            _pausedFrom = null;
+        }
+        _meter.Add(combat.Seconds - _pausedTotal, Settings.Combat.CountOverkill ? combat.Raw : combat.Effective, Game.State.AreaId, Settings.Combat.Window);
     }
 
     public override void Initialize()

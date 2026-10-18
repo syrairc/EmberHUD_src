@@ -360,7 +360,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
             return false;
 
         var (m, c) = (pair[0], pair[1]);
-        if (!double.IsFinite(m) || !double.IsFinite(c) || m < 0 || m > Offsets.MaxStatValue || m == 0 && !zeroMaxAllowed || c < 0 || c > m * 1.001)
+        if (!double.IsFinite(m) || !double.IsFinite(c) || m < 0 || m > Offsets.MaxStatMillions * 1e6 || m == 0 && !zeroMaxAllowed || c < 0 || c > m * 1.001)
             return false;
 
         (max, current) = (m, Math.Min(c, m));

@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -47,6 +48,26 @@ public sealed class MainTests
     {
         Check.That(Frame(new TarotState(TarotPhase.Collect, 1, 3, 10, 0, [], [], [], 0)) > 0, "collect drew");
         Check.That(Frame(new TarotState(TarotPhase.Final, 1, 0, 10, 0, [], [], [], 4)) > 0, "final drew");
+    }
+
+    [Test]
+    public void RenderGlowsTheBestHandCard()
+    {
+        var state = Board();
+        var panel = new GamePanel("S9Taro_C", PanelKind.Other, new(0, 0), new(1000, 500), false)
+        {
+            Parts = [new("S9HandCard", new(100, 300), new(180, 450)), new("S9HandCard_1", new(200, 300), new(280, 450))],
+        };
+        TestGame.Set(new GameState { Tarot = state, Ui = new GameUi([panel]) });
+        try
+        {
+            var glowing = TestFrame.Vertices(new Main().Render);
+            Settings off = new() { HighlightCard = false };
+            var plain = new Main();
+            typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(plain, [off]);
+            Check.That(glowing > TestFrame.Vertices(plain.Render), "glow drew");
+        }
+        finally { TestGame.Set(GameState.Empty); }
     }
 
     [Test]

@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using EmberHUD;
 
 namespace Tarot;
@@ -31,8 +32,57 @@ public static class Board
         _ => TileKind.Other,
     };
 
+    public static int[] Options(int cardCfg) => Steps(cardCfg) is { } steps ? [steps] : cardCfg switch
+    {
+        21 => [1, 3, 5],
+        22 => [2, 4, 6],
+        23 => [-1, -2, -3],
+        24 => [1, 2, 3, 4, 5, 6],
+        _ => [],
+    };
+
+    public static int Land(TarotState state, int steps) => Math.Clamp(state.Position + steps, 0, state.Tiles.Length - 1);
+
     public static int? Landing(TarotState state, TarotCard card) =>
-        state.Tiles.Length > 0 && Steps(card.CfgId) is { } steps ? Math.Clamp(state.Position + steps, 0, state.Tiles.Length - 1) : null;
+        state.Tiles.Length > 0 && Steps(card.CfgId) is { } steps ? Land(state, steps) : null;
+
+    public static int Score(TarotState state, TarotTile tile) => Kind(tile) switch
+    {
+        TileKind.Chest => 100 + tile.Chest * 10,
+        TileKind.ChestUp => 60,
+        TileKind.Heal => state.Hp <= 3 ? 200 : 40,
+        TileKind.ChestMaker => 30,
+        TileKind.TrapClear => 20,
+        TileKind.Note => 10,
+        TileKind.Trap => -100,
+        _ => 0,
+    };
+
+    public static (int Steps, int Landing, int Score)? BestMove(TarotState state, TarotCard card)
+    {
+        if (state.Tiles.Length == 0) return null;
+        (int Steps, int Landing, int Score)? best = null;
+        foreach (var steps in Options(card.CfgId))
+        {
+            var landing = Land(state, steps);
+            var score = landing == state.Position ? 0 : Score(state, state.Tiles[landing]);
+            if (best is null || score > best.Value.Score) best = (steps, landing, score);
+        }
+        return best;
+    }
+
+    public static int BestCard(TarotState state)
+    {
+        var best = -1;
+        var bestScore = int.MinValue;
+        for (var i = 0; i < state.Hand.Length; i++)
+        {
+            if (BestMove(state, state.Hand[i]) is not { } move || move.Score <= bestScore) continue;
+            best = i;
+            bestScore = move.Score;
+        }
+        return best;
+    }
 
     public static string CardLabel(int cardCfg) => Steps(cardCfg) switch
     {
@@ -40,7 +90,7 @@ public static class Board
         < 0 and var steps => $"Retreat {-steps}",
         _ => cardCfg switch
         {
-            >= 21 and <= 24 => "Pick a move",
+            >= 21 and <= 24 => $"Pick {string.Join("/", Options(cardCfg).Select(Math.Abs))} {(Options(cardCfg)[0] < 0 ? "back" : "ahead")}",
             >= 31 and <= 33 => $"Life +{cardCfg - 30}",
             _ => $"Card {cardCfg}",
         },

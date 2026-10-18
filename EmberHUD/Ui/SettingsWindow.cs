@@ -6,7 +6,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart)
+internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart, DebugPanel? debug = null)
 {
     internal const float ListWidth = 190f;
     internal const float ControlWidth = 260f;
@@ -61,7 +61,11 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
     void DrawPage()
     {
         if (Selected is { } slot) DrawPlugin(slot);
-        else Layout.TabBar("emberhud", ("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater));
+        else
+        {
+            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater)];
+            Layout.TabBar("emberhud", debug is null ? tabs : [.. tabs, ("Debug", debug.Draw)]);
+        }
     }
 
     void DrawPlugin(PluginSlot slot)
@@ -190,6 +194,9 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         Controls.Section("Plugins");
         ImGui.Checkbox("Reload plugins when their source changes", ref sdk.AutoReload);
         if (ImGui.Button("Clear compile cache")) plugins.ClearCache();
+
+        Controls.Section("Troubleshooting");
+        debug?.DrawButton();
 
         Controls.Section("Log");
         Controls.LogView("log", logs.Snapshot(), 0);

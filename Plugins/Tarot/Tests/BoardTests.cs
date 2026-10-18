@@ -39,9 +39,66 @@ public sealed class BoardTests
     [Test]
     public void LandingWithoutTilesIsNull() => Check.That(Board.Landing(State(0, 0), new TarotCard(1, 2)) is null, "no tiles no landing");
 
+    static TarotState Hand(int position, int hp, params TarotCard[] hand)
+    {
+        var tiles = new TarotTile[10];
+        for (var i = 0; i < tiles.Length; i++) tiles[i] = new TarotTile(i, 10000, 0);
+        tiles[3] = new TarotTile(3, 1000, 0);
+        tiles[5] = new TarotTile(5, 2010, 2);
+        tiles[6] = new TarotTile(6, 2010, 4);
+        tiles[8] = new TarotTile(8, 9205, 0);
+        return new TarotState(TarotPhase.Board, 1, 0, hp, position, tiles, hand, [], 0);
+    }
+
+    [Test]
+    public void PickCardsOfferTheirOptions()
+    {
+        Check.Equal(3, Board.Options(21).Length);
+        Check.Equal(6, Board.Options(22)[2]);
+        Check.Equal(-3, Board.Options(23)[2]);
+        Check.Equal(6, Board.Options(24).Length);
+        Check.Equal(2, Board.Options(2)[0]);
+        Check.Equal(0, Board.Options(33).Length);
+    }
+
+    [Test]
+    public void PickCardTakesTheBestOption()
+    {
+        var best = Board.BestMove(Hand(2, 7, new TarotCard(1, 24)), new TarotCard(1, 24))!.Value;
+        Check.Equal(4, best.Steps);
+        Check.Equal(6, best.Landing);
+    }
+
+    [Test]
+    public void PickCardAvoidsTheTrapWhenItCan()
+    {
+        var best = Board.BestMove(Hand(2, 7, new TarotCard(1, 21)), new TarotCard(1, 21))!.Value;
+        Check.Equal(3, best.Steps);
+    }
+
+    [Test]
+    public void BestCardIsTheHighestLanding()
+    {
+        var state = Hand(2, 7, new TarotCard(1, 1), new TarotCard(2, 4), new TarotCard(3, 2));
+        Check.Equal(1, Board.BestCard(state));
+    }
+
+    [Test]
+    public void HealWinsWhenHpIsLow()
+    {
+        var state = Hand(2, 2, new TarotCard(1, 3), new TarotCard(2, 6));
+        Check.Equal(1, Board.BestCard(state));
+        Check.Equal(0, Board.BestCard(Hand(2, 7, new TarotCard(1, 3), new TarotCard(2, 6))));
+    }
+
+    [Test]
+    public void NoHandNoBestCard() => Check.Equal(-1, Board.BestCard(Hand(2, 7)));
+
     [Test]
     public void LabelsReadLikeTheGame()
     {
+        Check.Equal("Pick 1/3/5 ahead", Board.CardLabel(21));
+        Check.Equal("Pick 1/2/3 back", Board.CardLabel(23));
         Check.Equal("Retreat 6", Board.CardLabel(16));
         Check.Equal("Life +2", Board.CardLabel(32));
         Check.Equal("Card 201", Board.CardLabel(201));

@@ -43,7 +43,7 @@ public sealed class StateMapperTests
         Check.That(run.Cells[3].Seen && !run.Cells[3].Open && run.Cells[3].Tier == -1);
         Check.That(run.Tools.SequenceEqual([ToolId.Keys, ToolId.ShortChain]));
         Check.That(run.Legal().Any(move => move is { Kind: MoveKind.Consume, Cell: 2 }));
-        Check.That(result.Assumed.Any(line => line.Contains("swap was used today")));
+        Check.That(!run.Legal().Any(move => move.Kind == MoveKind.Replace));
     }
 
     [Test]

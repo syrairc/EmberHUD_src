@@ -129,6 +129,16 @@ public class TartarusReaderTests
     }
 
     [Fact]
+    public void AnyRoomChoiceReadsItsCellsAsDoors()
+    {
+        var f = new Fixture(position: 14, size: 16);
+        var choice = ReadChoice(f, Offsets.TartarusChoiceAnyRoom, Option(f, 2, (Offsets.LuaTartarusOptionCell, Child(f, (Offsets.LuaTartarusCellIndex, 1)))), Option(f, 6, (Offsets.LuaTartarusOptionCell, Child(f, (Offsets.LuaTartarusCellIndex, 5)))));
+        Assert.Equal(TartarusChoiceKind.Doors, choice.Kind);
+        Assert.True(choice.Complete);
+        Assert.Equal([new TartarusOption(2, TartarusOptionKind.Door, 1, 3), new TartarusOption(6, TartarusOptionKind.Door, 5, 7)], choice.Options);
+    }
+
+    [Fact]
     public void DoorTargetWraps()
     {
         var f = new Fixture(position: 14, size: 16);

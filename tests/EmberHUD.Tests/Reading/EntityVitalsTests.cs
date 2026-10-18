@@ -32,6 +32,13 @@ public class EntityVitalsTests
         Assert.Equal((100d, 100d), (monster.Life, monster.MaxLife));
     }
 
+    [Fact]
+    public void TensOfBillionsOfLifeReadForAPlaneBoss()
+    {
+        var (monster, _) = Read((49120657559.04, 48812850548.61));
+        Assert.Equal((48812850548.61, 49120657559.04), (monster.Life, monster.MaxLife));
+    }
+
     [Theory]
     [InlineData(100, 150)]
     [InlineData(100, -1)]
@@ -42,7 +49,7 @@ public class EntityVitalsTests
     [InlineData(-5, 0)]
     [InlineData(1e243, 3e-57)]
     [InlineData(3e-57, 1e243)]
-    [InlineData(1e13, 1e13)]
+    [InlineData(1e16, 1e16)]
     public void GarbageBlocksReadAsUnknown(double max, double cur)
     {
         var (monster, player) = Read((max, cur), (max, cur), (max, cur));

@@ -184,6 +184,28 @@ public sealed class DummyDpsTests
     }
 
     [Test]
+    public void PausedTimeDoesNotCountTowardsDps()
+    {
+        var plugin = new Main();
+        TestInput.Hold();
+        var second = System.Diagnostics.Stopwatch.Frequency;
+        void Tick(long seconds, double total, bool paused)
+        {
+            TestGame.Set(GameState.Empty with { Combat = new CombatStats(seconds * second, total, total, 1), Paused = paused });
+            plugin.Tick();
+        }
+
+        Tick(0, 0, false);
+        Tick(1, 1000, false);
+        Tick(2, 1000, true);
+        Tick(60, 1000, true);
+        Tick(61, 2000, false);
+        Check.That(plugin._meter.HasFight, "fight survives the pause");
+        Check.That(plugin._meter.Active, "idle timer did not run");
+        Check.Equal(2000.0, plugin._meter.Total);
+    }
+
+    [Test]
     public void TogglingCountOverkillResetsTheMeter()
     {
         var plugin = new Main();

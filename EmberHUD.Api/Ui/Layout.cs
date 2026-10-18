@@ -132,7 +132,9 @@ public static class Layout
         confirmed = false;
         if (!ImGui.BeginPopupModal(id, ImGuiWindowFlags.AlwaysAutoResize)) return false;
         var acted = false;
+        ImGui.PushTextWrapPos(ImGui.GetCursorPosX() + ImGui.GetFontSize() * 36);
         ImGui.TextUnformatted(message);
+        ImGui.PopTextWrapPos();
         if (ImGui.Button("Confirm"))
         {
             confirmed = acted = true;

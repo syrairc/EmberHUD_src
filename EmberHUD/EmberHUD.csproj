@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\EmberHUD.Api\EmberHUD.Api.csproj" />
+    <ProjectReference Include="..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
     <ProjectReference Include="..\EmberHUD.Updater\EmberHUD.Updater.csproj" />
   </ItemGroup>
   <ItemGroup>
