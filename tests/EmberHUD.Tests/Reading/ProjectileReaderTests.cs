@@ -51,6 +51,53 @@ public class ProjectileReaderTests
         Assert.Equal(1, projectile.Direction.Y, 3);
     }
 
+    private static (double X, double Y) OnCircle(double angle) => (1000 * Math.Cos(angle), 1000 * Math.Sin(angle));
+
+    private static void Step(FakeWorld world, FakeWorld.FakeBullet bullet, double angle) =>
+        world.Memory.WriteArray(bullet.Transform + Offsets.TransformPosition, new[] { OnCircle(angle).X, OnCircle(angle).Y });
+
+    [Fact]
+    public void BulletsCirclingTheirOwnerReportTheOwnerAsOrbitCentre()
+    {
+        var (world, reader) = Rig();
+        var bullet = world.AddBullet(50, 7, OnCircle(0), (1, 0.07), Origin);
+        Projectile last = default;
+        for (var i = 0; i < 8; i++)
+        {
+            Step(world, bullet, i * 0.04);
+            last = Assert.Single(reader.Read([Owner()]));
+        }
+        Assert.Equal(Vector2.Zero, last.OrbitCentre);
+    }
+
+    [Fact]
+    public void BulletsFlyingStraightPastTheirOwnerAreNotOrbiting()
+    {
+        var (world, reader) = Rig();
+        var bullet = world.AddBullet(50, 7, (1000, 0), (0, 1), Origin);
+        Projectile last = default;
+        for (var i = 0; i < 12; i++)
+        {
+            world.Memory.WriteArray(bullet.Transform + Offsets.TransformPosition, new[] { 1000.0, i * 40.0 });
+            last = Assert.Single(reader.Read([Owner()]));
+        }
+        Assert.Null(last.OrbitCentre);
+    }
+
+    [Fact]
+    public void BulletsFlyingAwayFromTheirOwnerAreNotOrbiting()
+    {
+        var (world, reader) = Rig();
+        var bullet = world.AddBullet(50, 7, (1000, 0), (1, 0), Origin);
+        Projectile last = default;
+        for (var i = 0; i < 12; i++)
+        {
+            world.Memory.WriteArray(bullet.Transform + Offsets.TransformPosition, new[] { 1000.0 + i * 40, 0.0 });
+            last = Assert.Single(reader.Read([Owner()]));
+        }
+        Assert.Null(last.OrbitCentre);
+    }
+
     [Fact]
     public void BulletsKeepTheirLastMovementDirectionWhileStandingStill()
     {

@@ -291,7 +291,10 @@ public readonly record struct Cast(int StoneId, byte State, float Progress, floa
     public string Name { get; init; } = "";
 }
 
-public readonly record struct Projectile(int Id, int OwnerId, Rarity OwnerRarity, Vector2 Position, Vector2 Origin, Vector2 Direction, float Radius, float Speed);
+public readonly record struct Projectile(int Id, int OwnerId, Rarity OwnerRarity, Vector2 Position, Vector2 Origin, Vector2 Direction, float Radius, float Speed)
+{
+    public Vector2? OrbitCentre { get; init; }
+}
 
 public enum HazardKind { Area, Damage }
 

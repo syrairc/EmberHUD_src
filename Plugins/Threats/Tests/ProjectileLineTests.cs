@@ -154,6 +154,39 @@ public sealed class ProjectileLineTests
         Check.That(hit.Any(v => v.Col == EColor.U32(Color.FromArgb(Danger.A / 4, Danger))), "band not danger coloured");
     }
 
+    static Projectile Orbiter() => Shot() with { Position = new Vector2(1000, 0) } with { OrbitCentre = Vector2.Zero };
+
+    [Test]
+    public void OrbitingProjectilesAreInsideNearTheRingNotNearTheProjectile()
+    {
+        var settings = Configured();
+        Check.That(ProjectileLine.Inside(Orbiter(), settings, new Vector2(-1000, 0)), "far side of the ring");
+        Check.That(ProjectileLine.Inside(Orbiter(), settings, new Vector2(0, 1069)), "just inside 50 + 20");
+        Check.That(!ProjectileLine.Inside(Orbiter(), settings, new Vector2(0, 1071)), "just outside");
+        Check.That(!ProjectileLine.Inside(Orbiter(), settings, Vector2.Zero), "centre");
+    }
+
+    [Test]
+    public void OrbitingProjectilesSharingARingDrawItOnce()
+    {
+        var settings = Configured();
+        var rings = new HashSet<(int, int)>();
+        var once = 0;
+        var twice = 0;
+        TestGame.Set(new GameState { Camera = Forward });
+        TestFrame.Run(() =>
+        {
+            var list = Draw.Background;
+            var first = list.VtxBuffer.Size;
+            ProjectileLine.Draw(Orbiter(), settings, Far, 0, rings);
+            once = list.VtxBuffer.Size - first;
+            ProjectileLine.Draw(Orbiter() with { Position = new Vector2(0, 1000) }, settings, Far, 0, rings);
+            twice = list.VtxBuffer.Size - first;
+        });
+        Check.That(once > 0, "ring drawn");
+        Check.Equal(once, twice);
+    }
+
     [Test]
     public void ZeroRadiusDrawsNoBand()
     {

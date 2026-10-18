@@ -6,47 +6,35 @@ namespace EmberHUD.Host.Reading;
 internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
 {
     private readonly FightComponents _fight = new(memory, moduleBase);
-    private Dictionary<int, (Vector2 Position, Vector2 Heading)> _seen = [];
+    private Dictionary<int, ProjectileTrack> _tracks = [];
 
     public Projectile[] Read(Entity[] entities)
     {
         if (entities.Length == 0 || !_fight.TryReadWorld(out var world))
         {
-            _seen = [];
+            _tracks = [];
             return [];
         }
 
-        var owners = new Dictionary<int, Rarity>(entities.Length);
+        var owners = new Dictionary<int, (Rarity Rarity, Vector2 Position)>(entities.Length);
         foreach (var entity in entities)
-            if (entity.Kind == EntityKind.Monster) owners[entity.Id] = entity.Rarity;
+            if (entity.Kind == EntityKind.Monster) owners[entity.Id] = (entity.Rarity, new Vector2(entity.Position.X, entity.Position.Y));
 
         var found = new List<Projectile>(16);
-        var seen = new Dictionary<int, (Vector2, Vector2)>(_seen.Count);
+        var tracks = new Dictionary<int, ProjectileTrack>(_tracks.Count);
         memory.TryWalkBuckets(world + Offsets.FightWorldEntityBucketCount, world + Offsets.FightWorldEntityBuckets, Offsets.MaxBuckets, Offsets.NodeSize, Offsets.NodeNext, Offsets.MaxEntities,
             (_, node) =>
             {
                 var fighter = (nint)BitConverter.ToInt64(node[Offsets.NodeEntity..]);
-                if (fighter != 0 && TryReadProjectile(world, fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, seen, out var projectile))
+                if (fighter != 0 && TryReadProjectile(world, fighter, (int)BitConverter.ToUInt32(node[Offsets.NodeKey..]), owners, tracks, out var projectile))
                     found.Add(projectile);
                 return true;
             });
-        _seen = seen;
+        _tracks = tracks;
         return [.. found];
     }
 
-    private Vector2 Heading(int id, bool laser, Vector2 position, Vector2 facing, Dictionary<int, (Vector2, Vector2)> seen)
-    {
-        var heading = facing;
-        if (!laser && _seen.TryGetValue(id, out var before))
-        {
-            var moved = position - before.Position;
-            heading = moved.Length() >= Offsets.MinHeadingStep ? Vector2.Normalize(moved) : before.Heading;
-        }
-        if (!laser) seen[id] = (position, heading);
-        return heading;
-    }
-
-    private bool TryReadProjectile(nint world, nint fighter, int id, Dictionary<int, Rarity> owners, Dictionary<int, (Vector2, Vector2)> seen, out Projectile projectile)
+    private bool TryReadProjectile(nint world, nint fighter, int id, Dictionary<int, (Rarity Rarity, Vector2 Position)> owners, Dictionary<int, ProjectileTrack> tracks, out Projectile projectile)
     {
         projectile = default;
         Span<double> pair = stackalloc double[2];
@@ -62,13 +50,24 @@ internal sealed class ProjectileReader(IReadBackend memory, nint moduleBase)
             !memory.TryRead(move + Offsets.MoveSpeed, out double speed) || !double.IsFinite(speed) || speed < 0 || speed > Offsets.MaxProjectileSpeed ||
             laser && !IsHostileRect(fighter, shape) || !laser && speed < 1 && !IsRect(shape) && !HasMoveDirection(move) ||
             !_fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) || attachment == 0 ||
-            !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var rarity) || !_fight.IsHostile(world, ownerId))
+            !memory.TryRead(attachment + Offsets.AttachmentOwnerId, out int ownerId) || !owners.TryGetValue(ownerId, out var owner) || !_fight.IsHostile(world, ownerId))
             return false;
 
         var length = direction.Length();
         if (!float.IsFinite(length) || length < 0.5f) return false;
 
-        projectile = new Projectile(id, ownerId, rarity, position, origin, Heading(id, laser, position, direction / length, seen), radius, (float)speed);
+        var heading = direction / length;
+        Vector2? orbitCentre = null;
+        if (!laser)
+        {
+            if (_tracks.TryGetValue(id, out var track)) track.Update(position, owner.Position);
+            else track = new ProjectileTrack(position, heading);
+            tracks[id] = track;
+            heading = track.Heading;
+            if (track.Orbiting) orbitCentre = owner.Position;
+        }
+
+        projectile = new Projectile(id, ownerId, owner.Rarity, position, origin, heading, radius, (float)speed) { OrbitCentre = orbitCentre };
         return true;
     }
 
