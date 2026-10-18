@@ -34,7 +34,7 @@ public sealed class Main : Plugin<Settings>
     {
         if (!Settings.SpaceEnabled) return;
         Game.WantInventory();
-        if (Game.State is not { Inventory: { } items, BagCapacities: { } capacities }) return;
+        if (Game.State is not { Inventory: { } items, BagCapacities: { } capacities, Ui.AnyFullScreen: false }) return;
         var rows = Space.Rows(items, capacities, Settings);
         var style = Settings.SpaceText;
         var labels = Settings.SpaceBar && Settings.BarLabels;

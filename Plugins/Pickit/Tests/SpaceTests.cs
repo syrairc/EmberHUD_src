@@ -84,6 +84,16 @@ public sealed class SpaceTests
     }
 
     [Test]
+    public void FullScreenPanelHidesTheOverlay()
+    {
+        var shown = State(Item(InventoryBag.Equipment, 0));
+        TestGame.Set(shown);
+        Check.That(TestFrame.Vertices(Plugin().Render) > 0, "visible");
+        TestGame.Set(shown with { Ui = new GameUi([new GamePanel("map", PanelKind.WorldMap, System.Numerics.Vector2.Zero, System.Numerics.Vector2.One, true)]) });
+        Check.Equal(0, TestFrame.Vertices(Plugin().Render));
+    }
+
+    [Test]
     public void AsksForTheInventoryOnlyWhileEnabled()
     {
         TestGame.Set(State());
