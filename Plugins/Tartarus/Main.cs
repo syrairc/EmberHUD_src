@@ -98,6 +98,28 @@ public sealed class Main : Plugin<Settings>
         ("Inmate log", Logger.DrawPage),
         ("Minigame log", Logger.DrawMinigamePage));
 
+    readonly Overlay _overlay = new();
+    int _unusedWidth, _unusedHeight;
+
+    void DrawCards(TartarusOption[] options, OptionAdvice[] advice)
+    {
+        var origin = new Vector2(Settings.CardsX, Settings.CardsY);
+        var size = new Vector2(Settings.CardsWidth, Settings.CardsHeight);
+        var (hovered, edge, active) = _overlay.Handle("tartarus-cards", ref origin, size, ref Settings.CardsX, ref Settings.CardsY, ref Settings.CardsWidth, 300, 4000, ref Settings.CardsHeight, 60, 800);
+        if (hovered || active) Overlay.ClickBlocker("tartarus-cards", origin, size);
+        size = new Vector2(Settings.CardsWidth, Settings.CardsHeight);
+        if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, edge);
+        const float Gap = 16;
+        var card = new Vector2((size.X - Gap * 2) / 3, size.Y);
+        for (var i = 0; i < options.Length; i++)
+        {
+            var slot = options[i].Kind switch { TartarusOptionKind.Consume => 0, TartarusOptionKind.Replace => 1, TartarusOptionKind.End => 2, _ => -1 };
+            if (slot < 0 || !advice[i].Glow) continue;
+            var min = origin + new Vector2((card.X + Gap) * slot, 0);
+            Draw.GlowRect(min, min + card, GameColors.Positive);
+        }
+    }
+
     public override void Render()
     {
         if (!Settings.ShowPanel || Advice is not { } advice || _state is not { Cells: not null, Choice: { Options: not null } choice } state || advice.Options.Length != choice.Options.Length) return;
@@ -110,20 +132,27 @@ public sealed class Main : Plugin<Settings>
             rows[i] = (Names.Option(option, state, Settings.ReplaceIsExecute), entry.Reason, entry.Glow);
         }
 
+        var cards = Settings.HighlightCards && choice.Kind == TartarusChoiceKind.Operation;
         const float Pad = 8;
         const float Gap = 24;
         var width = 0f;
         foreach (var (left, right, _) in rows) width = MathF.Max(width, Draw.MeasureText(left, _style).X + Gap + Draw.MeasureText(right, _style).X);
         foreach (var line in summary) width = MathF.Max(width, Draw.MeasureText(line, _style).X);
         var rowHeight = Draw.RowHeight(_style);
-        var origin = ImGui.GetIO().DisplaySize * new Vector2(Settings.PanelX, Settings.PanelY);
+        _overlay.Locked = Settings.Lock;
+        _overlay.MoveHeld = Settings.MoveKey.Key != Key.None && Input.IsDown(Settings.MoveKey.Key);
+        var origin = new Vector2(Settings.PanelX, Settings.PanelY);
         var size = new Vector2(width + Pad * 2, rowHeight * (rows.Length + summary.Length) + Pad * 2);
+        var (hovered, _, active) = _overlay.Handle("tartarus", ref origin, size, ref Settings.PanelX, ref Settings.PanelY, ref _unusedWidth, 60, 4000, ref _unusedHeight, 0, 0, Overlay.ResizeEdge.None);
+        if (hovered || active) Overlay.ClickBlocker("tartarus", origin, size);
         Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
+        if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.None);
+        if (cards) DrawCards(choice.Options, advice.Options);
         var y = origin.Y + Pad;
         foreach (var (left, right, glow) in rows)
         {
             var at = new Vector2(origin.X + Pad, y);
-            if (glow) Draw.GlowRect(at - new Vector2(3, 1), at + new Vector2(width + 3, rowHeight - 1), GameColors.Positive);
+            if (glow && !cards) Draw.GlowRect(at - new Vector2(3, 1), at + new Vector2(width + 3, rowHeight - 1), GameColors.Positive);
             Draw.Row(at, width, left, right, _style);
             y += rowHeight;
         }

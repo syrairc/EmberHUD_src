@@ -7,8 +7,15 @@ namespace Tartarus;
 public sealed class Settings : PluginSettings
 {
     public bool ShowPanel = true;
-    public float PanelX = 0.02f;
-    public float PanelY = 0.3f;
+    public bool Lock = true;
+    public Hotkey MoveKey = new(Key.Alt);
+    public int PanelX = 40;
+    public int PanelY = 430;
+    public bool HighlightCards = true;
+    public int CardsX = 1000;
+    public int CardsY = 1100;
+    public int CardsWidth = 1050;
+    public int CardsHeight = 180;
     public bool ShowAssumed = true;
     public int Playouts = 300;
     public double CloseMargin = 0.1;

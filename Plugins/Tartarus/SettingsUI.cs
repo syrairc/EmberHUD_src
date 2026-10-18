@@ -8,8 +8,13 @@ static class SettingsUI
     {
         Setting.Checkbox("Show panel", ref s.ShowPanel, "The advice card next to the screen's choice");
         Setting.Checkbox("Show assumed", ref s.ShowAssumed, "Lists what the advice had to guess, such as tool uses left or events behind unseen cells");
-        Setting.Slider("Panel X", ref s.PanelX, 0, 1, "Left edge, as a fraction of the screen width");
-        Setting.Slider("Panel Y", ref s.PanelY, 0, 1, "Top edge, as a fraction of the screen height");
+        Setting.Checkbox("Lock", ref s.Lock, "A locked panel ignores the mouse - hold the move key to drag it or the cards frame anyway");
+        Setting.Hotkey("Move key", ref s.MoveKey, "Hold to move the panel or the cards frame while locked");
+        Setting.Checkbox("Highlight cards", ref s.HighlightCards, "Glows the best Consume / Replace / End card on the game's decision bar instead of a row in the panel");
+        Setting.Slider("Cards X", ref s.CardsX, 0, 7680, "Left edge of the three decision cards in pixels, or drag the frame while moving");
+        Setting.Slider("Cards Y", ref s.CardsY, 0, 4320, "Top edge of the decision cards in pixels");
+        Setting.Slider("Cards width", ref s.CardsWidth, 300, 4000, "Width of all three cards together");
+        Setting.Slider("Cards height", ref s.CardsHeight, 60, 800, "Height of the cards");
     }
 
     public static void DrawAdvice(Settings s)
