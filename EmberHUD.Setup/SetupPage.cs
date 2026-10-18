@@ -177,6 +177,9 @@ internal sealed class SetupPage
         ImGui.Checkbox("Game", ref Config.LaunchGame);
         ImGui.SameLine();
         ImGui.Checkbox("EmberHUD", ref Config.LaunchEmberHUD);
+        ImGui.SetNextItemWidth(220);
+        ImGui.InputTextWithHint("Run EmberHUD as", "Ember.exe", ref Config.EmberProcessName, 64);
+        Text.Tip("Process name EmberHUD reports itself as. Leave Ember.exe unless you want it to show up under a different name.");
     }
 
     void DrawPrograms()

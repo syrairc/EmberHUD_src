@@ -36,7 +36,18 @@ public class LauncherConfigTests
         Assert.Equal("", config.GameDirectory);
         Assert.True(config.LaunchGame);
         Assert.True(config.LaunchEmberHUD);
+        Assert.Equal("Ember.exe", config.EmberProcessName);
         Assert.Empty(config.Programs);
+    }
+
+    [Fact]
+    public void EmberProcessNameFallsBackToEmberExeWhenBlankAndRoundTrips()
+    {
+        using var temp = new TempDir();
+        Assert.Equal("Ember.exe", LauncherConfig.Load(temp.File("blank.json", """{ "EmberProcessName": "" }"""), _ => { })!.EmberProcessName);
+        var path = Path.Combine(temp.Path, "custom.json");
+        new LauncherConfig { EmberProcessName = "svchost.exe" }.Save(path);
+        Assert.Equal("svchost.exe", LauncherConfig.Load(path, _ => { })!.EmberProcessName);
     }
 
     [Fact]

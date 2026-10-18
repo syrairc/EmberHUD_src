@@ -19,6 +19,7 @@ public sealed class LauncherConfig
 
     public string RunAsUser = "";
     public string GameDirectory = "";
+    public string EmberProcessName = "Ember.exe";
     public bool LaunchGame = true;
     public bool LaunchEmberHUD = true;
     public bool RunAsAdmin = false;
@@ -39,6 +40,7 @@ public sealed class LauncherConfig
             }
             config.RunAsUser ??= "";
             config.GameDirectory ??= "";
+            if (string.IsNullOrEmpty(config.EmberProcessName)) config.EmberProcessName = "Ember.exe";
             config.Programs = [.. (config.Programs ?? []).OfType<LauncherProgram>()];
             foreach (var program in config.Programs)
             {

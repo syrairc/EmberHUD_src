@@ -46,6 +46,15 @@ public class LaunchTests
     }
 
     [Fact]
+    public void EmberRunsUnderTheConfiguredProcessName()
+    {
+        var custom = Launch.Steps(new LauncherConfig { EmberProcessName = "svchost.exe" }, Game, @"D:\dist", _ => false, _ => { });
+        Assert.Equal("--as \"svchost.exe\"", custom[1].Start.Arguments);
+        var blank = Launch.Steps(new LauncherConfig { EmberProcessName = "" }, Game, @"D:\dist", _ => false, _ => { });
+        Assert.Equal("", blank[1].Start.Arguments);
+    }
+
+    [Fact]
     public void StepsStartEverythingThatIsOnAndNotRunning()
     {
         var config = new LauncherConfig { Programs = [new LauncherProgram { Path = @"C:\Tools\obs64.exe", Arguments = "--minimize" }, new LauncherProgram { Path = @"C:\Tools\off.exe", Enabled = false }, new LauncherProgram()] };
@@ -53,7 +62,7 @@ public class LaunchTests
         Assert.Equal(["game", "EmberHUD", @"C:\Tools\obs64.exe"], steps.Select(step => step.Name));
         Assert.Equal(@"D:\dist\Ember.exe", steps[1].Start.FileName);
         Assert.Equal(@"D:\dist", steps[1].Start.WorkingDirectory);
-        Assert.Equal("", steps[1].Start.Arguments);
+        Assert.Equal("--as \"Ember.exe\"", steps[1].Start.Arguments);
         var program = steps[2].Start;
         Assert.Equal("--minimize", program.Arguments);
         Assert.Equal(@"C:\Tools", program.WorkingDirectory);

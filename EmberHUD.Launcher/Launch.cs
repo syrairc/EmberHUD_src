@@ -108,7 +108,7 @@ public static class Launch
 
         if (!config.LaunchEmberHUD) log("EmberHUD - off");
         else if (isRunning("Ember.exe")) log("EmberHUD - already running");
-        else steps.Add(("EmberHUD", new ProcessStartInfo(Path.Combine(root, "Ember.exe")) { UseShellExecute = config.RunAsAdmin, Verb = config.RunAsAdmin ? "runas" : "", WorkingDirectory = root }));
+        else steps.Add(("EmberHUD", new ProcessStartInfo(Path.Combine(root, "Ember.exe")) { Arguments = config.EmberProcessName.Length > 0 ? $"--as \"{config.EmberProcessName}\"" : "", UseShellExecute = config.RunAsAdmin, Verb = config.RunAsAdmin ? "runas" : "", WorkingDirectory = root }));
 
         foreach (var program in config.Programs.Where(program => program.Enabled && program.Path.Length > 0))
         {
