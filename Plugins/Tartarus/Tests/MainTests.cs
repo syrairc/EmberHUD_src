@@ -117,7 +117,7 @@ public sealed class MainTests
     {
         var state = State(null);
         Check.Equal("Barbed Whip", Names.Option(new(1, TartarusOptionKind.Instrument, -1, 106), state));
-        Check.Equal("Instrument 104", Names.Option(new(1, TartarusOptionKind.Instrument, -1, 104), state));
+        Check.Equal("Instrument 999", Names.Option(new(1, TartarusOptionKind.Instrument, -1, 999), state));
         Check.Equal("Brand of Original Sin", Names.Option(new(1, TartarusOptionKind.Reward, -1, 4), state));
         Check.Equal("Reward 9", Names.Option(new(1, TartarusOptionKind.Reward, -1, 9), state));
     }
@@ -188,7 +188,7 @@ public sealed class MainTests
     [Test]
     public void SettingsFields()
     {
-        string[] expected = ["ShowPanel", "Lock", "MoveKey", "PanelX", "PanelY", "HighlightCards", "CardsX", "CardsY", "CardsWidth", "CardsHeight", "ShowAssumed", "Playouts", "CloseMargin", "ChromaticCap", "EaterKeepsBeast", "SecondMealFromTier", "ReplaceIsExecute", "EventChance"];
+        string[] expected = ["ShowPanel", "Lock", "MoveKey", "PanelX", "PanelY", "HighlightCards", "ShowAssumed", "Playouts", "CloseMargin", "ChromaticCap", "EaterKeepsBeast", "SecondMealFromTier", "ReplaceIsExecute", "EventChance"];
         var actual = Array.ConvertAll(typeof(Settings).GetFields(), f => f.Name);
         Array.Sort(expected);
         Array.Sort(actual);

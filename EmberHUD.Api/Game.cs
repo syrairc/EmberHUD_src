@@ -316,9 +316,12 @@ public sealed record ExploredTrail(Vector2[] Buffer, int Count, float Radius)
 
 public enum PanelKind : byte { Other, Inventory, Stash, WorldMap, Skills, Talents, Vendor, Settings }
 
+public readonly record struct NamedRect(string Name, Vector2 Min, Vector2 Max);
+
 public readonly record struct GamePanel(string Name, PanelKind Kind, Vector2 Min, Vector2 Max, bool FullScreen)
 {
     public nint Address { get; init; }
+    public NamedRect[] Parts { get; init; } = [];
 }
 
 public sealed record GameUi(GamePanel[] Panels)

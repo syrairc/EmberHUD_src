@@ -23,6 +23,117 @@ public sealed class GameUiReaderTests
         return (world, ui, page, root, child);
     }
 
+    static (FakeWorld World, FakeUi Ui, nint Root) OpenRelicPop(string pageClass = "S16BoardRelicPop_C")
+    {
+        var world = new FakeWorld();
+        var ui = new FakeUi(world);
+        var page = ui.Widget(ui.UserClass(pageClass), pageClass + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var root = ui.Widget(ui.PanelClass("CanvasPanel"), "Root", Vector2.Zero, new Vector2(3440, 1440));
+        ui.SetTree(page, root);
+        ui.AddRoot(ui.Host(page));
+        return (world, ui, root);
+    }
+
+    [Fact]
+    public void PanelWithConfiguredPartsReportsTheirRects()
+    {
+        var (world, ui, root) = OpenRelicPop();
+        var first = ui.Widget(ui.UserClass("Image"), "S16BoardRelicOptCell", new Vector2(100, 200), new Vector2(300, 400), nameNumber: 2);
+        var confirm = ui.Widget(ui.UserClass("Image"), "Btn_S16Board_RelicPop_Confirm", new Vector2(500, 600), new Vector2(50, 60));
+        ui.SetChildren(root, first, confirm);
+
+        var parts = Assert.Single(world.UiReader().Read().Panels).Parts;
+
+        Assert.Equal(["S16BoardRelicOptCell_1", "Btn_S16Board_RelicPop_Confirm"], parts.Select(p => p.Name));
+        Assert.Equal(new Vector2(100, 200), parts[0].Min);
+        Assert.Equal(new Vector2(400, 600), parts[0].Max);
+        Assert.Equal(new Vector2(500, 600), parts[1].Min);
+    }
+
+    [Fact]
+    public void HiddenPartIsSkipped()
+    {
+        var (world, ui, root) = OpenRelicPop();
+        var shown = ui.Widget(ui.UserClass("Image"), "S16BoardRelicOptCell", new Vector2(100, 200), new Vector2(300, 400), nameNumber: 2);
+        var hidden = ui.Widget(ui.UserClass("Image"), "S16BoardRelicOptCell", new Vector2(500, 200), new Vector2(300, 400), visibility: 1, nameNumber: 3);
+        ui.SetChildren(root, shown, hidden);
+
+        var parts = Assert.Single(world.UiReader().Read().Panels).Parts;
+
+        Assert.Equal(["S16BoardRelicOptCell_1"], parts.Select(p => p.Name));
+    }
+
+    [Fact]
+    public void ChildrenTokenListsVisibleChildrenInOrderWithoutGaps()
+    {
+        var (world, ui, root) = OpenRelicPop("S16BoardMain_C");
+        var box = ui.Widget(ui.PanelClass("HorizontalBox"), "List_S16Board_Bottom_Actions", Vector2.Zero, new Vector2(900, 300));
+        var a = ui.Widget(ui.UserClass("Image"), "S16BoardActionCell", new Vector2(10, 20), new Vector2(100, 200));
+        var hidden = ui.Widget(ui.UserClass("Image"), "S16BoardActionCell", new Vector2(120, 20), new Vector2(100, 200), visibility: 1, nameNumber: 2);
+        var c = ui.Widget(ui.UserClass("Image"), "S16BoardActionCell_C_2147463473", new Vector2(230, 20), new Vector2(100, 200));
+        ui.SetChildren(box, a, hidden, c);
+        ui.SetChildren(root, box);
+
+        var parts = Assert.Single(world.UiReader().Read().Panels).Parts;
+
+        Assert.Equal(["List_S16Board_Bottom_Actions[0]", "List_S16Board_Bottom_Actions[1]"], parts.Select(p => p.Name));
+        Assert.Equal(new Vector2(10, 20), parts[0].Min);
+        Assert.Equal(new Vector2(230, 20), parts[1].Min);
+    }
+
+    [Fact]
+    public void ChildrenTokenWithoutTheBoxGivesNoParts()
+    {
+        var (world, ui, root) = OpenRelicPop("S16BoardMain_C");
+        ui.SetChildren(root);
+
+        Assert.Empty(Assert.Single(world.UiReader().Read().Panels).Parts);
+    }
+
+    [Fact]
+    public void MissingPartsAreSkippedAndThePanelStillReads()
+    {
+        var (world, ui, root) = OpenRelicPop();
+        ui.SetChildren(root);
+
+        var panel = Assert.Single(world.UiReader().Read().Panels);
+
+        Assert.Equal("S16BoardRelicPop_C", panel.Name);
+        Assert.Empty(panel.Parts);
+    }
+
+    [Fact]
+    public void PanelWithoutAnEntryHasNoParts()
+    {
+        var (world, ui, root) = OpenRelicPop("Other_C");
+        ui.SetChildren(root, ui.Widget(ui.UserClass("Image"), "S16BoardRelicOptCell", Vector2.Zero, new Vector2(10, 10), nameNumber: 2));
+
+        Assert.Empty(Assert.Single(world.UiReader().Read().Panels).Parts);
+    }
+
+    [Fact]
+    public void MissingPartIsSearchedOnceUntilTheRetryIntervalPasses()
+    {
+        var (world, ui, root) = OpenRelicPop();
+        ui.SetChildren(root);
+        long now = 0;
+        var reader = world.UiReader(() => now);
+        reader.Read();
+
+        var before = world.Memory.Reads.Count;
+        reader.Read();
+        var cached = world.Memory.Reads.Count - before;
+        var cell = ui.Widget(ui.UserClass("Image"), "S16BoardRelicOptCell", new Vector2(100, 200), new Vector2(300, 400), nameNumber: 2);
+        ui.SetChildren(root, cell);
+        Assert.Empty(Assert.Single(reader.Read().Panels).Parts);
+
+        now = Offsets.RectChildRetryMilliseconds;
+        Assert.Single(Assert.Single(reader.Read().Panels).Parts);
+        before = world.Memory.Reads.Count;
+        reader.Read();
+        Assert.True(cached > 0 && world.Memory.Reads.Count - before > 0);
+    }
+
     [Fact]
     public void TryReadFailsWithoutAnOverlayAndSucceedsWithRoots()
     {

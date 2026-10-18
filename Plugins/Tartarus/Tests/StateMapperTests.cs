@@ -128,13 +128,13 @@ public sealed class StateMapperTests
     {
         var tracked = Tracked();
         tracked.Assumed.Add("Joined late.");
-        tracked.ToolsHeld = [104];
-        var result = Map(Board(Operation(), tools: [104]), tracked);
+        tracked.ToolsHeld = [143];
+        var result = Map(Board(Operation(), tools: [143]), tracked);
         Check.That(result.Run is not null);
         Check.That(result.Assumed.Contains("Joined late."));
         Check.That(result.Assumed.Any(line => line.Contains("Start card and scratch")));
         Check.That(result.Assumed.Any(line => line.Contains("Tool uses left")));
-        Check.That(result.Assumed.Any(line => line.Contains("Tool 104")));
+        Check.That(result.Assumed.Any(line => line.Contains("Tool 143")));
         Check.Equal(0, result.Run!.Tools.Count);
     }
 
@@ -187,19 +187,19 @@ public sealed class StateMapperTests
     [Test]
     public void InstrumentChoiceOffersTheKnownToolsAndListsTheRest()
     {
-        var state = Board(Picks(TartarusChoiceKind.Instrument, TartarusOptionKind.Instrument, 106, 104, 131), Ring()) with { Day = 1 };
+        var state = Board(Picks(TartarusChoiceKind.Instrument, TartarusOptionKind.Instrument, 106, 143, 131), Ring()) with { Day = 1 };
         var result = Map(state, new TrackedRun { Day = 1, Size = 8 });
         var run = result.Run!;
         Check.That(run.Phase == Phase.Patrol);
         Check.That(run.Legal().SequenceEqual([new Move(MoveKind.Instrument, Param: (int)ToolId.Whip), new Move(MoveKind.Instrument, Param: (int)ToolId.ShortChain)]));
-        Check.That(result.Assumed.Any(line => line.Contains("Tool 104")));
+        Check.That(result.Assumed.Any(line => line.Contains("Tool 143")));
         Check.That(result.Mismatch is null && result.Unsupported is null);
     }
 
     [Test]
     public void InstrumentChoiceOfOnlyUnknownToolsIsNotSimulatedYet()
     {
-        var result = Map(Board(Picks(TartarusChoiceKind.Instrument, TartarusOptionKind.Instrument, 104, 105)));
+        var result = Map(Board(Picks(TartarusChoiceKind.Instrument, TartarusOptionKind.Instrument, 143, 145)));
         Check.That(result.Run is null && result.Mismatch is null);
         Check.That(result.Unsupported!.Contains("known to the simulator"));
     }

@@ -12,10 +12,6 @@ public sealed class Settings : PluginSettings
     public int PanelX = 40;
     public int PanelY = 430;
     public bool HighlightCards = true;
-    public int CardsX = 1000;
-    public int CardsY = 1100;
-    public int CardsWidth = 1050;
-    public int CardsHeight = 180;
     public bool ShowAssumed = true;
     public int Playouts = 300;
     public double CloseMargin = 0.1;

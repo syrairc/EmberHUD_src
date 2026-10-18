@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Ui;
@@ -101,23 +102,22 @@ public sealed class Main : Plugin<Settings>
     readonly Overlay _overlay = new();
     int _unusedWidth, _unusedHeight;
 
-    void DrawCards(TartarusOption[] options, OptionAdvice[] advice)
+    static bool GlowCards(TartarusChoice choice, OptionAdvice[] advice)
     {
-        var origin = new Vector2(Settings.CardsX, Settings.CardsY);
-        var size = new Vector2(Settings.CardsWidth, Settings.CardsHeight);
-        var (hovered, edge, active) = _overlay.Handle("tartarus-cards", ref origin, size, ref Settings.CardsX, ref Settings.CardsY, ref Settings.CardsWidth, 300, 4000, ref Settings.CardsHeight, 60, 800);
-        if (hovered || active) Overlay.ClickBlocker("tartarus-cards", origin, size);
-        size = new Vector2(Settings.CardsWidth, Settings.CardsHeight);
-        if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, edge);
-        const float Gap = 16;
-        var card = new Vector2((size.X - Gap * 2) / 3, size.Y);
-        for (var i = 0; i < options.Length; i++)
+        var instrument = choice.Kind == TartarusChoiceKind.Instrument;
+        if (!instrument && choice.Kind != TartarusChoiceKind.Operation) return false;
+        var pageName = instrument ? "S16BoardRelicPop_C" : "S16BoardMain_C";
+        if (Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == pageName).Parts is not { Length: > 0 } parts) return false;
+        var card = 0;
+        for (var i = 0; i < choice.Options.Length; i++)
         {
-            var slot = options[i].Kind switch { TartarusOptionKind.Consume => 0, TartarusOptionKind.Replace => 1, TartarusOptionKind.End => 2, _ => -1 };
-            if (slot < 0 || !advice[i].Glow) continue;
-            var min = origin + new Vector2((card.X + Gap) * slot, 0);
-            Draw.GlowRect(min, min + card, GameColors.Positive);
+            if (!instrument && choice.Options[i].Kind is not (TartarusOptionKind.Consume or TartarusOptionKind.Replace or TartarusOptionKind.End)) continue;
+            var name = instrument ? $"S16BoardRelicOptCell_{i + 1}" : $"List_S16Board_Bottom_Actions[{card++}]";
+            if (!advice[i].Glow) continue;
+            foreach (var part in parts)
+                if (part.Name == name) Draw.GlowRect(part.Min, part.Max, GameColors.Positive);
         }
+        return true;
     }
 
     public override void Render()
@@ -132,7 +132,7 @@ public sealed class Main : Plugin<Settings>
             rows[i] = (Names.Option(option, state, Settings.ReplaceIsExecute), entry.Reason, entry.Glow);
         }
 
-        var cards = Settings.HighlightCards && choice.Kind == TartarusChoiceKind.Operation;
+        var cards = Settings.HighlightCards && GlowCards(choice, advice.Options);
         const float Pad = 8;
         const float Gap = 24;
         var width = 0f;
@@ -147,7 +147,6 @@ public sealed class Main : Plugin<Settings>
         if (hovered || active) Overlay.ClickBlocker("tartarus", origin, size);
         Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
         if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.None);
-        if (cards) DrawCards(choice.Options, advice.Options);
         var y = origin.Y + Pad;
         foreach (var (left, right, glow) in rows)
         {

@@ -7,12 +7,37 @@ public static class Names
 {
     static readonly Dictionary<int, string> Instruments = new()
     {
+        [101] = "Raging Beast's Agonizing Muzzle",
         [102] = "Ferocious Beast's Ravenous Chains",
+        [103] = "Maddened Beast's Barbed Collar",
+        [104] = "Avenger's Casket",
+        [105] = "Crowded Beastcage",
         [106] = "Barbed Whip",
+        [107] = "Rusty Saw",
+        [111] = "Executioner's Blacklist",
         [112] = "Lost Ring of Keys",
+        [113] = "Kin's Coin of Fate",
+        [114] = "Searing Branding Iron",
+        [115] = "Felon's Dog Tag",
+        [116] = "Forged Key",
+        [117] = "Sorting Hook",
+        [121] = "Scapegoat's Guillotine",
+        [122] = "Gaoler's Execution Axe",
         [123] = "Severed Iron Maiden",
+        [124] = "Warden's Scales",
+        [125] = "Hangman's Noose",
+        [126] = "Burning Stake",
         [127] = "Iron Pestle",
         [131] = "Short-Chained Shackles",
+        [132] = "Long-Chained Shackles",
+        [141] = "Iron Tongs of Lust: Mammoth",
+        [142] = "Elephant-Foot Maul: Mammoth",
+        [143] = "Blood-Stained Trap: Berserk Lion",
+        [144] = "Iron Crown of the Prison King: Berserk Lion",
+        [145] = "Filthy Claws: Alpha Wolf",
+        [146] = "Fanged Guillotine: Alpha Wolf",
+        [147] = "Squirming Iron Box: Colossal Rat",
+        [148] = "Skewered Rat Heads: Colossal Rat",
     };
 
     static readonly Dictionary<int, string> Rewards = new()

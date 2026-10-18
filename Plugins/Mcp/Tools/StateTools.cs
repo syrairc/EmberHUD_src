@@ -141,14 +141,25 @@ internal static class StateTools
             },
             ["minimapRotation"] = state.MinimapRotation is { } rotation ? Num.F(rotation) : null,
             ["gameMinimap"] = state.GameMinimap is { } gameMinimap ? new JsonObject { ["open"] = gameMinimap.Open, ["worldWidth"] = Num.F(gameMinimap.WorldWidth) } : null,
-            ["panels"] = new JsonArray([.. state.Ui.Panels.Select(panel => (JsonNode)new JsonObject
+            ["panels"] = new JsonArray([.. state.Ui.Panels.Select(panel =>
             {
-                ["name"] = panel.Name,
-                ["kind"] = panel.Kind.ToString(),
-                ["min"] = new JsonArray(Num.F(panel.Min.X), Num.F(panel.Min.Y)),
-                ["max"] = new JsonArray(Num.F(panel.Max.X), Num.F(panel.Max.Y)),
-                ["fullScreen"] = panel.FullScreen,
-                ["address"] = Hex.Of(panel.Address),
+                var node = new JsonObject
+                {
+                    ["name"] = panel.Name,
+                    ["kind"] = panel.Kind.ToString(),
+                    ["min"] = new JsonArray(Num.F(panel.Min.X), Num.F(panel.Min.Y)),
+                    ["max"] = new JsonArray(Num.F(panel.Max.X), Num.F(panel.Max.Y)),
+                    ["fullScreen"] = panel.FullScreen,
+                    ["address"] = Hex.Of(panel.Address),
+                };
+                if (panel.Parts.Length > 0)
+                    node["parts"] = new JsonArray([.. panel.Parts.Select(part => (JsonNode)new JsonObject
+                    {
+                        ["name"] = part.Name,
+                        ["min"] = new JsonArray(Num.F(part.Min.X), Num.F(part.Min.Y)),
+                        ["max"] = new JsonArray(Num.F(part.Max.X), Num.F(part.Max.Y)),
+                    })]);
+                return (JsonNode)node;
             })]),
         };
         if (state.Player is { } player)

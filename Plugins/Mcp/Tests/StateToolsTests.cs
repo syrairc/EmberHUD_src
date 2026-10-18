@@ -140,6 +140,26 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void PanelPartsAreListedOnlyWhenPresent()
+    {
+        TestGame.Set(GameState.Empty with
+        {
+            Ui = new GameUi([
+                new GamePanel("S16BoardRelicPop_C", PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false) { Parts = [new NamedRect("S16BoardRelicOptCell_1", new Vector2(100, 200), new Vector2(300, 600))] },
+                new GamePanel("PCBag_C", PanelKind.Inventory, Vector2.Zero, new Vector2(10, 10), false),
+            ]),
+        });
+        var panels = Wire.Run(Tools, "get_state")["panels"]!.AsArray();
+        var parts = panels[0]!["parts"]!.AsArray();
+        Check.Equal(1, parts.Count);
+        var part = parts[0]!;
+        Check.Equal("S16BoardRelicOptCell_1", (string?)part["name"]);
+        Check.Equal("100,200", string.Join(',', part["min"]!.AsArray().Select(v => (double)v!)));
+        Check.Equal("300,600", string.Join(',', part["max"]!.AsArray().Select(v => (double)v!)));
+        Check.That(panels[1]!["parts"] is null, "no parts key without parts");
+    }
+
+    [Test]
     public void StateListsTheOpenGamePanels()
     {
         TestGame.Set(GameState.Empty with

@@ -12,12 +12,35 @@ public static class StateMapper
 {
     static readonly Dictionary<int, ToolId> Tools = new()
     {
+        [101] = ToolId.Muzzle,
         [102] = ToolId.Ravenous,
+        [103] = ToolId.Collar,
+        [104] = ToolId.Revenge,
+        [105] = ToolId.Cage,
         [106] = ToolId.Whip,
+        [107] = ToolId.Saw,
+        [111] = ToolId.Blacklist,
         [112] = ToolId.Keys,
+        [113] = ToolId.Coin,
+        [114] = ToolId.Fire,
+        [115] = ToolId.DogTag,
+        [116] = ToolId.Forged,
+        [117] = ToolId.Hook,
+        [121] = ToolId.Scapegoat,
+        [122] = ToolId.Axe,
         [123] = ToolId.Maiden,
+        [124] = ToolId.Scales,
+        [125] = ToolId.Rope,
+        [126] = ToolId.Stake,
         [127] = ToolId.Pestle,
         [131] = ToolId.ShortChain,
+        [132] = ToolId.Shackles,
+        [141] = ToolId.Tongs,
+        [142] = ToolId.Maul,
+        [144] = ToolId.Crown,
+        [146] = ToolId.Guillotine,
+        [147] = ToolId.IronBox,
+        [148] = ToolId.Skewer,
     };
 
     internal static ToolId? ToolOf(int relicId) => Tools.TryGetValue(relicId, out var tool) ? tool : null;
