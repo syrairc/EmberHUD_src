@@ -281,6 +281,34 @@ public class InventoryReaderTests
     }
 
     [Fact]
+    public void ReadsBagCapacitiesByTab()
+    {
+        var f = new Fixture();
+        var manager = f.Lua.NewTable(0, 1);
+        var capacity = f.Lua.NewTable(0, 4);
+        int[] sizes = [56, 60, 100, 120];
+        for (var bag = 0; bag < sizes.Length; bag++) f.Lua.SetIntKey(capacity, Offsets.InventoryTabFirst + bag, sizes[bag], Offsets.LuaTagInt);
+        f.Lua.SetTable(manager, Offsets.LuaBagCapacity, capacity);
+        f.Lua.SetTable(f.Lua.Globals, Offsets.LuaBagManager, manager);
+        var reader = f.Reader();
+
+        reader.Read();
+
+        Assert.Equal(sizes, reader.Capacities);
+    }
+
+    [Fact]
+    public void MissingBagCapacityIsNullAndItemsStillRead()
+    {
+        var f = new Fixture();
+        f.Lua.SetIntKeyTable(f.Bag(0, 1), 0, f.Item("1_a", 1, 1, 1));
+        var reader = f.Reader();
+
+        Assert.Single(reader.Read()!);
+        Assert.Null(reader.Capacities);
+    }
+
+    [Fact]
     public void NoLuaStateIsNull()
     {
         var f = new Fixture();

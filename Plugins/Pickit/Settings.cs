@@ -35,8 +35,20 @@ public sealed class Settings : PluginSettings
     public TextStyle GroundNumbers = TextStyle.Speech();
     public TextStyle InventoryNumbers = TextStyle.Speech();
     public bool DebugRects = false;
+    public bool SpaceEnabled = false;
+    public bool[] SpaceBags = [true, true, true, true];
+    public bool SpaceBar = false;
+    public TextStyle SpaceText = TextStyle.Hud();
+    public float SpaceX = 20;
+    public float SpaceY = 300;
+    public float BarSegmentWidth = 4;
+    public float BarSegmentHeight = 12;
+    public float BarSpacing = 1;
+    public int BarRowLength = 0;
+    public Color BarEmpty = Color.FromArgb(110, 70, 70, 70);
 
     public const int TierCount = 10;
+    public const int BagCount = 4;
 
     static readonly uint[] TierColours = [0xFFFF2B2B, 0xFFFF2B2B, 0xFFD44BFF, 0xEBA95CE8, 0xD28A6BC4, 0xFF3DB2FF, 0xD75C86B3, 0xAA5F7185, 0xAA5F7185, 0xAA5F7185];
 
@@ -55,6 +67,14 @@ public sealed class Settings : PluginSettings
         InventoryScale = Clamp(InventoryScale, 0.25f, 3, 1);
         GroundNumbers = Normalized(GroundNumbers);
         InventoryNumbers = Normalized(InventoryNumbers);
+        SpaceText = Normalized(SpaceText);
+        SpaceBags = [.. (SpaceBags ?? []).Take(BagCount), .. Enumerable.Repeat(true, Math.Max(0, BagCount - (SpaceBags?.Length ?? 0)))];
+        SpaceX = Clamp(SpaceX, 0, 8000, 20);
+        SpaceY = Clamp(SpaceY, 0, 8000, 300);
+        BarSegmentWidth = Clamp(BarSegmentWidth, 1, 50, 4);
+        BarSegmentHeight = Clamp(BarSegmentHeight, 1, 100, 12);
+        BarSpacing = Clamp(BarSpacing, 0, 20, 1);
+        BarRowLength = Math.Clamp(BarRowLength, 0, 1000);
         Tiers = [.. (Tiers ?? []).Take(TierCount).Select((t, i) => t ?? DefaultTier(i))];
         while (Tiers.Count < TierCount) Tiers.Add(DefaultTier(Tiers.Count));
         foreach (var tier in Tiers)

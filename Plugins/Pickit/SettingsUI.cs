@@ -9,7 +9,23 @@ static class SettingsUI
     public static void Draw(Settings s)
     {
         s.Normalize();
-        Layout.TabBar("pickit", ("Autoloot", () => Autoloot(s)), ("Affixes", () => Affixes(s)));
+        Layout.TabBar("pickit", ("Autoloot", () => Autoloot(s)), ("Affixes", () => Affixes(s)), ("Space", () => SpaceTab(s)));
+    }
+
+    static void SpaceTab(Settings s)
+    {
+        Setting.Checkbox("Bag space overlay", ref s.SpaceEnabled, "Shows used and free slots per bag");
+        for (var bag = 0; bag < Settings.BagCount; bag++) Setting.Checkbox(Space.BagName(bag), ref s.SpaceBags[bag], "Show this bag", $"space-bag-{bag}");
+        Setting.Checkbox("Bar graph", ref s.SpaceBar, "A segment per slot, green when empty to red when full - off shows text only");
+        Setting.Style("Text style", s.SpaceText, "Style of the bag text and bar labels", "space-text");
+        Setting.Slider("Position X", ref s.SpaceX, 0, 4000, "Pixels from the left of the screen");
+        Setting.Slider("Position Y", ref s.SpaceY, 0, 3000, "Pixels from the top of the screen");
+        if (!s.SpaceBar) return;
+        Setting.Slider("Segment width", ref s.BarSegmentWidth, 1, 50, "Pixels", fmt: "%.0f");
+        Setting.Slider("Segment height", ref s.BarSegmentHeight, 1, 100, "Pixels", fmt: "%.0f");
+        Setting.Slider("Segment spacing", ref s.BarSpacing, 0, 20, "Pixels between segments", fmt: "%.0f");
+        Setting.Slider("Segments per row", ref s.BarRowLength, 0, 200, "0 keeps each bag on one row");
+        Setting.Color("Empty segment", ref s.BarEmpty, "Colour of segments that are free");
     }
 
     static void Autoloot(Settings s)

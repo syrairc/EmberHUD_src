@@ -122,6 +122,22 @@ public static class Draw
         RectFilled(min, new Vector2(min.X + (max.X - min.X) * (float.IsNaN(fraction) ? 0 : Math.Clamp(fraction, 0, 1)), max.Y), fill, 0, list);
     }
 
+    public static Vector2 SegmentedBar(Vector2 pos, int count, int filled, Vector2 segment, float gap, int perRow, Color[] gradient, Color empty, ImDrawListPtr? list = null)
+    {
+        count = Math.Clamp(count, 0, MaxBarSegments);
+        if (count == 0) return Vector2.Zero;
+        var columns = perRow > 0 ? Math.Min(perRow, count) : count;
+        var step = segment + new Vector2(gap);
+        for (var i = 0; i < count; i++)
+        {
+            var min = pos + new Vector2(i % columns, i / columns) * step;
+            RectFilled(min, min + segment, i < filled ? Ui.Weight.Lerp(gradient, count > 1 ? i / (float)(count - 1) : 0) : empty, 0, list);
+        }
+        return new Vector2(columns, (count + columns - 1) / columns) * step - new Vector2(gap);
+    }
+
+    const int MaxBarSegments = 1000;
+
     public static void Circle(Vector2 centre, float radius, Color color, float thickness = 1, int segments = 0, ImDrawListPtr? list = null) => (list ?? Background).AddCircle(centre, radius, EColor.U32(color), segments, thickness);
 
     public static void CircleFilled(Vector2 centre, float radius, Color color, int segments = 0, ImDrawListPtr? list = null) => (list ?? Background).AddCircleFilled(centre, radius, EColor.U32(color), segments);

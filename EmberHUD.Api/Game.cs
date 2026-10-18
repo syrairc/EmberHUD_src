@@ -192,6 +192,8 @@ public sealed record GameState
 
     public InventoryItem[]? Inventory { get; init; }
 
+    public int[]? BagCapacities { get; init; }
+
     public TartarusState? Tartarus { get; init; }
 
     public GroundItem[]? GroundItems { get; init; }

@@ -250,6 +250,8 @@ public class OffsetsTests
         Assert.Equal(64, Offsets.MaxSkills);
         Assert.Equal("ItemMgr", Offsets.LuaItemManager);
         Assert.Equal("ItemList", Offsets.LuaItemBags);
+        Assert.Equal("BagMgr", Offsets.LuaBagManager);
+        Assert.Equal("BagCapacity", Offsets.LuaBagCapacity);
         Assert.Equal("_Raw_Data", Offsets.LuaItemRecord);
         Assert.Equal("ItemId", Offsets.LuaItemId);
         Assert.Equal("ConfigBaseId", Offsets.LuaItemBaseId);

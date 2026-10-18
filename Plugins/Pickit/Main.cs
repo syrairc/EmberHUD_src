@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Ui;
@@ -24,6 +25,32 @@ public sealed class Main : Plugin<Settings>
     {
         DrawGround();
         DrawInventory();
+        DrawSpace();
+    }
+
+    void DrawSpace()
+    {
+        if (!Settings.SpaceEnabled) return;
+        Game.WantInventory();
+        if (Game.State is not { Inventory: { } items, BagCapacities: { } capacities }) return;
+        var rows = Space.Rows(items, capacities, Settings);
+        var style = Settings.SpaceText;
+        var labelWidth = Settings.SpaceBar ? rows.Select(r => EmberHUD.Draw.MeasureText(r.Text, style).X).DefaultIfEmpty().Max() + 8 : 0;
+        var rowHeight = EmberHUD.Draw.RowHeight(style);
+        var pos = new Vector2(Settings.SpaceX, Settings.SpaceY);
+        foreach (var row in rows)
+        {
+            EmberHUD.Draw.Text(row.Text, pos, style);
+            var height = rowHeight;
+            if (Settings.SpaceBar)
+            {
+                var segment = new Vector2(Settings.BarSegmentWidth, Settings.BarSegmentHeight);
+                var barSize = EmberHUD.Draw.SegmentedBar(pos + new Vector2(labelWidth, 0), row.Capacity, row.Used, segment, Settings.BarSpacing, Settings.BarRowLength, Space.Gradient, Settings.BarEmpty);
+                height = Math.Max(height, barSize.Y);
+            }
+
+            pos.Y += height + 2;
+        }
     }
 
     void DrawGround()

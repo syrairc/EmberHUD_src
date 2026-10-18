@@ -137,6 +137,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),
             Inventory = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeInventory : null,
+            BagCapacities = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? [56, 60, 100, 120] : null,
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
