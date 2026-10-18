@@ -127,6 +127,17 @@ public class GameInstallTests
     }
 
     [Fact]
+    public void AtTreatsTheGameSubfolderOfAStandaloneInstallAsStandalone()
+    {
+        using var temp = new TempDir();
+        temp.File(@"Game\" + SteamExe);
+        var game = GameInstall.At(Path.Combine(temp.Path, "Game"))!;
+        Assert.False(game.Steam);
+        Assert.Equal(temp.Path, game.Folder);
+        Assert.Equal(Path.Combine(temp.Path, "Game", SteamExe), game.Exe);
+    }
+
+    [Fact]
     public void PaksFollowTheSteamLayout()
     {
         using var temp = new TempDir();

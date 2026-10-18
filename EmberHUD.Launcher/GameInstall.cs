@@ -25,7 +25,11 @@ public sealed record GameInstall(string Folder, int? Build, bool Steam = false)
     {
         if (string.IsNullOrWhiteSpace(folder)) return null;
         var full = Path.GetFullPath(folder);
-        foreach (var install in new[] { new GameInstall(full, null), new GameInstall(full, null, true) })
+        var parent = Path.GetFileName(full).Equals("Game", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(full) : null;
+        var candidates = new List<GameInstall> { new(full, null) };
+        if (parent is not null) candidates.Add(new(parent, null));
+        candidates.Add(new(full, null, true));
+        foreach (var install in candidates)
             if (File.Exists(install.Exe)) return install with { Build = install.ReadBuild() };
         return null;
     }
