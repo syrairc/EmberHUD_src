@@ -20,6 +20,7 @@ public sealed class Main : Plugin<Settings>
     int _lastAreaId;
     long _stateChangedAt;
     long _startedAt;
+    long? _quitAt;
 
     internal string DataDirectory { get; set; } = Path.Combine(AppContext.BaseDirectory, "Config", "Mcp");
 
@@ -41,6 +42,11 @@ public sealed class Main : Plugin<Settings>
 
     public override void Tick()
     {
+        if (_quitAt is { } quitAt && Clock() >= quitAt)
+        {
+            _quitAt = null;
+            App.Quit();
+        }
         var state = Game.State;
         if (state.AreaId != _lastAreaId) Marking.Clear(null);
         if (!ReferenceEquals(state.Entities, _lastEntities) || state.Status != _lastStatus || state.AreaId != _lastAreaId)
@@ -97,6 +103,8 @@ public sealed class Main : Plugin<Settings>
         base.Dispose();
     }
 
+    internal void RequestShutdown() => _quitAt ??= Clock() + 500;
+
     internal Status CurrentStatus() => new(Server?.Url ?? "", Server?.InFlight ?? 0, Clock() - _startedAt, Clock() - _stateChangedAt, Watching.Count, Recorder.Active);
 
     void Start()
@@ -112,6 +120,7 @@ public sealed class Main : Plugin<Settings>
                 .. LocTools.Create(),
                 .. WatchTools.Create(Watching),
                 .. RecordTools.Create(Recorder, Recordings),
+                .. HostTools.Create(RequestShutdown),
                 .. MarkTools.Create(Marking, () => Clock()),
                 .. ScreenTools.Create(() => Settings.AllowScreenshots, Path.Combine(DataDirectory, "screenshots")),
             ];
