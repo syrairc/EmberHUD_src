@@ -250,6 +250,24 @@ public class MapInfoReaderTests
     }
 
     [Fact]
+    public void OverrealmDoorsCountDoneFromVanishedIcons()
+    {
+        var world = FakeMapInfo.Demiman();
+        world.SetModifiers(5111003, 3800000);
+        var reader = ReaderFor(world);
+        MapContent Row(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!.Content.Single(c => c.Name == "Overrealm Doors");
+        }
+
+        Assert.Equal(ContentState.Pending, Row().State);
+        Assert.Equal((0, 1), (Row(new MapIcon(2540, "UI_MiniMap_S12_Door1", default, 1, 0, 1855)) is var door ? (door.Done, door.Total) : default));
+        var gone = Row();
+        Assert.Equal((1, 1, ContentState.Done), (gone.Done, gone.Total, gone.State));
+    }
+
+    [Fact]
     public void TarotCardsGroupByTypeWithDoneFromTheirIcons()
     {
         var world = TarotMap();
