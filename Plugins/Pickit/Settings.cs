@@ -38,9 +38,12 @@ public sealed class Settings : PluginSettings
     public bool SpaceEnabled = false;
     public bool[] SpaceBags = [true, true, true, true];
     public bool SpaceBar = false;
+    public bool BarLabels = true;
     public TextStyle SpaceText = TextStyle.Hud();
-    public float SpaceX = 20;
-    public float SpaceY = 300;
+    public bool SpaceLock = true;
+    public Hotkey SpaceMoveKey = new(Key.Alt);
+    public int SpaceX = 20;
+    public int SpaceY = 300;
     public float BarSegmentWidth = 4;
     public float BarSegmentHeight = 12;
     public float BarSpacing = 1;
@@ -69,8 +72,8 @@ public sealed class Settings : PluginSettings
         InventoryNumbers = Normalized(InventoryNumbers);
         SpaceText = Normalized(SpaceText);
         SpaceBags = [.. (SpaceBags ?? []).Take(BagCount), .. Enumerable.Repeat(true, Math.Max(0, BagCount - (SpaceBags?.Length ?? 0)))];
-        SpaceX = Clamp(SpaceX, 0, 8000, 20);
-        SpaceY = Clamp(SpaceY, 0, 8000, 300);
+        SpaceX = Math.Clamp(SpaceX, 0, 7680);
+        SpaceY = Math.Clamp(SpaceY, 0, 4320);
         BarSegmentWidth = Clamp(BarSegmentWidth, 1, 50, 4);
         BarSegmentHeight = Clamp(BarSegmentHeight, 1, 100, 12);
         BarSpacing = Clamp(BarSpacing, 0, 20, 1);

@@ -12,6 +12,8 @@ public sealed class Main : Plugin<Settings>
 {
     readonly Autoloot _autoloot = new();
     readonly TextStyle _numberStyle = new();
+    readonly Overlay _space = new();
+    Vector2 _spaceSize;
 
     public override void Initialize() => Settings.Normalize();
 
@@ -35,22 +37,46 @@ public sealed class Main : Plugin<Settings>
         if (Game.State is not { Inventory: { } items, BagCapacities: { } capacities }) return;
         var rows = Space.Rows(items, capacities, Settings);
         var style = Settings.SpaceText;
-        var labelWidth = Settings.SpaceBar ? rows.Select(r => EmberHUD.Draw.MeasureText(r.Text, style).X).DefaultIfEmpty().Max() + 8 : 0;
+        var labels = Settings.SpaceBar && Settings.BarLabels;
+        var nameWidth = labels ? rows.Select(r => EmberHUD.Draw.MeasureText(r.Name, style).X).DefaultIfEmpty().Max() : 0;
+        var barX = labels ? nameWidth + 8 : 0;
         var rowHeight = EmberHUD.Draw.RowHeight(style);
-        var pos = new Vector2(Settings.SpaceX, Settings.SpaceY);
+        _space.Locked = Settings.SpaceLock;
+        _space.MoveHeld = Settings.SpaceMoveKey.Key != Key.None && Input.IsDown(Settings.SpaceMoveKey.Key);
+        var origin = new Vector2(Settings.SpaceX, Settings.SpaceY);
+        var (hovered, edge, active) = (false, Overlay.ResizeEdge.None, false);
+        if (_spaceSize != Vector2.Zero)
+        {
+            var (noWidth, noHeight) = (0, 0);
+            (hovered, edge, active) = _space.Handle("pickit-space", ref origin, _spaceSize, ref Settings.SpaceX, ref Settings.SpaceY, ref noWidth, 0, 0, ref noHeight, 0, 0, Overlay.ResizeEdge.None);
+            if (hovered || active) Overlay.ClickBlocker("pickit-space", origin, _spaceSize);
+        }
+
+        var pos = origin;
+        var width = 0f;
         foreach (var row in rows)
         {
-            EmberHUD.Draw.Text(row.Text, pos, style);
-            var height = rowHeight;
+            float rowWidth, height;
             if (Settings.SpaceBar)
             {
                 var segment = new Vector2(Settings.BarSegmentWidth, Settings.BarSegmentHeight);
-                var barSize = EmberHUD.Draw.SegmentedBar(pos + new Vector2(labelWidth, 0), row.Capacity, row.Used, segment, Settings.BarSpacing, Settings.BarRowLength, Space.Gradient, Settings.BarEmpty);
-                height = Math.Max(height, barSize.Y);
+                if (labels) EmberHUD.Draw.Text(row.Name, new Vector2(pos.X + nameWidth, pos.Y + segment.Y / 2), style, Align.Right | Align.Middle);
+                var barSize = EmberHUD.Draw.SegmentedBar(pos + new Vector2(barX, 0), row.Capacity, row.Used, segment, Settings.BarSpacing, Settings.BarRowLength, Space.Gradient, Settings.BarEmpty);
+                height = Math.Max(labels ? rowHeight : 0, barSize.Y);
+                rowWidth = barX + barSize.X;
+            }
+            else
+            {
+                rowWidth = EmberHUD.Draw.Text(row.Text, pos, style).X;
+                height = rowHeight;
             }
 
+            width = Math.Max(width, rowWidth);
             pos.Y += height + 2;
         }
+
+        _spaceSize = new Vector2(width, pos.Y - origin.Y);
+        if (_space.Movable) Overlay.DragHint(origin, origin + _spaceSize, active, hovered, edge);
     }
 
     void DrawGround()

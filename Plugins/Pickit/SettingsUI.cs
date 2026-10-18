@@ -17,9 +17,12 @@ static class SettingsUI
         Setting.Checkbox("Bag space overlay", ref s.SpaceEnabled, "Shows used and free slots per bag");
         for (var bag = 0; bag < Settings.BagCount; bag++) Setting.Checkbox(Space.BagName(bag), ref s.SpaceBags[bag], "Show this bag", $"space-bag-{bag}");
         Setting.Checkbox("Bar graph", ref s.SpaceBar, "A segment per slot, green when empty to red when full - off shows text only");
+        if (s.SpaceBar) Setting.Checkbox("Labels", ref s.BarLabels, "Bag name, right aligned, in front of each bar");
         Setting.Style("Text style", s.SpaceText, "Style of the bag text and bar labels", "space-text");
-        Setting.Slider("Position X", ref s.SpaceX, 0, 4000, "Pixels from the left of the screen");
-        Setting.Slider("Position Y", ref s.SpaceY, 0, 3000, "Pixels from the top of the screen");
+        Setting.Checkbox("Lock", ref s.SpaceLock, "A locked overlay ignores the mouse - hold the move key to drag it anyway");
+        Setting.Hotkey("Move key", ref s.SpaceMoveKey, "Hold to move a locked overlay", "space-movekey");
+        Setting.Slider("X", ref s.SpaceX, 0, 7680);
+        Setting.Slider("Y", ref s.SpaceY, 0, 4320);
         if (!s.SpaceBar) return;
         Setting.Slider("Segment width", ref s.BarSegmentWidth, 1, 50, "Pixels", fmt: "%.0f");
         Setting.Slider("Segment height", ref s.BarSegmentHeight, 1, 100, "Pixels", fmt: "%.0f");

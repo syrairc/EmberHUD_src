@@ -1,6 +1,7 @@
 using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
+using Hexa.NET.ImGui;
 
 namespace Pickit;
 
@@ -63,9 +64,14 @@ public sealed class SpaceTests
     {
         TestGame.Set(State(Item(InventoryBag.Equipment, 0)));
         var text = TestFrame.Vertices(Plugin().Render);
-        var bars = TestFrame.Vertices(Plugin(bar: true).Render);
+        var labelled = Plugin(bar: true);
+        var unlabelled = Plugin(bar: true);
+        unlabelled.Settings.BarLabels = false;
+        var withLabels = TestFrame.Vertices(labelled.Render);
+        var withoutLabels = TestFrame.Vertices(unlabelled.Render);
         Check.That(text > 0, "text");
-        Check.That(bars >= text + 4 * (56 + 60 + 100 + 120), "bar segments");
+        Check.Equal(4 * (56 + 60 + 100 + 120), withoutLabels);
+        Check.That(withLabels > withoutLabels, "labels add glyphs");
     }
 
     [Test]
@@ -85,6 +91,44 @@ public sealed class SpaceTests
         var off = Plugin(enabled: false);
         Check.That(TestGame.InventoryAskedDuring(() => TestFrame.Run(on.Render)), "on");
         Check.That(!TestGame.InventoryAskedDuring(() => TestFrame.Run(off.Render)), "off");
+    }
+
+    [Test]
+    public void LockedByDefaultWithAltToMoveAndNormalizeKeepsThePositionOnScreen()
+    {
+        var settings = new Settings();
+        Check.That(settings.SpaceLock && settings.SpaceMoveKey.Key == Key.Alt, "defaults");
+        settings.SpaceX = -5;
+        settings.SpaceY = 99999;
+        settings.Normalize();
+        Check.Equal(0, settings.SpaceX);
+        Check.Equal(4320, settings.SpaceY);
+    }
+
+    [Test]
+    public void UnlockedOverlayDrawsTheDragHintFromTheSecondFrame()
+    {
+        TestGame.Set(State(Item(InventoryBag.Equipment, 0)));
+        var locked = Plugin();
+        var unlocked = Plugin();
+        unlocked.Settings.SpaceLock = false;
+        TestFrame.Run(locked.Render);
+        TestFrame.Run(unlocked.Render);
+        int Foreground(Main plugin)
+        {
+            var added = 0;
+            TestFrame.Run(() =>
+            {
+                var list = ImGui.GetForegroundDrawList();
+                var before = list.VtxBuffer.Size;
+                plugin.Render();
+                added = list.VtxBuffer.Size - before;
+            });
+            return added;
+        }
+
+        Check.Equal(0, Foreground(locked));
+        Check.That(Foreground(unlocked) > 0, "hint rect");
     }
 
     [Test]
