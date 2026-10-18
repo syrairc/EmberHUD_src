@@ -9,7 +9,7 @@ static class SettingsUI
     public static void Draw(Settings s)
     {
         s.Normalize();
-        Layout.TabBar("pickit", ("Autoloot", () => Autoloot(s)), ("Affixes", () => Affixes(s)), ("Space", () => SpaceTab(s)));
+        Layout.TabBar("pickit", ("Autoloot", () => Autoloot(s)), ("Affixes", () => Affixes(s)), ("Bag Space", () => SpaceTab(s)));
     }
 
     static void SpaceTab(Settings s)
