@@ -6,6 +6,7 @@ namespace EmberHUD.Host.Reading;
 internal sealed class LiveGameSource : IGameSource
 {
     private static readonly long AttachRetryTicks = Stopwatch.Frequency;
+    private static readonly int[] Pristine = Offsets.Snapshot();
 
     private GameProcess? _game;
     private LiveReader? _reader;
@@ -32,6 +33,8 @@ internal sealed class LiveGameSource : IGameSource
         return ok;
     }
 
+    private static string HealCache => Path.Combine(AppContext.BaseDirectory, "Config", "rva-heal.txt");
+
     public void Dispose() => Detach();
 
     private bool TryAttach()
@@ -39,9 +42,15 @@ internal sealed class LiveGameSource : IGameSource
         var now = Stopwatch.GetTimestamp();
         if (now < _nextAttach) return false;
         _nextAttach = now + AttachRetryTicks;
+        Offsets.Restore(Pristine);
         if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
         if (!GameProcess.TryAttach(pid, out _game, out _attachFailure)) return false;
-        if (!_game!.ExactBuild) Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
+        if (!_game!.ExactBuild)
+        {
+            Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");
+            RvaHeal.TryApply(_game.ExePath, HealCache, out var note);
+            Log.Warn(note);
+        }
         _combat = new CombatReader(_game.Backend, _game.ModuleBase);
         _poller = new CombatPoller(_combat.Poll, () => Game.CombatWanted(Stopwatch.GetTimestamp(), Offsets.CombatWantedSeconds), Log.Warn);
         _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase), new CharacterReader(_game.Backend, _game.ModuleBase), new TartarusReader(_game.Backend, _game.ModuleBase), new GroundItemReader(_game.Backend, _game.ModuleBase), new TarotReader(_game.Backend, _game.ModuleBase));

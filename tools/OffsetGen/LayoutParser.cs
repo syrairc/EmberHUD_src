@@ -26,7 +26,7 @@ internal static class LayoutParser
 
     public static BuildTable ParseBuilds(string text, IEnumerable<string> baseNames)
     {
-        var (baseText, sections) = Sections(text);
+        var (_, sections, _) = Sections(text);
         var baseSet = baseNames.ToHashSet();
         if (sections.Count == 0) throw new FormatException("no [build <exe size>] section");
         var builds = sections.Select(section => (section.Size, Entries: Ints(section.Body))).ToList();
@@ -47,14 +47,64 @@ internal static class LayoutParser
         return new BuildTable(names, [.. builds.Select(build => build.Size)], [.. builds.SelectMany(build => names.Select(name => build.Entries.First(entry => entry.Name == name).Value))]);
     }
 
-    private static (string Base, List<(long Size, string Body)> Builds) Sections(string text)
+    public static IReadOnlyList<string> ParseSigs(string text, IEnumerable<string> perBuildNames)
+    {
+        var keys = perBuildNames.ToHashSet();
+        var packed = new List<string>();
+        foreach (var raw in Sections(text).Sigs.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0 || line[0] == '#') continue;
+
+            var parts = line.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (parts.Length != 2 || !keys.Contains(parts[0])) throw new FormatException($"bad sig key: {line}");
+            var (key, value) = (parts[0], parts[1]);
+            packed.Add(value.StartsWith('@') ? PackRelation(line, key, value[1..], keys) : PackSig(line, key, value));
+        }
+
+        return packed;
+    }
+
+    private static string PackRelation(string line, string key, string value, HashSet<string> keys)
+    {
+        var parts = value.Split(' ',StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 3 || !keys.Contains(parts[0]) || parts[0] == key || parts[1] is not ("+" or "-") || !TryNumber(parts[2], out var delta))
+            throw new FormatException($"bad sig relation: {line}");
+        return $"R|{key}|{parts[0]}|{(parts[1] == "-" ? -delta : delta).ToString(CultureInfo.InvariantCulture)}";
+    }
+
+    private static string PackSig(string line, string key, string value)
+    {
+        var halves = value.Split('|');
+        var tokens = halves[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var offsets = halves.Length == 2 ? halves[1].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
+        if (offsets.Length != 2 || !int.TryParse(offsets[0], NumberStyles.None, CultureInfo.InvariantCulture, out var disp) || !int.TryParse(offsets[1], NumberStyles.None, CultureInfo.InvariantCulture, out var end)
+            || tokens.Length < 16 || disp > end - 4 || end > tokens.Length
+            || !tokens.All(token => token == "?" || (token.Length == 2 && token.All(char.IsAsciiHexDigit))))
+            throw new FormatException($"bad sig: {line}");
+        return $"S|{key}|{string.Join(' ', tokens)}|{disp}|{end}";
+    }
+
+    private static bool TryNumber(string raw, out long value) =>
+        raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? long.TryParse(raw[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value)
+            : long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out value);
+
+    private static (string Base, List<(long Size, string Body)> Builds, string Sigs) Sections(string text)
     {
         var baseText = new StringBuilder();
+        var sigsText = new StringBuilder();
         var builds = new List<(long Size, StringBuilder Body)>();
         var current = baseText;
         foreach (var raw in text.Split('\n'))
         {
             var line = raw.Trim();
+            if (line == "[sigs]")
+            {
+                current = sigsText;
+                continue;
+            }
+
             if (!line.StartsWith("[build", StringComparison.Ordinal))
             {
                 current.AppendLine(line);
@@ -68,7 +118,7 @@ internal static class LayoutParser
             builds.Add((size, current));
         }
 
-        return (baseText.ToString(), [.. builds.Select(build => (build.Size, build.Body.ToString()))]);
+        return (baseText.ToString(), [.. builds.Select(build => (build.Size, build.Body.ToString()))], sigsText.ToString());
     }
 
     private static List<(string Name, int Value)> Ints(string body)
@@ -107,7 +157,7 @@ internal static class LayoutParser
 
 internal static class OffsetEmitter
 {
-    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string> stringNames, IReadOnlyList<string>? buildNames = null, IReadOnlyList<long>? buildSizes = null)
+    public static string Emit(IReadOnlyList<string> names, byte[] seed, IReadOnlyList<string> stringNames, IReadOnlyList<string>? buildNames = null, IReadOnlyList<long>? buildSizes = null, IReadOnlyList<string>? sigLines = null)
     {
         buildNames ??= [];
         var source = new StringBuilder();
@@ -119,6 +169,12 @@ internal static class OffsetEmitter
         for (var i = 0; i < names.Count; i++) source.AppendLine($"    internal static int {names[i]} => T[{i}];");
         for (var j = 0; j < buildNames.Count; j++) source.AppendLine($"    internal static int {buildNames[j]} => T[{names.Count + j} + Build * {buildNames.Count}];");
         for (var i = 0; i < stringNames.Count; i++) source.AppendLine($"    internal static string {stringNames[i]} => S[{i}];");
+        if (buildNames.Count > 0)
+        {
+            source.AppendLine($"    internal static readonly string[] BuildKeys = [{string.Join(", ", buildNames.Select(name => $"\"{name}\""))}];");
+            source.AppendLine($"    internal const int PerBuildStart = {names.Count};");
+        }
+        if (sigLines is not null) source.AppendLine($"    internal static string[] SigLines => S[{stringNames.Count}..];");
         if (buildSizes is { Count: > 0 }) source.AppendLine($"    internal static readonly long[] BuildSizes = [{string.Join(", ", buildSizes)}];");
         source.AppendLine("}");
         return source.ToString();

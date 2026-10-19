@@ -18,7 +18,7 @@ public class OffsetsTests
     {
         var builds = new Dictionary<long, Dictionary<string, long>>();
         Dictionary<string, long>? current = null;
-        foreach (var line in WantLines().SkipWhile(line => !line.StartsWith("[build")))
+        foreach (var line in WantLines().SkipWhile(line => !line.StartsWith("[build")).TakeWhile(line => line != "[sigs]"))
         {
             if (line.StartsWith("[build"))
             {
@@ -529,5 +529,48 @@ public class OffsetsTests
         Assert.True(Offsets.HybridHeaderSize >= Offsets.HybridRows + sizeof(int));
         Assert.True(Offsets.HybridHeaderSize >= Offsets.HybridCells + nint.Size);
         Assert.True(Offsets.HybridHeaderSize >= Offsets.HybridIsHybrid + sizeof(byte));
+    }
+
+    [Fact]
+    public void ParseSigLinesReadsBothKinds()
+    {
+        var (sigs, relations) = Offsets.ParseSigLines(["S|A|48 8B ?|3|7", "R|A|B|-12"]);
+        Assert.Equal([new RvaSig("A", "48 8B ?", 3, 7)], sigs);
+        Assert.Equal([new RvaRelation("A", "B", -12)], relations);
+    }
+
+    [Fact]
+    public void SetPerBuildChangesOnlyTheCurrentBuild()
+    {
+        var snapshot = Offsets.Snapshot();
+        try
+        {
+            Offsets.SelectBuild(126258104);
+            Assert.True(Offsets.SetPerBuild("LogicWorldGlobalRva", 0x1234));
+            Assert.Equal(0x1234, Offsets.LogicWorldGlobalRva);
+            Assert.True(Offsets.TryGetPerBuild("LogicWorldGlobalRva", out var value));
+            Assert.Equal(0x1234, value);
+            Offsets.SelectBuild(123144120);
+            Assert.Equal(0x69331B8, Offsets.LogicWorldGlobalRva);
+        }
+        finally
+        {
+            Offsets.Restore(snapshot);
+        }
+    }
+
+    [Fact]
+    public void SetPerBuildRejectsUnknownKey()
+    {
+        Assert.False(Offsets.SetPerBuild("NoSuchKey", 1));
+        Assert.False(Offsets.TryGetPerBuild("NoSuchKey", out _));
+    }
+
+    [Fact]
+    public void TheShippedSigsParse()
+    {
+        Assert.NotEmpty(Offsets.Sigs);
+        Assert.All(Offsets.Sigs, sig => Assert.Contains(sig.Key, Offsets.BuildKeys));
+        Assert.All(Offsets.Relations, relation => Assert.Contains(relation.Key, Offsets.BuildKeys));
     }
 }

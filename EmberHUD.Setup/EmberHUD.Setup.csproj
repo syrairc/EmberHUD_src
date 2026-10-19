@@ -28,6 +28,7 @@
     <Compile Include="..\EmberHUD\Offsets\Offsets.cs" Link="Host\Offsets.cs" />
     <Compile Include="..\EmberHUD\Offsets\Offsets.g.cs" Link="Host\Offsets.g.cs" />
     <Compile Include="..\EmberHUD\Offsets\OffsetTable.cs" Link="Host\OffsetTable.cs" />
+    <Compile Include="..\EmberHUD\Offsets\RvaSig.cs" Link="Host\RvaSig.cs" />
     <EmbeddedResource Include="..\EmberHUD\Offsets\offsets.bin" LogicalName="t" />
   </ItemGroup>
   <ItemGroup>

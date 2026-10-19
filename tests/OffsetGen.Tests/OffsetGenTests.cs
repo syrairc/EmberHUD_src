@@ -151,4 +151,46 @@ public class OffsetGenTests
         Assert.Contains("internal static int YRva => T[3 + Build * 2];", source);
         Assert.Contains("internal static readonly long[] BuildSizes = [100, 250];", source);
     }
+
+    private const string SigPattern = "48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48";
+
+    [Fact]
+    public void SigsSectionIsKeptOutOfTheLastBuild()
+    {
+        var text = $"A = 1\n[build 100]\nKeyRva = 1\nOtherRva = 2\n[sigs]\n# note\n\nKeyRva = {SigPattern} | 2 8\nOtherRva = @KeyRva + 0x28\n";
+        var table = LayoutParser.ParseBuilds(text, ["A"]);
+        Assert.Equal(["KeyRva", "OtherRva"], table.Names);
+        Assert.Equal([$"S|KeyRva|{SigPattern}|2|8", "R|OtherRva|KeyRva|40"], LayoutParser.ParseSigs(text, table.Names));
+    }
+
+    [Fact]
+    public void SigsAllowNegativeDeltasAndRepeatedKeys()
+    {
+        var text = $"[sigs]\nKeyRva = {SigPattern} | 2 8\nKeyRva = {SigPattern} | 0 4\nOtherRva = @KeyRva - 0xC\n";
+        var lines = LayoutParser.ParseSigs(text, ["KeyRva", "OtherRva"]);
+        Assert.Equal(3, lines.Count);
+        Assert.Equal("R|OtherRva|KeyRva|-12", lines[2]);
+    }
+
+    [Theory]
+    [InlineData("NopeRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 2 8")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 ZZ | 2 8")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 2 19")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 4 7")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 | 2 8")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 2147483647 8")]
+    [InlineData("KeyRva = @KeyRva + 0x28")]
+    [InlineData("OtherRva = @")]
+    [InlineData("OtherRva = @NopeRva + 4")]
+    public void SigsRejectBadLines(string line) =>
+        Assert.Throws<FormatException>(() => LayoutParser.ParseSigs($"[sigs]\n{line}\n", ["KeyRva", "OtherRva"]));
+
+    [Fact]
+    public void EmitWritesBuildKeysAndSigLines()
+    {
+        var source = OffsetEmitter.Emit(["Alpha", "Beta"], [1], ["Name"], ["A", "B"], [100], ["S|A|00|0|4"]);
+        Assert.Contains("internal static readonly string[] BuildKeys = [\"A\", \"B\"];", source);
+        Assert.Contains("internal const int PerBuildStart = 2;", source);
+        Assert.Contains("internal static string[] SigLines => S[1..];", source);
+    }
 }
