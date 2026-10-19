@@ -18,7 +18,7 @@ public class RvaHealerTests
             BitConverter.GetBytes(disp).CopyTo(text, at + 2);
         }
 
-        return FakePe.Build((".text", TextRva, text, true));
+        return FakePe.WithDataTail(text);
     }
 
     private static bool Heal(byte[] file, RvaSig[] sigs, RvaRelation[] relations, out IReadOnlyDictionary<string, int> healed, out string? failure) =>
@@ -116,5 +116,21 @@ public class RvaHealerTests
         Assert.False(Heal(file, [Sig("A", 0xA1), Sig("B", 0xC3)], [], out var healed, out var failure));
         Assert.Equal("B: no signature matched", failure);
         Assert.Empty(healed);
+    }
+
+    [Fact]
+    public void RejectsATargetInsideAnExecutableSection()
+    {
+        var file = Pe((0x10, 0xA1, 0x3A));
+        Assert.False(Heal(file, [Sig("A", 0xA1)], [], out _, out var failure));
+        Assert.Equal("A: no signature matched", failure);
+    }
+
+    [Fact]
+    public void AcceptsATargetInTheVirtualTailOfADataSection()
+    {
+        var file = Pe((0x10, 0xA1, 0x8EA));
+        Assert.True(Heal(file, [Sig("A", 0xA1)], [], out var healed, out _));
+        Assert.Equal(0x1900, healed["A"]);
     }
 }

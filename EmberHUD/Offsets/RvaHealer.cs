@@ -66,6 +66,6 @@ internal static class RvaHealer
         }
 
         var target = (long)endRva + BitConverter.ToInt32(file, (int)disp);
-        return target >= 1 && target < image.SizeOfImage ? (int)target : 0;
+        return target >= 1 && target < image.SizeOfImage && image.IsDataRva((int)target) ? (int)target : 0;
     }
 }

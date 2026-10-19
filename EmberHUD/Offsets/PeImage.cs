@@ -55,12 +55,12 @@ internal sealed class PeImage
             var rawPointer = BitConverter.ToInt32(file, header + 20);
             var flags = BitConverter.ToUInt32(file, header + 36);
             var size = Math.Min(virtualSize, rawSize);
-            if (virtualSize < 0 || rva < 0 || rawSize < 0 || rawPointer < 0 || (long)rawPointer + rawSize > file.Length || (long)rva + size > int.MaxValue)
+            if (virtualSize < 0 || rva < 0 || rawSize < 0 || rawPointer < 0 || (long)rawPointer + rawSize > file.Length || (long)rva + Math.Max(size, virtualSize) > int.MaxValue)
             {
                 return false;
             }
 
-            sections[i] = new Section(rva, size, rawPointer, (flags & ExecuteFlag) != 0);
+            sections[i] = new Section(rva, size, rawPointer, (flags & ExecuteFlag) != 0, virtualSize);
         }
 
         image = new PeImage(file, BitConverter.ToInt32(file, (int)optional + 56), sections);
@@ -92,6 +92,8 @@ internal sealed class PeImage
 
         return -1;
     }
+
+    public bool IsDataRva(int rva) => _sections.Any(s => !s.Executable && rva >= s.Rva && rva - s.Rva < s.VirtualSize);
 
     public IReadOnlyList<int> Find(string pattern, int limit)
     {
@@ -159,5 +161,5 @@ internal sealed class PeImage
         return true;
     }
 
-    private readonly record struct Section(int Rva, int Size, int RawPointer, bool Executable);
+    private readonly record struct Section(int Rva, int Size, int RawPointer, bool Executable, int VirtualSize);
 }

@@ -6,6 +6,7 @@ namespace EmberHUD.Host.Reading;
 internal sealed class LiveGameSource : IGameSource
 {
     private static readonly long AttachRetryTicks = Stopwatch.Frequency;
+    private static readonly int[] Pristine = Offsets.Snapshot();
 
     private GameProcess? _game;
     private LiveReader? _reader;
@@ -14,8 +15,6 @@ internal sealed class LiveGameSource : IGameSource
     private long _nextAttach;
     private int _lastAreaId;
     private string? _attachFailure;
-    private long _attachedAt;
-    private bool _healTried;
 
     public bool TryRead(out GameState state, out string? failure)
     {
@@ -31,12 +30,6 @@ internal sealed class LiveGameSource : IGameSource
 
         var ok = _reader!.TryRead(out state, out failure);
         if (ok) _lastAreaId = state.AreaId;
-        else if (_game is not null && RvaHeal.ShouldRetryHeal(_game.ExactBuild, _healTried, (long)Stopwatch.GetElapsedTime(_attachedAt).TotalMilliseconds, failure))
-        {
-            _healTried = true;
-            RvaHeal.TryApply(_game.ExePath, HealCache, out var note);
-            Log.Warn(note);
-        }
         return ok;
     }
 
@@ -49,10 +42,9 @@ internal sealed class LiveGameSource : IGameSource
         var now = Stopwatch.GetTimestamp();
         if (now < _nextAttach) return false;
         _nextAttach = now + AttachRetryTicks;
+        Offsets.Restore(Pristine);
         if (!GameProcess.TryFindPid(out var pid, out _attachFailure)) return false;
         if (!GameProcess.TryAttach(pid, out _game, out _attachFailure)) return false;
-        _attachedAt = Stopwatch.GetTimestamp();
-        _healTried = false;
         if (!_game!.ExactBuild)
         {
             Log.Warn($"{Offsets.GameProcessName}.exe is {_game.ExeSize} bytes, no offsets for that exact build - using the {Offsets.BuildSizes[Offsets.Build]} byte set, reads that miss are skipped");

@@ -79,7 +79,7 @@ internal static class LayoutParser
         var tokens = halves[0].Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var offsets = halves.Length == 2 ? halves[1].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
         if (offsets.Length != 2 || !int.TryParse(offsets[0], NumberStyles.None, CultureInfo.InvariantCulture, out var disp) || !int.TryParse(offsets[1], NumberStyles.None, CultureInfo.InvariantCulture, out var end)
-            || tokens.Length < 16 || disp + 4 > end || end > tokens.Length
+            || tokens.Length < 16 || disp > end - 4 || end > tokens.Length
             || !tokens.All(token => token == "?" || (token.Length == 2 && token.All(char.IsAsciiHexDigit))))
             throw new FormatException($"bad sig: {line}");
         return $"S|{key}|{string.Join(' ', tokens)}|{disp}|{end}";

@@ -9,7 +9,13 @@ internal static class FakePe
     private const int HeadersSize = 0x400;
     private const uint ExecuteFlag = 0x20000000;
 
-    public static byte[] Build(params (string Name, int Rva, byte[] Data, bool Executable)[] sections)
+    public static byte[] Build(params (string Name, int Rva, byte[] Data, bool Executable)[] sections) =>
+        Build(sections.Select(s => (s.Name, s.Rva, s.Data, s.Executable, s.Data.Length)).ToArray());
+
+    public static byte[] WithDataTail(byte[] text) =>
+        Build((".text", 0x1000, text, true, text.Length), (".data", 0x1100, new byte[0x10], false, 0x1000));
+
+    public static byte[] Build(params (string Name, int Rva, byte[] Data, bool Executable, int VirtualSize)[] sections)
     {
         var file = new List<byte>(new byte[HeadersSize]);
         var raw = new int[sections.Length];
@@ -21,7 +27,7 @@ internal static class FakePe
         }
 
         var bytes = file.ToArray();
-        var sizeOfImage = sections.Length == 0 ? 0x1000 : (sections.Max(s => s.Rva + s.Data.Length) + 0xFFF) & ~0xFFF;
+        var sizeOfImage = sections.Length == 0 ? 0x1000 : (sections.Max(s => s.Rva + s.VirtualSize) + 0xFFF) & ~0xFFF;
         BitConverter.GetBytes((ushort)0x5A4D).CopyTo(bytes, 0);
         BitConverter.GetBytes(PeOffset).CopyTo(bytes, 0x3C);
         BitConverter.GetBytes(0x00004550).CopyTo(bytes, PeOffset);
@@ -36,7 +42,7 @@ internal static class FakePe
         {
             var header = optional + OptionalSize + i * 40;
             Encoding.ASCII.GetBytes(sections[i].Name).Take(8).ToArray().CopyTo(bytes, header);
-            BitConverter.GetBytes(sections[i].Data.Length).CopyTo(bytes, header + 8);
+            BitConverter.GetBytes(sections[i].VirtualSize).CopyTo(bytes, header + 8);
             BitConverter.GetBytes(sections[i].Rva).CopyTo(bytes, header + 12);
             BitConverter.GetBytes((sections[i].Data.Length + 0x1FF) & ~0x1FF).CopyTo(bytes, header + 16);
             BitConverter.GetBytes(raw[i]).CopyTo(bytes, header + 20);

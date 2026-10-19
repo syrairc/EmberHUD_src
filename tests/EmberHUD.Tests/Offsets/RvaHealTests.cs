@@ -15,7 +15,7 @@ public class RvaHealTests
         text[0x10] = 0xA1;
         text[0x11] = 0x01;
         BitConverter.GetBytes(disp).CopyTo(text, 0x12);
-        return FakePe.Build((".text", 0x1000, text, true));
+        return FakePe.WithDataTail(text);
     }
 
     private static void WithTempDir(Action<string> body)
@@ -206,5 +206,58 @@ public class RvaHealTests
             Assert.False(RvaHeal.TryApply(Path.Combine(dir, "nope.exe"), Path.Combine(dir, "rvas.cache"), Sigs, Relations, out var note));
             Assert.NotEmpty(note);
         });
+    }
+
+    [Fact]
+    public void CacheWrittenForADifferentSigSetIsIgnored()
+    {
+        WithTempDir(dir =>
+        {
+            var exe = Path.Combine(dir, "game.exe");
+            var cache = Path.Combine(dir, "rvas.cache");
+            File.WriteAllBytes(exe, Exe(0x500));
+            Assert.True(RvaHeal.TryApply(exe, cache, Sigs, Relations, out _));
+            var other = new RvaSig(KeyA, "B7 01 ? ? ? ?", 2, 6);
+            Assert.False(RvaHeal.TryApply(exe, cache, [other], Relations, out _));
+        });
+    }
+
+    [Fact]
+    public void CacheKeysNotNamedBySigsAreNotApplied()
+    {
+        WithTempDir(dir =>
+        {
+            var exe = Path.Combine(dir, "game.exe");
+            var cache = Path.Combine(dir, "rvas.cache");
+            File.WriteAllBytes(exe, Exe(0x500));
+            Assert.True(RvaHeal.TryApply(exe, cache, Sigs, Relations, out _));
+            File.AppendAllLines(cache, ["PlayerMgrGlobalRva=0x7"]);
+            var before = Get("PlayerMgrGlobalRva");
+            Assert.True(RvaHeal.TryApply(exe, cache, Sigs, Relations, out _));
+            Assert.Equal(before, Get("PlayerMgrGlobalRva"));
+        });
+    }
+
+    [Fact]
+    public void RestoreOfAPristineSnapshotUndoesAHeal()
+    {
+        WithTempDir(dir =>
+        {
+            var exe = Path.Combine(dir, "game.exe");
+            File.WriteAllBytes(exe, Exe(0x500));
+            var pristine = Offsets.Snapshot();
+            Assert.True(RvaHeal.TryApply(exe, Path.Combine(dir, "rvas.cache"), Sigs, Relations, out _));
+            Assert.NotEqual(pristine, Offsets.Snapshot());
+            Offsets.Restore(pristine);
+            Assert.Equal(pristine, Offsets.Snapshot());
+        });
+    }
+
+    [Fact]
+    public void EveryShippedRvaKeyIsHealed()
+    {
+        var healed = Offsets.Sigs.Select(s => s.Key).Concat(Offsets.Relations.Select(r => r.Key)).ToHashSet();
+        foreach (var key in Offsets.BuildKeys.Where(k => k.EndsWith("Rva", StringComparison.Ordinal)))
+            Assert.True(healed.Contains(key), key);
     }
 }

@@ -85,4 +85,16 @@ public class PeImageTests
         BitConverter.GetBytes(int.MaxValue).CopyTo(overflow, 0x40 + 24 + 240 + 20);
         yield return overflow;
     }
+
+    [Fact]
+    public void IsDataRvaUsesTheVirtualRangeOfNonExecutableSections()
+    {
+        var file = FakePe.Build((".text", 0x1000, Code, true, Code.Length), (".data", 0x3000, Code, false, 0x800));
+        Assert.True(PeImage.TryParse(file, out var image));
+        Assert.True(image.IsDataRva(0x3000));
+        Assert.True(image.IsDataRva(0x37FF));
+        Assert.False(image.IsDataRva(0x3800));
+        Assert.False(image.IsDataRva(0x1002));
+        Assert.False(image.IsDataRva(0x2000));
+    }
 }

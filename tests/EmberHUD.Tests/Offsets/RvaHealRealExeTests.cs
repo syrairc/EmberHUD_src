@@ -1,5 +1,4 @@
 using EmberHUD.Host;
-using EmberHUD.Host.Reading;
 
 namespace EmberHUD.Tests;
 
@@ -33,14 +32,4 @@ public class RvaHealRealExeTests
             Offsets.Build = build;
         }
     }
-
-    [Theory]
-    [InlineData(true, false, 20_000, LogicWorldReader.NotCreated, true)]
-    [InlineData(true, false, 19_999, LogicWorldReader.NotCreated, false)]
-    [InlineData(true, true, 30_000, LogicWorldReader.NotCreated, false)]
-    [InlineData(false, false, 30_000, LogicWorldReader.NotCreated, false)]
-    [InlineData(true, false, 30_000, "no scene - not in a map", false)]
-    [InlineData(true, false, 30_000, null, false)]
-    public void RetryHealOnlyOnceOnAnExactBuildAfterTheDelay(bool exact, bool tried, long ms, string? failure, bool expected) =>
-        Assert.Equal(expected, RvaHeal.ShouldRetryHeal(exact, tried, ms, failure));
 }

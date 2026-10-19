@@ -1,16 +1,23 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace EmberHUD.Host;
 
 internal static class RvaHeal
 {
-    internal const long RetryAfterMs = 20_000;
-
-    internal static bool ShouldRetryHeal(bool exactBuild, bool alreadyTried, long msSinceAttach, string? failure) =>
-        exactBuild && !alreadyTried && msSinceAttach >= RetryAfterMs && failure == EmberHUD.Host.Reading.LogicWorldReader.NotCreated;
-
-    public static bool TryApply(string exePath, string cachePath, out string note) =>
-        TryApply(exePath, cachePath, Offsets.Sigs, Offsets.Relations, out note);
+    public static bool TryApply(string exePath, string cachePath, out string note)
+    {
+        try
+        {
+            return TryApply(exePath, cachePath, Offsets.Sigs, Offsets.Relations, out note);
+        }
+        catch (Exception e)
+        {
+            note = e.Message;
+            return false;
+        }
+    }
 
     public static bool TryApply(string exePath, string cachePath, IReadOnlyList<RvaSig> sigs, IReadOnlyList<RvaRelation> relations, out string note)
     {
@@ -19,7 +26,7 @@ internal static class RvaHeal
         try
         {
             var info = new FileInfo(exePath);
-            var stamp = $"{info.Length} {info.LastWriteTimeUtc.Ticks}";
+            var stamp = $"{info.Length} {info.LastWriteTimeUtc.Ticks} {SigSetHash(sigs, relations)}";
             if (!TryReadCache(cachePath, stamp, sigs, relations, out healed))
             {
                 if (!RvaHealer.TryHeal(File.ReadAllBytes(exePath), sigs, relations, out healed, out failure))
@@ -44,6 +51,12 @@ internal static class RvaHeal
 
         note = $"Rvas healed from signatures ({healed.Count} keys), struct offsets from build {Offsets.BuildSizes[Offsets.Build]}, unverified";
         return true;
+    }
+
+    private static string SigSetHash(IReadOnlyList<RvaSig> sigs, IReadOnlyList<RvaRelation> relations)
+    {
+        var text = string.Join('\n', sigs.Select(s => $"S|{s.Key}|{s.Pattern}|{s.DispOffset}|{s.EndOffset}").Concat(relations.Select(r => $"R|{r.Key}|{r.Other}|{r.Delta}")));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16];
     }
 
     private static void WriteCache(string cachePath, string stamp, IReadOnlyDictionary<string, int> healed)
@@ -95,7 +108,7 @@ internal static class RvaHeal
                 return false;
             }
 
-            values = read;
+            values = keys.Distinct().ToDictionary(k => k, k => read[k]);
             return true;
         }
         catch (Exception)

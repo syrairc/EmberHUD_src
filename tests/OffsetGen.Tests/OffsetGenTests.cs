@@ -178,6 +178,7 @@ public class OffsetGenTests
     [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 2 19")]
     [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 4 7")]
     [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 | 2 8")]
+    [InlineData("KeyRva = 48 8B C8 8B D6 E8 ? ? ? ? C7 43 04 00 00 00 00 48 | 2147483647 8")]
     [InlineData("KeyRva = @KeyRva + 0x28")]
     [InlineData("OtherRva = @")]
     [InlineData("OtherRva = @NopeRva + 4")]
