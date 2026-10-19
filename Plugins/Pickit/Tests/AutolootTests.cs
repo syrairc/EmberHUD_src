@@ -15,8 +15,9 @@ public sealed class AutolootTests
         public readonly List<string> Sent = [];
         public bool DownOk = true;
         public bool Allowed = true;
+        public long Now = 100_000;
 
-        public void Step(GameState state) => Engine.Step(Settings, state, Held.Contains, key => { Sent.Add($"down {key}"); return DownOk; }, key => { Sent.Add($"up {key}"); return true; }, Allowed);
+        public void Step(GameState state) => Engine.Step(Settings, state, Held.Contains, key => { Sent.Add($"down {key}"); return DownOk; }, key => { Sent.Add($"up {key}"); return true; }, Allowed, Now);
     }
 
     static GameState Near(params GroundItem[] items) => new() { Player = new Player(Vector3.Zero, Vector2.UnitX), GroundItems = items };
@@ -34,6 +35,71 @@ public sealed class AutolootTests
         Check.That(rig.Engine.Holding, "holding");
         rig.Step(new GameState());
         Check.Equal(1, rig.Sent.Count, "no repeat while held");
+    }
+
+    [Test]
+    public void FilterKeyPausesBothTriggersUntilTheTimeIsUp()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Held.Add(Key.Alt);
+        rig.Step(Near(Item(10)));
+        Check.Equal(0, rig.Sent.Count, "filter key held");
+        rig.Held.Remove(Key.Alt);
+        rig.Now += 4999;
+        rig.Step(Near(Item(10)));
+        Check.Equal(0, rig.Sent.Count, "inside the pause time");
+        rig.Now += 1;
+        rig.Step(Near(Item(10)));
+        Check.Equal("down A", string.Join(",", rig.Sent));
+    }
+
+    [Test]
+    public void HoldingTheFilterKeyKeepsExtendingThePause()
+    {
+        var rig = new Rig { Held = { Key.Space, Key.Alt } };
+        rig.Step(new GameState());
+        rig.Now += 10_000;
+        rig.Step(new GameState());
+        Check.Equal(0, rig.Sent.Count, "still held after the pause time");
+    }
+
+    [Test]
+    public void FilterKeyReleasesAHeldPickupKey()
+    {
+        var rig = new Rig { Held = { Key.Space } };
+        rig.Step(new GameState());
+        rig.Held.Add(Key.Alt);
+        rig.Step(new GameState());
+        Check.Equal("down A,up A", string.Join(",", rig.Sent));
+        Check.That(!rig.Engine.Holding, "released");
+    }
+
+    [Test]
+    public void PauseTimeAndSwitchAreConfigurable()
+    {
+        var rig = new Rig { Held = { Key.Space }, Settings = { PauseSeconds = 2 } };
+        rig.Held.Add(Key.Alt);
+        rig.Step(new GameState());
+        rig.Held.Remove(Key.Alt);
+        rig.Now += 2000;
+        rig.Step(new GameState());
+        Check.Equal("down A", string.Join(",", rig.Sent));
+
+        var off = new Rig { Held = { Key.Space, Key.Alt }, Settings = { PauseEnabled = false } };
+        off.Step(new GameState());
+        Check.Equal("down A", string.Join(",", off.Sent));
+        Check.That(new Settings().PauseEnabled && new Settings().PauseKey.Key == Key.Alt && new Settings().PauseSeconds == 5, "defaults");
+    }
+
+    [Test]
+    public void PauseSecondsAreClamped()
+    {
+        var settings = new Settings { PauseSeconds = 9999 };
+        settings.Normalize();
+        Check.Equal(60f, settings.PauseSeconds);
+        settings.PauseSeconds = float.NaN;
+        settings.Normalize();
+        Check.Equal(5f, settings.PauseSeconds);
     }
 
     [Test]
