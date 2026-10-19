@@ -1,10 +1,12 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.Numerics;
 using System.Reflection;
 using EmberHUD;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
+using Hexa.NET.ImGui;
 
 namespace Threats;
 
@@ -45,7 +47,13 @@ public sealed class MainTests
         TestGame.Set(state);
         try
         {
-            return TestFrame.Vertices(main.Render);
+            ImDrawListPtr list = default;
+            TestFrame.Run(() =>
+            {
+                list = Draw.Background;
+                main.Render();
+            });
+            return list.VtxBuffer.Size;
         }
         finally
         {
@@ -56,6 +64,35 @@ public sealed class MainTests
     static int Frame(GameState state, Action<Settings>? configure = null) => Frame(Plugin(configure), state);
 
     static PropertyInfo Asked(string property) => typeof(Game).GetProperty(property, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    [Test]
+    public void RenderDeclaresGroups()
+    {
+        var fill = EColor.U32(Color.FromArgb(100, 11, 22, 33));
+        float Area(params GroundHazard[] hazards)
+        {
+            var main = Plugin(s => { s.AreaColour = Color.FromArgb(200, 11, 22, 33); s.FillOpacity = 0.5f; });
+            TestGame.Set(State(Away, hazards: hazards) with { Camera = Overdraw.Looking });
+            ImDrawListPtr list = default;
+            try
+            {
+                TestFrame.Run(() =>
+                {
+                    list = Draw.Background;
+                    main.Render();
+                });
+            }
+            finally
+            {
+                TestGame.Set(GameState.Empty);
+            }
+            return Overdraw.Area(list, fill);
+        }
+        var single = Area(new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200));
+        var both = Area(new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200), new GroundHazard(2, HazardKind.Area, new Vector2(600, 0), 200));
+        Check.That(single > 0, "hazard drew nothing");
+        Check.That(both < single * 1.8f, $"hazards stacked {both} vs {single}");
+    }
 
     [Test]
     public void RingIsGone()

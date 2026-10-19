@@ -6,6 +6,7 @@ using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
+using Hexa.NET.ImGui;
 
 namespace Threats;
 
@@ -35,13 +36,14 @@ public sealed class ProjectileLineTests
         TestGame.Set(new GameState { Camera = camera });
         var found = new List<(Vector2, uint)>();
         bool? result = null;
+        ImDrawListPtr list = default;
         TestFrame.Run(() =>
         {
-            var list = Draw.Background;
-            var first = list.VtxBuffer.Size;
+            list = Draw.Background;
+            Groups.Declare(settings);
             result = ProjectileLine.Draw(projectile, settings, player, seconds);
-            for (var i = first; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col));
         });
+        for (var i = 0; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col));
         if (inside is not null) Check.Equal(inside, result);
         return found;
     }
@@ -185,6 +187,39 @@ public sealed class ProjectileLineTests
         });
         Check.That(once > 0, "ring drawn");
         Check.Equal(once, twice);
+    }
+
+    static float LineArea(Settings settings, params Projectile[] shots)
+    {
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
+        ImDrawListPtr list = default;
+        TestFrame.Run(() =>
+        {
+            list = Draw.Background;
+            Groups.Declare(settings);
+            foreach (var shot in shots) ProjectileLine.Draw(shot, settings, Far, 0);
+        });
+        return Overdraw.Area(list, EColor.U32(settings.LineColour));
+    }
+
+    [Test]
+    public void SolidLinesMerge()
+    {
+        var settings = Configured();
+        settings.LineColour = Color.FromArgb(200, 11, 22, 33);
+        var single = LineArea(settings, Shot());
+        var stack = new Projectile[5];
+        for (var i = 0; i < stack.Length; i++) stack[i] = Shot() with { Position = new Vector2(0, 500 + i * 0.5f) };
+        var merged = LineArea(settings, stack);
+        Check.That(single > 0, "nothing drawn");
+        Check.That(merged < single * 2, $"lines stacked {merged} vs {single}");
+    }
+
+    [Test]
+    public void GradientStaysUngrouped()
+    {
+        var vertices = Drawn(Forward, Shot(), Configured(LineStyle.Gradient), Far, 0);
+        Check.Equal(24 * 4, vertices.Count);
     }
 
     [Test]

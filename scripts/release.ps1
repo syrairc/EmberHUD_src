@@ -27,6 +27,7 @@ $ship = @(
     'SharpGen*.dll'
     'Microsoft.CodeAnalysis*.dll'
     'Svg*.dll'
+    'Clipper2Lib.dll'
     'ShimSkiaSharp.dll'
     'ExCSS.dll'
     'SkiaSharp.dll'

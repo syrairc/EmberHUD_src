@@ -155,6 +155,61 @@ public sealed class PluginHostTests : IDisposable
         Assert.Equal(["layer 1"], _log.Messages("Next"));
     }
 
+    const string DiscProbe = """
+        public override void Render()
+        {
+            var list = Draw.Background;
+            var before = list.VtxBuffer.Size;
+            Ground.CircleFilled(new System.Numerics.Vector2(500, 0), 100, System.Drawing.Color.White, group: "g");
+            Log.Info($"drawn {list.VtxBuffer.Size - before}");
+        }
+        """;
+
+    const string DeclaringDisc = """
+        public override int Order => -1;
+        public override void Render()
+        {
+            Ground.Group("g", System.Drawing.Color.Red, System.Drawing.Color.Blue, 2);
+            Ground.CircleFilled(new System.Numerics.Vector2(500, 0), 100, System.Drawing.Color.White, group: "g");
+        }
+        """;
+
+    void RenderWithCamera(PluginHost host)
+    {
+        TestGame.Set(new GameState { Camera = new Camera(System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, 90) });
+        foreach (var slot in host.Slots) host.SetEnabled(slot, true);
+        try { TestFrame.Run(host.RenderAll); }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Fact]
+    public void GroupsDoNotLeakBetweenPlugins()
+    {
+        _fixture.Write("A", "Main.cs", Source("A", DeclaringDisc));
+        _fixture.Write("B", "Main.cs", Source("B", DiscProbe));
+        using var host = _fixture.Start();
+        RenderWithCamera(host);
+        Assert.True(int.Parse(Assert.Single(_log.Messages("B")).Split(' ')[1]) > 0);
+    }
+
+    [Fact]
+    public void ThrowingRenderStillClearsGroups()
+    {
+        _fixture.Write("A", "Main.cs", Source("A", """
+            public override int Order => -1;
+            public override void Render()
+            {
+                Ground.Group("g", System.Drawing.Color.Red, System.Drawing.Color.Blue, 2);
+                Ground.CircleFilled(new System.Numerics.Vector2(500, 0), 100, System.Drawing.Color.White, group: "g");
+                throw new InvalidOperationException("boom");
+            }
+            """));
+        _fixture.Write("B", "Main.cs", Source("B", DiscProbe));
+        using var host = _fixture.Start();
+        RenderWithCamera(host);
+        Assert.True(int.Parse(Assert.Single(_log.Messages("B")).Split(' ')[1]) > 0);
+    }
+
     [Fact]
     public void TwoPluginClassesIsAnError()
     {

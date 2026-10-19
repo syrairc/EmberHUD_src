@@ -159,6 +159,12 @@ public static class Draw
         target.AddConvexPolyFilled(ref MemoryMarshal.GetReference(points), points.Length, EColor.U32(color));
     }
 
+    internal static void ConcavePolyFilled(ReadOnlySpan<Vector2> points, Color color, ImDrawListPtr list)
+    {
+        if (points.Length < 3) return;
+        list.AddConcavePolyFilled(ref MemoryMarshal.GetReference(points), points.Length, EColor.U32(color));
+    }
+
     public static void Glow(Vector2 centre, float radius, Color color, float inner = 0, ImDrawListPtr? list = null)
     {
         if (radius <= 0 || color.A == 0) return;

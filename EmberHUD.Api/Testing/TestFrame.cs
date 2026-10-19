@@ -27,6 +27,10 @@ public static class TestFrame
             {
                 failure = ExceptionDispatchInfo.Capture(ex);
             }
+            finally
+            {
+                Ground.FlushGroups();
+            }
             var after = default(ImGuiErrorRecoveryState);
             ImGuiP.ErrorRecoveryStoreState(ref after);
             ImGuiP.ErrorRecoveryTryToRecoverState(ref before);
