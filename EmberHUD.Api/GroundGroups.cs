@@ -27,6 +27,8 @@ internal static class GroundGroups
     static readonly List<string> Remaining = [];
     static readonly List<(string Id, GroupStyle Style, float Z, PathsD Merged)> Result = [];
 
+    internal static bool Any => Groups.Count > 0;
+
     internal static bool IsDeclared(string? id) => id is not null && Groups.ContainsKey(id);
 
     internal static void Declare(string id, GroupStyle style)

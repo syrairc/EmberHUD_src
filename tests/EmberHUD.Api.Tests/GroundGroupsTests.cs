@@ -405,6 +405,15 @@ public sealed class GroundGroupsTests
     }
 
     [Fact]
+    public void FlushWithNothingDeclaredDoesNotTouchImGui()
+    {
+        GroundGroups.Clear();
+        TestGame.Set(new GameState { Camera = Looking });
+        try { Ground.FlushGroups(); }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Fact]
     public void LayerlessGroupDrawsInTheCurrentChannel()
     {
         GroundGroups.Clear();

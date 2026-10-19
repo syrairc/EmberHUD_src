@@ -158,6 +158,7 @@ public static class Ground
 
     internal static void FlushGroups()
     {
+        if (!GroundGroups.Any) return;
         try
         {
             if (TryFrame(out var camera, out var viewport)) DrawGroups(camera, viewport);

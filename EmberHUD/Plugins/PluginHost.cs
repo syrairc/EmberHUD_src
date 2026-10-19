@@ -71,7 +71,11 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         if (inFrame) Draw.SplitLayers();
         foreach (var slot in _renderOrder)
             if (slot.Enabled)
-                Call(slot, PluginStage.Render, plugin => plugin.Render());
+                Call(slot, PluginStage.Render, plugin =>
+                {
+                    try { plugin.Render(); }
+                    finally { Ground.FlushGroups(); }
+                });
         if (inFrame) Draw.MergeLayers();
     }
 
