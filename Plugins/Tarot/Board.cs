@@ -89,6 +89,8 @@ public static class Board
         var scores = state.Hand.Select(card => BestMove(state, card)?.Score).ToArray();
         if (scores.Max() is not { } top) return [];
         var tied = Enumerable.Range(0, scores.Length).Where(i => scores[i] == top).ToArray();
+        var fixedSteps = tied.Where(i => Steps(state.Hand[i].CfgId) is not null).ToArray();
+        if (fixedSteps.Length > 0) tied = fixedSteps;
         return top > 0 ? tied : tied[..1];
     }
 

@@ -93,6 +93,15 @@ public sealed class BoardTests
     }
 
     [Test]
+    public void BestCardsPrefersTheFixedCardOverAPickCardThatLandsTheSame()
+    {
+        var state = Hand(2, 7, new TarotCard(1, 24), new TarotCard(2, 4));
+        Check.Equal(1, Board.BestCards(state).Length);
+        Check.Equal(1, Board.BestCards(state)[0]);
+        Check.Equal(0, Board.BestCards(Hand(2, 7, new TarotCard(1, 24), new TarotCard(2, 1)))[0]);
+    }
+
+    [Test]
     public void BestCardsIsOneCardWhenNothingIsWorthPlaying()
     {
         var state = Hand(0, 7, new TarotCard(1, 1), new TarotCard(2, 1));
