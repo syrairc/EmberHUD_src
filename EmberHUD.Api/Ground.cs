@@ -180,7 +180,7 @@ public static class Ground
         {
             foreach (var (_, style, z, merged) in GroundGroups.Merge())
             {
-                if (splitting && style.Layer != -1) list.ChannelsSetCurrent(style.Layer);
+                if (splitting) list.ChannelsSetCurrent(style.Layer != -1 ? style.Layer : previousChannel);
                 if (style.Fill.A > 0) FillMerged(camera, viewport, merged, style.Fill, z, list);
                 if (style.Border.A > 0 && style.Thickness > 0)
                     foreach (var path in merged)

@@ -403,4 +403,26 @@ public sealed class GroundGroupsTests
         Assert.Empty(none);
         Assert.Empty(Drawn(Looking, () => Ground.FlushGroups()));
     }
+
+    [Fact]
+    public void LayerlessGroupDrawsInTheCurrentChannel()
+    {
+        GroundGroups.Clear();
+        TestGame.Set(new GameState { Camera = Looking });
+        var middle = -1;
+        TestFrame.Run(() =>
+        {
+            Draw.SplitLayers();
+            var list = ImGui.GetBackgroundDrawList();
+            GroundGroups.Declare("front", new GroupStyle(Color.Red, Color.FromArgb(80, 0, 255, 0), 0, null, (int)DrawLayer.Front));
+            GroundGroups.Declare("plain", new GroupStyle(Color.Red, Color.FromArgb(80, 0, 255, 0), 0, null, -1));
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "front");
+            Ground.CircleFilled(new Vector2(300, 0), 100, Color.Green, 0, group: "plain");
+            var before = list.IdxBuffer.Size;
+            Ground.FlushGroups();
+            middle = list.IdxBuffer.Size - before;
+            Draw.MergeLayers();
+        });
+        Assert.True(middle > 0);
+    }
 }
