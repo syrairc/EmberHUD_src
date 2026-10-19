@@ -283,8 +283,8 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             var each = name.EndsWith("[]");
             var childName = each ? name[..^2] : name;
             var key = (page, childName);
-            if (!_partWidgets.TryGetValue(key, out var cached) || cached.Widget != 0 && !NameMatches(cached.Widget, childName) || cached.Widget == 0 && now >= cached.RetryAt)
-                _partWidgets[key] = cached = (FindChild(page, childName), now + Offsets.RectChildRetryMilliseconds);
+            if (!_partWidgets.TryGetValue(key, out var cached) || cached.Widget != 0 && !NameMatches(cached.Widget, childName[(childName.LastIndexOf('/') + 1)..]) || cached.Widget == 0 && now >= cached.RetryAt)
+                _partWidgets[key] = cached = (FindPart(page, childName), now + Offsets.RectChildRetryMilliseconds);
             if (cached.Widget == 0) continue;
             if (!each)
             {
@@ -366,19 +366,29 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
                nameNumber == number && names.TryRead(index, out var found) && found == baseName;
     }
 
-    internal nint FindChild(nint page, string childName)
+    internal nint FindChild(nint page, string childName) => FindWidget(page, Named(childName));
+
+    private nint FindPart(nint page, string path)
     {
-        var (baseName, number) = SplitName(childName);
-        return FindWidget(page, widget =>
-            memory.TryRead(widget + Offsets.UObjectName, out uint nameIndex) && memory.TryRead(widget + Offsets.UObjectName + Offsets.FNameNumber, out uint nameNumber) &&
-            nameNumber == number && names.TryRead(nameIndex, out var widgetName) && widgetName == baseName);
+        var slash = path.IndexOf('/');
+        if (slash < 0) return FindChild(page, path);
+        var scope = FindChild(page, path[..slash]);
+        return scope == 0 ? 0 : FindWidget(scope, Named(path[(slash + 1)..]), fromWidget: true);
     }
 
-    private nint FindWidget(nint page, Func<nint, bool> matches)
+    private Func<nint, bool> Named(string childName)
+    {
+        var (baseName, number) = SplitName(childName);
+        return widget =>
+            memory.TryRead(widget + Offsets.UObjectName, out uint nameIndex) && memory.TryRead(widget + Offsets.UObjectName + Offsets.FNameNumber, out uint nameNumber) &&
+            nameNumber == number && names.TryRead(nameIndex, out var widgetName) && widgetName == baseName;
+    }
+
+    private nint FindWidget(nint page, Func<nint, bool> matches, bool fromWidget = false)
     {
         Queue<(nint Widget, int Depth)> queue = [];
         HashSet<nint> visited = [];
-        Enqueue(WidgetTreeRoot(page), 0);
+        Enqueue(fromWidget ? page : WidgetTreeRoot(page), 0);
         while (queue.TryDequeue(out var next) && visited.Count < Offsets.MaxWidgetNodes)
         {
             var (widget, depth) = next;

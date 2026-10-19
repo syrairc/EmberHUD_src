@@ -14,6 +14,7 @@ public sealed class Main : Plugin<Settings>
     const float Gap = 24;
     const float TileGap = 2;
     const int TilesPerRow = 4;
+    const float SlotWidth = 100, CardCentre = 24.4f, CardTop = 178, ArrowGap = 6, ArrowSize = 70, ChoiceArrowGap = 10, ChoiceArrowSize = 0.28f, ChoiceCardHalfHeight = 0.845f;
     readonly TextStyle _style = TextStyle.Hud();
     readonly Overlay _overlay = new();
     int _unusedWidth, _unusedHeight;
@@ -42,7 +43,7 @@ public sealed class Main : Plugin<Settings>
         if (hovered || active) Overlay.ClickBlocker("tarot", origin, size);
         Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
         if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.None);
-        if (Settings.HighlightCard) GlowBestCard(state);
+        if (Settings.HighlightCard && !(state.Phase == TarotPhase.Board && ArrowChoice(state))) ArrowBestCards(state);
         var at = origin + new Vector2(Pad);
         foreach (var (left, right, colour) in rows)
         {
@@ -72,15 +73,36 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    static void GlowBestCard(TarotState state)
+    static NamedRect[] Parts(string prefix) =>
+        [.. (Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == "S9Taro_C").Parts ?? []).Where(part => part.Name.StartsWith(prefix)).OrderBy(part => part.Min.X)];
+
+    static bool ArrowChoice(TarotState state)
+    {
+        var cards = Parts("PopPanel/ScrollBox[");
+        if (cards.Length == 0) return false;
+        var options = Board.Options(state.Playing);
+        if (options.Length != cards.Length || Board.BestMove(state, new TarotCard(0, state.Playing)) is not { } move) return true;
+        var card = cards[Array.IndexOf(options, move.Steps)];
+        var width = card.Max.X - card.Min.X;
+        var top = (card.Min.Y + card.Max.Y) / 2 - width * ChoiceCardHalfHeight;
+        Draw.ArrowDown(new Vector2(card.Min.X + width / 2, top - ChoiceArrowGap), width * ChoiceArrowSize, move.Score > 0 ? GameColors.Positive : GameColors.Gold);
+        return true;
+    }
+
+    static void ArrowBestCards(TarotState state)
     {
         if (state.Phase != TarotPhase.Board) return;
-        var best = Board.BestCard(state);
-        if (best < 0) return;
-        var cards = Game.State.Ui.Panels.FirstOrDefault(panel => panel.Name == "S9Taro_C").Parts?.OrderBy(part => part.Min.X).ToArray();
-        if (cards is null || cards.Length != state.Hand.Length) return;
-        var score = Board.BestMove(state, state.Hand[best])!.Value.Score;
-        Draw.GlowRect(cards[best].Min, cards[best].Max, score > 0 ? GameColors.Positive : GameColors.Gold);
+        var cards = Parts("HandCardPanel[");
+        if (Board.ShownCards(state.Hand, cards.Length) is not { } shown) return;
+        foreach (var best in Board.BestCards(state))
+        {
+            var slot = Array.IndexOf(shown, best);
+            if (slot < 0) continue;
+            var score = Board.BestMove(state, state.Hand[best])!.Value.Score;
+            var scale = (cards[slot].Max.X - cards[slot].Min.X) / SlotWidth;
+            var tip = cards[slot].Min + new Vector2(CardCentre, -CardTop - ArrowGap) * scale;
+            Draw.ArrowDown(tip, ArrowSize * scale, score > 0 ? GameColors.Positive : GameColors.Gold);
+        }
     }
 
     static void DrawTile(Vector2 min, float side, TarotTile tile)

@@ -62,8 +62,13 @@ internal sealed class TarotReader(IReadBackend memory, nint moduleBase, Func<lon
 
         TryGetInt(cardPlay, Offsets.LuaTarotHp, out var hp);
 
-        return new TarotState(TarotPhase.Board, round, 0, hp, position, tiles, ReadHand(cardPlay), ReadTaken(cardPlay), 0);
+        return new TarotState(TarotPhase.Board, round, 0, hp, position, tiles, ReadHand(cardPlay), ReadTaken(cardPlay), 0) { Playing = ReadPlaying(cardPlay) };
     }
+
+    private int ReadPlaying(LuaTable cardPlay) =>
+        _lua.TryGetTable(cardPlay, Offsets.LuaTarotQueue, out var queue) && _lua.TryGetTable(queue, Offsets.LuaTarotCurrentCard, out var current) && TryReadCard(current, out var card)
+            ? card.CfgId
+            : 0;
 
     private bool TryReadTileMap(LuaTable cardPlay, out TarotTile[] tiles, out int position)
     {

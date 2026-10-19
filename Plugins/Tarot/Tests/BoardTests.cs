@@ -85,6 +85,33 @@ public sealed class BoardTests
     }
 
     [Test]
+    public void BestCardsKeepsEveryTiedCardWhenTheLandingIsGood()
+    {
+        var state = Hand(2, 7, new TarotCard(1, 4), new TarotCard(2, 1), new TarotCard(3, 4));
+        Check.Equal(2, Board.BestCards(state).Length);
+        Check.Equal(2, Board.BestCards(state)[1]);
+    }
+
+    [Test]
+    public void BestCardsIsOneCardWhenNothingIsWorthPlaying()
+    {
+        var state = Hand(0, 7, new TarotCard(1, 1), new TarotCard(2, 1));
+        Check.Equal(1, Board.BestCards(state).Length);
+        Check.Equal(0, Board.BestCards(Hand(2, 7)).Length);
+    }
+
+    [Test]
+    public void ShownCardsSkipTheCardSetAside()
+    {
+        TarotCard[] hand = [new(1, 203), new(5, 3), new(21, 105), new(22, 201)];
+        Check.Equal(3, Board.ShownCards(hand, 3)!.Length);
+        Check.Equal(3, Board.ShownCards(hand, 3)![2]);
+        Check.Equal(0, Board.ShownCards(hand, 4)![0]);
+        Check.That(Board.ShownCards(hand, 2) is null, "two off is ambiguous");
+        Check.That(Board.ShownCards([new(1, 203), new(2, 3)], 1) is null, "no card set aside");
+    }
+
+    [Test]
     public void BestCardIsTheHighestLanding()
     {
         var state = Hand(2, 7, new TarotCard(1, 1), new TarotCard(2, 4), new TarotCard(3, 2));

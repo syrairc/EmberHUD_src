@@ -91,6 +91,22 @@ public class TarotReaderTests
     }
 
     [Fact]
+    public void BoardReadsTheCardBeingPlayed()
+    {
+        var f = Fixture.Board();
+        var queue = f.Lua.NewTable(0, 1);
+        var current = f.Lua.NewTable(0, 2);
+        f.Lua.SetInt(current, Offsets.LuaTarotId, 4);
+        f.Lua.SetInt(current, Offsets.LuaTarotCfg, 22);
+        f.Lua.SetTable(queue, Offsets.LuaTarotCurrentCard, current);
+        f.Lua.SetTable(f.CardPlay, Offsets.LuaTarotQueue, queue);
+        Assert.Equal(22, f.Reader().Read()!.Playing);
+    }
+
+    [Fact]
+    public void BoardWithoutAQueueIsNotPlayingAnything() => Assert.Equal(0, Fixture.Board().Reader().Read()!.Playing);
+
+    [Fact]
     public void NullWithoutManager() => Assert.Null(new Fixture(Offsets.TarotStateCollect, withManager: false).Reader().Read());
 
     [Theory]

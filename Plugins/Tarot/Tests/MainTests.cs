@@ -51,21 +51,39 @@ public sealed class MainTests
     }
 
     [Test]
-    public void RenderGlowsTheBestHandCard()
+    public void RenderArrowsTheBestHandCard()
     {
         var state = Board();
         var panel = new GamePanel("S9Taro_C", PanelKind.Other, new(0, 0), new(1000, 500), false)
         {
-            Parts = [new("S9HandCard", new(100, 300), new(180, 450)), new("S9HandCard_1", new(200, 300), new(280, 450))],
+            Parts = [new("HandCardPanel[0]", new(100, 300), new(180, 450)), new("HandCardPanel[1]", new(200, 300), new(280, 450))],
         };
         TestGame.Set(new GameState { Tarot = state, Ui = new GameUi([panel]) });
         try
         {
-            var glowing = TestFrame.Vertices(new Main().Render);
+            var arrowed = TestFrame.Vertices(new Main().Render);
             Settings off = new() { HighlightCard = false };
             var plain = new Main();
             typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(plain, [off]);
-            Check.That(glowing > TestFrame.Vertices(plain.Render), "glow drew");
+            Check.That(arrowed > TestFrame.Vertices(plain.Render), "arrow drew");
+        }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Test]
+    public void RenderArrowsTheBestOfferedCard()
+    {
+        var panel = new GamePanel("S9Taro_C", PanelKind.Other, new(0, 0), new(1000, 500), false)
+        {
+            Parts = [new("PopPanel/ScrollBox[0]", new(100, 100), new(200, 300)), new("PopPanel/ScrollBox[1]", new(300, 100), new(400, 300)), new("PopPanel/ScrollBox[2]", new(500, 100), new(600, 300))],
+        };
+        TestGame.Set(new GameState { Tarot = Board() with { Playing = 22 }, Ui = new GameUi([panel]) });
+        try
+        {
+            var arrowed = TestFrame.Vertices(new Main().Render);
+            var plain = new Main();
+            typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(plain, [new Settings { HighlightCard = false }]);
+            Check.That(arrowed > TestFrame.Vertices(plain.Render), "offered card arrow drew");
         }
         finally { TestGame.Set(GameState.Empty); }
     }

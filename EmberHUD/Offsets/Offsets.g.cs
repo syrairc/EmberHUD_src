@@ -2,7 +2,7 @@ namespace EmberHUD.Host;
 
 internal static partial class Offsets
 {
-    internal static ReadOnlySpan<byte> Seed => [0xB5, 0x6F, 0xC8, 0xB3, 0x56, 0xE8, 0xAD, 0x49, 0x69, 0x08, 0x79, 0xB9, 0x40, 0x63, 0x3A, 0xDD, 0xBD, 0xE3, 0x97, 0x31, 0xE5, 0xEB, 0x95, 0x21, 0xDF, 0x73, 0x92, 0xE6, 0xE0, 0x95, 0xF0, 0xB0];
+    internal static ReadOnlySpan<byte> Seed => [0x5C, 0xFE, 0x93, 0xF5, 0x72, 0x57, 0xA9, 0x7C, 0x41, 0xDB, 0x09, 0xAD, 0x61, 0xB0, 0xD3, 0x63, 0xCD, 0x6E, 0x18, 0x29, 0x3C, 0x3A, 0xBC, 0x1B, 0xD5, 0x72, 0xFC, 0xA1, 0x07, 0xF2, 0x1F, 0x3F];
     internal static int WorldScene => T[0];
     internal static int PlayerMgrEntity => T[1];
     internal static int MiniMapMgrWidget => T[2];
@@ -702,14 +702,16 @@ internal static partial class Offsets
     internal static string LuaTarotReward => S[162];
     internal static string LuaTarotCardGroup => S[163];
     internal static string LuaTarotCards => S[164];
-    internal static string LuaTarotRecvRewards => S[165];
-    internal static string LuaTarotPlayNum => S[166];
-    internal static string LuaTarotChallengeTimes => S[167];
-    internal static string TarotStateCollect => S[168];
-    internal static string TarotStateBoard => S[169];
-    internal static string TarotStateFinal => S[170];
+    internal static string LuaTarotQueue => S[165];
+    internal static string LuaTarotCurrentCard => S[166];
+    internal static string LuaTarotRecvRewards => S[167];
+    internal static string LuaTarotPlayNum => S[168];
+    internal static string LuaTarotChallengeTimes => S[169];
+    internal static string TarotStateCollect => S[170];
+    internal static string TarotStateBoard => S[171];
+    internal static string TarotStateFinal => S[172];
     internal static readonly string[] BuildKeys = ["BuffMap", "BuffMapCount", "ComponentSkill", "ComponentSkillCfg", "LogicWorldGlobalRva", "FightMgrGlobalRva", "PlayerMgrGlobalRva", "MiniMapMgrGlobalRva", "WoodStakeMgrGlobalRva", "GObjectsGlobalRva", "FNamePoolRva", "GEngineGlobalRva", "MonsterCfgBucketsRva", "MonsterCfgBucketCountRva", "LanguageRva", "LanguageBucketsRva", "LanguageBucketCountRva", "MapIconInfoBucketsRva", "MapIconInfoBucketCountRva", "FightMapNpc", "FightMapPortal", "FightMapInteractive", "FightMapFollower", "FightMapServant", "FightMapGamePlay", "FightMapElevator", "FightMapObject", "FightMapDestructible", "EntityHasPosition", "EntityPosition", "EntityHeaderSize", "EntityRole", "WoodStakeStatistic", "WoodStakeUnlimitedTotal", "LuaGlobalRva"];
     internal const int PerBuildStart = 499;
-    internal static string[] SigLines => S[171..];
+    internal static string[] SigLines => S[173..];
     internal static readonly long[] BuildSizes = [123144120, 124465080, 126258104, 127223224, 125921720];
 }

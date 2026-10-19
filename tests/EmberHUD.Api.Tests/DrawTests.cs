@@ -56,6 +56,7 @@ public sealed class DrawTests
         Draw.Circle(new Vector2(30), 5, Color.Red);
         Draw.CircleFilled(new Vector2(30), 5, Color.Red, 12);
         Draw.TriangleFilled(Vector2.Zero, new Vector2(5, 0), new Vector2(0, 5), Color.Red);
+        Draw.ArrowDown(Centre, 10, Color.Red);
         Draw.ConvexPolyFilled([new Vector2(0, 0), new Vector2(5, 0), new Vector2(5, 5)], Color.Red);
         Draw.Glow(Centre, 12, Color.Gold, 4);
         Draw.Marker(Centre, 5, Color.Red, MarkerShape.Dot, 1);

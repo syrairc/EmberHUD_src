@@ -84,6 +84,21 @@ public static class Board
         return best;
     }
 
+    public static int[] BestCards(TarotState state)
+    {
+        var scores = state.Hand.Select(card => BestMove(state, card)?.Score).ToArray();
+        if (scores.Max() is not { } top) return [];
+        var tied = Enumerable.Range(0, scores.Length).Where(i => scores[i] == top).ToArray();
+        return top > 0 ? tied : tied[..1];
+    }
+
+    public static int[]? ShownCards(TarotCard[] hand, int widgets)
+    {
+        if (hand.Length == widgets) return [.. Enumerable.Range(0, widgets)];
+        var aside = Enumerable.Range(0, hand.Length).Where(i => hand[i].CfgId is >= 101 and <= 106).ToArray();
+        return hand.Length == widgets + 1 && aside.Length == 1 ? [.. Enumerable.Range(0, hand.Length).Where(i => i != aside[0])] : null;
+    }
+
     public static string CardLabel(int cardCfg) => Steps(cardCfg) switch
     {
         > 0 and var steps => $"Advance {steps}",

@@ -144,6 +144,14 @@ public static class Draw
 
     public static void TriangleFilled(Vector2 a, Vector2 b, Vector2 c, Color color, ImDrawListPtr? list = null) => (list ?? Background).AddTriangleFilled(a, b, c, EColor.U32(color));
 
+    public static void ArrowDown(Vector2 tip, float size, Color color, ImDrawListPtr? list = null)
+    {
+        var head = size * 0.5f;
+        var shaft = size * 0.18f;
+        TriangleFilled(tip, tip + new Vector2(-head, -head), tip + new Vector2(head, -head), color, list);
+        RectFilled(tip + new Vector2(-shaft, -size), tip + new Vector2(shaft, -head), color, 0, list);
+    }
+
     public static void ConvexPolyFilled(ReadOnlySpan<Vector2> points, Color color, ImDrawListPtr? list = null)
     {
         if (points.Length < 3) return;
