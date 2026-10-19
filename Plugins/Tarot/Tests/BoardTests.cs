@@ -77,6 +77,14 @@ public sealed class BoardTests
     }
 
     [Test]
+    public void PickCardTieTakesTheFarthestAdvance()
+    {
+        var best = Board.BestMove(Hand(6, 7, new TarotCard(1, 21)), new TarotCard(1, 21))!.Value;
+        Check.Equal(5, best.Steps);
+        Check.Equal(0, best.Score);
+    }
+
+    [Test]
     public void BestCardIsTheHighestLanding()
     {
         var state = Hand(2, 7, new TarotCard(1, 1), new TarotCard(2, 4), new TarotCard(3, 2));

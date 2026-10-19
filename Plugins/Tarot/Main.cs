@@ -116,6 +116,7 @@ public sealed class Main : Plugin<Settings>
     static string Outcome(TarotState state, TarotCard card)
     {
         if (Board.BestMove(state, card) is not { } move || move.Landing == state.Position) return "";
+        if (Board.Steps(card.CfgId) is null && move.Score == 0) return "";
         var pick = Board.Steps(card.CfgId) is null ? $"{(move.Steps > 0 ? "Advance" : "Retreat")} {Math.Abs(move.Steps)} " : "";
         return $"{pick}-> {move.Landing + 1} {Board.Kind(state.Tiles[move.Landing])}";
     }

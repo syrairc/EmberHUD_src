@@ -66,7 +66,7 @@ public static class Board
         {
             var landing = Land(state, steps);
             var score = landing == state.Position ? 0 : Score(state, state.Tiles[landing]);
-            if (best is null || score > best.Value.Score) best = (steps, landing, score);
+            if (best is null || score > best.Value.Score || score == best.Value.Score && steps > best.Value.Steps) best = (steps, landing, score);
         }
         return best;
     }
