@@ -23,7 +23,7 @@ public static class Ground
     {
         Span<Vector2> ring = stackalloc Vector2[CircleSegments];
         Draw.RegularPoints(ring, centre, radius, 0);
-        if (GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
+        if (group is not null && GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
         Polyline(ring, color, thickness, true, z, list);
     }
 
@@ -31,7 +31,7 @@ public static class Ground
     {
         Span<Vector2> ring = stackalloc Vector2[CircleSegments];
         Draw.RegularPoints(ring, centre, radius, 0);
-        if (GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
+        if (group is not null && GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
         PolygonFilled(ring, color, z, list);
     }
 
@@ -50,7 +50,7 @@ public static class Ground
     {
         Span<Vector2> corners = stackalloc Vector2[4];
         RectCorners(centre, size, rotation, corners);
-        if (GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
+        if (group is not null && GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
         Polyline(corners, color, thickness, true, z, list);
     }
 
@@ -58,7 +58,7 @@ public static class Ground
     {
         Span<Vector2> corners = stackalloc Vector2[4];
         RectCorners(centre, size, rotation, corners);
-        if (GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
+        if (group is not null && GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
         PolygonFilled(corners, color, z, list);
     }
 
@@ -67,7 +67,7 @@ public static class Ground
 
     public static void GradientLine(Vector2 from, Vector2 to, Color start, Color end, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
-        if (AddStrip(group, [from, to], false, thickness, z)) return;
+        if (group is not null && AddStrip(group, [from, to], false, thickness, z)) return;
         for (var i = 0; i < GradientSegments; i++)
         {
             var t = (i + 0.5f) / GradientSegments;
@@ -78,7 +78,7 @@ public static class Ground
 
     public static void DashedLine(Vector2 from, Vector2 to, Color color, float thickness, float dash, float gap, float phase = 0, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
-        if (AddStrip(group, [from, to], false, thickness, z)) return;
+        if (group is not null && AddStrip(group, [from, to], false, thickness, z)) return;
         var length = Vector2.Distance(from, to);
         var period = dash + gap;
         if (length <= 0 || dash <= 0 || gap < 0 || length / period > MaxDashes || !float.IsFinite(phase)) return;
@@ -129,7 +129,7 @@ public static class Ground
 
     public static void Polyline(ReadOnlySpan<Vector2> points, Color color, float thickness = 1, bool closed = false, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
-        if (AddStrip(group, points, closed, thickness, z)) return;
+        if (group is not null && AddStrip(group, points, closed, thickness, z)) return;
         if (points.Length < 2 || !TryFrame(out var camera, out var viewport)) return;
         Lift(points, z);
         ProjectRuns(camera, viewport, CollectionsMarshal.AsSpan(WorldPoints), closed, run => Draw.Polyline(run, color, thickness, false, list));
@@ -137,7 +137,7 @@ public static class Ground
 
     public static void PolygonFilled(ReadOnlySpan<Vector2> points, Color color, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
-        if (GroundGroups.TryAddArea(group, points, HeightOrPlayer(z))) return;
+        if (group is not null && GroundGroups.TryAddArea(group, points, HeightOrPlayer(z))) return;
         if (points.Length < 3 || !TryFrame(out var camera, out var viewport)) return;
         Lift(points, z);
         ClipPolygon(camera, CollectionsMarshal.AsSpan(WorldPoints), ClippedPoints);

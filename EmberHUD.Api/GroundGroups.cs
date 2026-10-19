@@ -22,6 +22,8 @@ internal static class GroundGroups
     static readonly Dictionary<string, Shapes> Groups = [];
     static readonly List<string> Order = [];
     static readonly Stack<Shapes> Pool = [];
+    static readonly Dictionary<string, PathsD> Unions = [];
+    static readonly List<string> Remaining = [];
     static readonly List<(string Id, GroupStyle Style, float Z, PathsD Merged)> Result = [];
 
     internal static bool IsDeclared(string? id) => id is not null && Groups.ContainsKey(id);
@@ -62,22 +64,22 @@ internal static class GroundGroups
     internal static IReadOnlyList<(string Id, GroupStyle Style, float Z, PathsD Merged)> Merge()
     {
         Result.Clear();
-        var unions = new Dictionary<string, PathsD>(Order.Count);
+        Unions.Clear();
+        Remaining.Clear();
         foreach (var id in Order)
-            if (Groups[id].Paths.Count > 0) unions[id] = Union(Groups[id].Paths);
-
-        var remaining = new List<string>(unions.Count);
-        foreach (var id in Order)
-            if (unions.ContainsKey(id)) remaining.Add(id);
-
-        while (remaining.Count > 0)
         {
-            var next = remaining.FindIndex(id => !remaining.Any(other => other != id && Groups[other].Style.Under == id));
-            var pick = remaining[next < 0 ? 0 : next];
-            remaining.Remove(pick);
+            if (Groups[id].Paths.Count == 0) continue;
+            Unions[id] = Union(Groups[id].Paths);
+            Remaining.Add(id);
+        }
+
+        while (Remaining.Count > 0)
+        {
+            var pick = Remaining[NextIndex()];
+            Remaining.Remove(pick);
             var shapes = Groups[pick];
-            var merged = unions[pick];
-            if (shapes.Style.Under is { } under && under != pick && unions.TryGetValue(under, out var cut))
+            var merged = Unions[pick];
+            if (shapes.Style.Under is { } under && under != pick && Unions.TryGetValue(under, out var cut))
                 merged = Clipper.Difference(merged, cut, FillRule.NonZero, Precision);
             Result.Add((pick, shapes.Style, shapes.Z, merged));
         }
@@ -104,6 +106,19 @@ internal static class GroundGroups
         if (camera.ToScreen(at + new Vector3(1, 0, 0), viewport) is not { } east || camera.ToScreen(at + new Vector3(0, 1, 0), viewport) is not { } north) return float.NaN;
         var pixels = (Vector2.Distance(screen, east) + Vector2.Distance(screen, north)) / 2;
         return pixels > 0 ? 1 / pixels : float.NaN;
+    }
+
+    static int NextIndex()
+    {
+        for (var i = 0; i < Remaining.Count; i++)
+        {
+            var blocked = false;
+            for (var j = 0; j < Remaining.Count && !blocked; j++)
+                blocked = j != i && Groups[Remaining[j]].Style.Under == Remaining[i];
+            if (!blocked) return i;
+        }
+
+        return 0;
     }
 
     static PathsD Union(PathsD paths)

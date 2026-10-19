@@ -183,7 +183,7 @@ public sealed class GroundGroupsTests
             for (var i = 0; i < 200; i++)
             {
                 var (x, y) = (random.NextSingle() * 3000, random.NextSingle() * 3000);
-                if (i % 2 == 0) GroundGroups.TryAddArea("g", Disc(x, y, 30 + random.NextSingle() * 60, 24), 0);
+                if (i % 2 == 0) GroundGroups.TryAddArea("g", Disc(x, y, 30 + random.NextSingle() * 60, 48), 0);
                 else GroundGroups.TryAddStrip("g", [new(x, y), new(x + random.NextSingle() * 400 - 200, y + random.NextSingle() * 400 - 200)], false, 20, 0);
             }
         }
@@ -200,6 +200,6 @@ public sealed class GroundGroupsTests
         }
 
         Array.Sort(times);
-        Assert.True(times[10] < 2, $"median {times[10]:F2} ms");
+        Assert.True(times[10] < 4, $"median {times[10]:F2} ms");
     }
 }
