@@ -22,11 +22,14 @@ public static class TestFrame
             try
             {
                 draw();
-                Ground.FlushGroups();
             }
             catch (Exception ex)
             {
                 failure = ExceptionDispatchInfo.Capture(ex);
+            }
+            finally
+            {
+                Ground.FlushGroups();
             }
             var after = default(ImGuiErrorRecoveryState);
             ImGuiP.ErrorRecoveryStoreState(ref after);

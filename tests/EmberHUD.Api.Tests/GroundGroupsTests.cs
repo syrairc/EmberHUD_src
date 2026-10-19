@@ -446,4 +446,24 @@ public sealed class GroundGroupsTests
         });
         Assert.True(middle > 0);
     }
+
+    [Fact]
+    public void GroupDeclaredInBackLayerFlushesIntoBack()
+    {
+        GroundGroups.Clear();
+        TestGame.Set(new GameState { Camera = Looking });
+        var middle = -1;
+        TestFrame.Run(() =>
+        {
+            Draw.SplitLayers();
+            var list = ImGui.GetBackgroundDrawList();
+            using (Draw.Layer(DrawLayer.Back)) Ground.Group("back", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "back");
+            var before = list.IdxBuffer.Size;
+            Ground.FlushGroups();
+            middle = list.IdxBuffer.Size - before;
+            Draw.MergeLayers();
+        });
+        Assert.Equal(0, middle);
+    }
 }
