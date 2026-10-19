@@ -41,6 +41,25 @@ public sealed class SimAdvisorTests
     }
 
     [Test]
+    public void OnlyBestGlowsJustTheLeader()
+    {
+        var ranked = new[] { Rank(5, 2.0), Rank(3, 1.97), Rank(7, 0.5) };
+        Check.Equal("1,2", string.Join(',', Glowing(SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), ranked, Defaults))));
+        var advice = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), ranked, new Settings { OnlyBest = true });
+        Check.Equal("2", string.Join(',', Glowing(advice)));
+        Check.Equal("1 best", advice.Summary);
+    }
+
+    [Test]
+    public void SkippingTheStrategyFollowsTheTopValue()
+    {
+        var ranked = new[] { Rank(5, 2.0), new Ranked(new Move(MoveKind.Door, 3), 1.97, 0.05, 0, true), Rank(7, 0.5) };
+        Check.That(SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), ranked, Defaults).Options[0].Top);
+        var skipped = SimAdvisor.Advise(Doors(3, 5, 7), Mapped(), ranked, new Settings { SkipStrategy = true });
+        Check.That(skipped.Options[1].Top && !skipped.Options[0].Top);
+    }
+
+    [Test]
     public void HandEditedSettingsAreClampedOnUse()
     {
         var rules = new Settings { ChromaticCap = -5, Playouts = 0 }.ToRules();
