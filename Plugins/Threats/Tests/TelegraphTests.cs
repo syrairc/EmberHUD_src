@@ -6,6 +6,7 @@ using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
+using Hexa.NET.ImGui;
 
 namespace Threats;
 
@@ -40,20 +41,24 @@ public sealed class TelegraphTests
     {
         TestGame.Set(new GameState { Camera = camera });
         var found = new List<(Vector2, uint, Vector2)>();
+        ImDrawListPtr list = default;
         TestFrame.Run(() =>
         {
-            var list = Draw.Background;
-            var first = list.VtxBuffer.Size;
+            list = Draw.Background;
             draw();
-            for (var i = first; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col, list.VtxBuffer[i].Uv));
         });
+        for (var i = 0; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col, list.VtxBuffer[i].Uv));
         return found;
     }
 
     static List<(Vector2 Pos, uint Col, Vector2 Uv)> Telegraphed(Camera? camera, Cast cast, Settings settings, Vector2 player, bool? inside = null)
     {
         bool? result = null;
-        var vertices = Drawn(camera, () => result = Telegraph.Draw(CasterWith(cast), settings, player));
+        var vertices = Drawn(camera, () =>
+        {
+            Groups.Declare(settings);
+            result = Telegraph.Draw(CasterWith(cast), settings, player);
+        });
         if (inside is not null) Check.Equal(inside, result);
         return vertices;
     }
@@ -116,6 +121,23 @@ public sealed class TelegraphTests
         var hit = Telegraphed(Forward, CastAt(1), settings, Target, inside: true);
         Check.That(!hit.Any(v => v.Col == outline || v.Col == fill), "normal colours leaked while inside");
         Check.That(hit.Any(v => v.Col == EColor.U32(Danger)) && hit.Any(v => v.Col == FillColour(Danger, 0.5f)), "danger outline and fill");
+    }
+
+    [Test]
+    public void ProgressFillIsGroupedOutlineIsNot()
+    {
+        var settings = Configured();
+        var fill = FillColour(FillBase, 0.5f);
+        var second = CasterWith(CastAt(0.5f) with { Target = Target + new Vector2(100, 0) });
+        var vertices = Drawn(Forward, () =>
+        {
+            Groups.Declare(settings);
+            Telegraph.Draw(CasterWith(CastAt(0.5f)), settings, Far);
+            Telegraph.Draw(second, settings, Far);
+        });
+        Check.That(vertices.Any(v => v.Col == fill), "fill missing");
+        Check.That(vertices.All(v => v.Col >> 24 <= fill >> 24 || v.Col == EColor.U32(Outline)), "fill alpha stacked");
+        Check.That(vertices.Any(v => v.Col == EColor.U32(Outline)), "dashed outline missing");
     }
 
     [Test]

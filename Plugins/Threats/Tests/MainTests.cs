@@ -5,6 +5,7 @@ using System.Reflection;
 using EmberHUD;
 using EmberHUD.Testing;
 using EmberHUD.Ui;
+using Hexa.NET.ImGui;
 
 namespace Threats;
 
@@ -45,7 +46,13 @@ public sealed class MainTests
         TestGame.Set(state);
         try
         {
-            return TestFrame.Vertices(main.Render);
+            ImDrawListPtr list = default;
+            TestFrame.Run(() =>
+            {
+                list = Draw.Background;
+                main.Render();
+            });
+            return list.VtxBuffer.Size;
         }
         finally
         {
@@ -56,6 +63,12 @@ public sealed class MainTests
     static int Frame(GameState state, Action<Settings>? configure = null) => Frame(Plugin(configure), state);
 
     static PropertyInfo Asked(string property) => typeof(Game).GetProperty(property, BindingFlags.NonPublic | BindingFlags.Static)!;
+
+    [Test]
+    public void RenderDeclaresGroups()
+    {
+        Check.That(Frame(State(Away, hazards: [new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200), new GroundHazard(2, HazardKind.Area, new Vector2(600, 0), 200)])) > 0, "grouped hazards drew nothing");
+    }
 
     [Test]
     public void RingIsGone()
