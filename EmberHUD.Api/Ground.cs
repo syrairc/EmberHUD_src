@@ -19,17 +19,19 @@ public static class Ground
     static readonly List<Vector3> ClippedPoints = [];
     static readonly List<Vector2> ScreenPoints = [];
 
-    public static void Circle(Vector2 centre, float radius, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null)
+    public static void Circle(Vector2 centre, float radius, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
         Span<Vector2> ring = stackalloc Vector2[CircleSegments];
         Draw.RegularPoints(ring, centre, radius, 0);
+        if (GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
         Polyline(ring, color, thickness, true, z, list);
     }
 
-    public static void CircleFilled(Vector2 centre, float radius, Color color, float? z = null, ImDrawListPtr? list = null)
+    public static void CircleFilled(Vector2 centre, float radius, Color color, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
         Span<Vector2> ring = stackalloc Vector2[CircleSegments];
         Draw.RegularPoints(ring, centre, radius, 0);
+        if (GroundGroups.TryAddArea(group, ring, HeightOrPlayer(z))) return;
         PolygonFilled(ring, color, z, list);
     }
 
@@ -44,25 +46,28 @@ public static class Ground
         if (pixels > 0) Draw.CircleFilled(screen, pixels, color, DotSegments, list);
     }
 
-    public static void Rect(Vector2 centre, Vector2 size, float rotation, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null)
+    public static void Rect(Vector2 centre, Vector2 size, float rotation, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
         Span<Vector2> corners = stackalloc Vector2[4];
         RectCorners(centre, size, rotation, corners);
+        if (GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
         Polyline(corners, color, thickness, true, z, list);
     }
 
-    public static void RectFilled(Vector2 centre, Vector2 size, float rotation, Color color, float? z = null, ImDrawListPtr? list = null)
+    public static void RectFilled(Vector2 centre, Vector2 size, float rotation, Color color, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
         Span<Vector2> corners = stackalloc Vector2[4];
         RectCorners(centre, size, rotation, corners);
+        if (GroundGroups.TryAddArea(group, corners, HeightOrPlayer(z))) return;
         PolygonFilled(corners, color, z, list);
     }
 
-    public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null) =>
-        Polyline([a, b], color, thickness, false, z, list);
+    public static void Line(Vector2 a, Vector2 b, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null) =>
+        Polyline([a, b], color, thickness, false, z, list, group);
 
-    public static void GradientLine(Vector2 from, Vector2 to, Color start, Color end, float thickness = 1, float? z = null, ImDrawListPtr? list = null)
+    public static void GradientLine(Vector2 from, Vector2 to, Color start, Color end, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
+        if (AddStrip(group, [from, to], false, thickness, z)) return;
         for (var i = 0; i < GradientSegments; i++)
         {
             var t = (i + 0.5f) / GradientSegments;
@@ -71,8 +76,9 @@ public static class Ground
         }
     }
 
-    public static void DashedLine(Vector2 from, Vector2 to, Color color, float thickness, float dash, float gap, float phase = 0, float? z = null, ImDrawListPtr? list = null)
+    public static void DashedLine(Vector2 from, Vector2 to, Color color, float thickness, float dash, float gap, float phase = 0, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
+        if (AddStrip(group, [from, to], false, thickness, z)) return;
         var length = Vector2.Distance(from, to);
         var period = dash + gap;
         if (length <= 0 || dash <= 0 || gap < 0 || length / period > MaxDashes || !float.IsFinite(phase)) return;
@@ -121,15 +127,17 @@ public static class Ground
         return raw->VtxBuffer.Size > vertices;
     }
 
-    public static void Polyline(ReadOnlySpan<Vector2> points, Color color, float thickness = 1, bool closed = false, float? z = null, ImDrawListPtr? list = null)
+    public static void Polyline(ReadOnlySpan<Vector2> points, Color color, float thickness = 1, bool closed = false, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
+        if (AddStrip(group, points, closed, thickness, z)) return;
         if (points.Length < 2 || !TryFrame(out var camera, out var viewport)) return;
         Lift(points, z);
         ProjectRuns(camera, viewport, CollectionsMarshal.AsSpan(WorldPoints), closed, run => Draw.Polyline(run, color, thickness, false, list));
     }
 
-    public static void PolygonFilled(ReadOnlySpan<Vector2> points, Color color, float? z = null, ImDrawListPtr? list = null)
+    public static void PolygonFilled(ReadOnlySpan<Vector2> points, Color color, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
+        if (GroundGroups.TryAddArea(group, points, HeightOrPlayer(z))) return;
         if (points.Length < 3 || !TryFrame(out var camera, out var viewport)) return;
         Lift(points, z);
         ClipPolygon(camera, CollectionsMarshal.AsSpan(WorldPoints), ClippedPoints);
@@ -137,6 +145,22 @@ public static class Ground
         foreach (var point in ClippedPoints)
             if (camera.ToScreen(point, viewport) is { } at) ScreenPoints.Add(at);
         Draw.ConvexPolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), color, list);
+    }
+
+    public static void Group(string id, Color border, Color fill, float thickness, string? under = null)
+    {
+        var split = !ImGui.GetCurrentContext().IsNull && Draw.Background.Splitter.Count >= Draw.Layers;
+        GroundGroups.Declare(id, new GroupStyle(border, fill, thickness, under, split ? Draw.Background.Splitter.Current : -1));
+    }
+
+    static bool AddStrip(string? group, ReadOnlySpan<Vector2> points, bool closed, float thickness, float? z)
+    {
+        if (!GroundGroups.IsDeclared(group)) return false;
+        if (points.Length == 0 || !TryFrame(out var camera, out var viewport)) return true;
+        var height = HeightOrPlayer(z);
+        var width = GroundGroups.WorldPerPixel(camera, viewport, new Vector3(points[0], height)) * thickness;
+        GroundGroups.TryAddStrip(group, points, closed, width, height);
+        return true;
     }
 
     static int Mix(int a, int b, float t) => (int)MathF.Round(a + (b - a) * t);
