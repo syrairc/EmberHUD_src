@@ -26,9 +26,10 @@ public static class GroundHazards
         Span<Vector2> ring = stackalloc Vector2[Segments];
         Geometry.RegularPolygon(hazard.Centre, hazard.Radius, ring);
         var group = inside ? Groups.HazardsDanger : Groups.Hazards;
+        var fill = Groups.Fill(inside ? settings.DangerColour : settings.AreaColour, settings);
         if (hazard.InnerRadius <= 0)
         {
-            Ground.PolygonFilled(ring, Color.White, group: group);
+            Ground.PolygonFilled(ring, fill, group: group);
             return inside;
         }
 
@@ -42,7 +43,7 @@ public static class GroundHazards
             quad[1] = ring[next];
             quad[2] = hole[next];
             quad[3] = hole[i];
-            Ground.PolygonFilled(quad, Color.White, group: group);
+            Ground.PolygonFilled(quad, fill, group: group);
         }
 
         return inside;

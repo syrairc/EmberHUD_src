@@ -347,6 +347,18 @@ public sealed class GroundGroupsTests
         Assert.Empty(drawn);
     }
 
+    [Fact]
+    public void LineStartingBehindTheCameraStillGroups()
+    {
+        GroundGroups.Clear();
+        var drawn = Drawn(Forward, () =>
+        {
+            Ground.Group("g", Color.Transparent, Color.Red, 0);
+            Ground.Line(new Vector2(-500, 0), new Vector2(1000, 0), Color.Red, 4, 0, group: "g");
+        });
+        Assert.NotEmpty(drawn);
+    }
+
     static bool NearRing((Vector2 Pos, uint Col)[] vertices, float radius)
     {
         for (var i = 0; i < 48; i++)

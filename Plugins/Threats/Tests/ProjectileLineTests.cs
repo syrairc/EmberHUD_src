@@ -14,7 +14,7 @@ public sealed class ProjectileLineTests
 {
     static readonly Color Line = Color.FromArgb(255, 11, 22, 33);
     static readonly Color Danger = Color.FromArgb(255, 77, 88, 99);
-    static readonly Camera Forward = new(new Vector3(-500, 0, 0), Vector3.Zero, 90);
+    static readonly Camera Forward = new(Vector3.Zero, Vector3.Zero, 90);
     static readonly Vector2 Far = new(5000, 5000);
 
     static Settings Configured(LineStyle style = LineStyle.Solid) => new()
@@ -189,28 +189,30 @@ public sealed class ProjectileLineTests
         Check.Equal(once, twice);
     }
 
-    [Test]
-    public void SolidLinesMerge()
+    static float LineArea(Settings settings, params Projectile[] shots)
     {
-        var settings = Configured();
-        settings.LineColour = Color.FromArgb(200, 11, 22, 33);
-        var stack = new Projectile[5];
-        for (var i = 0; i < stack.Length; i++) stack[i] = Shot() with { Position = new Vector2(0, 500 + i * 3) };
-        TestGame.Set(new GameState { Camera = Forward });
-        var any = false;
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
         ImDrawListPtr list = default;
         TestFrame.Run(() =>
         {
             list = Draw.Background;
             Groups.Declare(settings);
-            foreach (var shot in stack) ProjectileLine.Draw(shot, settings, Far, 0);
+            foreach (var shot in shots) ProjectileLine.Draw(shot, settings, Far, 0);
         });
-        for (var i = 0; i < list.VtxBuffer.Size; i++)
-        {
-            any = true;
-            Check.That(Alpha(list.VtxBuffer[i].Col) <= 200, "alpha stacked");
-        }
-        Check.That(any, "nothing drawn");
+        return Overdraw.Area(list, EColor.U32(settings.LineColour));
+    }
+
+    [Test]
+    public void SolidLinesMerge()
+    {
+        var settings = Configured();
+        settings.LineColour = Color.FromArgb(200, 11, 22, 33);
+        var single = LineArea(settings, Shot());
+        var stack = new Projectile[5];
+        for (var i = 0; i < stack.Length; i++) stack[i] = Shot() with { Position = new Vector2(0, 500 + i * 0.5f) };
+        var merged = LineArea(settings, stack);
+        Check.That(single > 0, "nothing drawn");
+        Check.That(merged < single * 2, $"lines stacked {merged} vs {single}");
     }
 
     [Test]

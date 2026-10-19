@@ -30,13 +30,6 @@ public static class ProjectileLine
         return projectile.OrbitCentre is not null && float.IsFinite(centre.X) && float.IsFinite(centre.Y) && float.IsFinite(radius) && radius > 0;
     }
 
-    static Vector2[] RingPoints(Vector2 centre, float radius)
-    {
-        var ring = new Vector2[48];
-        Geometry.RegularPolygon(centre, radius, ring);
-        return ring;
-    }
-
     public static bool Inside(in Projectile projectile, Settings settings, Vector2 player)
     {
         if (!Valid(projectile) || !float.IsFinite(player.X) || !float.IsFinite(player.Y)) return false;
@@ -56,7 +49,12 @@ public static class ProjectileLine
             if (rings is null || rings.Add((projectile.OwnerId, (int)(radius / Slack))))
             {
                 var ringWidth = float.IsFinite(settings.LineWidth) ? Math.Clamp(settings.LineWidth, 0.5f, 64f) : 1f;
-                if (settings.Style == LineStyle.Solid) Ground.Polyline(RingPoints(centre, radius), colour, ringWidth, true, group: inside ? Groups.LinesDanger : Groups.Lines);
+                if (settings.Style == LineStyle.Solid)
+                {
+                    Span<Vector2> ring = stackalloc Vector2[48];
+                    Geometry.RegularPolygon(centre, radius, ring);
+                    Ground.Polyline(ring, colour, ringWidth, true, group: inside ? Groups.LinesDanger : Groups.Lines);
+                }
                 else Ground.Circle(centre, radius, colour, ringWidth);
                 if (settings.ShowHitWidth && halfWidth > 0)
                 {

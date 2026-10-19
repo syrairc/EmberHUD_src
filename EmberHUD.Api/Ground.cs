@@ -243,8 +243,9 @@ public static class Ground
         if (!GroundGroups.IsDeclared(group)) return false;
         if (points.Length == 0 || !TryFrame(out var camera, out var viewport)) return true;
         var height = HeightOrPlayer(z);
-        var width = GroundGroups.WorldPerPixel(camera, viewport, new Vector3(points[0], height)) * thickness;
-        GroundGroups.TryAddStrip(group, points, closed, width, height);
+        var perPixel = GroundGroups.WorldPerPixel(camera, viewport, new Vector3((points[0] + points[^1]) / 2, height));
+        for (var i = 0; i < points.Length && !float.IsFinite(perPixel); i++) perPixel = GroundGroups.WorldPerPixel(camera, viewport, new Vector3(points[i], height));
+        GroundGroups.TryAddStrip(group, points, closed, perPixel * thickness, height);
         return true;
     }
 

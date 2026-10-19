@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
+using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
 namespace Threats;
@@ -40,7 +41,7 @@ public sealed class GroundHazardsTests
 
     static List<(Vector2 Pos, uint Col)> Drawn(Settings settings, params GroundHazard[] hazards)
     {
-        TestGame.Set(new GameState { Camera = new Camera(Vector3.Zero, Vector3.Zero, 90) });
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
         ImDrawListPtr list = default;
         TestFrame.Run(() =>
         {
@@ -51,6 +52,19 @@ public sealed class GroundHazardsTests
         var found = new List<(Vector2, uint)>();
         for (var i = 0; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col));
         return found;
+    }
+
+    static float FillArea(Settings settings, GroundHazard hazard)
+    {
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
+        ImDrawListPtr list = default;
+        TestFrame.Run(() =>
+        {
+            list = Draw.Background;
+            Groups.Declare(settings);
+            GroundHazards.Draw(hazard, settings, new Vector2(5000, 5000));
+        });
+        return Overdraw.Area(list, EColor.U32(Color.FromArgb(100, 11, 22, 33)));
     }
 
     [Test]
@@ -69,9 +83,11 @@ public sealed class GroundHazardsTests
     public void RingHazardStillHasHole()
     {
         var settings = new Settings { AreaColour = Color.FromArgb(200, 11, 22, 33), FillOpacity = 0.5f };
-        var camera = new Camera(Vector3.Zero, Vector3.Zero, 90);
+        var camera = Overdraw.Looking;
         var rim = camera.ToScreen(new Vector3(1000, 200, 0), new Vector2(1920, 1080))!.Value;
         var vertices = Drawn(settings, Ring with { InnerRadius = 200, Kind = HazardKind.Area });
         Check.That(vertices.Any(v => v.Col >> 24 == 200 && Vector2.Distance(v.Pos, rim) < 8), "no outline around the hole");
+        var ratio = FillArea(settings, Ring with { InnerRadius = 200, Kind = HazardKind.Area }) / FillArea(settings, Ring with { InnerRadius = 0, Kind = HazardKind.Area });
+        Check.That(ratio < 0.95f, $"fill covers the hole {ratio}");
     }
 }

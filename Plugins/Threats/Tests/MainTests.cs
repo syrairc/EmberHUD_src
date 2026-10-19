@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.Numerics;
 using System.Reflection;
 using EmberHUD;
@@ -67,7 +68,30 @@ public sealed class MainTests
     [Test]
     public void RenderDeclaresGroups()
     {
-        Check.That(Frame(State(Away, hazards: [new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200), new GroundHazard(2, HazardKind.Area, new Vector2(600, 0), 200)])) > 0, "grouped hazards drew nothing");
+        var fill = EColor.U32(Color.FromArgb(100, 11, 22, 33));
+        float Area(params GroundHazard[] hazards)
+        {
+            var main = Plugin(s => { s.AreaColour = Color.FromArgb(200, 11, 22, 33); s.FillOpacity = 0.5f; });
+            TestGame.Set(State(Away, hazards: hazards) with { Camera = Overdraw.Looking });
+            ImDrawListPtr list = default;
+            try
+            {
+                TestFrame.Run(() =>
+                {
+                    list = Draw.Background;
+                    main.Render();
+                });
+            }
+            finally
+            {
+                TestGame.Set(GameState.Empty);
+            }
+            return Overdraw.Area(list, fill);
+        }
+        var single = Area(new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200));
+        var both = Area(new GroundHazard(1, HazardKind.Area, new Vector2(500, 0), 200), new GroundHazard(2, HazardKind.Area, new Vector2(600, 0), 200));
+        Check.That(single > 0, "hazard drew nothing");
+        Check.That(both < single * 1.8f, $"hazards stacked {both} vs {single}");
     }
 
     [Test]

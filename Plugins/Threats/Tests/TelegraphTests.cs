@@ -128,16 +128,26 @@ public sealed class TelegraphTests
     {
         var settings = Configured();
         var fill = FillColour(FillBase, 0.5f);
+        var first = CasterWith(CastAt(0.5f));
         var second = CasterWith(CastAt(0.5f) with { Target = Target + new Vector2(100, 0) });
-        var vertices = Drawn(Forward, () =>
+        ImDrawListPtr list = default;
+        float Fill(params Entity[] casters)
         {
-            Groups.Declare(settings);
-            Telegraph.Draw(CasterWith(CastAt(0.5f)), settings, Far);
-            Telegraph.Draw(second, settings, Far);
-        });
-        Check.That(vertices.Any(v => v.Col == fill), "fill missing");
-        Check.That(vertices.All(v => v.Col >> 24 <= fill >> 24 || v.Col == EColor.U32(Outline)), "fill alpha stacked");
-        Check.That(vertices.Any(v => v.Col == EColor.U32(Outline)), "dashed outline missing");
+            TestGame.Set(new GameState { Camera = Overdraw.Looking });
+            TestFrame.Run(() =>
+            {
+                list = Draw.Background;
+                Groups.Declare(settings);
+                foreach (var caster in casters) Telegraph.Draw(caster, settings, Far);
+            });
+            return Overdraw.Area(list, fill);
+        }
+        var single = Fill(first);
+        var both = Fill(first, second);
+        Check.That(single > 0, "fill missing");
+        Check.That(both < single * 1.8f, $"fill stacked {both} vs {single}");
+        var outline = With(Telegraphed(Forward, CastAt(0.5f), settings, Far), EColor.U32(Outline));
+        Check.That(outline.Length > 0, "dashed outline missing");
     }
 
     [Test]

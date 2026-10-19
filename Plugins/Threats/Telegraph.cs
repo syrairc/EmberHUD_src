@@ -45,7 +45,7 @@ public static class Telegraph
             Geometry.RegularPolygon(origin, progress * reach, disc);
             Span<Vector2> clipped = stackalloc Vector2[Segments * 2];
             var count = Geometry.ClipConvex(area, disc, clipped);
-            if (count >= 3) Ground.PolygonFilled(clipped[..count], Color.White, group: inside ? Groups.TelegraphFillDanger : Groups.TelegraphFill);
+            if (count >= 3) Ground.PolygonFilled(clipped[..count], Groups.Fill(inside ? settings.DangerColour : settings.TelegraphFillColour, settings), group: inside ? Groups.TelegraphFillDanger : Groups.TelegraphFill);
         }
 
         var travelled = 0f;
