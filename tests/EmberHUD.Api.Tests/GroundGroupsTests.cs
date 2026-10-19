@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Drawing;
 using Clipper2Lib;
+using EmberHUD.Testing;
+using Hexa.NET.ImGui;
 
 namespace EmberHUD.Api.Tests;
 
@@ -201,5 +203,160 @@ public sealed class GroundGroupsTests
 
         Array.Sort(times);
         Assert.True(times[10] < 4, $"median {times[10]:F2} ms");
+    }
+
+    static readonly Camera Forward = new(Vector3.Zero, Vector3.Zero, 90);
+    static readonly Camera Looking = new(new Vector3(-1000, 0, 1000), new Vector3(-45, 0, 0), 90);
+
+    static (Vector2 Pos, uint Col)[] Drawn(Camera? camera, Action draw)
+    {
+        TestGame.Set(new GameState { Camera = camera });
+        (Vector2, uint)[] result = [];
+        TestFrame.Run(() =>
+        {
+            var list = ImGui.GetBackgroundDrawList();
+            var before = list.VtxBuffer.Size;
+            draw();
+            Ground.FlushGroups();
+            result = [.. Enumerable.Range(before, list.VtxBuffer.Size - before).Select(i => (list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col))];
+        });
+        return result;
+    }
+
+    static void Annulus(string group)
+    {
+        for (var i = 0; i < 48; i++)
+        {
+            var (a, b) = (MathF.Tau * i / 48, MathF.Tau * (i + 1) / 48);
+            Vector2 P(float angle, float r) => new(500 + r * MathF.Cos(angle), r * MathF.Sin(angle));
+            GroundGroups.TryAddArea(group, [P(a, 200), P(b, 200), P(b, 100), P(a, 100)], 0);
+        }
+    }
+
+    [Fact]
+    public void TriangulatedAreaMatchesMergedArea()
+    {
+        GroundGroups.Clear();
+        GroundGroups.Declare("g", Style());
+        Annulus("g");
+        var merged = Assert.Single(GroundGroups.Merge()).Merged;
+        var triangles = new List<Vector2>();
+        GroundGroups.Triangulate(merged, triangles);
+        Assert.NotEmpty(triangles);
+        Assert.Equal(0, triangles.Count % 3);
+        double area = 0;
+        for (var i = 0; i < triangles.Count; i += 3)
+        {
+            var (a, b, c) = (triangles[i], triangles[i + 1], triangles[i + 2]);
+            area += Math.Abs((double)((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y))) / 2;
+        }
+
+        var expected = Area(merged);
+        Assert.InRange(area, expected * 0.995, expected * 1.005);
+        GroundGroups.Clear();
+    }
+
+    [Fact]
+    public void GroupedShapesDrawOnlyAtFlush()
+    {
+        GroundGroups.Clear();
+        TestGame.Set(new GameState { Camera = Looking });
+        int middle = -1, after = -1;
+        TestFrame.Run(() =>
+        {
+            var list = ImGui.GetBackgroundDrawList();
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 2);
+            var start = list.VtxBuffer.Size;
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "g");
+            middle = list.VtxBuffer.Size - start;
+            Ground.FlushGroups();
+            after = list.VtxBuffer.Size - start;
+        });
+        Assert.Equal(0, middle);
+        Assert.True(after > 0);
+    }
+
+    [Fact]
+    public void UndeclaredGroupDrawsLikeToday()
+    {
+        GroundGroups.Clear();
+        var plain = Drawn(Looking, () => Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0)).Length;
+        var nope = Drawn(Looking, () => Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "nope")).Length;
+        Assert.True(plain > 0);
+        Assert.Equal(plain, nope);
+    }
+
+    [Fact]
+    public void MergedFillHasNoAntiAliasFringe()
+    {
+        GroundGroups.Clear();
+        var drawn = Drawn(Looking, () =>
+        {
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "g");
+            Ground.CircleFilled(new Vector2(120, 0), 100, Color.Green, 0, group: "g");
+        });
+        Assert.NotEmpty(drawn);
+        Assert.Equal(0, drawn.Length % 3);
+        Assert.All(drawn, v => Assert.Equal(80u, v.Col >> 24));
+    }
+
+    [Fact]
+    public void OverlapIsNotDarker()
+    {
+        GroundGroups.Clear();
+        var drawn = Drawn(Looking, () =>
+        {
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "g");
+            Ground.CircleFilled(new Vector2(50, 0), 100, Color.Green, 0, group: "g");
+        });
+        Assert.Equal(80u, drawn.Max(v => v.Col >> 24));
+    }
+
+    [Fact]
+    public void MergedShapeBehindCameraDrawsNothing()
+    {
+        GroundGroups.Clear();
+        var drawn = Drawn(Forward, () =>
+        {
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 2);
+            Ground.CircleFilled(new Vector2(-500, 0), 100, Color.Green, 0, group: "g");
+            Ground.Circle(new Vector2(-500, 50), 100, Color.Green, 2, 0, group: "g");
+        });
+        Assert.Empty(drawn);
+    }
+
+    [Fact]
+    public void BorderDrawsEveryRing()
+    {
+        GroundGroups.Clear();
+        var drawn = Drawn(Looking, () =>
+        {
+            Ground.Group("g", Color.FromArgb(255, 255, 0, 0), Color.FromArgb(0, 0, 255, 0), 2);
+            Annulus("g");
+        });
+        Assert.NotEmpty(drawn);
+        Assert.All(drawn, v => Assert.Equal(255u, v.Col >> 24));
+        GroundGroups.Clear();
+        var rings = Drawn(Looking, () =>
+        {
+            Ground.Circle(new Vector2(500, 0), 200, Color.Red, 2, 0);
+            Ground.Circle(new Vector2(500, 0), 100, Color.Red, 2, 0);
+        });
+        Assert.True(drawn.Length > rings.Length / 2);
+    }
+
+    [Fact]
+    public void FlushWithoutCameraClears()
+    {
+        GroundGroups.Clear();
+        var none = Drawn(null, () =>
+        {
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 2);
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "g");
+        });
+        Assert.Empty(none);
+        Assert.Empty(Drawn(Looking, () => Ground.FlushGroups()));
     }
 }

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Clipper2Lib;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD;
@@ -18,6 +19,8 @@ public static class Ground
     static readonly List<Vector3> WorldPoints = [];
     static readonly List<Vector3> ClippedPoints = [];
     static readonly List<Vector2> ScreenPoints = [];
+    static readonly List<Vector2> Triangles = [];
+    static readonly List<Vector2> RingPoints = [];
 
     public static void Circle(Vector2 centre, float radius, Color color, float thickness = 1, float? z = null, ImDrawListPtr? list = null, string? group = null)
     {
@@ -151,6 +154,69 @@ public static class Ground
     {
         var split = !ImGui.GetCurrentContext().IsNull && Draw.Background.Splitter.Count >= Draw.Layers;
         GroundGroups.Declare(id, new GroupStyle(border, fill, thickness, under, split ? Draw.Background.Splitter.Current : -1));
+    }
+
+    internal static void FlushGroups()
+    {
+        try
+        {
+            if (TryFrame(out var camera, out var viewport)) DrawGroups(camera, viewport);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+        }
+        finally
+        {
+            GroundGroups.Clear();
+        }
+    }
+
+    static void DrawGroups(Camera camera, Vector2 viewport)
+    {
+        var list = Draw.Background;
+        var splitting = list.Splitter.Count >= Draw.Layers;
+        var previousChannel = list.Splitter.Current;
+        var flags = list.Flags;
+        try
+        {
+            foreach (var (_, style, z, merged) in GroundGroups.Merge())
+            {
+                if (splitting && style.Layer != -1) list.ChannelsSetCurrent(style.Layer);
+                if (style.Fill.A > 0) FillMerged(camera, viewport, merged, style.Fill, z, list);
+                if (style.Border.A > 0 && style.Thickness > 0)
+                    foreach (var path in merged)
+                    {
+                        RingPoints.Clear();
+                        foreach (var point in path) RingPoints.Add(new Vector2((float)point.x, (float)point.y));
+                        Polyline(CollectionsMarshal.AsSpan(RingPoints), style.Border, style.Thickness, true, z);
+                    }
+
+                if (splitting) list.ChannelsSetCurrent(previousChannel);
+            }
+        }
+        finally
+        {
+            list.Flags = flags;
+            if (splitting) list.ChannelsSetCurrent(previousChannel);
+        }
+    }
+
+    static void FillMerged(Camera camera, Vector2 viewport, PathsD merged, Color fill, float z, ImDrawListPtr list)
+    {
+        Triangles.Clear();
+        GroundGroups.Triangulate(merged, Triangles);
+        list.Flags = list.Flags & ~ImDrawListFlags.AntiAliasedFill;
+        var triangles = CollectionsMarshal.AsSpan(Triangles);
+        for (var i = 0; i + 2 < triangles.Length; i += 3)
+        {
+            WorldPoints.Clear();
+            for (var k = 0; k < 3; k++) WorldPoints.Add(new Vector3(triangles[i + k], z));
+            ClipPolygon(camera, CollectionsMarshal.AsSpan(WorldPoints), ClippedPoints);
+            ScreenPoints.Clear();
+            foreach (var point in ClippedPoints)
+                if (camera.ToScreen(point, viewport) is { } at) ScreenPoints.Add(at);
+            Draw.ConvexPolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), fill, list);
+        }
     }
 
     static bool AddStrip(string? group, ReadOnlySpan<Vector2> points, bool closed, float thickness, float? z)

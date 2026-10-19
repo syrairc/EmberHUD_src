@@ -87,6 +87,16 @@ internal static class GroundGroups
         return Result;
     }
 
+    internal static void Triangulate(PathsD paths, List<Vector2> triangles)
+    {
+        if (Clipper.Triangulate(paths, Precision, out var solution) != TriangulateResult.success) return;
+        foreach (var triangle in solution)
+        {
+            if (triangle.Count != 3) continue;
+            foreach (var point in triangle) triangles.Add(new Vector2((float)point.x, (float)point.y));
+        }
+    }
+
     internal static void Clear()
     {
         foreach (var shapes in Groups.Values)

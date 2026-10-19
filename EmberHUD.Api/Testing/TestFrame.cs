@@ -22,6 +22,7 @@ public static class TestFrame
             try
             {
                 draw();
+                Ground.FlushGroups();
             }
             catch (Exception ex)
             {
