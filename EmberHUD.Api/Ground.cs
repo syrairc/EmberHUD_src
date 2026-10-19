@@ -176,7 +176,6 @@ public static class Ground
         var list = Draw.Background;
         var splitting = list.Splitter.Count >= Draw.Layers;
         var previousChannel = list.Splitter.Current;
-        var flags = list.Flags;
         try
         {
             foreach (var (_, style, z, merged) in GroundGroups.Merge())
@@ -190,33 +189,52 @@ public static class Ground
                         foreach (var point in path) RingPoints.Add(new Vector2((float)point.x, (float)point.y));
                         Polyline(CollectionsMarshal.AsSpan(RingPoints), style.Border, style.Thickness, true, z);
                     }
-
-                if (splitting) list.ChannelsSetCurrent(previousChannel);
             }
         }
         finally
         {
-            list.Flags = flags;
             if (splitting) list.ChannelsSetCurrent(previousChannel);
         }
     }
 
     static void FillMerged(Camera camera, Vector2 viewport, PathsD merged, Color fill, float z, ImDrawListPtr list)
     {
-        Triangles.Clear();
-        GroundGroups.Triangulate(merged, Triangles);
-        list.Flags = list.Flags & ~ImDrawListFlags.AntiAliasedFill;
-        var triangles = CollectionsMarshal.AsSpan(Triangles);
-        for (var i = 0; i + 2 < triangles.Length; i += 3)
+        var flags = list.Flags;
+        list.Flags = flags & ~ImDrawListFlags.AntiAliasedFill;
+        try
         {
-            WorldPoints.Clear();
-            for (var k = 0; k < 3; k++) WorldPoints.Add(new Vector3(triangles[i + k], z));
-            ClipPolygon(camera, CollectionsMarshal.AsSpan(WorldPoints), ClippedPoints);
-            ScreenPoints.Clear();
-            foreach (var point in ClippedPoints)
-                if (camera.ToScreen(point, viewport) is { } at) ScreenPoints.Add(at);
-            Draw.ConvexPolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), fill, list);
+            Triangles.Clear();
+            if (!GroundGroups.Triangulate(merged, Triangles))
+            {
+                foreach (var path in merged)
+                {
+                    if (!Clipper.IsPositive(path)) continue;
+                    RingPoints.Clear();
+                    foreach (var point in path) RingPoints.Add(new Vector2((float)point.x, (float)point.y));
+                    FillWorld(camera, viewport, CollectionsMarshal.AsSpan(RingPoints), fill, z, list, concave: true);
+                }
+
+                return;
+            }
+
+            var triangles = CollectionsMarshal.AsSpan(Triangles);
+            for (var i = 0; i + 2 < triangles.Length; i += 3) FillWorld(camera, viewport, triangles.Slice(i, 3), fill, z, list, concave: false);
         }
+        finally
+        {
+            list.Flags = flags;
+        }
+    }
+
+    static void FillWorld(Camera camera, Vector2 viewport, ReadOnlySpan<Vector2> polygon, Color fill, float z, ImDrawListPtr list, bool concave)
+    {
+        Lift(polygon, z);
+        ClipPolygon(camera, CollectionsMarshal.AsSpan(WorldPoints), ClippedPoints);
+        ScreenPoints.Clear();
+        foreach (var point in ClippedPoints)
+            if (camera.ToScreen(point, viewport) is { } at) ScreenPoints.Add(at);
+        if (concave) Draw.ConcavePolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), fill, list);
+        else Draw.ConvexPolyFilled(CollectionsMarshal.AsSpan(ScreenPoints), fill, list);
     }
 
     static bool AddStrip(string? group, ReadOnlySpan<Vector2> points, bool closed, float thickness, float? z)

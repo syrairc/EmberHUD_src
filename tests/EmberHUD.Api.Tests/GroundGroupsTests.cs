@@ -301,17 +301,37 @@ public sealed class GroundGroupsTests
         Assert.All(drawn, v => Assert.Equal(80u, v.Col >> 24));
     }
 
+    static double ScreenArea((Vector2 Pos, uint Col)[] vertices)
+    {
+        double area = 0;
+        for (var i = 0; i + 2 < vertices.Length; i += 3)
+        {
+            var (a, b, c) = (vertices[i].Pos, vertices[i + 1].Pos, vertices[i + 2].Pos);
+            area += Math.Abs((double)((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y))) / 2;
+        }
+
+        return area;
+    }
+
     [Fact]
     public void OverlapIsNotDarker()
     {
         GroundGroups.Clear();
-        var drawn = Drawn(Looking, () =>
+        var grouped = Drawn(Looking, () =>
         {
             Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
             Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "g");
             Ground.CircleFilled(new Vector2(50, 0), 100, Color.Green, 0, group: "g");
         });
-        Assert.Equal(80u, drawn.Max(v => v.Col >> 24));
+        var stacked = Drawn(Looking, () =>
+        {
+            Ground.Group("a", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.Group("b", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.CircleFilled(new Vector2(0, 0), 100, Color.Green, 0, group: "a");
+            Ground.CircleFilled(new Vector2(50, 0), 100, Color.Green, 0, group: "b");
+        });
+        Assert.Equal(80u, grouped.Max(v => v.Col >> 24));
+        Assert.InRange(ScreenArea(grouped) / ScreenArea(stacked), 0.6, 0.72);
     }
 
     [Fact]
@@ -327,6 +347,18 @@ public sealed class GroundGroupsTests
         Assert.Empty(drawn);
     }
 
+    static bool NearRing((Vector2 Pos, uint Col)[] vertices, float radius)
+    {
+        for (var i = 0; i < 48; i++)
+        {
+            var angle = MathF.Tau * i / 48;
+            var at = Looking.ToScreen(new Vector3(500 + radius * MathF.Cos(angle), radius * MathF.Sin(angle), 0), new Vector2(1920, 1080));
+            if (at is { } p && vertices.Any(v => Vector2.Distance(v.Pos, p) < 3)) return true;
+        }
+
+        return false;
+    }
+
     [Fact]
     public void BorderDrawsEveryRing()
     {
@@ -338,13 +370,25 @@ public sealed class GroundGroupsTests
         });
         Assert.NotEmpty(drawn);
         Assert.All(drawn, v => Assert.Equal(255u, v.Col >> 24));
+        Assert.True(NearRing(drawn, 200));
+        Assert.True(NearRing(drawn, 100));
+    }
+
+    [Fact]
+    public void SliverUnionStillFills()
+    {
         GroundGroups.Clear();
-        var rings = Drawn(Looking, () =>
+        GroundGroups.Declare("g", Style());
+        GroundGroups.TryAddArea("g", [new(40.03f, 20), new(50.01f, 20.01f), new(60.03f, 20.02f), new(70.02f, 20.03f)], 0);
+        var merged = Assert.Single(GroundGroups.Merge()).Merged;
+        Assert.NotEqual(TriangulateResult.success, Clipper.Triangulate(merged, 2, out _));
+        GroundGroups.Clear();
+        var drawn = Drawn(Looking, () =>
         {
-            Ground.Circle(new Vector2(500, 0), 200, Color.Red, 2, 0);
-            Ground.Circle(new Vector2(500, 0), 100, Color.Red, 2, 0);
+            Ground.Group("g", Color.Red, Color.FromArgb(80, 0, 255, 0), 0);
+            Ground.PolygonFilled([new(40.03f, 20), new(50.01f, 20.01f), new(60.03f, 20.02f), new(70.02f, 20.03f)], Color.Green, 0, group: "g");
         });
-        Assert.True(drawn.Length > rings.Length / 2);
+        Assert.NotEmpty(drawn);
     }
 
     [Fact]

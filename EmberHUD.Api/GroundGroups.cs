@@ -10,6 +10,7 @@ internal static class GroundGroups
 {
     const int Precision = 2;
     const float MaxCoordinate = 1e7f;
+    const double SimplifyEpsilon = 0.5;
 
     sealed class Shapes
     {
@@ -87,14 +88,18 @@ internal static class GroundGroups
         return Result;
     }
 
-    internal static void Triangulate(PathsD paths, List<Vector2> triangles)
+    internal static bool Triangulate(PathsD paths, List<Vector2> triangles)
     {
-        if (Clipper.Triangulate(paths, Precision, out var solution) != TriangulateResult.success) return;
+        if (Clipper.Triangulate(paths, Precision, out var solution) != TriangulateResult.success
+            && Clipper.Triangulate(Clipper.SimplifyPaths(paths, SimplifyEpsilon, true), Precision, out solution) != TriangulateResult.success) return false;
+
         foreach (var triangle in solution)
         {
             if (triangle.Count != 3) continue;
             foreach (var point in triangle) triangles.Add(new Vector2((float)point.x, (float)point.y));
         }
+
+        return true;
     }
 
     internal static void Clear()
