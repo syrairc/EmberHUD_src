@@ -102,7 +102,7 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
 
         if (tag == Offsets.LuaTagFloat) value = BitConverter.Int64BitsToDouble(raw);
         else if (tag == Offsets.LuaTagInt) value = raw;
-        else return false;
+        else if (!IsString(tag) || !TryReadString((nint)raw, out var text) || !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) return false;
         return !double.IsNaN(value) && !double.IsInfinity(value);
     }
 

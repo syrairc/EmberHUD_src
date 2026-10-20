@@ -505,6 +505,7 @@ public class LuaReaderTests
         lua.SetIntKeyFloat(args, 2, -3.25);
         lua.SetIntKey(args, 3, 7, Offsets.LuaTagInt);
         lua.SetIntKeyString(args, 4, "x");
+        lua.SetIntKeyString(args, 5, "55.0");
         Assert.True(reader.TryGetFloatAt(args, 1, out var first));
         Assert.Equal(11.5, first);
         Assert.True(reader.TryGetFloatAt(args, 2, out var second));
@@ -512,7 +513,9 @@ public class LuaReaderTests
         Assert.True(reader.TryGetFloatAt(args, 3, out var whole));
         Assert.Equal(7, whole);
         Assert.False(reader.TryGetFloatAt(args, 4, out _));
-        Assert.False(reader.TryGetFloatAt(args, 5, out _));
+        Assert.True(reader.TryGetFloatAt(args, 5, out var text));
+        Assert.Equal(55.0, text);
+        Assert.False(reader.TryGetFloatAt(args, 6, out _));
     }
 
     [Fact]
