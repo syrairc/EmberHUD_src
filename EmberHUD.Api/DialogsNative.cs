@@ -111,15 +111,11 @@ internal static class NativeDialog
     [ComImport, Guid("C0B4E2F3-BA21-4773-8DBA-335EC946EB8B")]
     class FileSaveDialog;
 
-    [ComImport, Guid("b4db1657-70d7-485e-8e3e-6fcb5a5c1802"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IModalWindow
+    // COM interfaces stay flat, .NET 10 mis-dispatches calls through ComImport interface inheritance
+    [ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IFileDialog
     {
         [PreserveSig] int Show(nint owner);
-    }
-
-    [ComImport, Guid("42f85136-db7e-439c-85f1-e4075d135fc8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IFileDialog : IModalWindow
-    {
         void SetFileTypes(uint count, [MarshalAs(UnmanagedType.LPArray)] FilterSpec[] specs);
         void SetFileTypeIndex(uint index);
         void GetFileTypeIndex(out uint index);
@@ -146,8 +142,32 @@ internal static class NativeDialog
     }
 
     [ComImport, Guid("d57c7288-d4ad-4768-be02-9d969532d960"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    interface IFileOpenDialog : IFileDialog
+    interface IFileOpenDialog
     {
+        [PreserveSig] int Show(nint owner);
+        void SetFileTypes(uint count, [MarshalAs(UnmanagedType.LPArray)] FilterSpec[] specs);
+        void SetFileTypeIndex(uint index);
+        void GetFileTypeIndex(out uint index);
+        void Advise(nint events, out uint cookie);
+        void Unadvise(uint cookie);
+        void SetOptions(uint options);
+        void GetOptions(out uint options);
+        void SetDefaultFolder(IShellItem item);
+        void SetFolder(IShellItem item);
+        void GetFolder(out IShellItem item);
+        void GetCurrentSelection(out IShellItem item);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string name);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string title);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string text);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string text);
+        void GetResult(out IShellItem item);
+        void AddPlace(IShellItem item, uint placement);
+        void SetDefaultExtension([MarshalAs(UnmanagedType.LPWStr)] string extension);
+        void Close(int hr);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(nint filter);
         void GetResults(out IShellItemArray items);
         void GetSelectedItems(out IShellItemArray items);
     }
