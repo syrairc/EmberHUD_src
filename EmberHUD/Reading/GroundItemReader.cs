@@ -3,7 +3,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] PrefixIds, int[] SuffixIds, bool Legendary, int BaseId, int Count, int RareValue, bool Equipment);
+internal readonly record struct GroundAffixes(int DropId, bool Owned, int[] PrefixIds, int[] SuffixIds, bool Legendary, int BaseId, int Count, int RareValue, bool Equipment, int SpecialId = 0);
 
 internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
 {
@@ -35,7 +35,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         foreach (var affixes in _affixes)
         {
             if (rects.TryGetValue(affixes.DropId, out var rect))
-                items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds) { Legendary = affixes.Legendary, BaseId = affixes.BaseId, Count = affixes.Count, RareValue = affixes.RareValue, Equipment = affixes.Equipment });
+                items.Add(new GroundItem(affixes.DropId, rect.Min, rect.Max, rect.Position, affixes.Owned, affixes.PrefixIds, affixes.SuffixIds) { Legendary = affixes.Legendary, BaseId = affixes.BaseId, Count = affixes.Count, RareValue = affixes.RareValue, Equipment = affixes.Equipment, SpecialId = affixes.SpecialId });
         }
 
         return [.. items];
@@ -153,6 +153,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         var dropId = (int)key;
         int[] prefixes = [], suffixes = [];
         var legendary = false;
+        var special = 0;
         var baseId = 0;
         var count = 1;
         var rareValue = 0;
@@ -164,8 +165,10 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
             {
                 prefixes = _lua.AffixIds(item, Offsets.LuaGroundPrefix);
                 suffixes = _lua.AffixIds(item, Offsets.LuaGroundSuffix);
-                legendary = _lua.TryGetInt(item, Offsets.LuaGroundSpecialId, out var specialId) && specialId != 0 ||
-                    _lua.TryGetString(item, Offsets.LuaGroundUniqueId, out var uniqueId) && uniqueId.Length > 0 && uniqueId != "0";
+                var configured = _lua.TryGetInt(item, Offsets.LuaGroundSpecialId, out var specialId) && specialId is > 0 and <= int.MaxValue;
+                var unique = _lua.TryGetString(item, Offsets.LuaGroundUniqueId, out var uniqueId) && uniqueId.Length > 0 && uniqueId != "0";
+                legendary = configured || unique;
+                special = configured ? (int)specialId : unique && int.TryParse(uniqueId, out var parsed) ? parsed : 0;
                 if (_lua.TryGetString(item, Offsets.LuaGroundBaseId, out var baseText)) int.TryParse(baseText, out baseId);
                 if (_lua.TryGetInt(item, Offsets.LuaGroundCount, out var num) && num is >= 1 and <= int.MaxValue) count = (int)num;
                 if (_lua.TryGetInt(item, Offsets.LuaGroundRareValue, out var rare) && rare is >= int.MinValue and <= int.MaxValue) rareValue = (int)rare;
@@ -173,6 +176,6 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
             }
         }
 
-        return new GroundAffixes(dropId, owned, prefixes, suffixes, legendary, baseId, count, rareValue, equipment);
+        return new GroundAffixes(dropId, owned, prefixes, suffixes, legendary, baseId, count, rareValue, equipment, special);
     }
 }

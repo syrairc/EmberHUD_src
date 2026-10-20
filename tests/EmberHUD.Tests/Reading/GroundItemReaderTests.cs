@@ -86,6 +86,17 @@ public class GroundItemReaderTests
         Assert.True(Assert.Single(f.Reader().ReadLua()).Legendary);
     }
 
+    [Fact]
+    public void TheSpecialIdComesFromTheConfigIdOrTheUniqueId()
+    {
+        var f = new Fixture();
+        f.Drop(1, [1], [], specialId: 112333);
+        f.Drop(2, [1], [], uniqueId: "112334");
+        f.Drop(3, [1], []);
+
+        Assert.Equal([112333, 112334, 0], f.Reader().ReadLua().OrderBy(g => g.DropId).Select(g => g.SpecialId));
+    }
+
     [Theory]
     [InlineData("8841263", true)]
     [InlineData("0", false)]

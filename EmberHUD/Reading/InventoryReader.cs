@@ -223,7 +223,9 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             return false;
 
         var (prefixes, suffixes) = ReadAffixes(record, entry);
-        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes, Legendary = TryGetInt(record, Offsets.LuaItemSpecialId, out var specialId) && specialId != 0 };
+        var special = TryGetInt(record, Offsets.LuaItemSpecialId, out var specialId) ? specialId : 0;
+        var unidentified = _lua.TryGetBool(record, Offsets.LuaItemEvaluated, out var evaluated) ? !evaluated : special != 0 && prefixes.Length + suffixes.Length == 0;
+        item = new InventoryItem(bag, (int)slot, id, baseId, level, quality, rareValue, count, stackMax, type) { PrefixIds = prefixes, SuffixIds = suffixes, Legendary = special != 0, SpecialId = special, Unidentified = unidentified };
         return true;
     }
 

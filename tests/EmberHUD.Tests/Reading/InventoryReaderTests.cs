@@ -106,6 +106,31 @@ public class InventoryReaderTests
     }
 
     [Fact]
+    public void LegendariesCarryTheirSpecialIdAndWhetherTheyAreUnidentified()
+    {
+        var f = new Fixture();
+        var bag = f.Bag(0, 5);
+        var identified = f.Item("1_a", 1, 1, 1, specialId: 112333);
+        f.Lua.SetBool(f.LastRecord, Offsets.LuaItemEvaluated, true);
+        f.ShapeA(f.LastRecord, [51210311], []);
+        var hidden = f.Item("2_b", 2, 1, 1, specialId: 112334);
+        f.Lua.SetBool(f.LastRecord, Offsets.LuaItemEvaluated, false);
+        var inferred = f.Item("3_c", 3, 1, 1, specialId: 112335);
+        var inferredIdentified = f.Item("4_d", 4, 1, 1, specialId: 112336);
+        f.ShapeA(f.LastRecord, [51210311], []);
+        f.Lua.SetIntKeyTable(bag, 0, identified);
+        f.Lua.SetIntKeyTable(bag, 1, hidden);
+        f.Lua.SetIntKeyTable(bag, 2, inferred);
+        f.Lua.SetIntKeyTable(bag, 3, inferredIdentified);
+        f.Lua.SetIntKeyTable(bag, 4, f.Item("5_e", 5, 1, 1));
+
+        var items = f.Reader().Read()!;
+
+        Assert.Equal([112333, 112334, 112335, 112336, 0], items.Select(i => i.SpecialId));
+        Assert.Equal([false, true, true, false, false], items.Select(i => i.Unidentified));
+    }
+
+    [Fact]
     public void ReadsEveryBagAndSlot()
     {
         var f = new Fixture();

@@ -385,6 +385,10 @@ public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int Ba
     public int[] PrefixIds { get; init; } = [];
     public int[] SuffixIds { get; init; } = [];
     public bool Legendary { get; init; }
+
+    public int SpecialId { get; init; }
+
+    public bool Unidentified { get; init; }
 }
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);

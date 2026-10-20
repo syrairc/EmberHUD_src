@@ -6,6 +6,8 @@ public readonly record struct GroundItem(int DropId, Vector2 LabelMin, Vector2 L
 {
     public bool Legendary { get; init; }
 
+    public int SpecialId { get; init; }
+
     public int BaseId { get; init; }
 
     public int Count { get; init; } = 1;
