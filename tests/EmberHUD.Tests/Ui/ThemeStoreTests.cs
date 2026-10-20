@@ -111,7 +111,7 @@ public sealed class ThemeStoreTests : IDisposable
         Assert.Equal(new Vector2(12, 12), ImGui.GetStyle().WindowPadding);
         Assert.Equal(new Vector4(0xD9 / 255f, 0xD9 / 255f, 0xD9 / 255f, 1), ImGui.GetStyle().Colors[(int)ImGuiCol.Text]);
         Assert.Equal(4f, ImGui.GetStyle().FrameRounding);
-        foreach (var col in new[] { ImGuiCol.WindowBg, ImGuiCol.Button, ImGuiCol.ButtonActive, ImGuiCol.Header, ImGuiCol.HeaderHovered, ImGuiCol.TabSelected })
+        foreach (var col in new[] { ImGuiCol.WindowBg, ImGuiCol.Button, ImGuiCol.ButtonActive, ImGuiCol.TabSelected })
             Assert.True(ThemeGradients.IndexOf(ImGui.ColorConvertFloat4ToU32(ImGui.GetStyle().Colors[(int)col])) >= 0, $"{col} is a gradient");
         Assert.Equal(new ThemeFont("NotoSans-Regular.ttf", 15), themes.Current.Fonts.Regular);
         Assert.False(Fonts.Of(FontFace.Regular).Font.IsNull);

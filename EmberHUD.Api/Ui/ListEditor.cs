@@ -98,17 +98,11 @@ public static class ListEditor
             var rowLeft = ImGui.GetCursorPosX();
 
             ImGui.PushStyleColor(ImGuiCol.Header, 0u);
-            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, ImGui.GetColorU32(ImGuiCol.Button));
-            ImGui.PushStyleColor(ImGuiCol.HeaderActive, ImGui.GetColorU32(ImGuiCol.ButtonHovered));
+            ImGui.PushStyleColor(ImGuiCol.HeaderHovered, Amber(0.07f));
+            ImGui.PushStyleColor(ImGuiCol.HeaderActive, Amber(0.11f));
             if (ImGui.Selectable("##row", selected == i, ImGuiSelectableFlags.AllowOverlap, new Vector2(0, rowH))) selected = i;
             ImGui.PopStyleColor(3);
-            if (selected == i)
-            {
-                var top = ImGui.GetItemRectMin();
-                var bottom = ImGui.GetItemRectMax();
-                dl.AddRectFilled(top, bottom, ImGui.GetColorU32(ImGuiCol.ButtonHovered));
-                dl.AddRectFilled(top, new Vector2(top.X + 3, bottom.Y), ImGui.GetColorU32(ImGuiCol.CheckMark));
-            }
+            if (selected == i) dl.AddRectFilled(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), Amber(0.16f));
 
             var movableRow = i >= head && i < movable;
             if (ImGui.IsItemActivated() && movableRow)
@@ -201,6 +195,12 @@ public static class ListEditor
         if (from < head || from >= movable) return -1;
         var to = from + dir;
         return to < head || to >= movable ? -1 : to;
+    }
+
+    static uint Amber(float alpha)
+    {
+        var colour = ImGui.GetStyle().Colors[(int)ImGuiCol.CheckMark];
+        return ImGui.ColorConvertFloat4ToU32(new Vector4(colour.X, colour.Y, colour.Z, alpha));
     }
 
     public static void Move<T>(IList<T> list, int from, int to)

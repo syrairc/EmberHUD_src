@@ -487,7 +487,7 @@ public class SideNavTests : IDisposable
     }
 
     [Fact]
-    public void HoverWinsOverSelectedOnTheSameRow()
+    public void HoverIsDrawnOverSelectedOnTheSameRow()
     {
         Paint();
         var rig = new RailRig();
@@ -495,7 +495,7 @@ public class SideNavTests : IDisposable
         rig.State!.Active = "a";
         rig.Frame();
         UiFrame.Hover(Win, RowCentre(rig.Rail, 0, rig.IconSize), rig.Draw);
-        Assert.Empty(WithColour(rig.Rail, HeaderColour));
+        Assert.NotEmpty(WithColour(rig.Rail, HeaderColour));
         Assert.NotEmpty(WithColour(rig.Rail, HoveredColour));
     }
 

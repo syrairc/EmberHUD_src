@@ -24,7 +24,10 @@
     "TableBorderLight": "#232A33FF",
     "TextLink": "#63E0F2FF",
     "TextSelectedBg": "#E5AC1A59",
-    "NavCursor": "#F9B626FF"
+    "NavCursor": "#F9B626FF",
+    "Header": "#F9B62629",
+    "HeaderHovered": "#F9B6221F",
+    "HeaderActive": "#F9B62633"
   },
   "Style": {
     "WindowRounding": 6,
@@ -51,9 +54,6 @@
     "TabHovered": { "Top": "#46525FFF", "Bottom": "#323B46FF", "Highlight": "#56626FFF" },
     "ButtonActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" },
     "TabSelected": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" },
-    "Header": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" },
-    "HeaderActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF", "Text": "#2A2C30FF" },
-    "SliderGrabActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF" },
-    "HeaderHovered": { "Top": "#FFDC80FF", "Bottom": "#C98F17FF", "Highlight": "#FFEDB8FF", "Text": "#2A2C30FF" }
+    "SliderGrabActive": { "Top": "#FFD46AFF", "Bottom": "#B9820FFF", "Highlight": "#FFE7A3FF" }
   }
 }

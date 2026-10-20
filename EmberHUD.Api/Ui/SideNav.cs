@@ -88,8 +88,8 @@ public static class SideNav
         var max = ImGui.GetItemRectMax();
         var dl = ImGui.GetWindowDrawList();
 
+        if (selected) dl.AddRectFilled(min, max, ImGui.GetColorU32(ImGuiCol.Header));
         if (hovered) dl.AddRectFilled(min, max, ImGui.GetColorU32(ImGuiCol.HeaderHovered));
-        else if (selected) dl.AddRectFilled(min, max, ImGui.GetColorU32(ImGuiCol.Header));
 
         var pad = ImGui.GetStyle().FramePadding.X;
         var iconX = labels ? min.X + pad : min.X + (w - side) * 0.5f;
