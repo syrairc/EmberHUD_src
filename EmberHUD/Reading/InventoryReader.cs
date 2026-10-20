@@ -14,6 +14,8 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
     private long _stashNextRefresh;
     private int _stashTab = -1;
     private InventoryItem[]? _stashItems;
+    private long _tradeNextRefresh;
+    private TradeGood[]? _tradeGoods;
 
     public InventoryItem[]? Read()
     {
@@ -30,6 +32,37 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
         _stashTab = tab;
         _stashNextRefresh = now + Stopwatch.Frequency * Offsets.StashItemsRefreshMilliseconds / 1000;
         return _stashItems = BuildStash(tab);
+    }
+
+    public TradeGood[]? ReadTradeGoods()
+    {
+        var now = _clock();
+        if (now < _tradeNextRefresh) return _tradeGoods;
+        _tradeNextRefresh = now + Stopwatch.Frequency * Offsets.TradeGoodsRefreshMilliseconds / 1000;
+        return _tradeGoods = BuildTradeGoods();
+    }
+
+    private TradeGood[]? BuildTradeGoods()
+    {
+        if (!_lua.TryOpen(out var globals) ||
+            !_lua.TryGetTable(globals, Offsets.LuaAuctionManager, out var manager) ||
+            !_lua.TryGetTable(manager, Offsets.LuaAuctionListings, out var listings))
+            return null;
+
+        var goods = new List<TradeGood>();
+        foreach (var (key, entry) in _lua.IntKeyedTables(listings).OrderBy(l => l.Key).Take(Offsets.MaxTradeGoods))
+        {
+            if (!_lua.TryGetTable(entry, Offsets.LuaItemRecord, out var record) ||
+                !_lua.TryGetInt(record, Offsets.LuaAuctionGoodId, out var goodId) ||
+                !TryGetInt(record, Offsets.LuaAuctionPriceType, out var priceType) ||
+                !_lua.TryGetInt(record, Offsets.LuaAuctionPrice, out var price) ||
+                !_lua.TryGetString(record, Offsets.LuaAuctionStatus, out var status) ||
+                !_lua.TryGetTable(record, Offsets.LuaAuctionItem, out var itemData) ||
+                !TryReadItem(InventoryBag.Commodities, key, itemData, out var item))
+                continue;
+            goods.Add(new TradeGood(goodId, priceType, price, status, StashGearTypes.Contains(item.Type) ? item with { Bag = InventoryBag.Equipment } : item));
+        }
+        return [.. goods];
     }
 
     private InventoryItem[]? BuildStash(int tab)

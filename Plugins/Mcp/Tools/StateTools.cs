@@ -197,6 +197,16 @@ internal static class StateTools
                     ["min"] = new JsonArray(Num.F(l.Min.X), Num.F(l.Min.Y)),
                     ["max"] = new JsonArray(Num.F(l.Max.X), Num.F(l.Max.Y)),
                 })]),
+                ["goodsCount"] = state.TradeGoods?.Length ?? 0,
+                ["goods"] = new JsonArray([.. (state.TradeGoods ?? []).Take(10).Select(g => (JsonNode)new JsonObject
+                {
+                    ["goodId"] = g.GoodId.ToString(),
+                    ["baseId"] = g.Item.BaseId,
+                    ["quantity"] = g.Item.Count,
+                    ["price"] = g.Price,
+                    ["priceType"] = g.PriceType,
+                    ["status"] = g.Status,
+                })]),
             };
         if (state.Bag is { } bag)
             result["bag"] = new JsonObject

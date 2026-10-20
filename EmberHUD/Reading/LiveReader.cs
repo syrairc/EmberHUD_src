@@ -114,6 +114,7 @@ internal sealed class LiveReader
         if (chatSeen || !uiClean) _chatSeenAt = now;
         var inventoryWanted = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds);
         var stash = inventoryWanted ? _ui.ReadStash() : null;
+        var trade = _ui.ReadTrade();
         state = new GameState
         {
             Status = status,
@@ -133,7 +134,8 @@ internal sealed class LiveReader
             BossBar = _ui.ReadBossBar(),
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
-            Trade = _ui.ReadTrade(),
+            Trade = trade,
+            TradeGoods = trade is null ? null : _inventory?.ReadTradeGoods(),
             Bag = inventoryWanted ? _ui.ReadBag() : null,
             Stash = stash,
             StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,

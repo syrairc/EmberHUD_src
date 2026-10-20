@@ -191,6 +191,8 @@ public sealed record GameState
 
     public TradePage? Trade { get; init; }
 
+    public TradeGood[]? TradeGoods { get; init; }
+
     public BagView? Bag { get; init; }
 
     public StashView? Stash { get; init; }
@@ -371,6 +373,8 @@ public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int Ba
 }
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
+
+public sealed record TradeGood(long GoodId, int PriceType, long Price, string Status, InventoryItem Item);
 
 public readonly record struct TradeListing(int Slot, string Name, long Quantity, long Price, string? Status, Vector2 Min, Vector2 Max);
 

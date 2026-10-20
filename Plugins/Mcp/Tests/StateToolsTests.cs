@@ -46,6 +46,22 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetStateShowsTheTradeGoods()
+    {
+        var good = new TradeGood(981152232460525568L, 100300, 263, "Available", new InventoryItem(InventoryBag.Commodities, 1, "200028_x", 200028, 1, 0, 2, 692, 9999, 15));
+        TestGame.Set(GameState.Empty with { Trade = new TradePage(1, false, 72, [], "game:fe"), TradeGoods = [good] });
+        var trade = Wire.Run(Tools, "get_state")["trade"]!;
+        Check.Equal(1, (int)trade["goodsCount"]!);
+        var first = trade["goods"]![0]!;
+        Check.Equal("981152232460525568", (string?)first["goodId"]);
+        Check.Equal(200028, (int)first["baseId"]!);
+        Check.Equal(692, (int)first["quantity"]!);
+        Check.Equal(263L, (long)first["price"]!);
+        Check.Equal("Available", (string?)first["status"]);
+        TestGame.Set(GameState.Empty);
+    }
+
+    [Test]
     public void GetStateIncludesBag()
     {
         var cells = Enumerable.Range(0, 27).Select(i => new BagCell(i, new Vector2(i, 2), new Vector2(i + 1, 3))).ToArray();
