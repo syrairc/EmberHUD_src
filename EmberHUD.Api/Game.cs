@@ -407,6 +407,8 @@ public sealed record TradeGood(long GoodId, int PriceType, long Price, string St
     public int EnhanceCount { get; init; }
     public bool Forged { get; init; }
     public bool Corrode { get; init; }
+
+    public bool Unidentified { get; init; }
 }
 
 public readonly record struct TradeListing(int Slot, string Name, long Quantity, long Price, string? Status, Vector2 Min, Vector2 Max);

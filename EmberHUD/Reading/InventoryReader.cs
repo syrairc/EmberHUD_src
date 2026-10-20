@@ -134,6 +134,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             EnhanceCount = Int(raw, Offsets.LuaItemEnhanceCount),
             Forged = _lua.TryGetBool(raw, Offsets.LuaItemForged, out var forged) && forged,
             Corrode = _lua.TryGetBool(raw, Offsets.LuaItemCorrode, out var corrode) && corrode,
+            Unidentified = _lua.TryGetBool(raw, Offsets.LuaItemEvaluated, out var evaluated) && !evaluated,
         };
     }
 

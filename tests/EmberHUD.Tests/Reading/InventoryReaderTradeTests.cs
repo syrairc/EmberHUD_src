@@ -324,6 +324,24 @@ public class InventoryReaderTradeTests
     }
 
     [Fact]
+    public void AnItemTheGameHasNotEvaluatedIsUnidentified()
+    {
+        var f = new InventoryReaderTests.Fixture();
+        var listings = Manager(f);
+        Listing(f, listings, 1, 1, 10, "Available", 3611, 1, stackMax: 1, type: 1, specialId: 112256);
+        f.Lua.SetBool(f.LastRecord, Offsets.LuaItemEvaluated, false);
+        Listing(f, listings, 2, 2, 10, "Available", 3611, 1, stackMax: 1, type: 1, specialId: 112256);
+        f.Lua.SetBool(f.LastRecord, Offsets.LuaItemEvaluated, true);
+        Listing(f, listings, 3, 3, 10, "Available", 3611, 1, stackMax: 1, type: 1, specialId: 112256);
+
+        var goods = f.Reader().ReadTradeGoods()!;
+
+        Assert.True(goods[0].Unidentified);
+        Assert.False(goods[1].Unidentified);
+        Assert.False(goods[2].Unidentified);
+    }
+
+    [Fact]
     public void GearKeepsItsLevelAsItemLevel()
     {
         var f = new InventoryReaderTests.Fixture();

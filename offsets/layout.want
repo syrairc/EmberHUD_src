@@ -532,6 +532,7 @@ LuaServerSkillItemLevel = "SkillItemLevel"
 LuaItemEnhanceCount = "EnhanceCount"
 LuaItemForged = "Forged"
 LuaItemCorrode = "Corrode"
+LuaItemEvaluated = "bEvaluate"
 MaxTradeAffixes = 16
 MaxTradeFlags = 32
 TradeSkillItemType = 6
