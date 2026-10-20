@@ -83,6 +83,8 @@ internal sealed class LiveGameSource : IGameSource
             Scene.Lister = null;
             FightScan.Lister = null;
             Lua.Dumper = null;
+            Items.BaseGetter = null;
+            Items.UniqueGetter = null;
             return;
         }
 
@@ -101,6 +103,10 @@ internal sealed class LiveGameSource : IGameSource
         var probes = new FightProbeReader(backend, moduleBase);
         var probeGate = new Lock();
         FightScan.Lister = (at, radius) => Guarded(probeGate, () => probes.Near(at, radius), []);
+        var items = new ItemInfoReader(backend, moduleBase);
+        var itemGate = new Lock();
+        Items.BaseGetter = id => Guarded(itemGate, () => items.ByBase(id), null);
+        Items.UniqueGetter = id => Guarded(itemGate, () => items.ByUnique(id), null);
         Lua.Dumper = (path, max, skip, filter) => Guarded(luaGate, () => DumpLua(luaReader, path, max, skip, filter), new LuaDump(false, "", [], 0));
     }
 

@@ -13,6 +13,8 @@ internal readonly record struct FakeNameTagLabel(int DropId, Vector2 Min, Vector
 
 internal readonly record struct FakeNameTagGroup(int Key, Vector3 WorldPos, Vector2 ScreenPos, FakeNameTagLabel[] Labels, bool InScreen = true);
 
+internal readonly record struct FakeItemRow(uint Id, uint Rarity = 1, uint Type1 = 0, uint Type2 = 0, uint Type3 = 0, uint Type4 = 0, uint Tier = 0, uint RequireLevel = 0, bool NoRow = false, uint StoredId = 0);
+
 internal sealed class FakeWorld
 {
     public static readonly nint Module = unchecked((nint)0x1_4000_0000L);
@@ -45,6 +47,10 @@ internal sealed class FakeWorld
         Memory.Map(Module + Offsets.GObjectsGlobalRva, 0x20);
         Memory.Map(Module + Offsets.MonsterCfgBucketsRva, 8);
         Memory.Map(Module + Offsets.MonsterCfgBucketCountRva, 4);
+        Memory.Map(Module + Offsets.ItemBaseBucketsRva, 8);
+        Memory.Map(Module + Offsets.ItemBaseBucketCountRva, 4);
+        Memory.Map(Module + Offsets.ItemGoldBucketsRva, 8);
+        Memory.Map(Module + Offsets.ItemGoldBucketCountRva, 4);
         Memory.Map(Module + Offsets.MapIconInfoBucketsRva, 8);
         Memory.Map(Module + Offsets.MapIconInfoBucketCountRva, 4);
         Memory.Map(Module + Offsets.FNamePoolRva, Offsets.FNameBlocks + 8 * 4);
@@ -763,6 +769,41 @@ internal sealed class FakeWorld
         ConfigNodes.AddRange(nodes);
         Memory.Write(Module + Offsets.MonsterCfgBucketsRva, array);
         Memory.Write(Module + Offsets.MonsterCfgBucketCountRva, (uint)bucketCount);
+    }
+
+    public void SetItemBaseTable(int bucketCount, params FakeItemRow[] rows)
+    {
+        var entries = rows.Select(r =>
+        {
+            if (r.NoRow) return (r.Id, (nint)0);
+            var row = Alloc(0x80);
+            Memory.Write(row + Offsets.ItemRowId, r.StoredId != 0 ? r.StoredId : r.Id);
+            Memory.Write(row + Offsets.ItemRowRarity, r.Rarity);
+            Memory.Write(row + Offsets.ItemRowType1, r.Type1);
+            Memory.Write(row + Offsets.ItemRowType2, r.Type2);
+            Memory.Write(row + Offsets.ItemRowType3, r.Type3);
+            Memory.Write(row + Offsets.ItemRowType4, r.Type4);
+            Memory.Write(row + Offsets.ItemRowTier, r.Tier);
+            Memory.Write(row + Offsets.ItemRowRequireLevel, r.RequireLevel);
+            return (r.Id, row);
+        }).ToArray();
+        var (array, _) = WriteChains(bucketCount, entries);
+        Memory.Write(Module + Offsets.ItemBaseBucketsRva, array);
+        Memory.Write(Module + Offsets.ItemBaseBucketCountRva, (uint)bucketCount);
+    }
+
+    public void SetItemGoldTable(int bucketCount, params (uint UniqueId, uint BaseId)[] rows)
+    {
+        var entries = rows.Select(r =>
+        {
+            var row = Alloc(0x40);
+            Memory.Write(row + Offsets.ItemRowId, r.UniqueId);
+            Memory.Write(row + Offsets.ItemGoldBaseId, r.BaseId);
+            return (r.UniqueId, row);
+        }).ToArray();
+        var (array, _) = WriteChains(bucketCount, entries);
+        Memory.Write(Module + Offsets.ItemGoldBucketsRva, array);
+        Memory.Write(Module + Offsets.ItemGoldBucketCountRva, (uint)bucketCount);
     }
 
     private readonly Dictionary<uint, nint> _mapIconInfoRows = [];

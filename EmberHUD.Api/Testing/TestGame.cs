@@ -58,6 +58,12 @@ public static class TestGame
         Loc.Finder = find;
     }
 
+    public static void UseItems(Func<int, ItemInfo?>? byBase, Func<int, ItemInfo?>? byUnique)
+    {
+        Items.BaseGetter = byBase;
+        Items.UniqueGetter = byUnique;
+    }
+
     public static void UseQuit(Action? quit) => App.Quitter = quit;
 
     public static void UseScene(Func<SceneEntity[]>? list) => Scene.Lister = list;
