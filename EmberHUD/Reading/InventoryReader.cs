@@ -127,6 +127,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
             Affixes = [.. affixes],
             Flags = flags,
             ItemLevel = itemLevel,
+            SpecialId = Int(raw, Offsets.LuaItemSpecialId),
             SkillId = skillId,
             SkillType = skillType,
             HoleNum = holeNum,

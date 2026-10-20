@@ -399,6 +399,8 @@ public sealed record TradeGood(long GoodId, int PriceType, long Price, string St
     public TradeAffix[] Affixes { get; init; } = [];
     public string[] Flags { get; init; } = [];
     public int ItemLevel { get; init; }
+
+    public int SpecialId { get; init; }
     public int SkillId { get; init; }
     public int SkillType { get; init; }
     public int HoleNum { get; init; }

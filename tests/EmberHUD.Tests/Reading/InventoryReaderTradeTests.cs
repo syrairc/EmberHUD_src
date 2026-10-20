@@ -26,14 +26,14 @@ public class InventoryReaderTradeTests
         return (simple, advanced);
     }
 
-    static LuaTable Listing(InventoryReaderTests.Fixture f, LuaTable listings, int index, long goodId, long price, string status, int baseId, int count, int stackMax = 9999, int priceType = 100300, int type = 15, bool withItem = true)
+    static LuaTable Listing(InventoryReaderTests.Fixture f, LuaTable listings, int index, long goodId, long price, string status, int baseId, int count, int stackMax = 9999, int priceType = 100300, int type = 15, bool withItem = true, int specialId = 0)
     {
         var record = f.Lua.NewTable(0, 4);
         f.Lua.SetInt(record, Offsets.LuaAuctionGoodId, goodId);
         f.Lua.SetInt(record, Offsets.LuaAuctionPriceType, priceType);
         f.Lua.SetInt(record, Offsets.LuaAuctionPrice, price);
         f.Lua.SetString(record, Offsets.LuaAuctionStatus, status);
-        if (withItem) f.Lua.SetTable(record, Offsets.LuaAuctionItem, f.Item($"{baseId}_{goodId}", baseId, count, stackMax, type: type));
+        if (withItem) f.Lua.SetTable(record, Offsets.LuaAuctionItem, f.Item($"{baseId}_{goodId}", baseId, count, stackMax, type: type, specialId: specialId));
         var entry = f.Lua.NewTable(0, 2);
         f.Lua.SetTable(entry, Offsets.LuaItemRecord, record);
         f.Lua.SetIntKeyTable(listings, index, entry);
@@ -307,6 +307,20 @@ public class InventoryReaderTradeTests
         Assert.Equal(3, good.HoleNum);
         Assert.Equal(85, good.ItemLevel);
         Assert.Equal(10, good.Item.Level);
+    }
+
+    [Fact]
+    public void TheLegendaryIdComesFromTheItemRecord()
+    {
+        var f = new InventoryReaderTests.Fixture();
+        var listings = Manager(f);
+        Listing(f, listings, 1, 1, 10, "Available", 4518, 1, stackMax: 1, type: 1, specialId: 110103);
+        Listing(f, listings, 2, 2, 10, "Available", 4518, 1, stackMax: 1, type: 1);
+
+        var goods = f.Reader().ReadTradeGoods()!;
+
+        Assert.Equal(110103, goods[0].SpecialId);
+        Assert.Equal(0, goods[1].SpecialId);
     }
 
     [Fact]
