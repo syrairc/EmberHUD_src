@@ -16,6 +16,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
     private InventoryItem[]? _stashItems;
     private long _tradeNextRefresh;
     private TradeGood[]? _tradeGoods;
+    private readonly Dictionary<nint, TradeGood> _tradeCache = [];
 
     public InventoryItem[]? Read()
     {
@@ -44,26 +45,111 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
 
     private TradeGood[]? BuildTradeGoods()
     {
-        if (!_lua.TryOpen(out var globals) ||
-            !_lua.TryGetTable(globals, Offsets.LuaAuctionManager, out var manager) ||
-            !_lua.TryGetTable(manager, Offsets.LuaAuctionListings, out var listings))
+        if (!_lua.TryOpen(out var globals) || !_lua.TryGetTable(globals, Offsets.LuaAuctionManager, out var manager))
             return null;
 
+        var hasSimple = _lua.TryGetTable(manager, Offsets.LuaAuctionListings, out var simple);
+        var hasAdvanced = _lua.TryGetTable(manager, Offsets.LuaAuctionAdvancedListings, out var advanced);
+        if (!hasSimple && !hasAdvanced) return null;
+
         var goods = new List<TradeGood>();
-        foreach (var (key, entry) in _lua.IntKeyedTables(listings).OrderBy(l => l.Key).Take(Offsets.MaxTradeGoods))
+        var seen = new HashSet<nint>();
+        var goodIds = new HashSet<long>();
+        foreach (var (store, isAdvanced) in new[] { (simple, false), (advanced, true) })
         {
-            if (!_lua.TryGetTable(entry, Offsets.LuaItemRecord, out var record) ||
-                !_lua.TryGetInt(record, Offsets.LuaAuctionGoodId, out var goodId) ||
-                !TryGetInt(record, Offsets.LuaAuctionPriceType, out var priceType) ||
-                !_lua.TryGetInt(record, Offsets.LuaAuctionPrice, out var price) ||
-                !_lua.TryGetString(record, Offsets.LuaAuctionStatus, out var status) ||
-                !_lua.TryGetTable(record, Offsets.LuaAuctionItem, out var itemData) ||
-                !TryReadItem(InventoryBag.Commodities, key, itemData, out var item))
-                continue;
-            goods.Add(new TradeGood(goodId, priceType, price, status, StashGearTypes.Contains(item.Type) ? item with { Bag = InventoryBag.Equipment } : item));
+            if (store.Address == 0) continue;
+            foreach (var (key, entry) in _lua.IntKeyedTables(store).OrderBy(l => l.Key))
+            {
+                if (goods.Count >= Offsets.MaxTradeGoods) break;
+                seen.Add(entry.Address);
+                var good = _tradeCache.TryGetValue(entry.Address, out var cached) ? Refresh(entry, cached) : ReadTradeGood(key, entry, isAdvanced);
+                if (good is null) continue;
+                _tradeCache[entry.Address] = good;
+                if (goodIds.Add(good.GoodId)) goods.Add(good);
+            }
         }
+
+        foreach (var address in _tradeCache.Keys.Where(a => !seen.Contains(a)).ToArray()) _tradeCache.Remove(address);
         return [.. goods];
     }
+
+    private TradeGood? Refresh(LuaTable entry, TradeGood cached)
+    {
+        if (!_lua.TryGetTable(entry, Offsets.LuaItemRecord, out var record) ||
+            !_lua.TryGetInt(record, Offsets.LuaAuctionGoodId, out var goodId) ||
+            !_lua.TryGetInt(record, Offsets.LuaAuctionPrice, out var price) ||
+            !_lua.TryGetString(record, Offsets.LuaAuctionStatus, out var status))
+            return cached;
+        if (goodId != cached.GoodId) return null;
+        return price == cached.Price && status == cached.Status ? cached : cached with { Price = price, Status = status };
+    }
+
+    private TradeGood? ReadTradeGood(long key, LuaTable entry, bool advanced)
+    {
+        if (!_lua.TryGetTable(entry, Offsets.LuaItemRecord, out var record) ||
+            !_lua.TryGetInt(record, Offsets.LuaAuctionGoodId, out var goodId) ||
+            !TryGetInt(record, Offsets.LuaAuctionPriceType, out var priceType) ||
+            !_lua.TryGetInt(record, Offsets.LuaAuctionPrice, out var price) ||
+            !_lua.TryGetString(record, Offsets.LuaAuctionStatus, out var status) ||
+            !_lua.TryGetTable(record, Offsets.LuaAuctionItem, out var itemData) ||
+            !TryReadItem(InventoryBag.Commodities, key, itemData, out var item))
+            return null;
+
+        var good = new TradeGood(goodId, priceType, price, status, StashGearTypes.Contains(item.Type) ? item with { Bag = InventoryBag.Equipment } : item) { Advanced = advanced, ItemLevel = item.Level };
+        return _lua.TryGetTable(itemData, Offsets.LuaItemRecord, out var raw) ? AddDetails(good, raw) : good;
+    }
+
+    private TradeGood AddDetails(TradeGood good, LuaTable raw)
+    {
+        var affixes = new List<TradeAffix>();
+        if (_lua.TryGetTable(raw, Offsets.LuaItemAffixList, out var list))
+        {
+            affixes.AddRange(ReadTradeAffixes(list, Offsets.LuaItemBaseAffixList, TradeAffixKind.Implicit));
+            affixes.AddRange(ReadTradeAffixes(list, Offsets.LuaItemPrefixInfoList, TradeAffixKind.Prefix));
+            affixes.AddRange(ReadTradeAffixes(list, Offsets.LuaItemSuffixInfoList, TradeAffixKind.Suffix));
+            affixes.AddRange(ReadTradeAffixes(list, Offsets.LuaItemBaseAttrInfoList, TradeAffixKind.BaseAttribute));
+        }
+
+        var flags = _lua.TryGetTable(raw, Offsets.LuaItemFlags, out var status)
+            ? _lua.Entries(status, Offsets.MaxTradeFlags, 0, "", out _).Where(e => e.Type == "bool" && e.Value == "true").Select(e => e.Key).ToArray()
+            : [];
+        var (skillId, skillType, holeNum) = (0, 0, 0);
+        if (_lua.TryGetTable(raw, Offsets.LuaItemSpecialInfo, out var special))
+            (skillId, skillType, holeNum) = (Int(special, Offsets.LuaSpecialSkillId), Int(special, Offsets.LuaSpecialSkillType), Int(special, Offsets.LuaSpecialHoleNum));
+
+        var itemLevel = good.ItemLevel;
+        if (good.Item.Type == Offsets.TradeSkillItemType && _lua.TryGetTable(raw, Offsets.LuaItemServerData, out var server) &&
+            TryGetInt(server, Offsets.LuaServerSkillItemLevel, out var skillItemLevel))
+            itemLevel = skillItemLevel;
+
+        return good with
+        {
+            Affixes = [.. affixes],
+            Flags = flags,
+            ItemLevel = itemLevel,
+            SkillId = skillId,
+            SkillType = skillType,
+            HoleNum = holeNum,
+            EnhanceCount = Int(raw, Offsets.LuaItemEnhanceCount),
+            Forged = _lua.TryGetBool(raw, Offsets.LuaItemForged, out var forged) && forged,
+            Corrode = _lua.TryGetBool(raw, Offsets.LuaItemCorrode, out var corrode) && corrode,
+        };
+    }
+
+    private IEnumerable<TradeAffix> ReadTradeAffixes(LuaTable list, string name, TradeAffixKind kind)
+    {
+        if (!_lua.TryGetTable(list, name, out var table)) yield break;
+        foreach (var (_, row) in _lua.IntKeyedTables(table).OrderBy(r => r.Key).Take(Offsets.MaxTradeAffixes))
+        {
+            if (!TryGetInt(row, Offsets.LuaGroundAffixId, out var id)) continue;
+            var rolls = new List<float>();
+            if (_lua.TryGetTable(row, Offsets.LuaAffixRolls, out var args))
+                for (var i = 1; i <= Offsets.MaxTradeAffixes && _lua.TryGetFloatAt(args, i, out var roll); i++) rolls.Add((float)roll);
+            yield return new TradeAffix(kind, id, Int(row, Offsets.LuaAffixTier), [.. rolls], _lua.TryGetStringCut(row, Offsets.LuaAffixComplex, out var text) ? text : "");
+        }
+    }
+
+    private int Int(LuaTable table, string key) => TryGetInt(table, key, out var value) ? value : 0;
 
     private InventoryItem[]? BuildStash(int tab)
     {

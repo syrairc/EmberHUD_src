@@ -495,4 +495,36 @@ public class LuaReaderTests
         Assert.True(reader.TryGetBytesAt(table, 1, out _));
         Assert.False(reader.TryGetBytesAt(table, 2, out _));
     }
+
+    [Fact]
+    public void ReadsFloatsFromArrayAndNodeParts()
+    {
+        var (_, lua, reader) = Fixture();
+        var args = lua.NewTable(1, 2);
+        lua.SetIntKeyFloat(args, 1, 11.5);
+        lua.SetIntKeyFloat(args, 2, -3.25);
+        lua.SetIntKey(args, 3, 7, Offsets.LuaTagInt);
+        lua.SetIntKeyString(args, 4, "x");
+        Assert.True(reader.TryGetFloatAt(args, 1, out var first));
+        Assert.Equal(11.5, first);
+        Assert.True(reader.TryGetFloatAt(args, 2, out var second));
+        Assert.Equal(-3.25, second);
+        Assert.True(reader.TryGetFloatAt(args, 3, out var whole));
+        Assert.Equal(7, whole);
+        Assert.False(reader.TryGetFloatAt(args, 4, out _));
+        Assert.False(reader.TryGetFloatAt(args, 5, out _));
+    }
+
+    [Fact]
+    public void TryGetStringCutKeepsTheStartOfALongString()
+    {
+        var (_, lua, reader) = Fixture();
+        var text = new string('a', Offsets.MaxLuaString + 50);
+        lua.SetString(lua.Globals, "long", text);
+        reader.TryOpen(out var globals);
+        Assert.False(reader.TryGetString(globals, "long", out _));
+        Assert.True(reader.TryGetStringCut(globals, "long", out var cut));
+        Assert.Equal(Offsets.MaxLuaString, cut.Length);
+        Assert.False(reader.TryGetStringCut(globals, "missing", out _));
+    }
 }

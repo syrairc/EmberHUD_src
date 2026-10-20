@@ -8,6 +8,7 @@ public static class Game
     static int _minimapRescans;
     static long _combatAsked;
     static long _inventoryAsked;
+    static long _tradeGoodsAsked;
     static long _castsAsked;
     static long _projectilesAsked;
     static long _groundHazardsAsked;
@@ -51,6 +52,20 @@ public static class Game
     internal static bool InventoryWanted(long now, double seconds)
     {
         var asked = Interlocked.Read(ref _inventoryAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
+    public static void WantTradeGoods() => Interlocked.Exchange(ref _tradeGoodsAsked, Stopwatch.GetTimestamp());
+
+    internal static long TradeGoodsAsked
+    {
+        get => Interlocked.Read(ref _tradeGoodsAsked);
+        set => Interlocked.Exchange(ref _tradeGoodsAsked, value);
+    }
+
+    internal static bool TradeGoodsWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _tradeGoodsAsked);
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
@@ -374,7 +389,23 @@ public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int Ba
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
 
-public sealed record TradeGood(long GoodId, int PriceType, long Price, string Status, InventoryItem Item);
+public enum TradeAffixKind : byte { Implicit, Prefix, Suffix, BaseAttribute }
+
+public readonly record struct TradeAffix(TradeAffixKind Kind, int Id, int Tier, float[] Rolls, string Text);
+
+public sealed record TradeGood(long GoodId, int PriceType, long Price, string Status, InventoryItem Item)
+{
+    public bool Advanced { get; init; }
+    public TradeAffix[] Affixes { get; init; } = [];
+    public string[] Flags { get; init; } = [];
+    public int ItemLevel { get; init; }
+    public int SkillId { get; init; }
+    public int SkillType { get; init; }
+    public int HoleNum { get; init; }
+    public int EnhanceCount { get; init; }
+    public bool Forged { get; init; }
+    public bool Corrode { get; init; }
+}
 
 public readonly record struct TradeListing(int Slot, string Name, long Quantity, long Price, string? Status, Vector2 Min, Vector2 Max);
 

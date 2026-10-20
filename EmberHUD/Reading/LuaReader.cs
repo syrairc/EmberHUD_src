@@ -72,6 +72,40 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return TryReadString((nint)raw, out value);
     }
 
+    public bool TryGetStringCut(LuaTable table, string key, out string value)
+    {
+        value = "";
+        if (!TryFind(table, key, out var raw, out var tag) || !IsString(tag)) return false;
+        return TryReadString((nint)raw, out value, true);
+    }
+
+    public bool TryGetFloatAt(LuaTable table, long index, out double value)
+    {
+        value = 0;
+        if (!TryReadHeader(table, out var header)) return false;
+        long raw;
+        uint tag;
+        if (index >= 1 && index <= header.ArraySize)
+        {
+            if (!TryReadValue(header.Array + (nint)(index - 1) * Offsets.LuaTValueSize, out raw, out tag)) return false;
+        }
+        else
+        {
+            if (!TryReadNodes(header, out var nodes)) return false;
+            var at = -1;
+            for (var i = 0; i < nodes.Length && at < 0; i += Offsets.LuaNodeSize)
+                if (NodeKeyTag(nodes, i) == Offsets.LuaTagInt && MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey)) == index) at = i;
+            if (at < 0) return false;
+            raw = MemoryMarshal.Read<long>(nodes.AsSpan(at + Offsets.LuaNodeValue));
+            tag = NodeTag(nodes, at);
+        }
+
+        if (tag == Offsets.LuaTagFloat) value = BitConverter.Int64BitsToDouble(raw);
+        else if (tag == Offsets.LuaTagInt) value = raw;
+        else return false;
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
     public bool TryGetTableAt(LuaTable table, long index, out LuaTable value)
     {
         value = default;

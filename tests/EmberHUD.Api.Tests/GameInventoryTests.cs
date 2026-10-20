@@ -28,6 +28,20 @@ public class GameInventoryTests
     }
 }
 
+public class GameTradeGoodsTests
+{
+    [Fact]
+    public void TradeGoodsAreWantedForAWhileAfterAsking()
+    {
+        Game.TradeGoodsAsked = 0;
+        Assert.False(Game.TradeGoodsWanted(Stopwatch.GetTimestamp(), 3));
+        Game.WantTradeGoods();
+        var now = Stopwatch.GetTimestamp();
+        Assert.True(Game.TradeGoodsWanted(now, 3));
+        Assert.False(Game.TradeGoodsWanted(now + 4 * Stopwatch.Frequency, 3));
+    }
+}
+
 public class GameCastsTests
 {
     [Fact]

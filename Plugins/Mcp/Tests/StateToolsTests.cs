@@ -48,7 +48,13 @@ public sealed class StateToolsTests
     [Test]
     public void GetStateShowsTheTradeGoods()
     {
-        var good = new TradeGood(981152232460525568L, 100300, 263, "Available", new InventoryItem(InventoryBag.Commodities, 1, "200028_x", 200028, 1, 0, 2, 692, 9999, 15));
+        var good = new TradeGood(981152232460525568L, 100300, 263, "Available", new InventoryItem(InventoryBag.Commodities, 1, "200028_x", 200028, 1, 0, 2, 692, 9999, 15))
+        {
+            Advanced = true,
+            ItemLevel = 85,
+            Flags = ["FORGE_PRECISE"],
+            Affixes = [new TradeAffix(TradeAffixKind.Prefix, 2203, 3, [11f, 2.5f], "+11 Strength")],
+        };
         TestGame.Set(GameState.Empty with { Trade = new TradePage(1, false, 72, [], "game:fe"), TradeGoods = [good] });
         var trade = Wire.Run(Tools, "get_state")["trade"]!;
         Check.Equal(1, (int)trade["goodsCount"]!);
@@ -58,6 +64,15 @@ public sealed class StateToolsTests
         Check.Equal(692, (int)first["quantity"]!);
         Check.Equal(263L, (long)first["price"]!);
         Check.Equal("Available", (string?)first["status"]);
+        Check.That((bool)first["advanced"]!, "advanced");
+        Check.Equal(85, (int)first["itemLevel"]!);
+        Check.Equal("FORGE_PRECISE", (string?)first["flags"]![0]);
+        var affix = first["affixes"]![0]!;
+        Check.Equal("Prefix", (string?)affix["kind"]);
+        Check.Equal(2203, (int)affix["id"]!);
+        Check.Equal(3, (int)affix["tier"]!);
+        Check.Equal(2.5, (double)affix["rolls"]![1]!);
+        Check.Equal("+11 Strength", (string?)affix["text"]);
         TestGame.Set(GameState.Empty);
     }
 

@@ -56,6 +56,26 @@ internal sealed class FakeLua
 
     public void SetInt(LuaTable t, string key, long value) => SetNode(t, MainPosition(t, key), key, value, Offsets.LuaTagInt);
 
+    public void UpdateInt(LuaTable t, string key, long value) => Update(t, key, value);
+
+    public void UpdateString(LuaTable t, string key, string value) => Update(t, key, Intern(value));
+
+    private void Update(LuaTable t, string key, long value)
+    {
+        var (logSize, _, _, node) = _tables[t.Address];
+        for (var i = 0; i < 1 << logSize; i++)
+        {
+            var slot = node + i * Offsets.LuaNodeSize;
+            var keyBytes = new byte[8];
+            _memory.TryRead(slot + Offsets.LuaNodeKey, keyBytes);
+            if (BitConverter.ToInt64(keyBytes) == Intern(key)) _memory.Write(slot + Offsets.LuaNodeValue, value);
+        }
+    }
+
+    public void SetFloat(LuaTable t, string key, double value) => SetNode(t, MainPosition(t, key), key, BitConverter.DoubleToInt64Bits(value), Offsets.LuaTagFloat);
+
+    public void SetIntKeyFloat(LuaTable t, long key, double value) => SetIntKey(t, key, BitConverter.DoubleToInt64Bits(value), Offsets.LuaTagFloat);
+
     public void SetBool(LuaTable t, string key, bool value) => SetValue(t, key, value ? 1 : 0, Offsets.LuaTagBool);
 
     public void SetTable(LuaTable t, string key, LuaTable value) => SetNode(t, MainPosition(t, key), key, value.Address, Offsets.LuaTagTable);

@@ -135,7 +135,7 @@ internal sealed class LiveReader
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
             Trade = trade,
-            TradeGoods = trade is null ? null : _inventory?.ReadTradeGoods(),
+            TradeGoods = trade is not null && Game.TradeGoodsWanted(Stopwatch.GetTimestamp(), Offsets.TradeGoodsWantedSeconds) ? _inventory?.ReadTradeGoods() : null,
             Bag = inventoryWanted ? _ui.ReadBag() : null,
             Stash = stash,
             StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,
