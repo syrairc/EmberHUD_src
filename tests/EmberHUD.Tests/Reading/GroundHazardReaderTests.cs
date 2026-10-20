@@ -91,6 +91,14 @@ public class GroundHazardReaderTests
     }
 
     [Fact]
+    public void ABossArenaZoneRingIsNotAHazard()
+    {
+        var (world, reader) = Rig();
+        world.AddRing(153, 103, Pool, 3200, 2200, kindBits: 0x100, buffArea: true);
+        Assert.Empty(reader.Read([Monster(5000, 5000)]));
+    }
+
+    [Fact]
     public void AWidthLargerThanTheRadiusFillsTheDisc()
     {
         var (world, reader) = Rig();

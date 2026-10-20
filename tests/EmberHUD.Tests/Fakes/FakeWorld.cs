@@ -275,12 +275,14 @@ internal sealed class FakeWorld
         return AddHazard(id, centre, radius, scale, kind, [.. extra]);
     }
 
-    public nint AddRing(uint id, uint ownerId, (double X, double Y) centre, uint radius, uint width, double scale = 1, byte ownerCamp = 1, uint kindBits = 0)
+    public nint AddRing(uint id, uint ownerId, (double X, double Y) centre, uint radius, uint width, double scale = 1, byte ownerCamp = 1, uint kindBits = 0, bool buffArea = false)
     {
         if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);
         var attachment = Alloc(0x100);
         Memory.Write(attachment + Offsets.AttachmentOwnerId, ownerId);
-        return AddHazard(id, centre, radius, scale, (uint)Offsets.ShapeRing | kindBits, width, (Offsets.DamageDataComponentId, Alloc(0x100)), (Offsets.AttachmentComponentId, attachment));
+        var extra = new List<(int, nint)> { (Offsets.DamageDataComponentId, Alloc(0x100)), (Offsets.AttachmentComponentId, attachment) };
+        if (buffArea) extra.Add((Offsets.BuffAreaComponentId, Alloc(0x100)));
+        return AddHazard(id, centre, radius, scale, (uint)Offsets.ShapeRing | kindBits, width, [.. extra]);
     }
 
     public nint AddRock(uint id, uint ownerId, (double X, double Y) centre, uint radius, byte ownerCamp = 1, bool bullet = false)

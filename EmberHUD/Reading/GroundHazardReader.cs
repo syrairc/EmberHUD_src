@@ -69,6 +69,7 @@ internal sealed class GroundHazardReader(IReadBackend memory, nint moduleBase)
     {
         hazard = default;
         if (_fight.TryReadComponent(fighter, Offsets.BulletComponentId, out var bullet) && bullet != 0 ||
+            _fight.TryReadComponent(fighter, Offsets.BuffAreaComponentId, out var zone) && zone != 0 ||
             !memory.TryRead(shape + Offsets.ShapeRingWidth, out uint width) || width == 0 ||
             !OwnedByHostile(world, fighter)) return false;
 
