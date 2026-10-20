@@ -42,6 +42,12 @@ public static class Setting
         return Done(ImGui.InputText("##" + (id ?? label), ref value, (nuint)max), tip);
     }
 
+    public static bool FilePath(string label, ref string value, string? tip = null, string? id = null, int max = 520, params DialogFilter[] filters) =>
+        PathRow(label, ref value, tip, id ?? label, max, start => Dialogs.OpenFile(label, start, filters));
+
+    public static bool FolderPath(string label, ref string value, string? tip = null, string? id = null, int max = 520) =>
+        PathRow(label, ref value, tip, id ?? label, max, start => Dialogs.PickFolder(label, start));
+
     public static bool Choice<TEnum>(string label, ref TEnum value, string? tip = null, string? id = null) where TEnum : struct, Enum
     {
         Label(label, tip);
@@ -65,6 +71,38 @@ public static class Setting
         Text.Tip(tip);
         ImGui.SameLine(x + MathF.Max(column, ImGui.CalcTextSize(label).X + ImGui.GetStyle().ItemSpacing.X));
         ImGui.SetNextItemWidth(-1);
+    }
+
+    static readonly Dictionary<string, DialogRequest> Browsing = [];
+
+    static bool PathRow(string label, ref string value, string? tip, string id, int max, Func<string?, DialogRequest> open)
+    {
+        value ??= "";
+        var changed = false;
+        if (Browsing.TryGetValue(id, out var pending) && pending.TryTake(out var picked))
+        {
+            Browsing.Remove(id);
+            if (picked.Length > 0)
+            {
+                value = picked[0];
+                changed = true;
+            }
+        }
+
+        Label(label, tip);
+        var gap = ImGui.GetStyle().ItemSpacing.X;
+        var button = ImGui.CalcTextSize("Browse").X + ImGui.GetStyle().FramePadding.X * 2;
+        ImGui.SetNextItemWidth(MathF.Max(60, ImGui.GetContentRegionAvail().X - button - gap));
+        changed |= ImGui.InputText("##" + id, ref value, (nuint)max);
+        ImGui.SameLine();
+        ImGui.BeginDisabled(Dialogs.Busy);
+        if (ImGui.Button("Browse##" + id))
+        {
+            var start = Path.GetDirectoryName(value) is { Length: > 0 } dir ? dir : value;
+            Browsing[id] = open(start);
+        }
+        ImGui.EndDisabled();
+        return Done(changed, tip);
     }
 
     static bool Done(bool changed, string? tip)

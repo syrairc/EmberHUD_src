@@ -15,6 +15,8 @@ public static class GameColors
     public static readonly Color NormalName = Color.FromArgb(0xD5, 0xD5, 0xD5);
     public static readonly Color RareName = Color.FromArgb(0x7F, 0xDB, 0xFE);
     public static readonly Color LegendaryName = Color.FromArgb(0xE8, 0xA0, 0x3A);
+    public static readonly Color PurpleName = Color.FromArgb(0xB9, 0x84, 0xFF);
+    public static readonly Color PinkName = Color.FromArgb(0xFF, 0x7E, 0xC8);
     public static readonly Color System = Color.FromArgb(0xEF, 0x68, 0x1E);
     public static readonly Color Life = Color.FromArgb(0x94, 0x2E, 0x1C);
     public static readonly Color Mana = Color.FromArgb(0x18, 0x39, 0x64);
@@ -30,4 +32,13 @@ public static class GameColors
     public static readonly Color DamageHit = Color.FromArgb(0xE8, 0xE8, 0xE8);
     public static readonly Color DamageHeal = Color.FromArgb(0x3F, 0xE0, 0x3F);
     public static readonly Color DamageTaken = Color.FromArgb(0xE0, 0x30, 0x2A);
+
+    public static Color Rarity(int rare) => rare switch
+    {
+        2 => RareName,
+        3 => PurpleName,
+        4 => PinkName,
+        100 => LegendaryName,
+        _ => NormalName,
+    };
 }
