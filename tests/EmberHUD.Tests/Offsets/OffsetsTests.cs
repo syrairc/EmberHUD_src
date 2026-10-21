@@ -414,6 +414,16 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void VoraxPanelsAreConfigured()
+    {
+        Assert.Contains("S13GamePlayMain_C,Other,", Offsets.GamePanels);
+        Assert.Contains("S13GamePlay_C,Other,", Offsets.GamePanels);
+        Assert.Contains("S13GamePlayMain_C:Mianban_bg,ScoreButton,CurChest1", Offsets.PanelParts);
+        Assert.Contains("S13GamePlay_C:StartGameBtn", Offsets.PanelParts);
+        Assert.DoesNotContain("MonsterLeft", Offsets.PanelParts);
+    }
+
+    [Fact]
     public void GroundItemKeysExist()
     {
         Assert.Equal("GroundMgr", Offsets.LuaGroundManager);
