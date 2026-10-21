@@ -9,6 +9,7 @@ public sealed class LogTests : IDisposable
     public void Dispose()
     {
         Log.Sink = null;
+        Log.Filter = null;
         Log.CurrentPlugin.Value = null;
     }
 
@@ -42,5 +43,66 @@ public sealed class LogTests : IDisposable
         Log.Sink = null;
         Log.Info("dropped");
         Assert.Empty(_lines);
+    }
+
+    [Fact]
+    public void TraceAndDebugReachTheSink()
+    {
+        Log.Trace("a");
+        Log.Debug("b");
+        Assert.Equal(["Trace||a", "Debug||b"], _lines);
+    }
+
+    [Fact]
+    public void TheFilterDropsLinesBelowTheMinimum()
+    {
+        Log.Filter = (level, _) => level >= LogLevel.Info;
+        Log.Trace("a");
+        Log.Debug("b");
+        Log.Info("c");
+        Assert.Equal(["Info||c"], _lines);
+    }
+
+    [Fact]
+    public void IsEnabledFollowsTheFilterForTheCurrentPlugin()
+    {
+        Log.Filter = (level, source) => source == "Pickit" || level >= LogLevel.Warn;
+        Assert.False(Log.IsEnabled(LogLevel.Debug));
+        Log.CurrentPlugin.Value = "Pickit";
+        Assert.True(Log.IsEnabled(LogLevel.Debug));
+    }
+
+    [Fact]
+    public void ADroppedLineNeverInvokesTheSink()
+    {
+        var calls = 0;
+        Log.Sink = (_, _, _) => calls++;
+        Log.Filter = (level, _) => level >= LogLevel.Info;
+        for (var i = 0; i < 1000; i++) Log.Debug("x");
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public void SourceLogTagsHostLines()
+    {
+        Log.For("Loader").Warn("x");
+        Assert.Equal(["Warn|Loader|x"], _lines);
+    }
+
+    [Fact]
+    public void ThePluginTagWinsOverTheSourceLog()
+    {
+        Log.CurrentPlugin.Value = "Sample";
+        Log.For("Loader").Info("y");
+        Assert.Equal(["Info|Sample|y"], _lines);
+    }
+
+    [Fact]
+    public void SourceLogUsesItsSourceForTheFilter()
+    {
+        Log.Filter = (_, source) => source == "Reader";
+        Log.For("Loader").Info("a");
+        Log.For("Reader").Info("b");
+        Assert.Equal(["Info|Reader|b"], _lines);
     }
 }
