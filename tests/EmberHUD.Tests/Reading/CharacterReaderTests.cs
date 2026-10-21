@@ -1,5 +1,6 @@
 using EmberHUD.Host;
 using EmberHUD.Host.Memory;
+using EmberHUD.Host.Reading;
 using EmberHUD.Tests.Reading;
 
 namespace EmberHUD.Tests;
@@ -12,21 +13,25 @@ public class CharacterReaderTests
     {
         public FakeWorld World { get; } = new();
         public long Now { get; set; }
+        public CfgIconCache SkillCache { get; } = new();
+        public CfgIconCache BuffCache { get; } = new();
         public CharacterReader Reader { get; }
 
         public Rig()
         {
             World.SetLocalPlayer(Player);
-            Reader = new CharacterReader(World.Memory, FakeWorld.Module, () => Now);
+            Reader = new CharacterReader(World.Memory, FakeWorld.Module, () => Now, SkillCache, BuffCache);
         }
 
         public void GivePlayerBuffs(params nint[] instances) =>
             World.AddFightEntity(Player, (Offsets.ComponentBuff, World.AddBuffComponent(instances)));
 
+        public Dictionary<int, string> SkillIcons { get; } = [];
+
         public nint GiveSkills(params (uint Entity, int Cfg, int Charges, int MaxCharges, double Remaining, double Total)[] skills)
         {
             foreach (var skill in skills)
-                World.AddFightEntity(skill.Entity, (Offsets.ComponentSkillCfg, World.AddSkillCfgComponent(skill.Cfg)));
+                World.AddFightEntity(skill.Entity, (Offsets.ComponentSkillCfg, World.AddSkillCfgComponent(skill.Cfg, SkillIcons.GetValueOrDefault(skill.Cfg))));
             var component = World.AddCooldownComponent([.. skills.Select(s => (s.Entity, s.Charges, s.MaxCharges, s.Remaining, s.Total))]);
             World.AddFightEntity(Player, (Offsets.ComponentSkill, component));
             return component;
@@ -206,7 +211,55 @@ public class CharacterReaderTests
         Assert.Equal(2, Assert.Single(rig.Reader.ReadBuffs()!).Id);
     }
 
-    private static readonly int[] Bar = [2300, 2040, 2210, 1230, 1960, 0];
+    [Fact]
+    public void BuffIconsComeFromTheCfgRowAndFillTheCache()
+    {
+        var rig = new Rig();
+        rig.GivePlayerBuffs(rig.World.AddBuff(15180, 1, 1, icon: "UI_Buff_AttackEnhance_Icon_32"), rig.World.AddBuff(10, 1, 1, icon: "-1"), rig.World.AddBuff(11, 1, 1));
+
+        var buffs = rig.Reader.ReadBuffs()!;
+
+        Assert.Equal("UI_Buff_AttackEnhance_Icon_32", buffs.Single(b => b.Id == 15180).Icon);
+        Assert.Null(buffs.Single(b => b.Id == 10).Icon);
+        Assert.Null(buffs.Single(b => b.Id == 11).Icon);
+        Assert.Equal("UI_Buff_AttackEnhance_Icon_32", rig.BuffCache.Get(15180));
+        Assert.Null(rig.BuffCache.Get(10));
+        Assert.Null(rig.BuffCache.Get(11));
+    }
+
+    [Fact]
+    public void SkillIconsComeFromTheCfgRowAndFillTheCache()
+    {
+        var rig = new Rig();
+        rig.SkillIcons[2210] = "UI_Skill_WhirlingBlade_Icon_128";
+        rig.GiveSkills((52, 2210, 0, 0, 0, 0), (50, 1230, 0, 0, 0, 0));
+
+        var skills = rig.Reader.ReadSkills(BarOf)!;
+
+        Assert.Equal("UI_Skill_WhirlingBlade_Icon_128", skills.Single(s => s.CfgId == 2210).Icon);
+        Assert.Null(skills.Single(s => s.CfgId == 1230).Icon);
+        Assert.Equal("UI_Skill_WhirlingBlade_Icon_128", rig.SkillCache.Get(2210));
+        Assert.Null(rig.SkillCache.Get(1230));
+    }
+
+    [Fact]
+    public void ACachedIconIsKeptWithoutRereadingTheRowAndIdZeroIsNeverCached()
+    {
+        var rig = new Rig();
+        rig.SkillCache.Add(2210, "Cached");
+        rig.SkillIcons[2210] = "FromMemory";
+        rig.SkillIcons[0] = "Zero";
+        rig.GiveSkills((52, 2210, 0, 0, 0, 0), (53, 0, 0, 0, 0, 0));
+
+        var skills = rig.Reader.ReadSkills(BarOf)!;
+
+        Assert.Equal("Cached", skills.Single(s => s.CfgId == 2210).Icon);
+        Assert.Null(rig.SkillCache.Get(0));
+        rig.BuffCache.Add(0, "Zero");
+        Assert.Null(rig.BuffCache.Get(0));
+    }
+
+    private static readonly int[] Bar =[2300, 2040, 2210, 1230, 1960, 0];
 
     private static int[]? BarOf() => Bar;
 

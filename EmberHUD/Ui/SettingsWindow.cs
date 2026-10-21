@@ -6,7 +6,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart, DebugPanel? debug = null)
+internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart, DebugPanel? debug = null, GameAssetsTab? assets = null)
 {
     internal const float ListWidth = 190f;
     internal const float ControlWidth = 260f;
@@ -64,6 +64,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         else
         {
             (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater)];
+            if (assets is not null) tabs = [.. tabs, ("Game Assets", assets.Draw)];
             Layout.TabBar("emberhud", debug is null ? tabs : [.. tabs, ("Debug", debug.Draw)]);
         }
     }

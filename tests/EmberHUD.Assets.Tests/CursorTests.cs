@@ -1,7 +1,6 @@
 using System.Text;
-using EmberHUD.Setup.Pak;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 public class CursorTests
 {

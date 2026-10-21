@@ -1,6 +1,6 @@
 namespace EmberHUD;
 
-public readonly record struct ItemInfo(int BaseId, int Rarity, int Type1, int Type2, int Type3, int Type4, int Tier, int RequireLevel, bool IsUnique);
+public readonly record struct ItemInfo(int BaseId, int Rarity, int Type1, int Type2, int Type3, int Type4, int Tier, int RequireLevel, bool IsUnique, string? Icon = null);
 
 public static class Items
 {

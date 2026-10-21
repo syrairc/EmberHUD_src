@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Numerics;
 using EmberHUD.Host;
 using EmberHUD.Launcher;
-using EmberHUD.Setup.Icons;
+using EmberHUD.Assets;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
@@ -23,9 +23,7 @@ internal sealed class SetupPage
     readonly string? _registered = GameInstall.Registered();
     GameInstall? _game;
     string? _checkedFolder;
-    Task? _extract;
-    volatile string _progress = "";
-    volatile string? _iconStatus;
+    readonly AssetRows _assets = new(AssetJobs.Create(Offsets.TradePriceTexture), new JobRunner(), Convert.FromHexString(Offsets.PakAesKey));
     const string DumpPopup = "Dump debug information";
     string _dump = "";
 
@@ -44,6 +42,8 @@ internal sealed class SetupPage
         Message = problem;
         _choices = ["(yourself)", .. listed, .. Config.RunAsUser.Length > 0 && !listed.Contains(Config.RunAsUser, StringComparer.OrdinalIgnoreCase) ? [Config.RunAsUser] : Array.Empty<string>()];
     }
+
+    string IconsRoot => Path.Combine(_root, "GameIcons");
 
     public LauncherConfig Config { get; }
 
@@ -97,7 +97,7 @@ internal sealed class SetupPage
         {
             _checkedFolder = Config.GameDirectory;
             _game = GameInstall.Find(Config.GameDirectory, _registered);
-            _iconStatus = null;
+            _assets.Invalidate();
             _flagIsApplied = _game is { Steam: true } && _flagApplied(_game);
         }
         ImGui.SetNextWindowPos(Vector2.Zero);
@@ -209,42 +209,24 @@ internal sealed class SetupPage
 
     void DrawIcons()
     {
-        var busy = _extract is { IsCompleted: false };
-        if (!busy) _iconStatus ??= _game is null ? "set the game folder first" : IconExport.Describe(Path.Combine(_root, "GameIcons"), _game.Paks(), _game.Build);
-        ImGui.BeginDisabled(busy || _game is null);
-        if (ImGui.Button("Extract")) Extract(_game!);
-        ImGui.EndDisabled();
-        ImGui.SameLine();
-        ImGui.TextUnformatted(busy ? _progress : _iconStatus ?? "");
-        if (!busy && _progress.Length > 0)
+        foreach (var row in _assets.Rows(_game, IconsRoot))
         {
+            ImGui.PushID(row.Title);
+            ImGui.BeginDisabled(!row.CanExtract);
+            if (ImGui.Button(row.ButtonLabel) && _game is not null) _assets.Start(row.Job, _game, IconsRoot);
+            ImGui.EndDisabled();
             ImGui.SameLine();
-            ImGui.TextDisabled(Text.EscPct(_progress));
+            ImGui.TextUnformatted(row.Title);
+            ImGui.SameLine();
+            ImGui.TextUnformatted(row.Status);
+            if (row.Outcome is not null)
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled(Text.EscPct(row.Outcome));
+            }
+            ImGui.PopID();
         }
-    }
-
-    void Extract(GameInstall game)
-    {
-        var paks = game.Paks();
-        var target = Path.Combine(_root, "GameIcons");
-        _progress = "starting";
-        _extract = Task.Run(() =>
-        {
-            try
-            {
-                var result = IconExport.Run(paks, target, Convert.FromHexString(Offsets.PakAesKey), text => _progress = text);
-                _progress = $"done - {result.Icons} icons, {result.Missing} missing, {result.Failed} failed";
-            }
-            catch (Exception ex)
-            {
-                _progress = $"extract failed - {ex.Message}";
-                Log.Warn($"icon extract failed - {ex}");
-            }
-            finally
-            {
-                _iconStatus = null;
-            }
-        });
+        if (_assets.Busy && ImGui.Button("Cancel")) _assets.Cancel();
     }
 
     void DrawDump()
@@ -266,7 +248,7 @@ internal sealed class SetupPage
         ImGui.Separator();
         if (ImGui.Button("Save")) Save();
         ImGui.SameLine();
-        ImGui.BeginDisabled(_extract is { IsCompleted: false });
+        ImGui.BeginDisabled(_assets.Busy);
         if (Controls.PrimaryButton("Save & Launch")) SaveAndLaunch();
         ImGui.EndDisabled();
         ImGui.SameLine();

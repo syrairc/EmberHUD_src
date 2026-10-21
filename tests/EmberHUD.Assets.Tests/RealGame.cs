@@ -1,6 +1,6 @@
 using EmberHUD.Launcher;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 internal static class RealGame
 {

@@ -8,6 +8,9 @@ internal sealed class LiveGameSource : IGameSource
     private static readonly long AttachRetryTicks = Stopwatch.Frequency;
     private static readonly int[] Pristine = Offsets.Snapshot();
 
+    private static CfgIconCache SkillIcons = new();
+    private static CfgIconCache BuffIcons = new();
+
     private GameProcess? _game;
     private LiveReader? _reader;
     private CombatReader? _combat;
@@ -53,7 +56,7 @@ internal sealed class LiveGameSource : IGameSource
         }
         _combat = new CombatReader(_game.Backend, _game.ModuleBase);
         _poller = new CombatPoller(_combat.Poll, () => Game.CombatWanted(Stopwatch.GetTimestamp(), Offsets.CombatWantedSeconds), Log.Warn);
-        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase), new CharacterReader(_game.Backend, _game.ModuleBase), new TartarusReader(_game.Backend, _game.ModuleBase), new GroundItemReader(_game.Backend, _game.ModuleBase), new TarotReader(_game.Backend, _game.ModuleBase));
+        _reader = new LiveReader(_game.Backend, _game.ModuleBase, _lastAreaId, _combat, new InventoryReader(_game.Backend, _game.ModuleBase), new CharacterReader(_game.Backend, _game.ModuleBase, null, SkillIcons, BuffIcons), new TartarusReader(_game.Backend, _game.ModuleBase), new GroundItemReader(_game.Backend, _game.ModuleBase), new TarotReader(_game.Backend, _game.ModuleBase));
         EmberHUD.Memory.Use(SourceFor(_game.Backend, _game.ModuleBase));
         UseLookups(_game.Backend, _game.ModuleBase);
         Game.ExePath = _game.ExePath;
@@ -62,6 +65,8 @@ internal sealed class LiveGameSource : IGameSource
 
     private void Detach()
     {
+        SkillIcons = new();
+        BuffIcons = new();
         Game.ExePath = null;
         UseLookups(null, 0);
         EmberHUD.Memory.Use(null);
@@ -85,6 +90,9 @@ internal sealed class LiveGameSource : IGameSource
             Lua.Dumper = null;
             Items.BaseGetter = null;
             Items.UniqueGetter = null;
+            Skills.Getter = null;
+            Buffs.Getter = null;
+            GameAssets.ResetNames();
             return;
         }
 
@@ -107,7 +115,10 @@ internal sealed class LiveGameSource : IGameSource
         var itemGate = new Lock();
         Items.BaseGetter = id => Guarded(itemGate, () => items.ByBase(id), null);
         Items.UniqueGetter = id => Guarded(itemGate, () => items.ByUnique(id), null);
+        Skills.Getter = id => SkillIcons.Get(id) is { } icon ? new SkillInfo(id, icon) : null;
+        Buffs.Getter = id => BuffIcons.Get(id) is { } icon ? new BuffInfo(id, icon) : null;
         Lua.Dumper = (path, max, skip, filter) => Guarded(luaGate, () => DumpLua(luaReader, path, max, skip, filter), new LuaDump(false, "", [], 0));
+        GameAssets.ResetNames();
     }
 
     private static LuaDump DumpLua(LuaReader reader, string path, int max, int skip, string filter)

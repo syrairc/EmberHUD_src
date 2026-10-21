@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Hexa.NET.ImGui;
 using EmberHUD;
+using EmberHUD.Assets;
+using EmberHUD.Launcher;
 using EmberHUD.Host;
 using EmberHUD.Host.Icons;
 using EmberHUD.Host.Overlay;
@@ -93,10 +95,13 @@ Send.ToScreen = (x, y) =>
     return overlay.TargetHandle != 0 && Win32.ClientToScreen(overlay.TargetHandle, ref point) ? (point.X, point.Y) : null;
 };
 if (fake) Send.Sink = _ => { };
-var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : File.Exists(Path.Combine(root, "GameIcons", "index.json")) ? Path.Combine(root, "GameIcons") : null;
-var gameIcons = gameIconsDirectory is null ? null : IconStore.Open(gameIconsDirectory, overlay.Textures.TryUpload, overlay.Textures.Resolve);
-Draw.GameIcons = gameIcons is null ? null : gameIcons.Resolve;
-Draw.GameIconNames = gameIcons?.Names ?? [];
+var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : Path.Combine(root, "GameIcons");
+var gameSets = new GameIconSets(gameIconsDirectory, overlay.Textures.TryUpload, overlay.Textures.Resolve);
+Draw.GameIcons = texture => gameSets.Resolve(AssetKind.Minimap, texture);
+Draw.GameIconNames = gameSets.MinimapNames;
+gameSets.Changed += () => Draw.GameIconNames = gameSets.MinimapNames;
+GameAssets.Probe = gameSets.Probe;
+GameAssets.Resolver = (kind, name) => gameSets.Resolve(kind, name);
 var svgIcons = new SvgIconStore(LoadSvgSources(), overlay.Textures.TryUpload, overlay.Textures.Resolve, overlay.Textures.Release);
 Draw.SvgIcons = svgIcons.Resolve;
 Draw.SvgIconNames = svgIcons.Names;
@@ -122,11 +127,14 @@ var hostVersion = typeof(SdkSettings).Assembly.GetName().Version ?? new Version(
 using var updateHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 using var updates = new UpdateService(sdk, root, UpdateService.InstalledVersion(root, hostVersion, Log.Info), updateHttp, Process.Start, Log.Info);
 updates.Start();
+var registeredGame = GameInstall.Registered();
+var gameAssets = new GameAssetsTab(new AssetRows(AssetJobs.Create(Offsets.TradePriceTexture), new JobRunner(Log.Warn), Convert.FromHexString(Offsets.PakAesKey)), gameIconsDirectory, () => GameInstall.Find(LauncherConfig.Load(Path.Combine(root, "Config", "launcher.json"), _ => { })?.GameDirectory ?? "", registeredGame), gameSets.Rescan);
 var window = new SettingsWindow(sdk, plugins, themes, logs, updates, () =>
 {
     updates.RequestRestart();
     overlay.Stop();
-}, new DebugPanel(root, updates.Installed, logs));
+}, new DebugPanel(root, updates.Installed, logs), gameAssets);
+
 using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle, command =>
 {
     if (command == TrayCommand.Settings) window.Toggle();
@@ -158,7 +166,8 @@ void Frame()
     }
     Game.State = state;
     Map.View = null;
-    gameIcons?.Pump();
+    gameSets.Pump();
+    gameAssets.Poll();
     svgIcons.Pump();
     plugins.TickAll();
     plugins.RenderAll();

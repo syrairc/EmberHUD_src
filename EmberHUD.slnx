@@ -4,6 +4,7 @@
     <Project Path="tests/EmberHUD.Api.Tests/EmberHUD.Api.Tests.csproj" />
     <Project Path="tests/EmberHUD.Tests/EmberHUD.Tests.csproj" />
     <Project Path="tests/EmberHUD.Launcher.Tests/EmberHUD.Launcher.Tests.csproj" />
+    <Project Path="tests/EmberHUD.Assets.Tests/EmberHUD.Assets.Tests.csproj" />
     <Project Path="tests/EmberHUD.Setup.Tests/EmberHUD.Setup.Tests.csproj" />
     <Project Path="tests/EmberHUD.Updater.Tests/EmberHUD.Updater.Tests.csproj" />
   </Folder>
@@ -13,6 +14,7 @@
   <Project Path="EmberHUD.Api/EmberHUD.Api.csproj" />
   <Project Path="EmberHUD/EmberHUD.csproj" />
   <Project Path="EmberHUD.Launcher/EmberHUD.Launcher.csproj" />
+  <Project Path="EmberHUD.Assets/EmberHUD.Assets.csproj" />
   <Project Path="EmberHUD.Setup/EmberHUD.Setup.csproj" />
   <Project Path="EmberHUD.Updater/EmberHUD.Updater.csproj" />
   <Project Path="Plugins/Plugins.csproj" />

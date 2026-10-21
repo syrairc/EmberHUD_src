@@ -162,15 +162,8 @@ internal sealed class MapIconReader(IReadBackend memory, nint moduleBase, Names 
     private bool TryReadIconName(int type, out string name)
     {
         name = "";
-        if (type <= 0 || !memory.TryFindHashValue(moduleBase + Offsets.MapIconInfoBucketCountRva, moduleBase + Offsets.MapIconInfoBucketsRva, (uint)type, out var row) ||
-            !memory.TryReadPtr(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringData, out var data) ||
-            !memory.TryRead(row + Offsets.MapIconInfoEnum + Offsets.ConfigStringLength, out long length) ||
-            data == 0 || length <= 0 || length > Offsets.MaxIconNameLength ||
-            !memory.TryReadArray(data, (int)length, out byte[] bytes) ||
-            Array.Exists(bytes, b => b < 0x20 || b > 0x7E))
-            return false;
-        name = System.Text.Encoding.ASCII.GetString(bytes);
-        return true;
+        return type > 0 && memory.TryFindHashValue(moduleBase + Offsets.MapIconInfoBucketCountRva, moduleBase + Offsets.MapIconInfoBucketsRva, (uint)type, out var row) &&
+               memory.TryReadConfigString(row + Offsets.MapIconInfoEnum, out name);
     }
 
     private bool ResolveTextures(nint widget)

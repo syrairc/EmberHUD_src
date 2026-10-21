@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
-namespace EmberHUD.Setup.Pak;
+namespace EmberHUD.Assets;
 
 internal sealed record PakEntry(string Path, long Offset, long Size, long RawSize, int Method, bool Encrypted, int BlockSize, (long Start, long End)[] Blocks)
 {

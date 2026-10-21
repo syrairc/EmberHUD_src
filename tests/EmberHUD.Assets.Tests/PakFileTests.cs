@@ -1,8 +1,7 @@
 using EmberHUD.Host;
 using EmberHUD.Launcher;
-using EmberHUD.Setup.Pak;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 public class PakFileTests
 {

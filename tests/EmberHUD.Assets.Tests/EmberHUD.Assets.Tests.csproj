@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <None Include="Fixtures\**" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\ObfuscationCheck.cs" Link="ObfuscationCheck.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\EmberHUD\Offsets\Offsets.cs" Link="Host\Offsets.cs" />
+    <Compile Include="..\..\EmberHUD\Offsets\Offsets.g.cs" Link="Host\Offsets.g.cs" />
+    <Compile Include="..\..\EmberHUD\Offsets\OffsetTable.cs" Link="Host\OffsetTable.cs" />
+    <Compile Include="..\..\EmberHUD\Offsets\RvaSig.cs" Link="Host\RvaSig.cs" />
+    <EmbeddedResource Include="..\..\EmberHUD\Offsets\offsets.bin" LogicalName="t" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\EmberHUD.Assets\EmberHUD.Assets.csproj" />
+    <ProjectReference Include="..\..\EmberHUD.Api\EmberHUD.Api.csproj" />
+    <ProjectReference Include="..\..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
+  </ItemGroup>
+</Project>

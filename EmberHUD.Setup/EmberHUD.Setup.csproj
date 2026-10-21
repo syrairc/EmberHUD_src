@@ -8,14 +8,12 @@
   <ItemGroup>
     <ProjectReference Include="..\EmberHUD.Api\EmberHUD.Api.csproj" />
     <ProjectReference Include="..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
+    <ProjectReference Include="..\EmberHUD.Assets\EmberHUD.Assets.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Hexa.NET.ImGui.Backends" />
     <PackageReference Include="Vortice.Direct3D11" />
     <PackageReference Include="Vortice.DirectComposition" />
-    <PackageReference Include="BCnEncoder.Net" />
-    <PackageReference Include="ZstdSharp.Port" />
-    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\EmberHUD\Overlay\GraphicsDevice.cs" Link="Host\GraphicsDevice.cs" />
@@ -34,9 +32,6 @@
   <ItemGroup>
     <None Include="..\Fonts\**" LinkBase="Fonts" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Themes\**" LinkBase="Themes" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\native\ooz\ooz.dll" Link="ooz.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="EmberHUD.Setup.Tests" />

@@ -13,7 +13,7 @@ internal readonly record struct FakeNameTagLabel(int DropId, Vector2 Min, Vector
 
 internal readonly record struct FakeNameTagGroup(int Key, Vector3 WorldPos, Vector2 ScreenPos, FakeNameTagLabel[] Labels, bool InScreen = true);
 
-internal readonly record struct FakeItemRow(uint Id, uint Rarity = 1, uint Type1 = 0, uint Type2 = 0, uint Type3 = 0, uint Type4 = 0, uint Tier = 0, uint RequireLevel = 0, bool NoRow = false, uint StoredId = 0);
+internal readonly record struct FakeItemRow(uint Id, uint Rarity = 1, uint Type1 = 0, uint Type2 = 0, uint Type3 = 0, uint Type4 = 0, uint Tier = 0, uint RequireLevel = 0, bool NoRow = false, uint StoredId = 0, string? Icon = null, bool IconUnreadable = false);
 
 internal sealed class FakeWorld
 {
@@ -364,11 +364,12 @@ internal sealed class FakeWorld
         return component;
     }
 
-    public nint AddSkillCfgComponent(int cfgId)
+    public nint AddSkillCfgComponent(int cfgId, string? icon = null)
     {
         var component = Alloc(0x100);
-        var cfg = Alloc(0x20);
+        var cfg = Alloc(0x200);
         Memory.Write(cfg, cfgId);
+        WriteConfigString(cfg + Offsets.SkillCfgRowIcon, icon);
         Memory.Write(component + Offsets.SkillCfgPointer, cfg);
         return component;
     }
@@ -398,14 +399,15 @@ internal sealed class FakeWorld
         return component;
     }
 
-    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null)
+    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null, string? icon = null)
     {
         var buff = Alloc(0x200);
         Memory.Write(buff + Offsets.BuffTotal, total);
         Memory.Write(buff + Offsets.BuffRemaining, remaining);
         Memory.Write(buff + Offsets.BuffId, id);
         if (!withCfgRow) return buff;
-        var row = Alloc(0x100);
+        var row = Alloc(0x200);
+        WriteConfigString(row + Offsets.BuffCfgRowIcon, icon);
         Memory.Write(row + Offsets.BuffCfgId, cfgId ?? id);
         Memory.Write(buff + Offsets.BuffCfgRow, row);
         return buff;
@@ -776,7 +778,9 @@ internal sealed class FakeWorld
         var entries = rows.Select(r =>
         {
             if (r.NoRow) return (r.Id, (nint)0);
-            var row = Alloc(0x80);
+            var row = Alloc(0x100);
+            WriteConfigString(row + Offsets.ItemRowIcon, r.Icon);
+            if (r.IconUnreadable) Memory.Write(row + Offsets.ItemRowIcon + Offsets.ConfigStringData, Unmapped);
             Memory.Write(row + Offsets.ItemRowId, r.StoredId != 0 ? r.StoredId : r.Id);
             Memory.Write(row + Offsets.ItemRowRarity, r.Rarity);
             Memory.Write(row + Offsets.ItemRowType1, r.Type1);
@@ -792,11 +796,27 @@ internal sealed class FakeWorld
         Memory.Write(Module + Offsets.ItemBaseBucketCountRva, (uint)bucketCount);
     }
 
+    public void WriteConfigString(nint at, string? text)
+    {
+        if (text is null) return;
+        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        var data = Alloc(Math.Max(8, bytes.Length));
+        Memory.WriteArray(data, bytes);
+        Memory.Write(at + Offsets.ConfigStringData, data);
+        Memory.Write(at + Offsets.ConfigStringLength, (long)bytes.Length);
+    }
+
+    private readonly Dictionary<uint, nint> _itemGoldRows = [];
+
+    public void SetItemGoldIcon(uint uniqueId, string? icon) => WriteConfigString(_itemGoldRows[uniqueId] + Offsets.ItemGoldRowIcon, icon);
+
     public void SetItemGoldTable(int bucketCount, params (uint UniqueId, uint BaseId)[] rows)
     {
+        _itemGoldRows.Clear();
         var entries = rows.Select(r =>
         {
-            var row = Alloc(0x40);
+            var row = Alloc(0x100);
+            _itemGoldRows[r.UniqueId] = row;
             Memory.Write(row + Offsets.ItemRowId, r.UniqueId);
             Memory.Write(row + Offsets.ItemGoldBaseId, r.BaseId);
             return (r.UniqueId, row);

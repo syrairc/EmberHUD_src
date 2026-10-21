@@ -206,6 +206,8 @@ public sealed record GameState
 
     public TradePage? Trade { get; init; }
 
+    public EquipCompare? Compare { get; init; }
+
     public TradeGood[]? TradeGoods { get; init; }
 
     public BagView? Bag { get; init; }
@@ -371,9 +373,9 @@ public sealed record CombatStats(long At, double Effective, double Raw, long Hit
     public double Seconds => At / (double)Stopwatch.Frequency;
 }
 
-public readonly record struct Buff(int Id, string? Name, double Remaining, double Total);
+public readonly record struct Buff(int Id, string? Name, double Remaining, double Total, string? Icon = null);
 
-public readonly record struct Skill(int CfgId, int Slot, double CooldownRemaining, double CooldownTotal, int Charges, int MaxCharges)
+public readonly record struct Skill(int CfgId, int Slot, double CooldownRemaining, double CooldownTotal, int Charges, int MaxCharges, string? Icon = null)
 {
     public string? Name { get; init; }
 
@@ -392,6 +394,15 @@ public sealed record InventoryItem(InventoryBag Bag, int Slot, string Id, int Ba
 }
 
 public sealed record TradePage(int Page, bool LastPage, int CellsPerPage, TradeListing[] Listings, string PriceIcon);
+
+public readonly record struct CompareRow(float? Damage, float? Survival);
+
+public sealed record EquipCompare(CompareRow[] Rows)
+{
+    public Vector2 Min { get; init; }
+    public Vector2 Max { get; init; }
+    public long Version { get; init; }
+}
 
 public enum TradeAffixKind : byte { Implicit, Prefix, Suffix, BaseAttribute }
 

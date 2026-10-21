@@ -62,6 +62,27 @@ public static class TestGame
     {
         Items.BaseGetter = byBase;
         Items.UniqueGetter = byUnique;
+        GameAssets.ResetNames();
+    }
+
+    public static void UseSkills(Func<int, SkillInfo?>? get)
+    {
+        Skills.Getter = get;
+        GameAssets.ResetNames();
+    }
+
+    public static void UseBuffs(Func<int, BuffInfo?>? get)
+    {
+        Buffs.Getter = get;
+        GameAssets.ResetNames();
+    }
+
+    public static void UseGameAssets(Func<AssetKind, bool>? probe, Func<AssetKind, string, Sprite?>? resolve, Func<long>? clock = null)
+    {
+        GameAssets.Probe = probe;
+        GameAssets.Resolver = resolve;
+        GameAssets.Clock = clock ?? (() => Environment.TickCount64);
+        GameAssets.ResetNames();
     }
 
     public static void UseQuit(Action? quit) => App.Quitter = quit;

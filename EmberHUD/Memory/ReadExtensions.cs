@@ -30,6 +30,32 @@ internal static class ReadExtensions
     public static bool TryReadPtr(this IReadBackend backend, nint address, out nint value) =>
         backend.TryRead(address, out value) && value != 0;
 
+    public static bool TryReadConfigString(this IReadBackend backend, nint at, out string text)
+    {
+        text = "";
+        if (!backend.TryReadPtr(at + Offsets.ConfigStringData, out var data) ||
+            !backend.TryRead(at + Offsets.ConfigStringLength, out long length) ||
+            length <= 0 || length > Offsets.MaxIconNameLength ||
+            !backend.TryReadArray(data, (int)length, out byte[] bytes) ||
+            Array.Exists(bytes, b => b < 0x20 || b > 0x7E))
+            return false;
+        text = Encoding.ASCII.GetString(bytes);
+        return true;
+    }
+
+    public static bool TryReadIconName(this IReadBackend backend, nint at, out string? name)
+    {
+        name = null;
+        if (!backend.TryRead(at + Offsets.ConfigStringLength, out long length)) return false;
+        if (length == 0) return true;
+        if (!backend.TryReadConfigString(at, out var text)) return false;
+        name = text == "-1" ? null : text;
+        return true;
+    }
+
+    public static string? ReadIconName(this IReadBackend backend, nint at) =>
+        backend.TryReadIconName(at, out var name) ? name : null;
+
     public static bool TryReadArray<T>(this IReadBackend backend, nint address, int count, out T[] values) where T : unmanaged
     {
         values = [];

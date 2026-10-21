@@ -20,12 +20,13 @@ public sealed class ItemsTests : IDisposable
     [Fact]
     public void LookupsPassThroughToTheSource()
     {
-        var wanted = new ItemInfo(5080, 2, 1, 2, 3, 4, 5, 6, false);
+        var wanted = new ItemInfo(5080, 2, 1, 2, 3, 4, 5, 6, false, "UI_Item_Core_01_Icon_128");
         Items.BaseGetter = id => id == 5080 ? wanted : null;
         Items.UniqueGetter = id => id == 112258 ? wanted with { BaseId = 3610, IsUnique = true } : null;
 
         Assert.True(Items.TryGet(5080, out var info));
         Assert.Equal(wanted, info);
+        Assert.Equal("UI_Item_Core_01_Icon_128", info.Icon);
         Assert.False(Items.TryGet(1, out _));
         Assert.True(Items.FromUnique(112258, out var unique));
         Assert.Equal(3610, unique.BaseId);

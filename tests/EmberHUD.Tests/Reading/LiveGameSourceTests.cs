@@ -1,5 +1,6 @@
 using EmberHUD.Host.Memory;
 using EmberHUD.Host;
+using EmberHUD.Testing;
 using EmberHUD.Tests.Reading;
 
 namespace EmberHUD.Tests;
@@ -12,6 +13,7 @@ public sealed class LiveGameSourceTests : IDisposable
     {
         EmberHUD.Memory.Use(null);
         LiveGameSource.UseLookups(null, 0);
+        TestGame.UseGameAssets(null, null);
     }
 
     private static FakeLua LuaWorld(FakeWorld world)
@@ -210,5 +212,28 @@ public sealed class LiveGameSourceTests : IDisposable
     private sealed class ClosedBackend : IReadBackend
     {
         public bool TryRead(nint address, Span<byte> target) => throw new ObjectDisposedException("handle");
+    }
+
+    [Fact]
+    public void ReattachingDoesNotServeNamesCachedFromTheOldGame()
+    {
+        string? seen = null;
+        TestGame.UseGameAssets(_ => true, (_, name) =>
+        {
+            seen = name;
+            return default(Sprite);
+        }, () => 0);
+        var first = new FakeWorld();
+        first.SetItemBaseTable(7, new FakeItemRow(100, Icon: "Old"));
+        LiveGameSource.UseLookups(first.Memory, FakeWorld.Module);
+        Assert.True(Draw.ItemIcon(100, out _));
+        Assert.Equal("Old", seen);
+
+        var second = new FakeWorld();
+        second.SetItemBaseTable(7, new FakeItemRow(100, Icon: "New"));
+        LiveGameSource.UseLookups(second.Memory, FakeWorld.Module);
+        Assert.True(Draw.ItemIcon(100, out _));
+
+        Assert.Equal("New", seen);
     }
 }

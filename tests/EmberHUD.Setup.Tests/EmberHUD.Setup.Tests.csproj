@@ -1,11 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <None Include="Fixtures\**" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="..\ObfuscationCheck.cs" Link="ObfuscationCheck.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD.Setup\EmberHUD.Setup.csproj" />
   </ItemGroup>
 </Project>

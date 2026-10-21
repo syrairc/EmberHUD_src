@@ -1,6 +1,5 @@
-using EmberHUD.Setup.Icons;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 public class UAssetTests
 {

@@ -264,6 +264,14 @@ public static class Draw
         return found is not null;
     }
 
+    public static bool ItemIcon(int baseId, out Sprite sprite) => GameAssets.TryItem(baseId, out sprite);
+
+    public static bool UniqueIcon(int uniqueId, out Sprite sprite) => GameAssets.TryUnique(uniqueId, out sprite);
+
+    public static bool SkillIcon(int cfgId, out Sprite sprite) => GameAssets.TrySkill(cfgId, out sprite);
+
+    public static bool BuffIcon(int buffId, out Sprite sprite) => GameAssets.TryBuff(buffId, out sprite);
+
     internal static Func<string, int, Color, Color, Sprite?>? SvgIcons { get; set; }
 
     internal static IReadOnlyList<string> SvgIconNames { get; set; } = [];

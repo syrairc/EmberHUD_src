@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 internal sealed record PakSource(string Path, byte[] Data, string? Method = null, bool Encrypted = false, int BlockSize = 65536, byte[][]? Compressed = null);
 

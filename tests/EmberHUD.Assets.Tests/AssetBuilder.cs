@@ -1,9 +1,8 @@
 using System.Buffers.Binary;
 using System.Text;
-using EmberHUD.Setup.Icons;
 using SkiaSharp;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 internal static class AssetBuilder
 {

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>EmberHUD.Assets</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BCnEncoder.Net" />
+    <PackageReference Include="ZstdSharp.Port" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\EmberHUD.Launcher\EmberHUD.Launcher.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\native\ooz\ooz.dll" Link="ooz.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="EmberSetup" />
+    <InternalsVisibleTo Include="Ember" />
+    <InternalsVisibleTo Include="EmberHUD.Assets.Tests" />
+    <InternalsVisibleTo Include="EmberHUD.Setup.Tests" />
+    <InternalsVisibleTo Include="EmberHUD.Tests" />
+  </ItemGroup>
+</Project>

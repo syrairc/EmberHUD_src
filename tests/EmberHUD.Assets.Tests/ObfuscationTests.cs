@@ -1,8 +1,7 @@
 using System.Reflection;
-using EmberHUD.Setup.Icons;
 using EmberHUD.Tests;
 
-namespace EmberHUD.Setup.Tests;
+namespace EmberHUD.Assets.Tests;
 
 public class ObfuscationTests
 {

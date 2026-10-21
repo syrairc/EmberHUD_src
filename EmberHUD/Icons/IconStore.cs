@@ -44,6 +44,8 @@ internal sealed class IconStore
         return null;
     }
 
+    public bool Has(ReadOnlySpan<char> texture) => _files.GetAlternateLookup<ReadOnlySpan<char>>().ContainsKey(texture);
+
     public Sprite? Resolve(ReadOnlySpan<char> texture)
     {
         if (texture.IsEmpty) return null;

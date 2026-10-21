@@ -1,10 +1,9 @@
 using System.Runtime.InteropServices;
 using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
-using EmberHUD.Setup.Pak;
 using SkiaSharp;
 
-namespace EmberHUD.Setup.Icons;
+namespace EmberHUD.Assets;
 
 internal sealed record MapIconRow(int Id, string Key, string Label, string Texture, int Priority);
 

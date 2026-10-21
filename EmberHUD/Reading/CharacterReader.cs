@@ -3,8 +3,10 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
+internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null, CfgIconCache? skillIcons = null, CfgIconCache? buffIcons = null)
 {
+    private readonly CfgIconCache _skillIcons = skillIcons ?? new();
+    private readonly CfgIconCache _buffIcons = buffIcons ?? new();
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly LocText _loc = new(memory, moduleBase);
@@ -45,13 +47,14 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
         {
             var remaining = BitConverter.ToDouble(node[Offsets.CooldownRemaining..]);
             var total = BitConverter.ToDouble(node[Offsets.CooldownTotal..]);
-            if (!double.IsFinite(remaining) || !double.IsFinite(total) || !TryCfgId(world, (int)BitConverter.ToUInt32(node[Offsets.CooldownSkill..]), out var cfgId))
+            if (!double.IsFinite(remaining) || !double.IsFinite(total) || !TryCfg(world, (int)BitConverter.ToUInt32(node[Offsets.CooldownSkill..]), out var cfgId, out var icon))
                 return intact = false;
 
+            _skillIcons.Add(cfgId, icon);
             var maxCharges = BitConverter.ToInt32(node[Offsets.CooldownMaxCharges..]);
             var hasCharges = maxCharges > 1;
             var slot = cfgId == 0 ? -1 : Array.IndexOf(bar, cfgId);
-            skills.Add(new Skill(cfgId, slot, remaining, total, hasCharges ? BitConverter.ToInt32(node[Offsets.CooldownCharges..]) : 0, hasCharges ? maxCharges : 0) { Name = slot >= 0 && slots is { } tabList ? BarSkillName(tabList, slot) : null });
+            skills.Add(new Skill(cfgId, slot, remaining, total, hasCharges ? BitConverter.ToInt32(node[Offsets.CooldownCharges..]) : 0, hasCharges ? maxCharges : 0, icon) { Name = slot >= 0 && slots is { } tabList ? BarSkillName(tabList, slot) : null });
             return true;
         });
 
@@ -66,11 +69,15 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
             ? _loc.Get(Offsets.ItemNameKey + baseId)
             : null;
 
-    private bool TryCfgId(nint world, int skillEntityId, out int cfgId)
+    private bool TryCfg(nint world, int skillEntityId, out int cfgId, out string? icon)
     {
         cfgId = 0;
-        return TryEntity(world, skillEntityId, out var entity) && TryComponent(entity, Offsets.ComponentSkillCfg, out var component) &&
-               memory.TryReadPtr(component + Offsets.SkillCfgPointer, out var cfg) && memory.TryRead(cfg, out cfgId);
+        icon = null;
+        if (!TryEntity(world, skillEntityId, out var entity) || !TryComponent(entity, Offsets.ComponentSkillCfg, out var component) ||
+            !memory.TryReadPtr(component + Offsets.SkillCfgPointer, out var cfg) || !memory.TryRead(cfg, out cfgId))
+            return false;
+        icon = _skillIcons.Get(cfgId) ?? memory.ReadIconName(cfg + Offsets.SkillCfgRowIcon);
+        return true;
     }
 
     private Buff[]? BuildBuffs()
@@ -99,7 +106,9 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
             !memory.TryRead(row + Offsets.BuffCfgId, out int rowId) || rowId != id)
             return false;
 
-        buff = new Buff(id, _loc.Get(Offsets.BuffNameKey + id + Offsets.BuffNameSuffix), remaining, total);
+        var icon = _buffIcons.Get(id) ?? memory.ReadIconName(row + Offsets.BuffCfgRowIcon);
+        _buffIcons.Add(id, icon);
+        buff = new Buff(id, _loc.Get(Offsets.BuffNameKey + id + Offsets.BuffNameSuffix), remaining, total, icon);
         return true;
     }
 
