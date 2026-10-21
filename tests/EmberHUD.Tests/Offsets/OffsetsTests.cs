@@ -414,6 +414,35 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void FrozenCanvasKeysExist()
+    {
+        Assert.Equal("S8GamePlayMgr", Offsets.LuaFrozenManager);
+        Assert.Equal("MainUIState", Offsets.LuaFrozenMainState);
+        Assert.Equal("GameState", Offsets.LuaFrozenGameState);
+        Assert.Equal("GameInfo", Offsets.LuaFrozenInfo);
+        Assert.Equal("LevelPlots", Offsets.LuaFrozenLevelPlots);
+        Assert.Equal("ServantPlots", Offsets.LuaFrozenServantPlots);
+        Assert.Equal("RemainChallengeTimes", Offsets.LuaFrozenChallengesLeft);
+        Assert.Equal("S8DrawCtrl", Offsets.LuaFrozenDrawSuffix);
+        Assert.Equal("DrawData", Offsets.LuaFrozenDrawData);
+        Assert.Equal("UIData", Offsets.LuaFrozenDrawUiData);
+        Assert.Equal("CurMission", Offsets.LuaFrozenDrawMission);
+        Assert.Equal("FightS8GamePlayProgress", Offsets.LuaFrozenHudKey);
+        Assert.Equal("Remaintime", Offsets.LuaFrozenHudRemaining);
+        Assert.Equal("FreeNum", Offsets.LuaFrozenFreeNum);
+        Assert.Equal("CostNum", Offsets.LuaFrozenPaperCost);
+        Assert.Equal(1, Offsets.FrozenStateIdle);
+        Assert.Equal(3, Offsets.FrozenStateDraw);
+        Assert.Equal(4, Offsets.FrozenStateBattle);
+        Assert.Equal(6, Offsets.FrozenGridSize);
+        Assert.Equal(36, Offsets.MaxFrozenPlots);
+        Assert.Equal(100, Offsets.FrozenRefreshMilliseconds);
+        Assert.Equal(3, Offsets.FrozenWantedSeconds);
+        Assert.Equal("S8_Gameplay_PlotItem|ItemName|", Offsets.FrozenPaintNameKey);
+        Assert.Contains("ChoosePaint:5", Offsets.FrozenScreens);
+    }
+
+    [Fact]
     public void VoraxPanelsAreConfigured()
     {
         Assert.Contains("S13GamePlayMain_C,Other,", Offsets.GamePanels);
