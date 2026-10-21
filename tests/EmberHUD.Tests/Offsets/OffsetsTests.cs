@@ -456,6 +456,23 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void FrozenCanvasPanelsAreConfigured()
+    {
+        foreach (var page in new[] { "S8Draw_C", "S8EnterDraw_C", "S8DrawMap_C", "S8ChoosePaper_C", "S8ChoosePaint_C", "S8PutMission_C", "S8MiniMap_C", "FightS8GamePlayProgress_C", "S8Talent_C", "S8HomeBtn_C", "S8ChooseAblity_C", "S8ChooseAblityMini_C" })
+            Assert.Contains(page + ",Other,", Offsets.GamePanels);
+        Assert.Contains("FightS8GamePlayProgress_C:Btn,BtnMap", Offsets.PanelParts);
+        Assert.Contains("S8MiniMap_C:BtnPos,AffixSwitchButton,Map,Desc1,Desc2", Offsets.PanelParts);
+        var map = Offsets.PanelParts.Split(';').Single(p => p.StartsWith("S8DrawMap_C:"));
+        Assert.Contains("BtnBroke", map);
+        Assert.Contains("S8SnowField_1,", map);
+        Assert.Contains("S8SnowField_36", map);
+        var enter = Offsets.PanelParts.Split(';').Single(p => p.StartsWith("S8EnterDraw_C:"));
+        Assert.Contains("S8SnowField_36", enter);
+        Assert.DoesNotContain("S8PaintCollection_C", Offsets.PanelParts);
+        Assert.DoesNotContain("S8PaintCollection_C", Offsets.GamePanels);
+    }
+
+    [Fact]
     public void GroundItemKeysExist()
     {
         Assert.Equal("GroundMgr", Offsets.LuaGroundManager);
