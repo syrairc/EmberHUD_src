@@ -393,23 +393,21 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
     }
 
     [Fact]
-    public void TheGeneralTabDrawsTheLoggingSectionWithSourceOverrides()
+    public void TheLoggingTabShowsTheMinimumAndTheGeneralTabHasNoLoggingRows()
     {
         using var host = Discovered("Good");
         var logs = Hub();
-        logs.Add(new LogEntry(DateTime.Now, LogLevel.Info, "Seen", "hello"));
-        LogLevels.SetOverride(_fixture.Sdk, "Pickit", LogLevel.Debug);
         var window = Window(host, logs: logs);
+
         OpenTab(window, 0);
+        var general = PageRows(Settled(window)).Select(row => row.Count).ToList();
+        OpenTab(window, 4);
+        var logging = PageRows(Settled(window)).Select(row => row.Count).ToList();
 
-        var rows = PageRows(Settled(window)).Select(row => row.Count).ToList();
-
-        Assert.Contains("Logging".Length, rows);
-        Assert.Contains("Reader".Length + "(default)".Length, rows);
-        Assert.Contains("Good".Length + "(default)".Length, rows);
-        Assert.Contains("Seen".Length + "(default)".Length, rows);
-        Assert.Contains("Pickit".Length + "Debug".Length, rows);
-        Assert.DoesNotContain("Error", _log.Text);
+        Assert.Equal(0, ImGui.GetCurrentContext().ErrorCountCurrentFrame);
+        Assert.Contains("Logging".Length, logging);
+        Assert.Contains("Minimumlevel".Length + "Info".Length, logging);
+        Assert.DoesNotContain("Minimumlevel".Length + "Info".Length, general);
     }
 
     [Fact]

@@ -6,113 +6,117 @@ namespace EmberHUD.Tests;
 public class LogLevelsTests
 {
     [Fact]
-    public void TheMinimumAppliesToEverySource()
+    public void HostSourcesUseTheMinimum()
     {
-        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Warn });
+        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Warn }, new PluginLogLevels());
 
         Assert.False(filter(LogLevel.Info, "Reader"));
-        Assert.False(filter(LogLevel.Info, "Pickit"));
+        Assert.False(filter(LogLevel.Info, "Whatever"));
         Assert.True(filter(LogLevel.Warn, "Reader"));
-        Assert.True(filter(LogLevel.Error, "Pickit"));
+        Assert.True(filter(LogLevel.Error, "Loader"));
     }
 
     [Fact]
-    public void AnOverrideCanLowerTheMinimumForOneSource()
+    public void ThePluginLevelCanLowerTheMinimumForThatPlugin()
     {
-        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Info, LogSources = new() { ["Pickit"] = LogLevel.Debug } });
+        var plugins = new PluginLogLevels();
+        plugins.Set("Pickit", LogLevel.Debug);
+        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Info }, plugins);
 
         Assert.True(filter(LogLevel.Debug, "Pickit"));
+        Assert.False(filter(LogLevel.Debug, "Other"));
         Assert.False(filter(LogLevel.Debug, "Reader"));
     }
 
     [Fact]
-    public void AnOverrideCanRaiseTheMinimumForOneSource()
+    public void ThePluginLevelCanRaiseTheMinimumForThatPlugin()
     {
-        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Info, LogSources = { ["Reader"] = LogLevel.Error } });
+        var plugins = new PluginLogLevels();
+        plugins.Set("Pickit", LogLevel.Error);
+        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Debug }, plugins);
 
-        Assert.False(filter(LogLevel.Warn, "Reader"));
-        Assert.True(filter(LogLevel.Warn, "Pickit"));
+        Assert.False(filter(LogLevel.Warn, "Pickit"));
+        Assert.True(filter(LogLevel.Error, "Pickit"));
+        Assert.True(filter(LogLevel.Debug, "Reader"));
     }
 
     [Fact]
-    public void TheFilterReadsTheSettingsLive()
+    public void TheFilterReadsTheMinimumAndThePluginLevelsLive()
     {
         var sdk = new SdkSettings { LogMinimum = LogLevel.Info };
-        var filter = LogLevels.Filter(sdk);
+        var plugins = new PluginLogLevels();
+        var filter = LogLevels.Filter(sdk, plugins);
         Assert.False(filter(LogLevel.Debug, "Reader"));
+        Assert.False(filter(LogLevel.Debug, "Pickit"));
 
         sdk.LogMinimum = LogLevel.Debug;
+        plugins.Set("Pickit", LogLevel.Error);
 
         Assert.True(filter(LogLevel.Debug, "Reader"));
+        Assert.False(filter(LogLevel.Debug, "Pickit"));
+        plugins.Remove("Pickit");
+        Assert.True(filter(LogLevel.Debug, "Pickit"));
     }
 
     [Fact]
     public void NullSourceCountsAsHost()
     {
-        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Info, LogSources = { ["Host"] = LogLevel.Error } });
+        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = LogLevel.Warn }, new PluginLogLevels());
 
-        Assert.False(filter(LogLevel.Warn, null));
-        Assert.True(filter(LogLevel.Error, null));
-    }
-
-    [Fact]
-    public void SetOverrideNullRemovesTheEntry()
-    {
-        var sdk = new SdkSettings();
-
-        LogLevels.SetOverride(sdk, "Reader", LogLevel.Trace);
-        Assert.Equal(LogLevel.Trace, sdk.LogSources["Reader"]);
-
-        LogLevels.SetOverride(sdk, "Reader", null);
-        Assert.Empty(sdk.LogSources);
-    }
-
-    [Fact]
-    public void SetOverrideLeavesTheOldDictionaryUntouched()
-    {
-        var sdk = new SdkSettings();
-        var before = sdk.LogSources;
-
-        LogLevels.SetOverride(sdk, "Reader", LogLevel.Trace);
-
-        Assert.NotSame(before, sdk.LogSources);
-        Assert.Empty(before);
-    }
-
-    [Fact]
-    public void ComboIndexMapsToTheLevelAndBack()
-    {
-        Assert.Null(LogLevels.FromOverrideIndex(0));
-        Assert.Equal(LogLevel.Trace, LogLevels.FromOverrideIndex(1));
-        Assert.Equal(LogLevel.Error, LogLevels.FromOverrideIndex(5));
-        var sources = new Dictionary<string, LogLevel> { ["Reader"] = LogLevel.Warn, ["Bad"] = (LogLevel)99 };
-        Assert.Equal(4, LogLevels.OverrideIndex(sources, "Reader"));
-        Assert.Equal(0, LogLevels.OverrideIndex(sources, "Other"));
-        Assert.Equal(3, LogLevels.OverrideIndex(sources, "Bad"));
+        Assert.False(filter(LogLevel.Info, null));
+        Assert.True(filter(LogLevel.Warn, null));
     }
 
     [Fact]
     public void UndefinedLevelsCountAsInfo()
     {
-        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = (LogLevel)99, LogSources = { ["Reader"] = (LogLevel)(-3) } });
+        var plugins = new PluginLogLevels();
+        plugins.Set("Pickit", (LogLevel)(-3));
+        var filter = LogLevels.Filter(new SdkSettings { LogMinimum = (LogLevel)99 }, plugins);
 
-        Assert.False(filter(LogLevel.Debug, "Pickit"));
-        Assert.True(filter(LogLevel.Info, "Pickit"));
         Assert.False(filter(LogLevel.Debug, "Reader"));
         Assert.True(filter(LogLevel.Info, "Reader"));
+        Assert.False(filter(LogLevel.Debug, "Pickit"));
+        Assert.True(filter(LogLevel.Info, "Pickit"));
     }
 
     [Fact]
-    public void SdkSettingsRoundTripsLogSettings()
+    public void PluginLevelsAreReplacedNotMutated()
     {
-        const string json = """{ "LogMinimum": "Debug", "LogSources": { "Pickit": "Trace" } }""";
+        var plugins = new PluginLogLevels();
+        plugins.Set("A", LogLevel.Debug);
+        var before = plugins.Snapshot;
+
+        plugins.Set("B", LogLevel.Warn);
+        plugins.Remove("A");
+
+        Assert.Single(before);
+        Assert.Equal(LogLevel.Debug, before["A"]);
+        Assert.Equal(LogLevel.Warn, Assert.Single(plugins.Snapshot).Value);
+    }
+
+    [Fact]
+    public void SdkSettingsRoundTripsTheMinimum()
+    {
+        const string json = """{ "LogMinimum": "Debug" }""";
         var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, json, _ => { });
 
         Assert.Equal(LogLevel.Debug, loaded.LogMinimum);
-        Assert.Equal(LogLevel.Trace, loaded.LogSources["Pickit"]);
         var saved = SettingsJson.Serialize(loaded);
         Assert.Contains("\"LogMinimum\": \"Debug\"", saved);
-        Assert.Contains("\"Pickit\": \"Trace\"", saved);
         Assert.Equal(saved, SettingsJson.Serialize((SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, saved, _ => { })));
+    }
+
+    [Fact]
+    public void ALegacyLogSourcesKeyLoadsWithoutAProblemAndIsNotSavedBack()
+    {
+        const string json = """{ "LogMinimum": "Warn", "LogSources": { "Pickit": "Debug" } }""";
+        var problems = new List<string>();
+
+        var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, json, problems.Add);
+
+        Assert.Empty(problems);
+        Assert.Equal(LogLevel.Warn, loaded.LogMinimum);
+        Assert.DoesNotContain("LogSources", SettingsJson.Serialize(loaded));
     }
 }

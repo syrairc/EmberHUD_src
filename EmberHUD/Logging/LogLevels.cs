@@ -2,28 +2,34 @@ using EmberHUD.Host.Ui;
 
 namespace EmberHUD.Host.Logging;
 
-internal static class LogLevels
+internal sealed class PluginLogLevels
 {
-    public static readonly string[] HostSources = ["Host", "Loader", "Reader", "Overlay", "Updater", "Icons", "Theme"];
+    readonly Lock _gate = new();
+    volatile Dictionary<string, LogLevel> _levels = [];
 
-    public static Func<LogLevel, string?, bool> Filter(SdkSettings sdk) => (level, source) =>
+    public IReadOnlyDictionary<string, LogLevel> Snapshot => _levels;
+
+    public LogLevel? Get(string? plugin) => plugin is not null && _levels.TryGetValue(plugin, out var level) ? level : null;
+
+    public void Set(string plugin, LogLevel level)
     {
-        var overrides = sdk.LogSources;
-        var floor = overrides is not null && overrides.TryGetValue(source ?? "Host", out var found) ? found : sdk.LogMinimum;
-        return level >= Valid(floor);
-    };
-
-    public static LogLevel Valid(LogLevel level) => Enum.IsDefined(level) ? level : LogLevel.Info;
-
-    public static void SetOverride(SdkSettings sdk, string source, LogLevel? level)
-    {
-        var copy = new Dictionary<string, LogLevel>(sdk.LogSources);
-        if (level is { } value) copy[source] = value;
-        else copy.Remove(source);
-        sdk.LogSources = copy;
+        lock (_gate) _levels = new Dictionary<string, LogLevel>(_levels) { [plugin] = level };
     }
 
-    public static int OverrideIndex(Dictionary<string, LogLevel> sources, string source) => sources.TryGetValue(source, out var level) ? (int)Valid(level) + 1 : 0;
+    public void Remove(string plugin)
+    {
+        lock (_gate)
+        {
+            var copy = new Dictionary<string, LogLevel>(_levels);
+            if (copy.Remove(plugin)) _levels = copy;
+        }
+    }
+}
 
-    public static LogLevel? FromOverrideIndex(int index) => index <= 0 ? null : (LogLevel)(index - 1);
+internal static class LogLevels
+{
+    public static Func<LogLevel, string?, bool> Filter(SdkSettings sdk, PluginLogLevels plugins) =>
+        (level, source) => level >= Valid(plugins.Get(source) ?? sdk.LogMinimum);
+
+    public static LogLevel Valid(LogLevel level) => Enum.IsDefined(level) ? level : LogLevel.Info;
 }

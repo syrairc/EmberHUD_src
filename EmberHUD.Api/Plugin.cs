@@ -6,6 +6,8 @@ public abstract class Plugin
 
     public virtual int Order => 0;
 
+    public virtual LogLevel DefaultLogLevel => LogLevel.Info;
+
     public virtual void Initialize() { }
 
     public virtual void OnEnable() { }

@@ -119,7 +119,7 @@ public abstract class SettingsWindowFixture : IDisposable
     {
         window.Selected = null;
         var labels = PageRows(Settled(window))[0].OrderBy(glyph => glyph.Min.X).ToList();
-        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length }[tab]].Centre);
+        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length, "General".Length + "Theme".Length + "Hotkeys".Length + "Updater".Length }[tab]].Centre);
     }
 
     internal PluginHost Discovered(params string[] good)

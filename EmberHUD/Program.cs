@@ -73,9 +73,10 @@ Log.Sink = (level, plugin, message) =>
     Console.WriteLine(LogFormat.Format(entry));
 };
 
+var pluginLevels = new PluginLogLevels();
 var sdkPath = PluginHost.SdkPath(root);
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
-Log.Filter = LogLevels.Filter(sdk);
+Log.Filter = LogLevels.Filter(sdk, pluginLevels);
 
 using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.For("Reader").Info, fake ? 8 : 33);
 reader.Start();
@@ -104,7 +105,7 @@ Textures.Uploader = textures.Upload;
 Textures.PngLoader = new PngFileLoader(textures.Upload).Load;
 Textures.Resolver = textures.Resolve;
 Textures.Releaser = textures.Release;
-using var plugins = new PluginHost(sdk, root, textures.ReleaseAll);
+using var plugins = new PluginHost(sdk, root, textures.ReleaseAll, pluginLevels);
 Controls.HotkeyConflict = plugins.ConflictFor;
 plugins.Discover(pluginsDirectory);
 Log.Info($"plugins: {plugins.Slots.Count} in {pluginsDirectory}");

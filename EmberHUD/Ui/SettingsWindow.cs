@@ -18,9 +18,6 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
     readonly string[] _fontFilters = ["", "", "", ""];
     IReadOnlyList<string>? _fontFiles;
     IReadOnlyList<string>? _themeNames;
-    string[] _seenSources = [];
-    int _logSourcesVersion = -1;
-    static readonly string[] OverrideLabels = ["(default)", .. Enum.GetNames<LogLevel>()];
 
     public PluginSlot? Selected { get; set; }
 
@@ -67,7 +64,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         if (Selected is { } slot) DrawPlugin(slot);
         else
         {
-            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater)];
+            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater), ("Logging", DrawLogging)];
             if (assets is not null) tabs = [.. tabs, ("Game Assets", assets.Draw)];
             Layout.TabBar("emberhud", debug is null ? tabs : [.. tabs, ("Debug", debug.Draw)]);
         }
@@ -200,8 +197,6 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.Checkbox("Reload plugins when their source changes", ref sdk.AutoReload);
         if (ImGui.Button("Clear compile cache")) plugins.ClearCache();
 
-        DrawLogging();
-
         Controls.Section("Troubleshooting");
         debug?.DrawButton();
 
@@ -210,27 +205,16 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         return false;
     }
 
-    void DrawLogging()
+    bool DrawLogging()
     {
         Controls.Section("Logging");
+        sdk.LogMinimum = LogLevels.Valid(sdk.LogMinimum);
         ImGui.TextUnformatted("Minimum level");
         ImGui.SameLine();
-        sdk.LogMinimum = LogLevels.Valid(sdk.LogMinimum);
         Combo.Enum(ref sdk.LogMinimum, "logMinimum");
-        if (_logSourcesVersion != logs.Version)
-        {
-            _logSourcesVersion = logs.Version;
-            _seenSources = [.. logs.Today(5000).Select(entry => entry.Source)];
-        }
-        var overrides = sdk.LogSources;
-        var rows = LogLevels.HostSources.Concat(_seenSources).Concat(plugins.Slots.Select(slot => slot.Name)).Concat(overrides.Keys).Where(source => source.Length > 0).Distinct().Order();
-        foreach (var source in rows)
-        {
-            var index = LogLevels.OverrideIndex(overrides, source);
-            ImGui.TextUnformatted(source);
-            ImGui.SameLine(ControlWidth);
-            if (Combo.Option(ref index, OverrideLabels, "logSource" + source)) LogLevels.SetOverride(sdk, source, LogLevels.FromOverrideIndex(index));
-        }
+        Wrapped("Applies to the host's own log lines. Each plugin sets its own default level in code (DefaultLogLevel, Info unless the plugin overrides it).");
+        Wrapped("Day files live in Logs\\ember-YYYY-MM-DD.log, the last 14 days are kept.");
+        return false;
     }
 
     IEnumerable<(string, string)> FontCandidates()
