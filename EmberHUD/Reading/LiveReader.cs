@@ -22,6 +22,7 @@ internal sealed class LiveReader
     private readonly TartarusReader? _tartarus;
     private readonly TarotReader? _tarot;
     private readonly VoraxReader? _vorax;
+    private readonly FrozenCanvasReader? _frozenCanvas;
     private readonly GroundItemReader? _groundItems;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
@@ -35,8 +36,9 @@ internal sealed class LiveReader
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, GroundItemReader? groundItems = null, TarotReader? tarot = null, VoraxReader? vorax = null, Func<long>? clockMilliseconds = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, GroundItemReader? groundItems = null, TarotReader? tarot = null, VoraxReader? vorax = null, FrozenCanvasReader? frozenCanvas = null, Func<long>? clockMilliseconds = null)
     {
+        _frozenCanvas = frozenCanvas;
         _tarot = tarot;
         _vorax = vorax;
         _character = character;
@@ -151,6 +153,7 @@ internal sealed class LiveReader
             Tartarus = Game.TartarusWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds) ? _tartarus?.Read() : null,
             Tarot = Game.TarotWanted(Stopwatch.GetTimestamp(), Offsets.TarotWantedSeconds) ? _tarot?.Read() : null,
             Vorax = Game.VoraxWanted(Stopwatch.GetTimestamp(), Offsets.VoraxWantedSeconds) ? _vorax?.Read() : null,
+            FrozenCanvas = Game.FrozenCanvasWanted(Stopwatch.GetTimestamp(), Offsets.FrozenWantedSeconds) ? _frozenCanvas?.Read() : null,
             GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,

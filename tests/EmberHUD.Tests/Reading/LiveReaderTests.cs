@@ -318,6 +318,34 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void FrozenCanvasIsNullUntilAPluginAsks()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, frozenCanvas: new Reading.FrozenCanvasReaderTests.Fixture().Reader());
+        Game.FrozenCanvasAsked = 0;
+        Assert.True(reader.TryRead(out var idle, out _));
+        Assert.Null(idle.FrozenCanvas);
+    }
+
+    [Fact]
+    public void FrozenCanvasIsReadAfterWantFrozenCanvas()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, frozenCanvas: new Reading.FrozenCanvasReaderTests.Fixture().Reader());
+        try
+        {
+            Game.FrozenCanvasAsked = 0;
+            Game.WantFrozenCanvas();
+            Assert.True(reader.TryRead(out var asked, out _));
+            Assert.Equal(FrozenCanvasPhase.Battle, asked.FrozenCanvas!.Phase);
+            Assert.Equal(11, asked.FrozenCanvas.PlotsTotal);
+        }
+        finally { Game.FrozenCanvasAsked = 0; }
+    }
+
+    [Fact]
     public void GroundItemsAreOnlyReadWhenAsked()
     {
         var world = new FakeWorld();

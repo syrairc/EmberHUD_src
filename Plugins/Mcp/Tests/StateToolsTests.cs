@@ -501,6 +501,42 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetFrozenCanvasReportsTheMinigameAndAsksForIt()
+    {
+        var canvas = new FrozenCanvasState(FrozenCanvasPhase.Battle, 101,
+            [new FrozenCanvasPlot(19, 1, 3, FrozenCanvasPlotKind.Free, 100203, 3, false, true), new FrozenCanvasPlot(20, 2, 3, FrozenCanvasPlotKind.Free, 0, 0, true, false), new FrozenCanvasPlot(0, 0, 0, FrozenCanvasPlotKind.Unknown, 0, 0, false, false)],
+            2, 11, 8, 6, 6, [new FrozenCanvasReward(330001, 10)])
+        {
+            Objective = new FrozenCanvasObjective("Kill the bosses", 1, 42.5f),
+        };
+        TestGame.Set(GameState.Empty with { FrozenCanvas = canvas });
+        Check.That(Tools.Single(t => t.Name == "get_frozen_canvas").Description.Length > 0, "described");
+        var result = Wire.Run(Tools, "get_frozen_canvas");
+        Check.Equal(true, (bool)result["ready"]!);
+        Check.Equal("Battle", (string?)result["phase"]);
+        Check.Equal(101, (int)result["difficulty"]!);
+        Check.Equal(11, (int)result["plotsTotal"]!);
+        Check.Equal(8, (int)result["plotsTarget"]!);
+        Check.Equal(6, (int)result["challengesLeft"]!);
+        Check.Equal(330001, (int)result["rewards"]![0]!["itemId"]!);
+        Check.Equal(2, result["plots"]!.AsArray().Count);
+        Check.Equal(100203, (int)result["plots"]![0]!["paintId"]!);
+        Check.Equal(true, (bool)result["plots"]![0]!["player"]!);
+        Check.Equal(true, (bool)result["plots"]![1]!["servant"]!);
+        Check.Equal("Kill the bosses", (string?)result["objective"]!["description"]);
+        Check.That(result["draw"] is null, "no draw block in battle");
+        Check.That(TestGame.FrozenCanvasAskedDuring(() => Wire.Run(Tools, "get_frozen_canvas")), "asks the reader");
+    }
+
+    [Test]
+    public void GetFrozenCanvasWithoutStateIsNotReady()
+    {
+        TestGame.Set(GameState.Empty);
+        var result = Wire.Run(Tools, "get_frozen_canvas");
+        Check.Equal(false, (bool)result["ready"]!);
+    }
+
+    [Test]
     public void GetInventoryBeforeTheReaderHasRunIsNotReady()
     {
         TestGame.Set(GameState.Empty);

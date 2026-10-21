@@ -159,6 +159,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
             Tarot = Game.TarotWanted(now, Offsets.TarotWantedSeconds) ? TarotAt(now) : null,
             Vorax = Game.VoraxWanted(now, Offsets.VoraxWantedSeconds) ? VoraxAt(now) : null,
+            FrozenCanvas = Game.FrozenCanvasWanted(now, Offsets.FrozenWantedSeconds) ? FrozenCanvasAt(now) : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
@@ -221,6 +222,15 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Protocols = [new(0, 3, VoraxCardKind.Modifier, 1) { Name = "Spinal Cord Stimulation", Description = "Increases the rewards", TypeName = "Surgical Protocol" }],
             RewardBonusPercent = 20,
         };
+
+    private static readonly int[] FakeFreeSlots = [13, 14, 15, 19, 20, 21, 25, 26, 27, 31, 32];
+
+    internal static FrozenCanvasState FrozenCanvasAt(long now) =>
+        new(FrozenCanvasPhase.Battle, 101,
+            [.. Enumerable.Range(0, 36).Select(slot => new FrozenCanvasPlot(slot, slot % 6, slot / 6,
+                FakeFreeSlots.Contains(slot) ? FrozenCanvasPlotKind.Free : FrozenCanvasPlotKind.Void,
+                slot is 19 or 20 or 21 or 25 ? 100200 + slot % 5 : 0, slot is 19 or 20 or 21 or 25 ? 3 : 0, slot is 20 or 21 or 25, slot == 19))],
+            0, 11, 8, 6, 6, [new FrozenCanvasReward(330001, 10)]);
 
     internal static CombatStats CombatAt(long now)
     {

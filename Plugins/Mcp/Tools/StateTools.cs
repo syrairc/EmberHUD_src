@@ -48,7 +48,56 @@ internal static class StateTools
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
         new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards, owned instruments and obtained protocols (slot, id, kind, rarity, name, description, typeName), rewardBonusPercent, chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
+        new("get_frozen_canvas", "Season 8 Frozen Canvas (paint minigame) state from Game.State.FrozenCanvas: phase (Idle, Draw, Battle), difficulty, plotsDone / plotsTotal / plotsTarget, challengesLeft / challengesTotal, rewards (itemId, count), plots (slot, x, y, kind, paintId, paintName, level, servant, player; empty Unknown plots left out), objective (description, done, secondsLeft) and the draw block while drawing (screen, placed, total, maxLevel, revives, rerolls, uninstalls, mission, missionDetail, papers, bagSize). Asks the reader and returns what it has - ready is false when the minigame is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetFrozenCanvas()),
     ];
+
+    static JsonObject GetFrozenCanvas()
+    {
+        Game.WantFrozenCanvas();
+        if (Game.State.FrozenCanvas is not { } canvas) return new JsonObject { ["ready"] = false };
+        var result = new JsonObject
+        {
+            ["ready"] = true,
+            ["phase"] = canvas.Phase.ToString(),
+            ["difficulty"] = canvas.Difficulty,
+            ["plotsDone"] = canvas.PlotsDone,
+            ["plotsTotal"] = canvas.PlotsTotal,
+            ["plotsTarget"] = canvas.PlotsTarget,
+            ["challengesLeft"] = canvas.ChallengesLeft,
+            ["challengesTotal"] = canvas.ChallengesTotal,
+            ["rewards"] = new JsonArray([.. canvas.Rewards.Select(reward => (JsonNode)new JsonObject { ["itemId"] = reward.ItemId, ["count"] = reward.Count })]),
+            ["plots"] = new JsonArray([.. canvas.Plots.Where(plot => plot.Kind != FrozenCanvasPlotKind.Unknown || plot.PaintId != 0).Select(plot => (JsonNode)new JsonObject
+            {
+                ["slot"] = plot.Slot,
+                ["x"] = plot.X,
+                ["y"] = plot.Y,
+                ["kind"] = plot.Kind.ToString(),
+                ["paintId"] = plot.PaintId,
+                ["paintName"] = plot.PaintName,
+                ["level"] = plot.Level,
+                ["servant"] = plot.Servant,
+                ["player"] = plot.Player,
+            })]),
+        };
+        if (canvas.Objective is { } objective)
+            result["objective"] = new JsonObject { ["description"] = objective.Description, ["done"] = objective.Done, ["secondsLeft"] = Num.F(objective.SecondsLeft) };
+        if (canvas.Draw is { } draw)
+            result["draw"] = new JsonObject
+            {
+                ["screen"] = draw.Screen.ToString(),
+                ["placed"] = draw.Placed,
+                ["total"] = draw.Total,
+                ["maxLevel"] = draw.MaxLevel,
+                ["revives"] = draw.Revives,
+                ["rerolls"] = draw.Rerolls,
+                ["uninstalls"] = draw.Uninstalls,
+                ["mission"] = draw.Mission,
+                ["missionDetail"] = draw.MissionDetail,
+                ["papers"] = new JsonArray([.. draw.Papers.Select(paper => (JsonNode)new JsonObject { ["level"] = paper.Level, ["name"] = paper.Name, ["description"] = paper.Description, ["cost"] = paper.Cost, ["locked"] = paper.Locked, ["selected"] = paper.Selected })]),
+                ["bagSize"] = draw.Bag.Length,
+            };
+        return result;
+    }
 
     static JsonObject GetVorax()
     {

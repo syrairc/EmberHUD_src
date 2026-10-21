@@ -169,6 +169,22 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameGivesFrozenCanvasAfterWantFrozenCanvas()
+    {
+        Game.FrozenCanvasAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).FrozenCanvas);
+        try
+        {
+            Game.WantFrozenCanvas();
+            var canvas = At(Stopwatch.GetTimestamp()).FrozenCanvas!;
+            Assert.Equal(FrozenCanvasPhase.Battle, canvas.Phase);
+            Assert.Equal(11, canvas.PlotsTotal);
+            Assert.Equal(11, canvas.Plots.Count(p => p.Kind == FrozenCanvasPlotKind.Free));
+        }
+        finally { Game.FrozenCanvasAsked = 0; }
+    }
+
+    [Fact]
     public void FakeGameSourceServesGroundItemsOnlyWhenAsked()
     {
         Game.GroundItemsAsked = 0;
