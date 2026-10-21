@@ -216,7 +216,11 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
                 new(2, 205, VoraxCardKind.Potion, 3) { Name = "Pure Leech Solution", Description = "Removes the weakest monster" },
             ],
             [new(0, 101, VoraxCardKind.Instrument, 1) { Name = "Aberrant Sprout", Description = "Grows the vat each round" }],
-            [0, 0, 0, 0, 0, 0]);
+            [0, 0, 0, 0, 0, 0])
+        {
+            Protocols = [new(0, 3, VoraxCardKind.Modifier, 1) { Name = "Spinal Cord Stimulation", Description = "Increases the rewards", TypeName = "Surgical Protocol" }],
+            RewardBonusPercent = 20,
+        };
 
     internal static CombatStats CombatAt(long now)
     {

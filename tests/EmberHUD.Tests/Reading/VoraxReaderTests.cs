@@ -88,15 +88,16 @@ public class VoraxReaderTests
             Lua.SetTable(Lua.Globals, Offsets.LuaVoraxManager, mgr);
         }
 
-        public LuaTable Info(int table, int id, string nameKey, string descKey, int[] parameters, int? rarity = null)
+        public LuaTable Info(int table, int id, string nameKey, string descKey, int[] parameters, int? rarity = null, int? scoreInc = null)
         {
-            var row = Lua.NewTable(0, 2);
+            var row = Lua.NewTable(0, 3);
             var p = Lua.NewTable(parameters.Length, 0);
             for (var i = 0; i < parameters.Length; i++) Lua.SetIntKey(p, i + 1, parameters[i], Offsets.LuaTagInt);
             Lua.SetString(row, Offsets.LuaVoraxInfoName, nameKey);
             Lua.SetString(row, Offsets.LuaVoraxInfoDesc, descKey);
             Lua.SetTable(row, Offsets.LuaVoraxInfoParams, p);
             if (rarity is { } r) Lua.SetInt(row, Offsets.LuaVoraxInfoRarity, r);
+            if (scoreInc is { } inc) Lua.SetInt(row, Offsets.LuaVoraxInfoScoreIncrease, inc);
             Lua.SetIntKeyTable(Infos[table], id, row);
             return row;
         }
@@ -109,6 +110,13 @@ public class VoraxReaderTests
             Lua.SetInt(row, Offsets.LuaVoraxType, type);
             if (initRelic) Lua.SetBool(row, Offsets.LuaVoraxInitRelic, true);
             Lua.SetIntKeyTable(Hand, ++_handKey, row);
+        }
+
+        public void Protocols(params long[] ids)
+        {
+            var list = Lua.NewTable(ids.Length, 0);
+            for (var i = 0; i < ids.Length; i++) Lua.SetIntKey(list, i + 1, ids[i], Offsets.LuaTagInt);
+            Lua.SetTable(ViewData, Offsets.LuaVoraxProtocols, list);
         }
 
         public void Relic(int index, int id)
@@ -192,6 +200,9 @@ public class VoraxReaderTests
 
     [Fact]
     public void PhaseIsRoundForTheNormalRoundState() => Assert.Equal(VoraxPhase.Round, new Fixture().Reader().Read()!.Phase);
+
+    [Fact]
+    public void RewardRelicStateIsTheInstrumentPhase() => Assert.Equal(VoraxPhase.Instrument, new Fixture(state: Offsets.VoraxStateRewardRelic).Reader().Read()!.Phase);
 
     [Fact]
     public void UnknownStateIsOther() => Assert.Equal(VoraxPhase.Other, new Fixture(state: "S13CardPlay_Unseen").Reader().Read()!.Phase);
@@ -391,6 +402,80 @@ public class VoraxReaderTests
         var card = Cards().Reader(LocOf(texts)).Read()!.Offered[0];
         Assert.Equal("", card.Name);
         Assert.Equal(GrayText, card.Description);
+    }
+
+    private static Fixture WithProtocols(params long[] ids)
+    {
+        var f = Cards();
+        f.Info(1, 3, "mod|name|3", "mod|desc|3", [20], 1, 20);
+        f.Info(1, 4, "mod|name|4", "mod|desc|4", [], 2, 15);
+        f.Protocols(ids);
+        return f;
+    }
+
+    private static Dictionary<string, string> ProtocolTexts()
+    {
+        var texts = Texts();
+        texts["mod|name|3"] = "Spinal Cord Stimulation";
+        texts["mod|desc|3"] = "+{%s:1}%% reward";
+        texts["mod|name|4"] = "Second";
+        texts["mod|desc|4"] = "Other";
+        texts[Offsets.VoraxTypeNamePrefix + "Func_S13CardGame_CardTypeBattleModifier"] = "Surgical Protocol";
+        return texts;
+    }
+
+    [Fact]
+    public void ProtocolsResolveLikeModifierCards()
+    {
+        var s = WithProtocols(3, 4).Reader(LocOf(ProtocolTexts())).Read()!;
+        Assert.Equal([3, 4], s.Protocols.Select(c => c.Id));
+        Assert.Equal([0, 1], s.Protocols.Select(c => c.Slot));
+        var card = s.Protocols[0];
+        Assert.Equal(VoraxCardKind.Modifier, card.Kind);
+        Assert.Equal("Spinal Cord Stimulation", card.Name);
+        Assert.Equal("+20% reward", card.Description);
+        Assert.Equal(1, card.Rarity);
+    }
+
+    [Fact]
+    public void RewardBonusIsTheSumOfScoreInc()
+    {
+        Assert.Equal(35, WithProtocols(3, 4).Reader(LocOf(ProtocolTexts())).Read()!.RewardBonusPercent);
+        Assert.Equal(20, WithProtocols(3).Reader(LocOf(ProtocolTexts())).Read()!.RewardBonusPercent);
+    }
+
+    [Fact]
+    public void NoProtocolListMeansNoProtocolsAndNoBonus()
+    {
+        var s = Cards().Reader(LocOf(ProtocolTexts())).Read()!;
+        Assert.Empty(s.Protocols);
+        Assert.Equal(0, s.RewardBonusPercent);
+    }
+
+    [Fact]
+    public void AnEmptyProtocolListIsEmpty()
+    {
+        var s = WithProtocols().Reader(LocOf(ProtocolTexts())).Read()!;
+        Assert.Empty(s.Protocols);
+        Assert.Equal(0, s.RewardBonusPercent);
+    }
+
+    [Fact]
+    public void GarbageProtocolEntriesAreSkipped()
+    {
+        var s = WithProtocols(3, long.MaxValue, 4).Reader(LocOf(ProtocolTexts())).Read()!;
+        Assert.Equal([3, 4], s.Protocols.Select(c => c.Id));
+        Assert.Equal(35, s.RewardBonusPercent);
+    }
+
+    [Fact]
+    public void ABonusSumThatOverflowsIsClamped()
+    {
+        var f = Cards();
+        f.Info(1, 3, "mod|name|3", "mod|desc|3", [20], 1, int.MaxValue);
+        f.Info(1, 4, "mod|name|4", "mod|desc|4", [], 2, int.MaxValue);
+        f.Protocols(3, 4);
+        Assert.Equal(int.MaxValue, f.Reader(LocOf(ProtocolTexts())).Read()!.RewardBonusPercent);
     }
 
     [Fact]

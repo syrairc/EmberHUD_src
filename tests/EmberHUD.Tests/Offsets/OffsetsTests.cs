@@ -420,6 +420,9 @@ public class OffsetsTests
         Assert.Contains("S13GamePlay_C,Other,", Offsets.GamePanels);
         Assert.Contains("S13GamePlayMain_C:Mianban_bg,ScoreButton,CurChest1", Offsets.PanelParts);
         Assert.Contains("S13GamePlay_C:StartGameBtn", Offsets.PanelParts);
+        Assert.Contains("S13GamePlayReward_C,Other,", Offsets.GamePanels);
+        Assert.Contains("S13GamePlayReward_C:ScoreButton,CurChest1", Offsets.PanelParts);
+        Assert.Contains("FightBtn,GiveUpBtn", Offsets.PanelParts);
         Assert.DoesNotContain("MonsterLeft", Offsets.PanelParts);
     }
 

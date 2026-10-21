@@ -73,8 +73,26 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         var manager = TryOpenManager(out var found) ? found : default;
         var hand = CardRows(data, Offsets.LuaVoraxHand);
         var chests = ReadChests(manager);
+        var (protocols, bonus) = ReadProtocols(manager, data);
         return new VoraxState(ReadPhase(view, hand), round, rounds, activity, next, chests.Count(c => c != 0), rewards, rerolls, slots, ReadMonsters(data),
-            ReadCards(manager, hand, false), ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests);
+            ReadCards(manager, hand, false), ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests) { Protocols = protocols, RewardBonusPercent = bonus };
+    }
+
+    private (VoraxCard[] Cards, int Bonus) ReadProtocols(LuaTable manager, LuaTable data)
+    {
+        if (!_lua.TryGetTable(data, Offsets.LuaVoraxProtocols, out var list)) return ([], 0);
+        var cards = new List<VoraxCard>();
+        long bonus = 0;
+        for (var i = 1; i <= Offsets.MaxVoraxCards && _lua.TryGetIntAt(list, i, out var raw); i++)
+        {
+            if (raw < int.MinValue || raw > int.MaxValue) continue;
+            var id = (int)raw;
+            var text = Resolve(manager, VoraxCardKind.Modifier, id);
+            cards.Add(new VoraxCard(cards.Count, id, VoraxCardKind.Modifier, text.Rarity) { Name = text.Name, Description = text.Description, TypeName = text.TypeName });
+            if (TryFindInfo(manager, ConfigTypeOf(VoraxCardKind.Modifier), id, out var info, out _) && TryGetInt(info, Offsets.LuaVoraxInfoScoreIncrease, out var inc)) bonus += inc;
+        }
+
+        return ([.. cards], (int)Math.Clamp(bonus, int.MinValue, int.MaxValue));
     }
 
     private bool TryOpenManager(out LuaTable manager)
@@ -85,7 +103,9 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
 
     private VoraxPhase ReadPhase(LuaTable view, LuaTable[] hand) =>
         hand.Any(IsInitRelic) ? VoraxPhase.Instrument :
-        _lua.TryGetString(view, Offsets.LuaVoraxState, out var state) && state == Offsets.VoraxStateRound ? VoraxPhase.Round : VoraxPhase.Other;
+        !_lua.TryGetString(view, Offsets.LuaVoraxState, out var state) ? VoraxPhase.Other :
+        state == Offsets.VoraxStateRound ? VoraxPhase.Round :
+        state == Offsets.VoraxStateRewardRelic ? VoraxPhase.Instrument : VoraxPhase.Other;
 
     private bool IsInitRelic(LuaTable row) => _lua.TryGetBool(row, Offsets.LuaVoraxInitRelic, out var init) && init;
 
