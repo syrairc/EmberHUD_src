@@ -57,7 +57,11 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _hudChildren.Clear();
             _failingSince.Clear();
             if (++_tradeMisses >= 2) _tradePage = 0;
-            if (++_compareTipPanelMisses >= 2) _compareTipPanel = false;
+            if (++_compareTipPanelMisses >= 2)
+            {
+                _compareTipPanel = false;
+                ResetCompareBaseline();
+            }
             if (++_bagMisses >= 2) _bagPage = 0;
             if (++_stashMisses >= 2) _stashPage = 0;
             ui = _last = GameUi.Empty;
@@ -143,10 +147,15 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
 
         if (compareTipPanelSeen)
         {
+            if (!_compareTipPanel) ResetCompareBaseline();
             _compareTipPanel = true;
             _compareTipPanelMisses = 0;
         }
-        else if (++_compareTipPanelMisses >= 2) _compareTipPanel = false;
+        else if (++_compareTipPanelMisses >= 2)
+        {
+            _compareTipPanel = false;
+            ResetCompareBaseline();
+        }
 
         if (bagPage != 0)
         {

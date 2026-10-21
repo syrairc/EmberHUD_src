@@ -16,6 +16,8 @@ internal sealed partial class GameUiReader
     private EquipCompare? _compareShown;
     private bool _compareTipPanel;
     private int _compareTipPanelMisses;
+    private long _compareBaselineVersion;
+    private bool _compareBaselineSet;
     private long _compareReadAt = long.MinValue;
     private long _compareScanAt = long.MinValue;
 
@@ -26,6 +28,7 @@ internal sealed partial class GameUiReader
             _compareTips = [];
             _compareShown = null;
             _compareReadAt = _compareScanAt = long.MinValue;
+            ResetCompareBaseline();
             return null;
         }
 
@@ -40,7 +43,18 @@ internal sealed partial class GameUiReader
             _compareTips = ScanCompareTips();
             found = CompareCandidates();
         }
-        return _compareShown = PickCompare(found.Candidates);
+        return _compareShown = AfterBaseline(PickCompare(found.Candidates));
+    }
+
+    private void ResetCompareBaseline() => _compareBaselineSet = false;
+
+    private EquipCompare? AfterBaseline(EquipCompare? picked)
+    {
+        if (picked is null) return null;
+        if (_compareBaselineSet) return picked.Version != _compareBaselineVersion ? picked : null;
+        _compareBaselineVersion = picked.Version;
+        _compareBaselineSet = true;
+        return null;
     }
 
     private (List<(CompareWidgets Tip, CompareRow[] Rows)> Candidates, bool Stale) CompareCandidates()

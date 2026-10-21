@@ -13,6 +13,8 @@ public sealed class GameUiReaderCompareTests
         public int Next = 10;
         public nint Page;
         public nint TipPanel;
+        public List<(Tip Tip, (string Damage, string Survival, byte Visibility)[] Rows)> Tips = [];
+        public bool Primed;
     }
 
     sealed record Tip(nint Root, nint[] Rows, nint[] Damage, nint[] Survival);
@@ -83,7 +85,9 @@ public sealed class GameUiReaderCompareTests
         ui.SetChildren(itemsPanel, rowWidgets);
 
         scene.Next++;
-        return new Tip(root, rowWidgets, damage, survival);
+        var tip = new Tip(root, rowWidgets, damage, survival);
+        scene.Tips.Add((tip, rows));
+        return tip;
     }
 
     static nint WidgetTreeRoot(Scene scene, nint userWidget)
@@ -97,7 +101,27 @@ public sealed class GameUiReaderCompareTests
 
     static GameUiReader Reader(Scene scene) => scene.World.UiReader(() => scene.Now);
 
+    static void Rewrite(Scene scene, Tip tip, (string Damage, string Survival, byte Visibility)[] rows)
+    {
+        for (var i = 0; i < rows.Length; i++)
+        {
+            scene.Ui.Text(tip.Damage[i], Offsets.TextBlockText, rows[i].Damage);
+            scene.Ui.Text(tip.Survival[i], Offsets.TextBlockText, rows[i].Survival);
+        }
+    }
+
     static EquipCompare? Tick(GameUiReader reader, Scene scene)
+    {
+        if (!scene.Primed && scene.Tips.Count > 0)
+        {
+            scene.Primed = true;
+            TickRaw(reader, scene);
+            foreach (var (tip, rows) in scene.Tips) Rewrite(scene, tip, rows);
+        }
+        return TickRaw(reader, scene);
+    }
+
+    static EquipCompare? TickRaw(GameUiReader reader, Scene scene)
     {
         reader.Read();
         var compare = reader.ReadCompare();
@@ -236,9 +260,11 @@ public sealed class GameUiReaderCompareTests
         scene.Now += Offsets.CompareRefreshMilliseconds;
         scene.World.Memory.Write(scene.Page + Offsets.UWidgetVisibility, (byte)4);
         scene.World.Memory.Write(first.Root + Offsets.UObjectClass, 0L);
-        AddTip(scene, [("+7.0%", "+8.0%", 0)]);
+        var second = AddTip(scene, [("+7.0%", "+8.0%", 0)]);
         reader.Read();
-        Assert.Equal([new CompareRow(7f, 8f)], Rows(Tick(reader, scene)));
+        TickRaw(reader, scene);
+        Rewrite(scene, second, [("+7.0%", "+8.0%", 0)]);
+        Assert.Equal([new CompareRow(7f, 8f)], Rows(TickRaw(reader, scene)));
     }
 
     [Fact]
@@ -307,11 +333,66 @@ public sealed class GameUiReaderCompareTests
     {
         var scene = Open();
         var reader = Reader(scene);
-        Assert.Null(Tick(reader, scene));
-        AddTip(scene, Two);
-        Assert.Null(Tick(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        var tip = AddTip(scene, Two);
+        Assert.Null(TickRaw(reader, scene));
         scene.Now += Offsets.CompareScanMilliseconds;
-        Assert.NotNull(Tick(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        Rewrite(scene, tip, Two);
+        Assert.NotNull(TickRaw(reader, scene));
+    }
+
+    [Fact]
+    public void LeftoverTextIsNullUntilItIsRewritten()
+    {
+        var scene = Open();
+        var reader = Reader(scene);
+        var tip = AddTip(scene, Two);
+        Assert.Null(TickRaw(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        Rewrite(scene, tip, Two);
+        Assert.Equal([new CompareRow(12.3f, -4.4f), new CompareRow(3f, 9.5f)], Rows(TickRaw(reader, scene)));
+        Rewrite(scene, tip, [("+1.0%", "+2.0%", 0), ("+3.0%", "+9.5%", 4)]);
+        Assert.Equal(1f, Rows(TickRaw(reader, scene))[0].Damage);
+    }
+
+    [Fact]
+    public void ReopeningThePanelResetsTheBaseline()
+    {
+        var scene = Open();
+        var reader = Reader(scene);
+        var tip = AddTip(scene, Two);
+        TickRaw(reader, scene);
+        Rewrite(scene, tip, Two);
+        Assert.NotNull(TickRaw(reader, scene));
+        scene.World.Memory.Write(scene.TipPanel + Offsets.UWidgetVisibility, (byte)1);
+        TickRaw(reader, scene);
+        TickRaw(reader, scene);
+        scene.World.Memory.Write(scene.TipPanel + Offsets.UWidgetVisibility, (byte)4);
+        scene.Now += Offsets.CompareScanMilliseconds;
+        Assert.Null(TickRaw(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        Rewrite(scene, tip, Two);
+        Assert.NotNull(TickRaw(reader, scene));
+    }
+
+    [Fact]
+    public void ClosingTheTradePageResetsTheBaseline()
+    {
+        var scene = Open();
+        var reader = Reader(scene);
+        var tip = AddTip(scene, Two);
+        TickRaw(reader, scene);
+        Rewrite(scene, tip, Two);
+        Assert.NotNull(TickRaw(reader, scene));
+        scene.World.Memory.Write(scene.Page + Offsets.UWidgetVisibility, (byte)1);
+        TickRaw(reader, scene);
+        TickRaw(reader, scene);
+        scene.World.Memory.Write(scene.Page + Offsets.UWidgetVisibility, (byte)4);
+        scene.Now += Offsets.CompareScanMilliseconds;
+        Assert.Null(TickRaw(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
     }
 
     [Fact]
@@ -347,7 +428,9 @@ public sealed class GameUiReaderCompareTests
         Assert.Null(Tick(reader, scene));
         scene.World.Memory.Write(scene.TipPanel + Offsets.UWidgetVisibility, (byte)4);
         scene.Now += Offsets.CompareScanMilliseconds;
-        Assert.NotNull(Tick(reader, scene));
+        Assert.Null(TickRaw(reader, scene));
+        Rewrite(scene, scene.Tips[0].Tip, Two);
+        Assert.NotNull(TickRaw(reader, scene));
     }
 
     [Fact]
