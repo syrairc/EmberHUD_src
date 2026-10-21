@@ -8,6 +8,8 @@ namespace EmberHUD.Host.Overlay;
 
 internal sealed class GraphicsDevice : IDisposable
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Overlay");
+
     static readonly FeatureLevel[] Levels = [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0];
 
     public static bool TryCreate(

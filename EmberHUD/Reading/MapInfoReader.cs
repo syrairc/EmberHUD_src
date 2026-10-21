@@ -5,6 +5,8 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocText loc, GameUiReader ui, Names names, Func<long>? clockMilliseconds = null)
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Reader");
+
     private readonly record struct ContentSpec(string Name, bool FromModifier, int Id, string Icon, string State, string ClaimKey);
 
     private static readonly HashSet<int> TownTypes = [.. Offsets.TownSceneTypes.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(s => int.Parse(s, CultureInfo.InvariantCulture))];

@@ -1,3 +1,4 @@
+using EmberHUD.Host.Logging;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Ui;
 using EmberHUD.Host.Update;
@@ -89,9 +90,11 @@ public abstract class SettingsWindowFixture : IDisposable
         return themes;
     }
 
-    internal SettingsWindow Window(PluginHost host, ThemeStore? themes = null, LogBuffer? logs = null)
+    internal LogHub Hub() => new(Path.Combine(_temp.Path, "Logs"), () => DateTime.Now);
+
+    internal SettingsWindow Window(PluginHost host, ThemeStore? themes = null, LogHub? logs = null)
     {
-        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? new LogBuffer(), NoUpdates(), () => { });
+        var window = new SettingsWindow(_fixture.Sdk, host, themes ?? Themes("Plain"), logs ?? Hub(), NoUpdates(), () => { });
         window.Toggle();
         return window;
     }
@@ -116,7 +119,7 @@ public abstract class SettingsWindowFixture : IDisposable
     {
         window.Selected = null;
         var labels = PageRows(Settled(window))[0].OrderBy(glyph => glyph.Min.X).ToList();
-        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length }[tab]].Centre);
+        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length, "General".Length + "Theme".Length + "Hotkeys".Length + "Updater".Length }[tab]].Centre);
     }
 
     internal PluginHost Discovered(params string[] good)

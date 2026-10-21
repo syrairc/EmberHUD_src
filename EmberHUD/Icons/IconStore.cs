@@ -6,6 +6,8 @@ internal delegate bool TextureUpload(string key, byte[] rgba, int width, int hei
 
 internal sealed class IconStore
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Icons");
+
     sealed record Decoded(string Name, DecodedImage? Image, string? Failure);
 
     readonly string _directory;

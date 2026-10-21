@@ -6,6 +6,8 @@ namespace EmberHUD.Host.Overlay;
 
 internal sealed class OverlayLoop : IDisposable
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Overlay");
+
     readonly ITargetSource _source;
     readonly TargetWindow _target;
     readonly ConcurrentQueue<Action> _beforeFrame = new();

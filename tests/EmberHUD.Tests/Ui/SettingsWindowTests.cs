@@ -1,3 +1,4 @@
+using EmberHUD.Host.Logging;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Ui;
 using EmberHUD.Testing;
@@ -61,8 +62,8 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         var good = host.Slots.Single(slot => slot.Name == "Good");
         host.SetEnabled(good, true);
         var themes = new ThemeStore(Path.Combine(AppContext.BaseDirectory, "Themes"), Path.Combine(AppContext.BaseDirectory, "Fonts"), "Torchlight", action => action());
-        var logs = new LogBuffer();
-        logs.Add("100% done %s %d");
+        var logs = Hub();
+        logs.Add(new LogEntry(DateTime.Now, LogLevel.Info, "Host", "100% done %s %d"));
         var window = new SettingsWindow(_fixture.Sdk, host, themes, logs, NoUpdates(), () => { });
         window.Toggle();
 
@@ -373,8 +374,8 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
     public void TheGeneralTabShowsTheGameStatusAndTheLog()
     {
         using var host = Discovered();
-        var logs = new LogBuffer();
-        logs.Add(new string('W', 37));
+        var logs = Hub();
+        logs.Add(new LogEntry(DateTime.Now, LogLevel.Info, "", new string('W', 19)));
         TestGame.Set(GameState.Empty with { Status = new string('Q', 31) });
         var window = Window(host, logs: logs);
         OpenTab(window, 0);
@@ -389,6 +390,24 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         {
             TestGame.Set(GameState.Empty);
         }
+    }
+
+    [Fact]
+    public void TheLoggingTabShowsTheMinimumAndTheGeneralTabHasNoLoggingRows()
+    {
+        using var host = Discovered("Good");
+        var logs = Hub();
+        var window = Window(host, logs: logs);
+
+        OpenTab(window, 0);
+        var general = PageRows(Settled(window)).Select(row => row.Count).ToList();
+        OpenTab(window, 4);
+        var logging = PageRows(Settled(window)).Select(row => row.Count).ToList();
+
+        Assert.Equal(0, ImGui.GetCurrentContext().ErrorCountCurrentFrame);
+        Assert.Contains("Logging".Length, logging);
+        Assert.Contains("Minimumlevel".Length + "Info".Length, logging);
+        Assert.DoesNotContain("Minimumlevel".Length + "Info".Length, general);
     }
 
     [Fact]

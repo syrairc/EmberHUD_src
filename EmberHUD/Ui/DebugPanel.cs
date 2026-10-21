@@ -1,10 +1,11 @@
+using EmberHUD.Host.Logging;
 using EmberHUD.Launcher;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal sealed class DebugPanel(string root, Version version, LogBuffer logs)
+internal sealed class DebugPanel(string root, Version version, LogHub logs)
 {
     const long RefreshMilliseconds = 2000;
     const string Popup = "Dump debug information";
@@ -48,7 +49,7 @@ internal sealed class DebugPanel(string root, Version version, LogBuffer logs)
         ImGui.TextUnformatted($"Player read: {(state.Player is null ? "no" : "yes")}");
 
         Controls.Section("Warnings and errors");
-        Controls.LogView("problems", [.. logs.Snapshot().Where(line => line.StartsWith("Warn") || line.StartsWith("Error"))], 0);
+        Controls.LogView("problems", [.. logs.Recent(200).Where(e => e.Level >= LogLevel.Warn).SelectMany(e => LogFormat.Format(e).Split('\n'))], 0);
         return false;
     }
 }

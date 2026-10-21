@@ -1,3 +1,4 @@
+using EmberHUD.Host.Logging;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -7,8 +8,12 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Plugins;
 
-internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? unloaded = null) : IDisposable
+internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? unloaded = null, PluginLogLevels? pluginLevels = null) : IDisposable
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Loader");
+
+    public PluginLogLevels PluginLevels { get; } = pluginLevels ?? new();
+
     readonly string _config = Path.Combine(root, "Config");
     readonly string _cache = Path.Combine(root, "Cache");
     readonly List<PluginSlot> _slots = [];
@@ -227,12 +232,26 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             using var stream = new MemoryStream(bytes);
             var plugin = (Plugin)Activator.CreateInstance(PluginCompiler.FindPluginType(context.LoadFromStream(stream).GetTypes()))!;
             plugin.Name = slot.Name;
+            PluginLevels.Set(slot.Name, ReadLogLevel(slot, plugin));
             LoadSettings(slot, plugin, PluginCompiler.ReadText(SettingsPath(slot)));
             slot.Order = plugin.Order;
             slot.Instance = plugin;
         });
         SortForRender();
         if (slot.Enabled) Enable(slot);
+    }
+
+    static LogLevel ReadLogLevel(PluginSlot slot, Plugin plugin)
+    {
+        try
+        {
+            return LogLevels.Valid(plugin.DefaultLogLevel);
+        }
+        catch (Exception ex)
+        {
+            EmberHUD.Log.For(slot.Name).Warn($"DefaultLogLevel failed, using Info - {PluginCompiler.Unwrap(ex).Message}");
+            return LogLevel.Info;
+        }
     }
 
     void SortForRender() => _renderOrder = [.. _slots.OrderBy(slot => slot.Order).ThenBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase)];
@@ -296,6 +315,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         if (slot.Enabled && slot.Initialized) Call(slot, PluginStage.Disable, plugin => plugin.OnDisable());
         if (slot.Initialized) Call(slot, PluginStage.Dispose, plugin => plugin.Dispose());
         slot.Instance = null;
+        PluginLevels.Remove(slot.Name);
         slot.Initialized = false;
         slot.ErrorStage = null;
         slot.Error = null;
@@ -344,9 +364,9 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             ImGui.PushID(slot.Name);
             ImGuiP.ErrorRecoveryStoreState(ref state);
         }
-        var outer = Log.CurrentPlugin.Value;
+        var outer = EmberHUD.Log.CurrentPlugin.Value;
         var retag = outer != slot.Name;
-        if (retag) Log.CurrentPlugin.Value = slot.Name;
+        if (retag) EmberHUD.Log.CurrentPlugin.Value = slot.Name;
         try
         {
             action(argument);
@@ -365,7 +385,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         finally
         {
-            if (retag) Log.CurrentPlugin.Value = outer;
+            if (retag) EmberHUD.Log.CurrentPlugin.Value = outer;
             if (inFrame)
             {
                 ImGuiP.ErrorRecoveryTryToRecoverState(ref state);

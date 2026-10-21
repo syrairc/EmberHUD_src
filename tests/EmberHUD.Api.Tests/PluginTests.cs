@@ -13,6 +13,18 @@ public sealed class PluginTests
 
     sealed class BarePlugin : Plugin;
 
+    sealed class DebugPlugin : Plugin
+    {
+        public override LogLevel DefaultLogLevel => LogLevel.Debug;
+    }
+
+    [Fact]
+    public void ThePluginLogLevelDefaultsToInfoAndCanBeOverridden()
+    {
+        Assert.Equal(LogLevel.Info, new BarePlugin().DefaultLogLevel);
+        Assert.Equal(LogLevel.Debug, new DebugPlugin().DefaultLogLevel);
+    }
+
     [Fact]
     public void PluginOfTHandsItsSettingsToTheHost()
     {
