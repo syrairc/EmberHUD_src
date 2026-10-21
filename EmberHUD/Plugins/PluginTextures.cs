@@ -4,6 +4,8 @@ namespace EmberHUD.Host.Plugins;
 
 internal sealed class PluginTextures(Action<Action> beforeFrame, TextureUpload upload, Func<string, Sprite?> resolve, Action<string> release)
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Overlay");
+
     readonly Dictionary<string, Dictionary<string, string>> _owned = [];
     readonly HashSet<string> _warned = [];
 

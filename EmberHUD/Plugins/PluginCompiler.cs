@@ -17,6 +17,8 @@ internal sealed record CompileResult(byte[]? Assembly, IReadOnlyList<string> Dia
 
 internal static class PluginCompiler
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Loader");
+
     static readonly Lazy<MetadataReference[]> References = new(() =>
     {
         var framework = Path.GetDirectoryName(typeof(object).Assembly.Location);

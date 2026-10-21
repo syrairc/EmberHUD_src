@@ -9,6 +9,8 @@ namespace EmberHUD.Host.Plugins;
 
 internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? unloaded = null) : IDisposable
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Loader");
+
     readonly string _config = Path.Combine(root, "Config");
     readonly string _cache = Path.Combine(root, "Cache");
     readonly List<PluginSlot> _slots = [];
@@ -344,9 +346,9 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
             ImGui.PushID(slot.Name);
             ImGuiP.ErrorRecoveryStoreState(ref state);
         }
-        var outer = Log.CurrentPlugin.Value;
+        var outer = EmberHUD.Log.CurrentPlugin.Value;
         var retag = outer != slot.Name;
-        if (retag) Log.CurrentPlugin.Value = slot.Name;
+        if (retag) EmberHUD.Log.CurrentPlugin.Value = slot.Name;
         try
         {
             action(argument);
@@ -365,7 +367,7 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         }
         finally
         {
-            if (retag) Log.CurrentPlugin.Value = outer;
+            if (retag) EmberHUD.Log.CurrentPlugin.Value = outer;
             if (inFrame)
             {
                 ImGuiP.ErrorRecoveryTryToRecoverState(ref state);

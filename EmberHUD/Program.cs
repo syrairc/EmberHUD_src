@@ -61,30 +61,23 @@ if (check)
     return code;
 }
 
-var logs = new LogHub(Path.Combine(root, "Logs"), () => DateTime.Now);
-using var logFile = new StreamWriter(new FileStream(Path.Combine(root, "Logs", "ember.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
-var logGate = new Lock();
+var logsDirectory = Path.Combine(root, "Logs");
+var hub = new LogHub(logsDirectory, () => DateTime.Now);
+using var writer = new DailyLogWriter(logsDirectory, () => DateTime.Now);
+LogStore.Provider = hub;
 Log.Sink = (level, plugin, message) =>
 {
-    var line = $"{DateTime.Now:HH:mm:ss.fff} {LogLine(level, plugin, message)}";
-    lock (logGate)
-    {
-        try
-        {
-            logFile.WriteLine(line);
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        Console.WriteLine(line);
-    }
-    logs.Add(new LogEntry(DateTime.Now, level, plugin ?? "Host", message));
+    var entry = new LogEntry(DateTime.Now, level, plugin ?? "Host", message);
+    hub.Add(entry);
+    writer.Write(entry.Time, LogFormat.Format(entry));
+    Console.WriteLine(LogFormat.Format(entry));
 };
 
 var sdkPath = PluginHost.SdkPath(root);
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
+Log.Filter = LogLevels.Filter(sdk);
 
-using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.Info, fake ? 8 : 33);
+using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.For("Reader").Info, fake ? 8 : 33);
 reader.Start();
 using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
 Send.GameForeground = overlay.GameIsForeground;
@@ -126,15 +119,15 @@ overlay.OnStyle(() =>
 var smoother = new PlayerSmoother();
 var hostVersion = typeof(SdkSettings).Assembly.GetName().Version ?? new Version(0, 0, 0);
 using var updateHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-using var updates = new UpdateService(sdk, root, UpdateService.InstalledVersion(root, hostVersion, Log.Info), updateHttp, Process.Start, Log.Info);
+using var updates = new UpdateService(sdk, root, UpdateService.InstalledVersion(root, hostVersion, Log.For("Updater").Info), updateHttp, Process.Start, Log.For("Updater").Info);
 updates.Start();
 var registeredGame = GameInstall.Registered();
 var gameAssets = new GameAssetsTab(new AssetRows(AssetJobs.Create(Offsets.TradePriceTexture), new JobRunner(Log.Warn), Convert.FromHexString(Offsets.PakAesKey)), gameIconsDirectory, () => GameInstall.Find(LauncherConfig.Load(Path.Combine(root, "Config", "launcher.json"), _ => { })?.GameDirectory ?? "", registeredGame), gameSets.Rescan);
-var window = new SettingsWindow(sdk, plugins, themes, logs, updates, () =>
+var window = new SettingsWindow(sdk, plugins, themes, hub, updates, () =>
 {
     updates.RequestRestart();
     overlay.Stop();
-}, new DebugPanel(root, updates.Installed, logs), gameAssets);
+}, new DebugPanel(root, updates.Installed, hub), gameAssets);
 
 using var tray = TrayIcon.Create("EmberHUD", exePath, () => overlay.TargetHandle, command =>
 {

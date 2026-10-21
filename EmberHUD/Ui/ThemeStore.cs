@@ -44,6 +44,8 @@ internal sealed record ThemeFile
 
 internal sealed class ThemeStore
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Theme");
+
     public const string DefaultTheme = "Torchlight";
 
     static readonly FieldInfo[] StyleFields = [.. Enum.GetNames<ImGuiStyleVar>().Select(name => typeof(ImGuiStyle).GetField(name)).OfType<FieldInfo>()];

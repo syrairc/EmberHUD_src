@@ -5,6 +5,8 @@ namespace EmberHUD.Host.Icons;
 
 internal sealed class SvgIconStore
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Icons");
+
     const int Capacity = 256;
     const int MaxQueued = 64;
 

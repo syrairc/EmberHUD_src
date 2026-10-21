@@ -10,6 +10,8 @@ namespace EmberHUD.Host.Icons;
 
 internal static class SvgIcons
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Icons");
+
     const string ResourcePrefix = "icon:";
 
     static readonly Regex External = new("""@import|(?:xlink:)?href\s*=\s*["'](?!\s*#)|url\(\s*["']?(?!\s*["']?#)""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);

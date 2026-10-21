@@ -5,6 +5,8 @@ namespace EmberHUD.Host.Reading;
 
 internal sealed class LiveGameSource : IGameSource
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Reader");
+
     private static readonly long AttachRetryTicks = Stopwatch.Frequency;
     private static readonly int[] Pristine = Offsets.Snapshot();
 

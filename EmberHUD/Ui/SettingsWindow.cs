@@ -18,6 +18,9 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
     readonly string[] _fontFilters = ["", "", "", ""];
     IReadOnlyList<string>? _fontFiles;
     IReadOnlyList<string>? _themeNames;
+    string[] _seenSources = [];
+    int _logSourcesVersion = -1;
+    static readonly string[] OverrideLabels = ["(default)", .. Enum.GetNames<LogLevel>()];
 
     public PluginSlot? Selected { get; set; }
 
@@ -197,12 +200,37 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.Checkbox("Reload plugins when their source changes", ref sdk.AutoReload);
         if (ImGui.Button("Clear compile cache")) plugins.ClearCache();
 
+        DrawLogging();
+
         Controls.Section("Troubleshooting");
         debug?.DrawButton();
 
         Controls.Section("Log");
         Controls.LogView("log", logs.RecentLines(50), 0);
         return false;
+    }
+
+    void DrawLogging()
+    {
+        Controls.Section("Logging");
+        ImGui.TextUnformatted("Minimum level");
+        ImGui.SameLine();
+        sdk.LogMinimum = LogLevels.Valid(sdk.LogMinimum);
+        Combo.Enum(ref sdk.LogMinimum, "logMinimum");
+        if (_logSourcesVersion != logs.Version)
+        {
+            _logSourcesVersion = logs.Version;
+            _seenSources = [.. logs.Today(5000).Select(entry => entry.Source)];
+        }
+        var overrides = sdk.LogSources;
+        var rows = LogLevels.HostSources.Concat(_seenSources).Concat(plugins.Slots.Select(slot => slot.Name)).Concat(overrides.Keys).Where(source => source.Length > 0).Distinct().Order();
+        foreach (var source in rows)
+        {
+            var index = LogLevels.OverrideIndex(overrides, source);
+            ImGui.TextUnformatted(source);
+            ImGui.SameLine(ControlWidth);
+            if (Combo.Option(ref index, OverrideLabels, "logSource" + source)) LogLevels.SetOverride(sdk, source, LogLevels.FromOverrideIndex(index));
+        }
     }
 
     IEnumerable<(string, string)> FontCandidates()

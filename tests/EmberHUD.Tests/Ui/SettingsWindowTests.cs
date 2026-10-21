@@ -1,3 +1,4 @@
+using EmberHUD.Host.Logging;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Ui;
 using EmberHUD.Testing;
@@ -389,6 +390,26 @@ public sealed class SettingsWindowTests : SettingsWindowFixture
         {
             TestGame.Set(GameState.Empty);
         }
+    }
+
+    [Fact]
+    public void TheGeneralTabDrawsTheLoggingSectionWithSourceOverrides()
+    {
+        using var host = Discovered("Good");
+        var logs = Hub();
+        logs.Add(new LogEntry(DateTime.Now, LogLevel.Info, "Seen", "hello"));
+        LogLevels.SetOverride(_fixture.Sdk, "Pickit", LogLevel.Debug);
+        var window = Window(host, logs: logs);
+        OpenTab(window, 0);
+
+        var rows = PageRows(Settled(window)).Select(row => row.Count).ToList();
+
+        Assert.Contains("Logging".Length, rows);
+        Assert.Contains("Reader".Length + "(default)".Length, rows);
+        Assert.Contains("Good".Length + "(default)".Length, rows);
+        Assert.Contains("Seen".Length + "(default)".Length, rows);
+        Assert.Contains("Pickit".Length + "Debug".Length, rows);
+        Assert.DoesNotContain("Error", _log.Text);
     }
 
     [Fact]

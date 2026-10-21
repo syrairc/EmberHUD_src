@@ -7,6 +7,8 @@ namespace EmberHUD.Host.Overlay;
 
 internal sealed class TextureStore
 {
+    static readonly SourceLog Log = EmberHUD.Log.For("Overlay");
+
     readonly Dictionary<string, (byte[] Pixels, int Width, int Height)> _pixels = [];
     readonly Dictionary<string, (ID3D11Texture2D Texture, ID3D11ShaderResourceView View)> _textures = [];
     ID3D11Device _device = null!;

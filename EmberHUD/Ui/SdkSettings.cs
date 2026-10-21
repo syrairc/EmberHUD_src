@@ -13,6 +13,8 @@ internal sealed class SdkSettings : PluginSettings
     public bool UpdaterEnabled = true;
     public int UpdateIntervalHours = 1;
     public bool OverwriteModifiedPlugins;
+    public LogLevel LogMinimum = LogLevel.Info;
+    public Dictionary<string, LogLevel> LogSources = [];
     public Dictionary<string, PluginState> Plugins = [];
     public Dictionary<string, Dictionary<string, Hotkey>> PluginHotkeys = [];
 
