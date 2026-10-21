@@ -51,6 +51,7 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
     {
         if (!_lua.TryOpen(out var globals) || !_lua.TryGetTable(globals, Offsets.LuaFrozenManager, out var manager) || !TryGetInt(manager, Offsets.LuaFrozenMainState, out var mainState))
             return null;
+        if (!_lua.TryGetBool(manager, Offsets.LuaFrozenInfoInit, out var infoInit) || !infoInit) return null;
 
         var phase = PhaseOf(mainState);
         TryGetInt(manager, Offsets.LuaFrozenDifficulty, out var difficulty);

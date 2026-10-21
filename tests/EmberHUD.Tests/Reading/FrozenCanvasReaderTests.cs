@@ -22,7 +22,7 @@ public class FrozenCanvasReaderTests
         public long Now;
 
         public Fixture(int? mainState = 4, string gameState = "Battle", int? nowNum = 0, int pos = 17, bool withManager = true, string hudText = "", double remaining = 1, bool remainingFloat = false, int[]? plotNos = null, bool withLevelPlots = true,
-            string? drawPage = null, int viewState = 1, bool withModel = true, bool withDrawData = true)
+            string? drawPage = null, int viewState = 1, bool withModel = true, bool withDrawData = true, bool? infoInit = true)
         {
             Lua = new FakeLua(Memory, Module);
             Manager = Lua.NewTable(0, 3);
@@ -36,7 +36,7 @@ public class FrozenCanvasReaderTests
             Lua.SetString(Manager, Offsets.LuaFrozenGameState, gameState);
             Lua.SetInt(Manager, Offsets.LuaFrozenDifficulty, 101);
             Lua.SetInt(Manager, Offsets.LuaFrozenPos, pos);
-            Lua.SetBool(Manager, Offsets.LuaFrozenInfoInit, true);
+            if (infoInit is { } init) Lua.SetBool(Manager, Offsets.LuaFrozenInfoInit, init);
             Lua.SetInt(battle, Offsets.LuaFrozenFreeNum, 11);
             Lua.SetInt(battle, Offsets.LuaFrozenTargetNum, 8);
             if (nowNum is { } now) Lua.SetInt(battle, Offsets.LuaFrozenNowNum, now);
@@ -378,6 +378,12 @@ public class FrozenCanvasReaderTests
 
     [Fact]
     public void NullWithoutTheManager() => Assert.Null(new Fixture(withManager: false).Reader().Read());
+
+    [Fact]
+    public void NullWhenGameInfoIsNotInit() => Assert.Null(new Fixture(infoInit: false).Reader().Read());
+
+    [Fact]
+    public void NullWhenGameInfoInitIsMissing() => Assert.Null(new Fixture(infoInit: null).Reader().Read());
 
     [Fact]
     public void NullWhenMainUiStateIsMissing() => Assert.Null(new Fixture(mainState: null).Reader().Read());

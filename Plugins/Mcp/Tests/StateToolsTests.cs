@@ -529,6 +529,31 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetFrozenCanvasReportsTheDrawBlockAndStackedPaints()
+    {
+        FrozenCanvasPaint[] bag = [new(100101, 1001, 1, false), new(100203, 1002, 3, false)];
+        var stacked = new FrozenCanvasPlot(11, 5, 1, FrozenCanvasPlotKind.Free, 100203, 3, false, false) { Stacked = [bag[0], bag[1]] };
+        var canvas = new FrozenCanvasState(FrozenCanvasPhase.Draw, 101, [stacked, new FrozenCanvasPlot(12, 0, 2, FrozenCanvasPlotKind.Free, 0, 0, false, false)], 0, 0, 0, 0, 0, [])
+        {
+            Draw = new FrozenCanvasDraw(FrozenCanvasScreen.Bag, 3, 11, 5, 1, 2, 4, 5, 0, true, "", "", bag, [], 9),
+        };
+        TestGame.Set(GameState.Empty with { FrozenCanvas = canvas });
+        var result = Wire.Run(Tools, "get_frozen_canvas");
+        var draw = result["draw"]!;
+        Check.Equal("Bag", (string?)draw["screen"]);
+        Check.Equal(3, (int)draw["placed"]!);
+        Check.Equal(2, (int)draw["bagSize"]!);
+        Check.Equal(2, (int)draw["reviveMax"]!);
+        Check.Equal(5, (int)draw["rerollsMax"]!);
+        Check.Equal(true, (bool)draw["canUninstall"]!);
+        Check.Equal(9, (int)draw["maxPaper"]!);
+        Check.Equal(100203, (int)draw["bag"]![1]!);
+        Check.Equal(2, result["plots"]![0]!["stacked"]!.AsArray().Count);
+        Check.Equal(100101, (int)result["plots"]![0]!["stacked"]![0]!);
+        Check.That(result["plots"]![1]!["stacked"] is null, "no stacked key when empty");
+    }
+
+    [Test]
     public void GetFrozenCanvasWithoutStateIsNotReady()
     {
         TestGame.Set(GameState.Empty);

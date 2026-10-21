@@ -229,8 +229,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         new(FrozenCanvasPhase.Battle, 101,
             [.. Enumerable.Range(0, 36).Select(slot => new FrozenCanvasPlot(slot, slot % 6, slot / 6,
                 FakeFreeSlots.Contains(slot) ? FrozenCanvasPlotKind.Free : FrozenCanvasPlotKind.Void,
-                slot is 19 or 20 or 21 or 25 ? 100200 + slot % 5 : 0, slot is 19 or 20 or 21 or 25 ? 3 : 0, slot is 20 or 21 or 25, slot == 19))],
-            0, 11, 8, 6, 6, [new FrozenCanvasReward(330001, 10)]);
+                slot is 19 or 20 or 21 or 25 ? 100201 + slot % 5 : 0, slot is 19 or 20 or 21 or 25 ? 1 + slot % 5 : 0, slot is 20 or 21 or 25, slot == 19))],
+            4, 11, 8, 6, 6, [new FrozenCanvasReward(330001, 10)]);
 
     internal static CombatStats CombatAt(long now)
     {

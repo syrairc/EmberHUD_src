@@ -66,18 +66,7 @@ internal static class StateTools
             ["challengesLeft"] = canvas.ChallengesLeft,
             ["challengesTotal"] = canvas.ChallengesTotal,
             ["rewards"] = new JsonArray([.. canvas.Rewards.Select(reward => (JsonNode)new JsonObject { ["itemId"] = reward.ItemId, ["count"] = reward.Count })]),
-            ["plots"] = new JsonArray([.. canvas.Plots.Where(plot => plot.Kind != FrozenCanvasPlotKind.Unknown || plot.PaintId != 0).Select(plot => (JsonNode)new JsonObject
-            {
-                ["slot"] = plot.Slot,
-                ["x"] = plot.X,
-                ["y"] = plot.Y,
-                ["kind"] = plot.Kind.ToString(),
-                ["paintId"] = plot.PaintId,
-                ["paintName"] = plot.PaintName,
-                ["level"] = plot.Level,
-                ["servant"] = plot.Servant,
-                ["player"] = plot.Player,
-            })]),
+            ["plots"] = new JsonArray([.. canvas.Plots.Where(plot => plot.Kind != FrozenCanvasPlotKind.Unknown || plot.PaintId != 0).Select(plot => (JsonNode)PlotJson(plot))]),
         };
         if (canvas.Objective is { } objective)
             result["objective"] = new JsonObject { ["description"] = objective.Description, ["done"] = objective.Done, ["secondsLeft"] = Num.F(objective.SecondsLeft) };
@@ -89,14 +78,37 @@ internal static class StateTools
                 ["total"] = draw.Total,
                 ["maxLevel"] = draw.MaxLevel,
                 ["revives"] = draw.Revives,
+                ["reviveMax"] = draw.ReviveMax,
                 ["rerolls"] = draw.Rerolls,
+                ["rerollsMax"] = draw.RerollsMax,
                 ["uninstalls"] = draw.Uninstalls,
+                ["canUninstall"] = draw.CanUninstall,
+                ["maxPaper"] = draw.MaxPaper,
+                ["bag"] = new JsonArray([.. draw.Bag.Select(paint => (JsonNode)paint.Id)]),
                 ["mission"] = draw.Mission,
                 ["missionDetail"] = draw.MissionDetail,
                 ["papers"] = new JsonArray([.. draw.Papers.Select(paper => (JsonNode)new JsonObject { ["level"] = paper.Level, ["name"] = paper.Name, ["description"] = paper.Description, ["cost"] = paper.Cost, ["locked"] = paper.Locked, ["selected"] = paper.Selected })]),
                 ["bagSize"] = draw.Bag.Length,
             };
         return result;
+    }
+
+    static JsonObject PlotJson(FrozenCanvasPlot plot)
+    {
+        var json = new JsonObject
+        {
+            ["slot"] = plot.Slot,
+            ["x"] = plot.X,
+            ["y"] = plot.Y,
+            ["kind"] = plot.Kind.ToString(),
+            ["paintId"] = plot.PaintId,
+            ["paintName"] = plot.PaintName,
+            ["level"] = plot.Level,
+            ["servant"] = plot.Servant,
+            ["player"] = plot.Player,
+        };
+        if (plot.Stacked.Length > 0) json["stacked"] = new JsonArray([.. plot.Stacked.Select(paint => (JsonNode)paint.Id)]);
+        return json;
     }
 
     static JsonObject GetVorax()

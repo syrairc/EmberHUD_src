@@ -180,6 +180,10 @@ public class FakeGameSourceTests
             Assert.Equal(FrozenCanvasPhase.Battle, canvas.Phase);
             Assert.Equal(11, canvas.PlotsTotal);
             Assert.Equal(11, canvas.Plots.Count(p => p.Kind == FrozenCanvasPlotKind.Free));
+            var painted = canvas.Plots.Where(p => p.PaintId != 0).ToArray();
+            Assert.Equal(canvas.PlotsDone, painted.Length);
+            Assert.All(painted, p => Assert.Equal(p.PaintId % 100, p.Level));
+            Assert.All(painted, p => Assert.InRange(p.Level, 1, 7));
         }
         finally { Game.FrozenCanvasAsked = 0; }
     }
