@@ -18,6 +18,7 @@ public class FrozenCanvasReaderTests
         public readonly LuaTable Widget;
         public LuaTable Model;
         public LuaTable DrawTable;
+        public readonly List<LuaTable> PlotRows = [];
         public long Now;
 
         public Fixture(int? mainState = 4, string gameState = "Battle", int? nowNum = 0, int pos = 17, bool withManager = true, string hudText = "", double remaining = 1, bool remainingFloat = false, int[]? plotNos = null, bool withLevelPlots = true,
@@ -115,6 +116,7 @@ public class FrozenCanvasReaderTests
             for (var position = 1; position <= 36; position++)
             {
                 var row = Lua.NewTable(0, 2);
+                PlotRows.Add(row);
                 Lua.SetString(row, Offsets.LuaFrozenPlotFinalType, position <= 11 ? "S8_Free" : position == 12 ? "S8_Internal_Block" : "S8_Nihility");
                 var original = Lua.NewTable(2, 0);
                 if (position == 11)
@@ -518,6 +520,20 @@ public class FrozenCanvasReaderTests
         var reader = new FrozenCanvasReader(hooked, Module, null, () => f.Now);
         var first = reader.Read()!;
         hooked.Trigger = f.DrawTable.Address;
+        hooked.Fire = () => f.Lua.ReplaceTable(f.Model, Offsets.LuaFrozenDrawData, f.Lua.NewTable(0, 0));
+        f.Now = long.MaxValue / 2;
+        Assert.Same(first, reader.Read());
+        Assert.Null(hooked.Fire);
+    }
+
+    [Fact]
+    public void ATornDrawBoardKeepsThePreviousState()
+    {
+        var f = new Fixture(mainState: 3, drawPage: Page, viewState: 8);
+        var hooked = new SwapOnRead(f.Memory);
+        var reader = new FrozenCanvasReader(hooked, Module, null, () => f.Now);
+        var first = reader.Read()!;
+        hooked.Trigger = f.PlotRows[4].Address;
         hooked.Fire = () => f.Lua.ReplaceTable(f.Model, Offsets.LuaFrozenDrawData, f.Lua.NewTable(0, 0));
         f.Now = long.MaxValue / 2;
         Assert.Same(first, reader.Read());

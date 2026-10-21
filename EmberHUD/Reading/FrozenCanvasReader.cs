@@ -56,12 +56,12 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
         TryGetInt(manager, Offsets.LuaFrozenDifficulty, out var difficulty);
         var hasPage = TryOpenDraw(out var luaObject, out var model, out var drawData);
         var draw = hasPage ? ReadDraw(manager, luaObject, model, drawData) : null;
-        var drawTorn = hasPage && !(_lua.TryGetTable(model, Offsets.LuaFrozenDrawData, out var drawAgain) && drawAgain == drawData);
+        bool DrawTorn() => hasPage && !(_lua.TryGetTable(model, Offsets.LuaFrozenDrawData, out var drawAgain) && drawAgain == drawData);
 
         if (phase != FrozenCanvasPhase.Battle)
         {
             var plots = phase == FrozenCanvasPhase.Draw && hasPage ? ReadDrawPlots(drawData) : [];
-            return drawTorn ? _state : new FrozenCanvasState(phase, difficulty, plots, 0, 0, 0, 0, 0, []) { Draw = draw };
+            return DrawTorn() ? _state : new FrozenCanvasState(phase, difficulty, plots, 0, 0, 0, 0, 0, []) { Draw = draw };
         }
 
         if (!_lua.TryGetTable(manager, Offsets.LuaFrozenInfo, out var info) || !_lua.TryGetTableAt(info, Offsets.FrozenStateBattle, out var battle) ||
@@ -69,7 +69,7 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
             return null;
 
         var result = ReadBattle(manager, difficulty, battle, levelPlots) with { Draw = draw };
-        return !drawTorn && _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots ? result : _state;
+        return !DrawTorn() && _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots ? result : _state;
     }
 
     private bool TryOpenDraw(out LuaTable luaObject, out LuaTable model, out LuaTable drawData)
