@@ -393,6 +393,27 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void VoraxKeysExist()
+    {
+        Assert.Equal("ViewMgr", Offsets.LuaVoraxViewManager);
+        Assert.Equal("SingleViewList", Offsets.LuaVoraxViewList);
+        Assert.Equal("S13GamePlayMainCtrl", Offsets.LuaVoraxPageSuffix);
+        Assert.Equal("ViewData", Offsets.LuaVoraxViewData);
+        Assert.Equal("BaseAttr", Offsets.LuaVoraxBaseAttr);
+        Assert.Equal("S13GamePlayMgr", Offsets.LuaVoraxManager);
+        Assert.Equal("S13CardPlay_NormalRound", Offsets.VoraxStateRound);
+        Assert.Equal(4, Offsets.VoraxAttrRound);
+        Assert.Equal(2, Offsets.VoraxAttrRounds);
+        Assert.Equal(1, Offsets.VoraxAttrRerolls);
+        Assert.Equal(3, Offsets.VoraxAttrSlots);
+        Assert.Equal(102, Offsets.VoraxTypePotion);
+        Assert.Equal("TextTable_GameFunc|value|", Offsets.VoraxTypeNamePrefix);
+        Assert.Equal(100, Offsets.VoraxRefreshMilliseconds);
+        Assert.Equal(3, Offsets.VoraxWantedSeconds);
+        Assert.Equal("map_gameplay_season_plague_card_monster|name|", Offsets.VoraxMonsterNameKey);
+    }
+
+    [Fact]
     public void GroundItemKeysExist()
     {
         Assert.Equal("GroundMgr", Offsets.LuaGroundManager);
