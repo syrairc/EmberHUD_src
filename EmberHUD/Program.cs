@@ -5,6 +5,7 @@ using EmberHUD.Assets;
 using EmberHUD.Launcher;
 using EmberHUD.Host;
 using EmberHUD.Host.Icons;
+using EmberHUD.Host.Logging;
 using EmberHUD.Host.Overlay;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Reading;
@@ -60,7 +61,7 @@ if (check)
     return code;
 }
 
-var logs = new LogBuffer();
+var logs = new LogHub(Path.Combine(root, "Logs"), () => DateTime.Now);
 using var logFile = new StreamWriter(new FileStream(Path.Combine(root, "Logs", "ember.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
 var logGate = new Lock();
 Log.Sink = (level, plugin, message) =>
@@ -77,7 +78,7 @@ Log.Sink = (level, plugin, message) =>
         }
         Console.WriteLine(line);
     }
-    logs.Add(line);
+    logs.Add(new LogEntry(DateTime.Now, level, plugin ?? "Host", message));
 };
 
 var sdkPath = PluginHost.SdkPath(root);

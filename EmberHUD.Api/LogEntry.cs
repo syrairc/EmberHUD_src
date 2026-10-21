@@ -8,7 +8,7 @@ public static partial class LogFormat
 {
     const string Indent = "    ";
 
-    [GeneratedRegex(@"^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)\.(\d{3}) (TRACE|DEBUG|INFO |WARN |ERROR) \[([^\]]*)\] ?(.*)$")]
+    [GeneratedRegex(@"^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])\.([0-9]{3}) (TRACE|DEBUG|INFO |WARN |ERROR) \[([^\]]*)\] ?(.*)$")]
     private static partial Regex HeaderLine();
 
     public static string Level(LogLevel level) => level.ToString().ToUpperInvariant().PadRight(5);

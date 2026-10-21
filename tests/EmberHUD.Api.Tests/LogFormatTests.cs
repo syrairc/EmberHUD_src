@@ -63,6 +63,16 @@ public class LogFormatTests
     }
 
     [Fact]
+    public void UnicodeDigitsInAHeaderMakeAStrayEntry()
+    {
+        var parsed = LogFormat.Parse(["١٠:٤٢:١٧.٥١٢ INFO  [x] y", "1٠:42:17.512 INFO  [x] y", "10:42:17.٥١٢ INFO  [x] y"], Day);
+
+        Assert.Equal(3, parsed.Count);
+        Assert.All(parsed, e => Assert.Equal("", e.Source));
+        Assert.All(parsed, e => Assert.Equal(new DateTime(2026, 10, 21), e.Time));
+    }
+
+    [Fact]
     public void LevelNamesArePaddedToFive()
     {
         foreach (var level in Enum.GetValues<LogLevel>()) Assert.Equal(5, LogFormat.Level(level).Length);

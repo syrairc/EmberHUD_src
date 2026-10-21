@@ -1,3 +1,4 @@
+using EmberHUD.Host.Logging;
 using System.Numerics;
 using EmberHUD.Host.Plugins;
 using EmberHUD.Host.Update;
@@ -6,7 +7,7 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogBuffer logs, UpdateService updates, Action applyAndRestart, DebugPanel? debug = null, GameAssetsTab? assets = null)
+internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeStore themes, LogHub logs, UpdateService updates, Action applyAndRestart, DebugPanel? debug = null, GameAssetsTab? assets = null)
 {
     internal const float ListWidth = 190f;
     internal const float ControlWidth = 260f;
@@ -200,7 +201,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         debug?.DrawButton();
 
         Controls.Section("Log");
-        Controls.LogView("log", logs.Snapshot(), 0);
+        Controls.LogView("log", logs.RecentLines(50), 0);
         return false;
     }
 
