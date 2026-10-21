@@ -519,6 +519,23 @@ public class LuaReaderTests
     }
 
     [Fact]
+    public void TryGetNumberReadsIntsAndFloatsByKey()
+    {
+        var (_, lua, reader) = Fixture();
+        Assert.True(reader.TryOpen(out _));
+        var table = lua.NewTable(0, 3);
+        lua.SetFloat(table, "seconds", 42.5);
+        lua.SetInt(table, "whole", 7);
+        lua.SetString(table, "name", "x");
+        Assert.True(reader.TryGetNumber(table, "seconds", out var seconds));
+        Assert.Equal(42.5, seconds);
+        Assert.True(reader.TryGetNumber(table, "whole", out var whole));
+        Assert.Equal(7, whole);
+        Assert.False(reader.TryGetNumber(table, "name", out _));
+        Assert.False(reader.TryGetNumber(table, "missing", out _));
+    }
+
+    [Fact]
     public void TryGetStringCutKeepsTheStartOfALongString()
     {
         var (_, lua, reader) = Fixture();
