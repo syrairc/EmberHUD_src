@@ -49,6 +49,13 @@ public static class TestGame
         return Game.VoraxAsked != 0;
     }
 
+    public static bool FrozenCanvasAskedDuring(Action run)
+    {
+        Game.FrozenCanvasAsked = 0;
+        run();
+        return Game.FrozenCanvasAsked != 0;
+    }
+
     public static bool GroundItemsAskedDuring(Action run)
     {
         Game.GroundItemsAsked = 0;

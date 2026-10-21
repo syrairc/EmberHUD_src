@@ -16,6 +16,7 @@ public static class Game
     static long _tartarusAsked;
     static long _tarotAsked;
     static long _voraxAsked;
+    static long _frozenCanvasAsked;
     static long _groundItemsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
@@ -168,6 +169,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantFrozenCanvas() => Interlocked.Exchange(ref _frozenCanvasAsked, Stopwatch.GetTimestamp());
+
+    internal static long FrozenCanvasAsked
+    {
+        get => Interlocked.Read(ref _frozenCanvasAsked);
+        set => Interlocked.Exchange(ref _frozenCanvasAsked, value);
+    }
+
+    internal static bool FrozenCanvasWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _frozenCanvasAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     public static void WantGroundItems() => Interlocked.Exchange(ref _groundItemsAsked, Stopwatch.GetTimestamp());
 
     internal static long GroundItemsAsked
@@ -248,6 +263,9 @@ public sealed record GameState
     public TarotState? Tarot { get; init; }
 
     public VoraxState? Vorax { get; init; }
+
+    public FrozenCanvasState? FrozenCanvas { get; init; }
+
     public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }
