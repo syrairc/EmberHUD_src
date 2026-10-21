@@ -449,6 +449,39 @@ public class VoraxReaderTests
         Assert.Equal(Offsets.MaxVoraxCards, f.Reader(LocOf(Texts())).Read()!.Offered.Length);
     }
 
+    [Fact]
+    public void MonsterCardsGetTheirNameFromTheMonsterLocKey()
+    {
+        var f = Cards();
+        f.HandCard(3, 14, 101);
+        var texts = Texts();
+        texts[Offsets.VoraxMonsterNameKey + "14"] = "Bone Warden";
+        var card = f.Reader(LocOf(texts)).Read()!.Offered[3];
+        Assert.Equal(VoraxCardKind.Monster, card.Kind);
+        Assert.Equal("Bone Warden", card.Name);
+        Assert.Equal("", card.Description);
+    }
+
+    [Fact]
+    public void MonstersAreSortedBySlotNotTableKey()
+    {
+        var f = new Fixture(defaultMonsters: false);
+        f.Monster(1, 2, 201, 1, 341, 2, 4);
+        f.Monster(2, 0, 202, 1, 300, 4, 14);
+        f.Monster(3, 1, 201, 24, 5, 2, 3);
+        Assert.Equal([0, 1, 2], f.Reader().Read()!.Monsters.Select(m => m.Slot));
+    }
+
+    [Fact]
+    public void CardsAreSortedBySlotNotTableKey()
+    {
+        var f = new Fixture();
+        f.HandCard(2, 205, 102);
+        f.HandCard(0, 202, 102);
+        f.HandCard(1, 102, 102);
+        Assert.Equal([0, 1, 2], f.Reader().Read()!.Offered.Select(c => c.Slot));
+    }
+
     private sealed class SwapOnRead(FakeMemory inner) : EmberHUD.Host.Memory.IReadBackend
     {
         public nint Trigger;

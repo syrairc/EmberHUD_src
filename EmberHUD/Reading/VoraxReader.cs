@@ -101,7 +101,7 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     }
 
     private VoraxCard[] ReadCards(LuaTable manager, LuaTable[] rows, bool owned) =>
-        [.. rows.Select((row, position) => (ok: TryReadCard(manager, row, position, owned, out var card), card)).Where(r => r.ok).Select(r => r.card)];
+        [.. rows.Select((row, position) => (ok: TryReadCard(manager, row, position, owned, out var card), card)).Where(r => r.ok).Select(r => r.card).OrderBy(c => c.Slot)];
 
     private bool TryReadCard(LuaTable manager, LuaTable row, int position, bool owned, out VoraxCard card)
     {
@@ -136,9 +136,16 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     {
         if (kind == VoraxCardKind.Unknown) return CardText.Empty;
         if (_texts.TryGetValue((kind, id), out var cached)) return cached;
-        if (!TryFindInfo(manager, ConfigTypeOf(kind), id, out var info, out var tableIndex)) return CardText.Empty;
-
+        var found = TryFindInfo(manager, ConfigTypeOf(kind), id, out var info, out var tableIndex);
         var keys = Offsets.VoraxTypeNameKeys.Split(',');
+        if (!found)
+        {
+            if (kind != VoraxCardKind.Monster || tableIndex < 0) return CardText.Empty;
+            var monster = new CardText(0, MonsterName(id), "", TypeName(keys, tableIndex));
+            if (monster.Name.Length > 0) _texts[(kind, id)] = monster;
+            return monster;
+        }
+
         var parameters = new List<int>();
         if (_lua.TryGetTable(info, Offsets.LuaVoraxInfoParams, out var list))
             while (parameters.Count < MaxDescParams && _lua.TryGetIntAt(list, parameters.Count + 1, out var value) && value is >= int.MinValue and <= int.MaxValue)
@@ -148,15 +155,19 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
             TryGetInt(info, Offsets.LuaVoraxInfoRarity, out var rarity) ? rarity : 0,
             _lua.TryGetString(info, Offsets.LuaVoraxInfoName, out var nameKey) ? Text(nameKey) : "",
             _lua.TryGetString(info, Offsets.LuaVoraxInfoDesc, out var descKey) ? VoraxText.StripRichText(VoraxText.FillParams(Text(descKey), parameters)) : "",
-            tableIndex >= 0 && tableIndex < keys.Length ? Text(Offsets.VoraxTypeNamePrefix + keys[tableIndex]) : "");
+            TypeName(keys, tableIndex));
         if (text.Name.Length > 0 && text.Description.Length > 0) _texts[(kind, id)] = text;
         return text;
     }
 
+    private string TypeName(string[] keys, int tableIndex) => tableIndex >= 0 && tableIndex < keys.Length ? Text(Offsets.VoraxTypeNamePrefix + keys[tableIndex]) : "";
+
+    private string MonsterName(int id) => Text(Offsets.VoraxMonsterNameKey + id.ToString(CultureInfo.InvariantCulture));
+
     private bool TryFindInfo(LuaTable manager, int type, int id, out LuaTable info, out int tableIndex)
     {
         info = default;
-        tableIndex = 0;
+        tableIndex = -1;
         if (!_lua.TryGetTable(manager, Offsets.LuaVoraxConfigType, out var config) || !_lua.TryGetIntAt(config, type, out var index) || index < 0 || index > int.MaxValue) return false;
         tableIndex = (int)index;
         return _lua.TryGetTable(manager, Offsets.LuaVoraxTables, out var tables) && _lua.TryGetTableAt(tables, index, out var table) &&
@@ -167,7 +178,7 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     {
         if (!_lua.TryGetTable(data, Offsets.LuaVoraxMonsters, out var bag)) return [];
         var rows = _lua.IntKeyedTables(bag).OrderBy(r => r.Key).Take(Offsets.MaxVoraxMonsters).ToArray();
-        return [.. rows.Select((r, position) => (ok: TryReadMonster(r.Value, position, out var monster), monster)).Where(r => r.ok).Select(r => r.monster)];
+        return [.. rows.Select((r, position) => (ok: TryReadMonster(r.Value, position, out var monster), monster)).Where(r => r.ok).Select(r => r.monster).OrderBy(m => m.Slot)];
     }
 
     private bool TryReadMonster(LuaTable row, int position, out VoraxMonster monster)
@@ -181,7 +192,7 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         var slot = TryGetInt(row, Offsets.LuaVoraxIndex, out var index) ? index : position;
         monster = new VoraxMonster(slot, id, species, rarity, count, activity)
         {
-            Name = Text(Offsets.VoraxMonsterNameKey + id.ToString(CultureInfo.InvariantCulture)),
+            Name = MonsterName(id),
             RarityName = Text(Offsets.VoraxRarityNameKey + rarity.ToString(CultureInfo.InvariantCulture)),
         };
         return true;
