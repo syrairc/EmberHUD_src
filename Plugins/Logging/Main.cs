@@ -20,10 +20,12 @@ public sealed class Main : Plugin<Settings>
     int _sourceEpoch;
     string[] _sourceNames = [];
     string _sourcePreview = "All sources";
+    internal Func<DateTime> Now = () => DateTime.Now;
     DateOnly[] _days = [];
     string[] _dayLabels = ["Today"];
     bool _levelSet;
 
+    internal int Loads => _loads;
     internal int FilterRuns { get; private set; }
     internal LogEntry[] Shown { get; private set; } = [];
     internal LogRow[] Rows { get; private set; } = [];
@@ -65,7 +67,8 @@ public sealed class Main : Plugin<Settings>
             _levelSet = true;
         }
         var max = MaxLines;
-        var rawKey = (Paused && _raw is not null ? _rawKey.Version : LogStore.Version, DateTime.Now.Date, Day, max);
+        if (Day is { } picked && picked == DateOnly.FromDateTime(Now().Date)) Day = null;
+        var rawKey = (Day is not null ? 0 : Paused && _raw is not null ? _rawKey.Version : LogStore.Version, Now().Date, Day, max);
         if (_raw is null || rawKey != _rawKey)
         {
             _rawKey = rawKey;
@@ -94,7 +97,7 @@ public sealed class Main : Plugin<Settings>
         if (!_daysThrottle.Due()) return;
         try
         {
-            _days = LogStore.Days().OrderByDescending(day => day).ToArray();
+            _days = LogFilter.FileDays(LogStore.Days(), DateOnly.FromDateTime(Now().Date));
         }
         catch (Exception)
         {

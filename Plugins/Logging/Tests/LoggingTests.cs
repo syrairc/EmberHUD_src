@@ -307,4 +307,58 @@ public sealed class LoggingTests
             TestLog.Reset();
         }
     }
+
+    [Test]
+    public void AnOlderDayIsNotReReadWhenTheStoreVersionBumps()
+    {
+        try
+        {
+            TestLog.Use(Sample());
+            var plugin = new Main { Day = new DateOnly(2020, 1, 1) };
+            TestFrame.Vertices(plugin.Render);
+            plugin.Day = new DateOnly(2020, 1, 1);
+            TestFrame.Vertices(plugin.Render);
+            var loads = plugin.Loads;
+            TestLog.Use(Sample());
+            TestFrame.Vertices(plugin.Render);
+            TestLog.Use(Sample());
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(loads, plugin.Loads);
+            plugin.Day = new DateOnly(2020, 1, 2);
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(loads + 1, plugin.Loads);
+            plugin.Settings.MaxLines = 300;
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(loads + 2, plugin.Loads);
+            var date = DateTime.Now.Date;
+            plugin.Now = () => date.AddDays(1);
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(loads + 3, plugin.Loads);
+        }
+        finally
+        {
+            TestLog.Reset();
+        }
+    }
+
+    [Test]
+    public void TodayIsNeverAFileDayAndASelectedTodayIsTheLiveView()
+    {
+        var today = new DateOnly(2026, 10, 21);
+        var days = LogFilter.FileDays([new(2026, 10, 19), today, new(2026, 10, 20)], today);
+        Check.Equal(2, days.Length);
+        Check.Equal(new DateOnly(2026, 10, 20), days[0]);
+        try
+        {
+            TestLog.Use(Sample());
+            var plugin = new Main { Day = DateOnly.FromDateTime(DateTime.Now) };
+            TestFrame.Vertices(plugin.Render);
+            Check.That(plugin.Day is null, "today picked as a day becomes the live view");
+            Check.Equal(3, plugin.Shown.Length);
+        }
+        finally
+        {
+            TestLog.Reset();
+        }
+    }
 }

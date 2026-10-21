@@ -48,5 +48,7 @@ static class LogFilter
         return rows.ToArray();
     }
 
+    public static DateOnly[] FileDays(IEnumerable<DateOnly> days, DateOnly today) => days.Where(day => day != today).OrderByDescending(day => day).ToArray();
+
     static bool Contains(string? text, string search) => text is not null && text.Contains(search, StringComparison.OrdinalIgnoreCase);
 }
