@@ -149,7 +149,8 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
             _lua.TryGetString(info, Offsets.LuaVoraxInfoName, out var nameKey) ? Text(nameKey) : "",
             _lua.TryGetString(info, Offsets.LuaVoraxInfoDesc, out var descKey) ? VoraxText.StripRichText(VoraxText.FillParams(Text(descKey), parameters)) : "",
             tableIndex >= 0 && tableIndex < keys.Length ? Text(Offsets.VoraxTypeNamePrefix + keys[tableIndex]) : "");
-        return _texts[(kind, id)] = text;
+        if (text.Name.Length > 0 && text.Description.Length > 0) _texts[(kind, id)] = text;
+        return text;
     }
 
     private bool TryFindInfo(LuaTable manager, int type, int id, out LuaTable info, out int tableIndex)

@@ -426,6 +426,22 @@ public class VoraxReaderTests
     }
 
     [Fact]
+    public void EmptyTextIsNotCached()
+    {
+        var f = Cards();
+        var texts = new Dictionary<string, string>();
+        var reader = f.Reader(LocOf(texts));
+        var first = reader.Read()!.Offered[0];
+        Assert.Equal("", first.Name);
+        Assert.Equal("", first.Description);
+        foreach (var (k, v) in Texts()) texts[k] = v;
+        f.Now = System.Diagnostics.Stopwatch.Frequency * (Offsets.VoraxRefreshMilliseconds + 1) / 1000;
+        var second = reader.Read()!.Offered[0];
+        Assert.Equal("Gray Matter Spinal Solution", second.Name);
+        Assert.Equal(GrayText, second.Description);
+    }
+
+    [Fact]
     public void MoreCardsThanTheCapAreTruncated()
     {
         var f = Cards();
