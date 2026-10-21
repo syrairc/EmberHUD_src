@@ -7,6 +7,8 @@ namespace EmberHUD.Host.Reading;
 internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, Func<string, string?>? loc = null, Func<long>? clock = null)
 {
     private const int MaxRewards = 16;
+    private const int MaxPapers = 16;
+    private const int MaxPages = 32;
 
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LuaReader _lua = new(memory, moduleBase);
@@ -52,14 +54,76 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
 
         var phase = PhaseOf(mainState);
         TryGetInt(manager, Offsets.LuaFrozenDifficulty, out var difficulty);
-        if (phase != FrozenCanvasPhase.Battle) return new FrozenCanvasState(phase, difficulty, [], 0, 0, 0, 0, 0, []);
+        var hasPage = TryOpenDraw(out var luaObject, out var model, out var drawData);
+        var draw = hasPage ? ReadDraw(manager, luaObject, model, drawData) : null;
+        var drawTorn = hasPage && !(_lua.TryGetTable(model, Offsets.LuaFrozenDrawData, out var drawAgain) && drawAgain == drawData);
+
+        if (phase != FrozenCanvasPhase.Battle)
+        {
+            var plots = phase == FrozenCanvasPhase.Draw && hasPage ? ReadDrawPlots(drawData) : [];
+            return drawTorn ? _state : new FrozenCanvasState(phase, difficulty, plots, 0, 0, 0, 0, 0, []) { Draw = draw };
+        }
 
         if (!_lua.TryGetTable(manager, Offsets.LuaFrozenInfo, out var info) || !_lua.TryGetTableAt(info, Offsets.FrozenStateBattle, out var battle) ||
             !_lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var levelPlots))
             return null;
 
-        var result = ReadBattle(manager, difficulty, battle, levelPlots);
-        return _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots ? result : _state;
+        var result = ReadBattle(manager, difficulty, battle, levelPlots) with { Draw = draw };
+        return !drawTorn && _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots ? result : _state;
+    }
+
+    private bool TryOpenDraw(out LuaTable luaObject, out LuaTable model, out LuaTable drawData)
+    {
+        luaObject = model = drawData = default;
+        return _lua.TryOpen(out var globals) &&
+            _lua.TryGetTable(globals, Offsets.LuaFrozenViewManager, out var views) &&
+            _lua.TryGetTable(views, Offsets.LuaFrozenViewList, out var list) &&
+            TryFindPage(list, out var page) &&
+            _lua.TryGetTable(page, Offsets.LuaFrozenObject, out luaObject) &&
+            _lua.TryGetTable(luaObject, Offsets.LuaFrozenModel, out model) &&
+            _lua.TryGetTable(model, Offsets.LuaFrozenDrawData, out drawData);
+    }
+
+    private bool TryFindPage(LuaTable list, out LuaTable page)
+    {
+        page = default;
+        var row = _lua.Entries(list, MaxPages, 0, Offsets.LuaFrozenDrawSuffix, out _)
+            .FirstOrDefault(r => r.Key.EndsWith(Offsets.LuaFrozenDrawSuffix, StringComparison.Ordinal));
+        return row.Key is not null && _lua.TryGetTable(list, row.Key, out page);
+    }
+
+    private FrozenCanvasDraw ReadDraw(LuaTable manager, LuaTable luaObject, LuaTable model, LuaTable drawData)
+    {
+        var screen = _lua.TryGetTable(luaObject, Offsets.LuaFrozenView, out var view) && TryGetInt(view, Offsets.LuaFrozenViewState, out var viewState) ? ScreenOf(viewState) : FrozenCanvasScreen.None;
+        var placed = 0;
+        var total = 0;
+        if (_lua.TryGetTable(manager, Offsets.LuaFrozenInfo, out var info) && _lua.TryGetTableAt(info, Offsets.FrozenStateDraw, out var gameInfo))
+        {
+            TryGetInt(gameInfo, Offsets.LuaFrozenNowNum, out placed);
+            TryGetInt(gameInfo, Offsets.LuaFrozenTargetNum, out total);
+        }
+
+        TryGetInt(drawData, Offsets.LuaFrozenDrawMaxLevel, out var maxLevel);
+        TryGetInt(drawData, Offsets.LuaFrozenDrawRevives, out var revives);
+        TryGetInt(drawData, Offsets.LuaFrozenDrawReviveMax, out var reviveMax);
+        TryGetInt(drawData, Offsets.LuaFrozenDrawRerolls, out var rerolls);
+        TryGetInt(drawData, Offsets.LuaFrozenDrawRerollsMax, out var rerollsMax);
+        TryGetInt(drawData, Offsets.LuaFrozenDrawUninstalls, out var uninstalls);
+        _lua.TryGetBool(drawData, Offsets.LuaFrozenDrawCanUninstall, out var canUninstall);
+
+        var mission = "";
+        var detail = "";
+        var maxPaper = 0;
+        FrozenCanvasPaper[] papers = [];
+        if (_lua.TryGetTable(model, Offsets.LuaFrozenDrawUiData, out var ui))
+        {
+            mission = PlainText(ui, Offsets.LuaFrozenDrawMission);
+            detail = PlainText(ui, Offsets.LuaFrozenDrawMissionDetail);
+            TryGetInt(ui, Offsets.LuaFrozenPaperMaxDiff, out maxPaper);
+            papers = ReadPapers(ui);
+        }
+
+        return new FrozenCanvasDraw(screen, placed, total, maxLevel, revives, reviveMax, rerolls, rerollsMax, uninstalls, canUninstall, mission, detail, ReadPaints(drawData, Offsets.LuaFrozenDrawItems), papers, maxPaper);
     }
 
     private FrozenCanvasState ReadBattle(LuaTable manager, int difficulty, LuaTable battle, LuaTable levelPlots)
@@ -78,7 +142,7 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
         var servants = ServantSlots(battle);
         var playerSlot = SlotOf(pos);
         var plots = Enumerable.Range(0, Offsets.MaxFrozenPlots)
-            .Select(slot => new FrozenCanvasPlot(slot, slot % Offsets.FrozenGridSize, slot / Offsets.FrozenGridSize, FrozenCanvasPlotKind.Unknown, 0, 0, servants.Contains(slot), slot == playerSlot))
+            .Select(slot => EmptyPlot(slot, servants.Contains(slot), slot == playerSlot))
             .ToArray();
         var seen = new HashSet<int>();
         foreach (var (_, row) in _lua.IntKeyedTables(levelPlots).OrderBy(r => r.Key).Take(Offsets.MaxFrozenPlots))
@@ -87,11 +151,54 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
             if (slot < 0 || !seen.Add(slot)) continue;
             TryGetInt(row, Offsets.LuaFrozenPlotItem, out var paint);
             var tag = _lua.TryGetTable(row, Offsets.LuaFrozenPlotTags, out var tags) && _lua.TryGetIntAt(tags, 1, out var raw) && raw is >= int.MinValue and <= int.MaxValue ? (int)raw : 0;
-            plots[slot] = plots[slot] with { Kind = PlotKind(null, tag), PaintId = paint, Level = paint > 0 ? paint % 100 : 0, PaintName = paint > 0 ? Text(Offsets.FrozenPaintNameKey + paint.ToString(CultureInfo.InvariantCulture)) : "" };
+            plots[slot] = plots[slot] with { Kind = PlotKind(null, tag), PaintId = paint, Level = paint > 0 ? paint % 100 : 0, PaintName = PaintName(paint) };
         }
 
         return plots;
     }
+
+    private FrozenCanvasPlot[] ReadDrawPlots(LuaTable drawData)
+    {
+        var plots = Enumerable.Range(0, Offsets.MaxFrozenPlots).Select(slot => EmptyPlot(slot, false, false)).ToArray();
+        if (!_lua.TryGetTable(drawData, Offsets.LuaFrozenDrawPlots, out var list)) return plots;
+        foreach (var (uiIndex, row) in _lua.IntKeyedTables(list).OrderBy(r => r.Key).Take(Offsets.MaxFrozenPlots))
+        {
+            var slot = (int)uiIndex - 1;
+            if (slot < 0 || slot >= Offsets.MaxFrozenPlots) continue;
+            _lua.TryGetString(row, Offsets.LuaFrozenPlotFinalType, out var type);
+            TryGetInt(row, Offsets.LuaFrozenPlotFinalItem, out var paint);
+            plots[slot] = plots[slot] with { Kind = PlotKind(type, 0), PaintId = paint, Level = paint > 0 ? paint % 100 : 0, PaintName = PaintName(paint), Stacked = ReadPaints(row, Offsets.LuaFrozenPlotStack) };
+        }
+
+        return plots;
+    }
+
+    private static FrozenCanvasPlot EmptyPlot(int slot, bool servant, bool player) =>
+        new(slot, slot % Offsets.FrozenGridSize, slot / Offsets.FrozenGridSize, FrozenCanvasPlotKind.Unknown, 0, 0, servant, player);
+
+    private string PaintName(int id) => id > 0 ? Text(Offsets.FrozenPaintNameKey + id.ToString(CultureInfo.InvariantCulture)) : "";
+
+    private FrozenCanvasPaint[] ReadPaints(LuaTable parent, string key) =>
+        _lua.TryGetTable(parent, key, out var list)
+            ? [.. _lua.IntKeyedTables(list).OrderBy(r => r.Key).Take(Offsets.MaxFrozenPaints)
+                .Select(r => (ok: TryGetInt(r.Value, Offsets.LuaFrozenItemId, out var id) && id > 0, id))
+                .Where(r => r.ok).Select(r => new FrozenCanvasPaint(r.id, r.id / 100, r.id % 100, r.id / 100000 == 1) { Name = PaintName(r.id) })]
+            : [];
+
+    private FrozenCanvasPaper[] ReadPapers(LuaTable ui) =>
+        _lua.TryGetTable(ui, Offsets.LuaFrozenPaperList, out var list)
+            ? [.. _lua.IntKeyedTables(list).OrderBy(r => r.Key).Take(MaxPapers).Select(r =>
+            {
+                TryGetInt(r.Value, Offsets.LuaFrozenPaperLevel, out var level);
+                TryGetInt(r.Value, Offsets.LuaFrozenPaperCost, out var cost);
+                _lua.TryGetStringCut(r.Value, Offsets.LuaFrozenPaperName, out var name);
+                _lua.TryGetBool(r.Value, Offsets.LuaFrozenPaperLocked, out var locked);
+                _lua.TryGetBool(r.Value, Offsets.LuaFrozenPaperSelected, out var selected);
+                return new FrozenCanvasPaper(level, name, PlainText(r.Value, Offsets.LuaFrozenPaperDesc), cost, locked, selected);
+            })]
+            : [];
+
+    private string PlainText(LuaTable table, string key) => _lua.TryGetStringCut(table, key, out var text) ? VoraxText.StripRichText(text) : "";
 
     private HashSet<int> ServantSlots(LuaTable battle)
     {

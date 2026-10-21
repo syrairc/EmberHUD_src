@@ -16,9 +16,12 @@ public class FrozenCanvasReaderTests
         public readonly LuaTable Battle;
         public readonly LuaTable LevelPlots;
         public readonly LuaTable Widget;
+        public LuaTable Model;
+        public LuaTable DrawTable;
         public long Now;
 
-        public Fixture(int? mainState = 4, string gameState = "Battle", int? nowNum = 0, int pos = 17, bool withManager = true, string hudText = "", double remaining = 1, bool remainingFloat = false, int[]? plotNos = null, bool withLevelPlots = true)
+        public Fixture(int? mainState = 4, string gameState = "Battle", int? nowNum = 0, int pos = 17, bool withManager = true, string hudText = "", double remaining = 1, bool remainingFloat = false, int[]? plotNos = null, bool withLevelPlots = true,
+            string? drawPage = null, int viewState = 1, bool withModel = true, bool withDrawData = true)
         {
             Lua = new FakeLua(Memory, Module);
             Manager = Lua.NewTable(0, 3);
@@ -72,9 +75,103 @@ public class FrozenCanvasReaderTests
             Lua.SetTable(list, Offsets.LuaFrozenHudKey, holder);
             Lua.SetTable(hud, Offsets.LuaFrozenHudList, list);
             Lua.SetTable(Lua.Globals, Offsets.LuaFrozenHudManager, hud);
+
+            var drawInfo = Lua.NewTable(0, 2);
+            Lua.SetInt(drawInfo, Offsets.LuaFrozenNowNum, 11);
+            Lua.SetInt(drawInfo, Offsets.LuaFrozenTargetNum, 11);
+            Lua.SetIntKeyTable(Info, 3, drawInfo);
+            if (drawPage is not null) DrawPage(drawPage, viewState, withModel, withDrawData);
         }
 
-        public FrozenCanvasReader Reader() => new(Memory, Module, null, () => Now);
+        public FrozenCanvasReader Reader(Func<string, string?>? loc = null) => new(Memory, Module, loc, () => Now);
+
+        private void DrawPage(string key, int viewState, bool withModel, bool withDrawData)
+        {
+            var views = Lua.NewTable(0, 3);
+            Lua.SetTable(views, "4213_S8MiniMapCtrl", Lua.NewTable(0, 0));
+            Lua.SetTable(views, "5214_S8TalentCtrl", Lua.NewTable(0, 0));
+            Lua.SetValue(views, "2949_SkillBagItemCtrl", 0, 0);
+            Lua.SetValue(views, "2500_SkillCtrl", 0, 0);
+            var page = Lua.NewTable(0, 1);
+            var luaObject = Lua.NewTable(0, 1);
+            var view = Lua.NewTable(0, 0);
+            var model = Model = Lua.NewTable(0, 1);
+            Lua.SetInt(view, Offsets.LuaFrozenViewState, viewState);
+            Lua.SetTable(luaObject, Offsets.LuaFrozenView, view);
+            if (withModel) Lua.SetTable(luaObject, Offsets.LuaFrozenModel, model);
+            if (withDrawData) Lua.SetTable(model, Offsets.LuaFrozenDrawData, DrawTable = DrawData());
+            Lua.SetTable(model, Offsets.LuaFrozenDrawUiData, UiData());
+            Lua.SetTable(page, Offsets.LuaFrozenObject, luaObject);
+            Lua.SetTable(views, key, page);
+            var manager = Lua.NewTable(0, 0);
+            Lua.SetTable(manager, Offsets.LuaFrozenViewList, views);
+            Lua.SetTable(Lua.Globals, Offsets.LuaFrozenViewManager, manager);
+        }
+
+        public LuaTable DrawData()
+        {
+            var data = Lua.NewTable(0, 4);
+            var plots = Lua.NewTable(36, 0);
+            for (var position = 1; position <= 36; position++)
+            {
+                var row = Lua.NewTable(0, 2);
+                Lua.SetString(row, Offsets.LuaFrozenPlotFinalType, position <= 11 ? "S8_Free" : position == 12 ? "S8_Internal_Block" : "S8_Nihility");
+                var original = Lua.NewTable(2, 0);
+                if (position == 11)
+                {
+                    Lua.SetInt(row, Offsets.LuaFrozenPlotFinalItem, 100203);
+                    PaintRow(original, 1, 100101);
+                    PaintRow(original, 2, 100203);
+                }
+
+                Lua.SetTable(row, Offsets.LuaFrozenPlotStack, original);
+                Lua.SetIntKeyTable(plots, position, row);
+            }
+
+            var items = Lua.NewTable(4, 0);
+            int[] bag = [100101, 100203, 200304, 100502];
+            for (var i = 0; i < bag.Length; i++) PaintRow(items, i + 1, bag[i]);
+            Lua.SetTable(data, Offsets.LuaFrozenDrawPlots, plots);
+            Lua.SetTable(data, Offsets.LuaFrozenDrawItems, items);
+            Lua.SetInt(data, Offsets.LuaFrozenDrawMaxLevel, 7);
+            Lua.SetInt(data, Offsets.LuaFrozenDrawReviveMax, 1);
+            Lua.SetInt(data, Offsets.LuaFrozenDrawRerollsMax, 3);
+            Lua.SetBool(data, Offsets.LuaFrozenDrawCanUninstall, false);
+            return data;
+        }
+
+        private LuaTable UiData()
+        {
+            var ui = Lua.NewTable(0, 2);
+            Lua.SetString(ui, Offsets.LuaFrozenDrawMission, "<RichText>Fill a </><RichText Id=\"3902\">Diagonal</><RichText> Cell with a </><RichText Id=\"3902\">Gameplay</><RichText> Paint(0/3)</>");
+            Lua.SetString(ui, Offsets.LuaFrozenDrawMissionDetail, "<RichText>Level up the paint</>");
+            Lua.SetInt(ui, Offsets.LuaFrozenPaperMaxDiff, 2);
+            var cards = Lua.NewTable(4, 0);
+            Paper(cards, 1, 1, "White Snowpaper", 0, false, false);
+            Paper(cards, 2, 2, "Green Snowpaper", 30, false, false);
+            Paper(cards, 3, 3, "Blue Snowpaper", 60, true, false);
+            Paper(cards, 4, 4, "Purple Snowpaper", 90, false, true);
+            Lua.SetTable(ui, Offsets.LuaFrozenPaperList, cards);
+            return ui;
+        }
+
+        private void Paper(LuaTable list, int index, int level, string name, int cost, bool locked, bool selected)
+        {
+            var row = Lua.NewTable(0, 3);
+            Lua.SetInt(row, Offsets.LuaFrozenPaperLevel, level);            Lua.SetString(row, Offsets.LuaFrozenPaperName, name);
+            Lua.SetString(row, Offsets.LuaFrozenPaperDesc, "<RichText>Desc " + name + "</>");
+            Lua.SetInt(row, Offsets.LuaFrozenPaperCost, cost);
+            Lua.SetBool(row, Offsets.LuaFrozenPaperLocked, locked);
+            Lua.SetBool(row, Offsets.LuaFrozenPaperSelected, selected);
+            Lua.SetIntKeyTable(list, index, row);
+        }
+
+        private void PaintRow(LuaTable list, int index, int id)
+        {
+            var row = Lua.NewTable(0, 0);
+            Lua.SetInt(row, Offsets.LuaFrozenItemId, id);
+            Lua.SetIntKeyTable(list, index, row);
+        }
 
         public void Plot(int position, int no, int? itemId, int? wall, int tag)
         {
@@ -292,6 +389,136 @@ public class FrozenCanvasReaderTests
         var first = reader.Read()!;
         hooked.Trigger = f.LevelPlots.Address;
         hooked.Fire = () => f.Lua.ReplaceTable(f.Battle, Offsets.LuaFrozenLevelPlots, f.Lua.NewTable(0, 0));
+        f.Now = long.MaxValue / 2;
+        Assert.Same(first, reader.Read());
+        Assert.Null(hooked.Fire);
+    }
+
+    private const string Page = "3106_S8DrawCtrl";
+
+    private static FrozenCanvasState DrawRead(Fixture f, Func<string, string?>? loc = null) => f.Reader(loc).Read()!;
+
+    [Fact]
+    public void DrawBoardIsReadInScreenOrder()
+    {
+        var plots = DrawRead(new Fixture(mainState: 3, drawPage: Page), key => key == Offsets.FrozenPaintNameKey + "100203" ? "Dwarf" : null).Plots;
+        Assert.Equal(36, plots.Length);
+        Assert.Equal(0, plots[0].Slot);
+        Assert.Equal(FrozenCanvasPlotKind.Free, plots[0].Kind);
+        Assert.Equal(FrozenCanvasPlotKind.Block, plots[11].Kind);
+        Assert.Equal(FrozenCanvasPlotKind.Void, plots[35].Kind);
+        Assert.Equal(11, plots.Count(p => p.Kind == FrozenCanvasPlotKind.Free));
+        Assert.Equal(100203, plots[10].PaintId);
+        Assert.Equal(3, plots[10].Level);
+        Assert.Equal("Dwarf", plots[10].PaintName);
+        Assert.Equal([100101, 100203], plots[10].Stacked.Select(p => p.Id));
+        Assert.Equal(1, plots[10].Stacked[0].Level);
+        Assert.Empty(plots[0].Stacked);
+        Assert.Equal(4, plots[10].X);
+        Assert.Equal(1, plots[10].Y);
+    }
+
+    [Theory]
+    [InlineData(1, FrozenCanvasScreen.Paper)]
+    [InlineData(3, FrozenCanvasScreen.Preview)]
+    [InlineData(5, FrozenCanvasScreen.Bag)]
+    [InlineData(8, FrozenCanvasScreen.Placing)]
+    [InlineData(9, FrozenCanvasScreen.Complete)]
+    [InlineData(10, FrozenCanvasScreen.Battle)]
+    [InlineData(2, FrozenCanvasScreen.None)]
+    [InlineData(42, FrozenCanvasScreen.None)]
+    [InlineData(-1, FrozenCanvasScreen.None)]
+    [InlineData(9999, FrozenCanvasScreen.None)]
+    public void DrawScreenComesFromViewState(int viewState, FrozenCanvasScreen screen)
+    {
+        var state = DrawRead(new Fixture(mainState: 3, drawPage: Page, viewState: viewState));
+        Assert.Equal(screen, state.Draw!.Screen);
+    }
+
+    [Fact]
+    public void MissionTextIsReadyPlainText()
+    {
+        var draw = DrawRead(new Fixture(mainState: 3, drawPage: Page)).Draw!;
+        Assert.Equal("Fill a Diagonal Cell with a Gameplay Paint(0/3)", draw.Mission);
+        Assert.Equal("Level up the paint", draw.MissionDetail);
+    }
+
+    [Fact]
+    public void CountersComeFromTheDrawData()
+    {
+        var draw = DrawRead(new Fixture(mainState: 3, drawPage: Page)).Draw!;
+        Assert.Equal(7, draw.MaxLevel);
+        Assert.Equal(0, draw.Revives);
+        Assert.Equal(1, draw.ReviveMax);
+        Assert.Equal(0, draw.Rerolls);
+        Assert.Equal(3, draw.RerollsMax);
+        Assert.Equal(0, draw.Uninstalls);
+        Assert.False(draw.CanUninstall);
+        Assert.Equal(11, draw.Placed);
+        Assert.Equal(11, draw.Total);
+        Assert.Equal([100101, 100203, 200304, 100502], draw.Bag.Select(p => p.Id));
+        Assert.True(draw.Bag[0].IsMonster);
+        Assert.False(draw.Bag[2].IsMonster);
+        Assert.Equal(1002, draw.Bag[1].Series);
+    }
+
+    [Fact]
+    public void PapersListTheChoices()
+    {
+        var draw = DrawRead(new Fixture(mainState: 3, drawPage: Page)).Draw!;
+        Assert.Equal(4, draw.Papers.Length);
+        Assert.Equal(new FrozenCanvasPaper(4, "Purple Snowpaper", "Desc Purple Snowpaper", 90, false, true), draw.Papers[3]);
+        Assert.True(draw.Papers[2].Locked);
+        Assert.Equal(2, draw.MaxPaper);
+    }
+
+    [Fact]
+    public void NoPageMeansNoDraw()
+    {
+        Assert.Null(DrawRead(new Fixture(mainState: 3)).Draw);
+        Assert.Empty(DrawRead(new Fixture(mainState: 3)).Plots);
+        foreach (var f in new[] { new Fixture(mainState: 3, drawPage: Page, withModel: false), new Fixture(mainState: 3, drawPage: Page, withDrawData: false) })
+        {
+            var state = DrawRead(f);
+            Assert.Null(state.Draw);
+            Assert.Empty(state.Plots);
+        }
+    }
+
+    [Fact]
+    public void PageKeyPrefixAndNilEntriesDoNotMatter()
+    {
+        var draw = DrawRead(new Fixture(mainState: 3, drawPage: "77_S8DrawCtrl")).Draw!;
+        Assert.Equal(FrozenCanvasScreen.Paper, draw.Screen);
+        Assert.Equal(4, draw.Papers.Length);
+    }
+
+    [Fact]
+    public void OtherCtrlKeysAreIgnored() => Assert.Null(DrawRead(new Fixture(mainState: 3, drawPage: "9_S8MiniMapCtrl")).Draw);
+
+    [Fact]
+    public void DrawPageAlsoReadsOnThePaperAndEnterScreens()
+    {
+        var paper = DrawRead(new Fixture(mainState: 1, drawPage: Page, viewState: 1));
+        Assert.Equal(FrozenCanvasPhase.Idle, paper.Phase);
+        Assert.Equal(FrozenCanvasScreen.Paper, paper.Draw!.Screen);
+        Assert.Empty(paper.Plots);
+
+        var enter = DrawRead(new Fixture(mainState: 4, drawPage: Page, viewState: 10));
+        Assert.Equal(FrozenCanvasPhase.Battle, enter.Phase);
+        Assert.Equal(FrozenCanvasScreen.Battle, enter.Draw!.Screen);
+        Assert.Equal(100203, enter.Plots[19].PaintId);
+    }
+
+    [Fact]
+    public void ATornDrawDataKeepsThePreviousState()
+    {
+        var f = new Fixture(mainState: 3, drawPage: Page, viewState: 8);
+        var hooked = new SwapOnRead(f.Memory);
+        var reader = new FrozenCanvasReader(hooked, Module, null, () => f.Now);
+        var first = reader.Read()!;
+        hooked.Trigger = f.DrawTable.Address;
+        hooked.Fire = () => f.Lua.ReplaceTable(f.Model, Offsets.LuaFrozenDrawData, f.Lua.NewTable(0, 0));
         f.Now = long.MaxValue / 2;
         Assert.Same(first, reader.Read());
         Assert.Null(hooked.Fire);
