@@ -42,6 +42,13 @@ public static class TestGame
         return Game.TarotAsked != 0;
     }
 
+    public static bool VoraxAskedDuring(Action run)
+    {
+        Game.VoraxAsked = 0;
+        run();
+        return Game.VoraxAsked != 0;
+    }
+
     public static bool GroundItemsAskedDuring(Action run)
     {
         Game.GroundItemsAsked = 0;
