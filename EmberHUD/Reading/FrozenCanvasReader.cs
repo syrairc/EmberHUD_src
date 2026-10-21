@@ -7,8 +7,6 @@ namespace EmberHUD.Host.Reading;
 internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, Func<string, string?>? loc = null, Func<long>? clock = null)
 {
     private const int MaxRewards = 16;
-    private const int MaxServants = 36;
-    private const int BattleInfoIndex = 4;
 
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LuaReader _lua = new(memory, moduleBase);
@@ -23,36 +21,28 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
         return _state = Build();
     }
 
-    internal static int SlotOf(int no) => no is >= 1 and <= 36 ? 36 - no : -1;
+    private static readonly (string Name, int Number, string Member)[] PlotTypeRows = ParseRows(Offsets.FrozenPlotTypes);
+    private static readonly (string Name, int Number, string Member)[] ScreenRows = ParseRows(Offsets.FrozenScreens);
 
-    internal static FrozenCanvasPlotKind PlotKind(string? name, int tag)
-    {
-        var types = Offsets.FrozenPlotTypes.Split(',')
-            .Select((entry, index) => (Name: entry.Split(':')[0], Tag: int.Parse(entry.Split(':')[1], CultureInfo.InvariantCulture), Kind: (FrozenCanvasPlotKind)(index + 1)))
-            .ToArray();
-        var byName = name is null ? FrozenCanvasPlotKind.Unknown : types.FirstOrDefault(t => t.Name == name).Kind;
-        return byName != FrozenCanvasPlotKind.Unknown ? byName : types.FirstOrDefault(t => t.Tag == tag).Kind;
-    }
+    internal static int SlotOf(int no) => no >= 1 && no <= Offsets.MaxFrozenPlots ? Offsets.MaxFrozenPlots - no : -1;
+
+    internal static FrozenCanvasPlotKind PlotKind(string? name, int tag) =>
+        MemberOf<FrozenCanvasPlotKind>(PlotTypeRows, r => r.Name == name) is var byName && byName != FrozenCanvasPlotKind.Unknown ? byName : MemberOf<FrozenCanvasPlotKind>(PlotTypeRows, r => r.Number == tag);
 
     internal static FrozenCanvasPhase PhaseOf(int mainState) =>
         mainState == Offsets.FrozenStateDraw ? FrozenCanvasPhase.Draw :
         mainState == Offsets.FrozenStateBattle ? FrozenCanvasPhase.Battle :
         FrozenCanvasPhase.Idle;
 
-    internal static FrozenCanvasScreen ScreenOf(int viewState)
+    internal static FrozenCanvasScreen ScreenOf(int viewState) => MemberOf<FrozenCanvasScreen>(ScreenRows, r => r.Number == viewState);
+
+    private static (string Name, int Number, string Member)[] ParseRows(string text) =>
+        [.. text.Split(',').Select(e => e.Split(':')).Select(f => (f[0], int.Parse(f[1], CultureInfo.InvariantCulture), f[2]))];
+
+    private static T MemberOf<T>((string Name, int Number, string Member)[] rows, Func<(string Name, int Number, string Member), bool> match) where T : struct, Enum
     {
-        var name = Offsets.FrozenScreens.Split(',').Select(e => e.Split(':')).FirstOrDefault(e => int.Parse(e[1], CultureInfo.InvariantCulture) == viewState)?[0];
-        return name switch
-        {
-            "ChoosePaper" => FrozenCanvasScreen.Paper,
-            "PreToDraw" => FrozenCanvasScreen.Preview,
-            "ChoosePaint" => FrozenCanvasScreen.Bag,
-            "PutPaint" or "PutMission" => FrozenCanvasScreen.Placing,
-            "ChooseAblityTotal" or "ChooseAblityMini" => FrozenCanvasScreen.Choice,
-            "DrawComplete" => FrozenCanvasScreen.Complete,
-            "Battle" => FrozenCanvasScreen.Battle,
-            _ => FrozenCanvasScreen.None,
-        };
+        var row = rows.FirstOrDefault(match);
+        return row.Member is not null && Enum.TryParse<T>(row.Member, out var member) ? member : default;
     }
 
     private FrozenCanvasState? Build()
@@ -64,24 +54,23 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
         TryGetInt(manager, Offsets.LuaFrozenDifficulty, out var difficulty);
         if (phase != FrozenCanvasPhase.Battle) return new FrozenCanvasState(phase, difficulty, [], 0, 0, 0, 0, 0, []);
 
-        var result = ReadBattle(manager, difficulty, out var levelPlots, out var battle);
-        return levelPlots.Address != 0 && !(_lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots) ? _state : result;
+        if (!_lua.TryGetTable(manager, Offsets.LuaFrozenInfo, out var info) || !_lua.TryGetTableAt(info, Offsets.FrozenStateBattle, out var battle) ||
+            !_lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var levelPlots))
+            return null;
+
+        var result = ReadBattle(manager, difficulty, battle, levelPlots);
+        return _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out var again) && again == levelPlots ? result : _state;
     }
 
-    private FrozenCanvasState ReadBattle(LuaTable manager, int difficulty, out LuaTable levelPlots, out LuaTable battle)
+    private FrozenCanvasState ReadBattle(LuaTable manager, int difficulty, LuaTable battle, LuaTable levelPlots)
     {
-        levelPlots = battle = default;
-        var hasBattle = _lua.TryGetTable(manager, Offsets.LuaFrozenInfo, out var info) && _lua.TryGetTableAt(info, BattleInfoIndex, out battle);
-        if (!hasBattle) return new FrozenCanvasState(FrozenCanvasPhase.Battle, difficulty, [], 0, 0, 0, 0, 0, []) { Objective = ReadObjective() };
-
         TryGetInt(manager, Offsets.LuaFrozenPos, out var pos);
         TryGetInt(battle, Offsets.LuaFrozenNowNum, out var done);
         TryGetInt(battle, Offsets.LuaFrozenFreeNum, out var total);
         TryGetInt(battle, Offsets.LuaFrozenTargetNum, out var target);
         TryGetInt(battle, Offsets.LuaFrozenChallengesLeft, out var left);
         TryGetInt(battle, Offsets.LuaFrozenChallengesAll, out var all);
-        var plots = _lua.TryGetTable(battle, Offsets.LuaFrozenLevelPlots, out levelPlots) ? ReadPlots(battle, levelPlots, pos) : [];
-        return new FrozenCanvasState(FrozenCanvasPhase.Battle, difficulty, plots, done, total, target, left, all, ReadRewards(battle)) { Objective = ReadObjective() };
+        return new FrozenCanvasState(FrozenCanvasPhase.Battle, difficulty, ReadPlots(battle, levelPlots, pos), done, total, target, left, all, ReadRewards(battle)) { Objective = ReadObjective() };
     }
 
     private FrozenCanvasPlot[] ReadPlots(LuaTable battle, LuaTable levelPlots, int pos)
@@ -108,7 +97,7 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
     {
         var slots = new HashSet<int>();
         if (!_lua.TryGetTable(battle, Offsets.LuaFrozenServantPlots, out var list)) return slots;
-        for (var i = 1; i <= MaxServants && _lua.TryGetIntAt(list, i, out var no); i++)
+        for (var i = 1; i <= Offsets.MaxFrozenPlots && _lua.TryGetIntAt(list, i, out var no); i++)
             if (no is >= int.MinValue and <= int.MaxValue && SlotOf((int)no) is var slot and >= 0) slots.Add(slot);
         return slots;
     }

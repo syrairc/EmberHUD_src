@@ -439,7 +439,7 @@ public class OffsetsTests
         Assert.Equal(100, Offsets.FrozenRefreshMilliseconds);
         Assert.Equal(3, Offsets.FrozenWantedSeconds);
         Assert.Equal("S8_Gameplay_PlotItem|ItemName|", Offsets.FrozenPaintNameKey);
-        Assert.Contains("ChoosePaint:5", Offsets.FrozenScreens);
+        Assert.Contains("ChoosePaint:5:Bag", Offsets.FrozenScreens);
     }
 
     [Fact]
