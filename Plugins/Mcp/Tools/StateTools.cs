@@ -47,7 +47,52 @@ internal static class StateTools
             Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
+        new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards and owned instruments (slot, id, kind, rarity, name, description, typeName), chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
     ];
+
+    static JsonObject GetVorax()
+    {
+        Game.WantVorax();
+        if (Game.State.Vorax is not { } vorax) return new JsonObject { ["ready"] = false };
+        static JsonArray Cards(VoraxCard[] cards) => new([.. cards.Select(card => (JsonNode)new JsonObject
+        {
+            ["slot"] = card.Slot,
+            ["id"] = card.Id,
+            ["kind"] = card.Kind.ToString(),
+            ["rarity"] = card.Rarity,
+            ["name"] = card.Name,
+            ["description"] = card.Description,
+            ["typeName"] = card.TypeName,
+        })]);
+        return new JsonObject
+        {
+            ["ready"] = true,
+            ["phase"] = vorax.Phase.ToString(),
+            ["round"] = vorax.Round,
+            ["rounds"] = vorax.Rounds,
+            ["activity"] = vorax.Activity,
+            ["nextRewardActivity"] = vorax.NextRewardActivity,
+            ["rewardsTaken"] = vorax.RewardsTaken,
+            ["rewardsTotal"] = vorax.RewardsTotal,
+            ["rerolls"] = vorax.Rerolls,
+            ["monsterSlots"] = vorax.MonsterSlots,
+            ["monsters"] = new JsonArray([.. vorax.Monsters.Select(monster => (JsonNode)new JsonObject
+            {
+                ["slot"] = monster.Slot,
+                ["id"] = monster.Id,
+                ["species"] = monster.Species,
+                ["rarity"] = monster.Rarity,
+                ["rarityName"] = monster.RarityName,
+                ["name"] = monster.Name,
+                ["count"] = monster.Count,
+                ["activity"] = monster.Activity,
+                ["total"] = monster.Total,
+            })]),
+            ["offered"] = Cards(vorax.Offered),
+            ["instruments"] = Cards(vorax.Instruments),
+            ["chests"] = new JsonArray([.. vorax.Chests.Select(chest => (JsonNode)chest)]),
+        };
+    }
 
     internal static JsonObject Row(Entity entity, Player? player)
     {

@@ -462,6 +462,38 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetVoraxReportsTheMinigameAndAsksForIt()
+    {
+        var vorax = new VoraxState(VoraxPhase.Round, 2, 13, 761, 2000, 0, 2, 3, 6,
+            [new VoraxMonster(1, 4, 201, 2, 1, 341) { Name = "Mutated", RarityName = "Blue" }],
+            [new VoraxCard(0, 202, VoraxCardKind.Potion, 2) { Name = "Solution", Description = "+41 Activity", TypeName = "Potion" }],
+            [new VoraxCard(0, 101, VoraxCardKind.Instrument, 1) { Name = "Sprout" }], [0, 0, 0, 0, 0, 0]);
+        TestGame.Set(GameState.Empty with { Vorax = vorax });
+        Check.That(Tools.Single(t => t.Name == "get_vorax").Description.Length > 0, "described");
+        var result = Wire.Run(Tools, "get_vorax");
+        Check.Equal(true, (bool)result["ready"]!);
+        Check.Equal("Round", (string?)result["phase"]);
+        Check.Equal(2, (int)result["round"]!);
+        Check.Equal(13, (int)result["rounds"]!);
+        Check.Equal(761, (int)result["activity"]!);
+        Check.Equal(2000, (int)result["nextRewardActivity"]!);
+        Check.Equal("Mutated", (string?)result["monsters"]![0]!["name"]);
+        Check.Equal(341, (int)result["monsters"]![0]!["total"]!);
+        Check.Equal("+41 Activity", (string?)result["offered"]![0]!["description"]);
+        Check.Equal("Potion", (string?)result["offered"]![0]!["kind"]);
+        Check.Equal("Sprout", (string?)result["instruments"]![0]!["name"]);
+        Check.That(TestGame.VoraxAskedDuring(() => Wire.Run(Tools, "get_vorax")), "asks the reader");
+    }
+
+    [Test]
+    public void GetVoraxWithoutStateIsNotReady()
+    {
+        TestGame.Set(GameState.Empty);
+        var result = Wire.Run(Tools, "get_vorax");
+        Check.Equal(false, (bool)result["ready"]!);
+    }
+
+    [Test]
     public void GetInventoryBeforeTheReaderHasRunIsNotReady()
     {
         TestGame.Set(GameState.Empty);
