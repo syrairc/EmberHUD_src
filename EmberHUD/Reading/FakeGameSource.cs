@@ -39,6 +39,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private static readonly TradeListing[][] MarketPages = BuildMarket();
     private static readonly TradeListing[] MarketFirstPageSold = [.. MarketPages[0].Select(l => l.Slot == MarketSoldSlot ? l with { Name = "", Status = "Sold" } : l)];
     private static readonly string MarketPriceIcon = EmberHUD.Draw.GameIconPrefix + Offsets.TradePriceTexture;
+    private static readonly EquipCompare FakeCompare = new([new CompareRow(12.3f, -4.4f), new CompareRow(3f, 9.5f)]);
 
     private static readonly Terrain SceneTerrain = BuildTerrain();
     private static readonly Entity[] SceneEntities = BuildEntities();
@@ -127,6 +128,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             MaxShield = 133,
         };
         var ui = UiAt(now);
+        var trade = TradeAt(now);
         state = new GameState
         {
             Status = "fake game",
@@ -147,7 +149,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             ChatOpen = false,
             Paused = false,
             Area = MapAt(now),
-            Trade = TradeAt(now),
+            Trade = trade,
+            Compare = trade is null ? null : FakeCompare,
             WoodStake = WoodStakeAt(now),
             Combat = CombatAt(now),
             QuestTargets = QuestTargetsAt(now),

@@ -115,6 +115,7 @@ internal sealed class LiveReader
         var inventoryWanted = Game.InventoryWanted(Stopwatch.GetTimestamp(), Offsets.InventoryWantedSeconds);
         var stash = inventoryWanted ? _ui.ReadStash() : null;
         var trade = _ui.ReadTrade();
+        var compare = _ui.ReadCompare();
         state = new GameState
         {
             Status = status,
@@ -135,6 +136,7 @@ internal sealed class LiveReader
             ChatOpen = chatOpen,
             Paused = _paused.Read(),
             Trade = trade,
+            Compare = compare,
             TradeGoods = trade is not null && Game.TradeGoodsWanted(Stopwatch.GetTimestamp(), Offsets.TradeGoodsWantedSeconds) ? _inventory?.ReadTradeGoods() : null,
             Bag = inventoryWanted ? _ui.ReadBag() : null,
             Stash = stash,

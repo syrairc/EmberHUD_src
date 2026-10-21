@@ -57,6 +57,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _hudChildren.Clear();
             _failingSince.Clear();
             if (++_tradeMisses >= 2) _tradePage = 0;
+            if (++_compareTipPanelMisses >= 2) _compareTipPanel = false;
             if (++_bagMisses >= 2) _bagPage = 0;
             if (++_stashMisses >= 2) _stashPage = 0;
             ui = _last = GameUi.Empty;
@@ -72,6 +73,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         }
 
         nint tradePage = 0;
+        var compareTipPanelSeen = false;
         nint bagPage = 0;
         nint stashPage = 0;
         var gameMinimapHidden = false;
@@ -116,6 +118,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
 
             if (!widgetVisible.Value || !pageVisible.Value) continue;
             if (root.PageClass == Offsets.TradePageClassName) tradePage = root.Page;
+            if (root.PageClass == Offsets.CompareTipPanelClassName) compareTipPanelSeen = true;
             if (root.Spec.Kind == PanelKind.Inventory) bagPage = root.Page;
             if (root.Spec.Kind == PanelKind.Stash) stashPage = root.Page;
             if (RectOf(root.Page, root.Spec.RectChild, origin) is not { } rect)
@@ -137,6 +140,13 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             _tradeMisses = 0;
         }
         else if (++_tradeMisses >= 2) _tradePage = 0;
+
+        if (compareTipPanelSeen)
+        {
+            _compareTipPanel = true;
+            _compareTipPanelMisses = 0;
+        }
+        else if (++_compareTipPanelMisses >= 2) _compareTipPanel = false;
 
         if (bagPage != 0)
         {
@@ -188,7 +198,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         {
             if (!TryHostedPage(widget, out page) || !names.TryReadClassName(page, out pageClass)) return null;
         }
-        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName;
+        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName || pageClass == Offsets.CompareTipPanelClassName;
 
         return new Root(widget, page, pageClass, Specs.GetValueOrDefault(pageClass, Unknown), reached);
     }

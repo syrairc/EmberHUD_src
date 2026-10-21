@@ -59,6 +59,7 @@ public class LiveReaderTests
         Assert.True(reader.TryRead(out var state, out _));
         Assert.Same(GameUi.Empty, state.Ui);
         Assert.Null(state.Trade);
+        Assert.Null(state.Compare);
     }
 
     [Fact]
