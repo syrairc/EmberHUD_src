@@ -467,7 +467,11 @@ public sealed class StateToolsTests
         var vorax = new VoraxState(VoraxPhase.Round, 2, 13, 761, 2000, 0, 2, 3, 6,
             [new VoraxMonster(1, 4, 201, 2, 1, 341) { Name = "Mutated", RarityName = "Blue" }],
             [new VoraxCard(0, 202, VoraxCardKind.Potion, 2) { Name = "Solution", Description = "+41 Activity", TypeName = "Potion" }],
-            [new VoraxCard(0, 101, VoraxCardKind.Instrument, 1) { Name = "Sprout" }], [0, 0, 0, 0, 0, 0]);
+            [new VoraxCard(0, 101, VoraxCardKind.Instrument, 1) { Name = "Sprout" }], [0, 0, 0, 0, 0, 0])
+        {
+            Protocols = [new VoraxCard(0, 3, VoraxCardKind.Modifier, 1) { Name = "Stimulation", TypeName = "Surgical Protocol" }],
+            RewardBonusPercent = 20,
+        };
         TestGame.Set(GameState.Empty with { Vorax = vorax });
         Check.That(Tools.Single(t => t.Name == "get_vorax").Description.Length > 0, "described");
         var result = Wire.Run(Tools, "get_vorax");
@@ -482,6 +486,9 @@ public sealed class StateToolsTests
         Check.Equal("+41 Activity", (string?)result["offered"]![0]!["description"]);
         Check.Equal("Potion", (string?)result["offered"]![0]!["kind"]);
         Check.Equal("Sprout", (string?)result["instruments"]![0]!["name"]);
+        Check.Equal("Stimulation", (string?)result["protocols"]![0]!["name"]);
+        Check.Equal("Modifier", (string?)result["protocols"]![0]!["kind"]);
+        Check.Equal(20, (int)result["rewardBonusPercent"]!);
         Check.That(TestGame.VoraxAskedDuring(() => Wire.Run(Tools, "get_vorax")), "asks the reader");
     }
 

@@ -47,7 +47,7 @@ internal static class StateTools
             Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
-        new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards and owned instruments (slot, id, kind, rarity, name, description, typeName), chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
+        new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards, owned instruments and obtained protocols (slot, id, kind, rarity, name, description, typeName), rewardBonusPercent, chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
     ];
 
     static JsonObject GetVorax()
@@ -90,6 +90,8 @@ internal static class StateTools
             })]),
             ["offered"] = Cards(vorax.Offered),
             ["instruments"] = Cards(vorax.Instruments),
+            ["protocols"] = Cards(vorax.Protocols),
+            ["rewardBonusPercent"] = vorax.RewardBonusPercent,
             ["chests"] = new JsonArray([.. vorax.Chests.Select(chest => (JsonNode)chest)]),
         };
     }
