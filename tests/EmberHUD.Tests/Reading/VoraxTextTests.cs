@@ -12,6 +12,9 @@ public sealed class VoraxTextTests
     public void FillParamsKeepsTokensOutOfRange() => Assert.Equal("{%s:3}", VoraxText.FillParams("{%s:3}", [1]));
 
     [Fact]
+    public void FillParamsKeepsHugeIndexToken() => Assert.Equal("{%s:99999999999}", VoraxText.FillParams("{%s:99999999999}", [1]));
+
+    [Fact]
     public void FillParamsTurnsDoublePercentIntoOne() => Assert.Equal("50% chance", VoraxText.FillParams("{%s:1}%% chance", [50]));
 
     [Fact]

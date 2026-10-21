@@ -7,7 +7,15 @@ namespace EmberHUD.Host.Reading;
 internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<string, string?>? loc = null, Func<long>? clock = null)
 {
     private const int MaxPages = 32;
+    private const int MaxChests = 16;
+    private const int MaxDescParams = 16;
 
+    private readonly record struct CardText(int Rarity, string Name, string Description, string TypeName)
+    {
+        public static readonly CardText Empty = new(0, "", "", "");
+    }
+
+    private readonly Dictionary<(VoraxCardKind, int), CardText> _texts = [];
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LuaReader _lua = new(memory, moduleBase);
     private long _nextRefresh;
@@ -62,11 +70,97 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         TryGetInt(view, Offsets.LuaVoraxNextScore, out var next);
         TryGetInt(view, Offsets.LuaVoraxRewardCount, out var rewards);
 
-        return new VoraxState(ReadPhase(view), round, rounds, activity, next, 0, rewards, rerolls, slots, ReadMonsters(data), [], [], []);
+        var manager = TryOpenManager(out var found) ? found : default;
+        var hand = CardRows(data, Offsets.LuaVoraxHand);
+        var chests = ReadChests(manager);
+        return new VoraxState(ReadPhase(view, hand), round, rounds, activity, next, chests.Count(c => c != 0), rewards, rerolls, slots, ReadMonsters(data),
+            ReadCards(manager, hand, false), ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests);
     }
 
-    private VoraxPhase ReadPhase(LuaTable view) =>
+    private bool TryOpenManager(out LuaTable manager)
+    {
+        manager = default;
+        return _lua.TryOpen(out var globals) && _lua.TryGetTable(globals, Offsets.LuaVoraxManager, out manager);
+    }
+
+    private VoraxPhase ReadPhase(LuaTable view, LuaTable[] hand) =>
+        hand.Any(IsInitRelic) ? VoraxPhase.Instrument :
         _lua.TryGetString(view, Offsets.LuaVoraxState, out var state) && state == Offsets.VoraxStateRound ? VoraxPhase.Round : VoraxPhase.Other;
+
+    private bool IsInitRelic(LuaTable row) => _lua.TryGetBool(row, Offsets.LuaVoraxInitRelic, out var init) && init;
+
+    private LuaTable[] CardRows(LuaTable data, string key) =>
+        _lua.TryGetTable(data, key, out var bag) ? [.. _lua.IntKeyedTables(bag).OrderBy(r => r.Key).Take(Offsets.MaxVoraxCards).Select(r => r.Value)] : [];
+
+    private int[] ReadChests(LuaTable manager)
+    {
+        if (!_lua.TryGetTable(manager, Offsets.LuaVoraxChests, out var table)) return [];
+        var chests = new List<int>();
+        while (chests.Count < MaxChests && _lua.TryGetIntAt(table, chests.Count + 1, out var value) && value is >= int.MinValue and <= int.MaxValue) chests.Add((int)value);
+        return [.. chests];
+    }
+
+    private VoraxCard[] ReadCards(LuaTable manager, LuaTable[] rows, bool owned) =>
+        [.. rows.Select((row, position) => (ok: TryReadCard(manager, row, position, owned, out var card), card)).Where(r => r.ok).Select(r => r.card)];
+
+    private bool TryReadCard(LuaTable manager, LuaTable row, int position, bool owned, out VoraxCard card)
+    {
+        card = default;
+        if (!TryGetInt(row, Offsets.LuaVoraxId, out var id)) return false;
+        var type = TryGetInt(row, Offsets.LuaVoraxType, out var raw) ? raw : 0;
+        var kind = owned || IsInitRelic(row) ? VoraxCardKind.Instrument : KindOf(type);
+        var slot = TryGetInt(row, Offsets.LuaVoraxIndex, out var index) ? index : position;
+        var text = Resolve(manager, kind, id);
+        card = new VoraxCard(slot, id, kind, text.Rarity) { Name = text.Name, Description = text.Description, TypeName = text.TypeName };
+        return true;
+    }
+
+    private static VoraxCardKind KindOf(int type) =>
+        type == Offsets.VoraxTypeMonster ? VoraxCardKind.Monster :
+        type == Offsets.VoraxTypePotion ? VoraxCardKind.Potion :
+        type == Offsets.VoraxTypeInstrument ? VoraxCardKind.Instrument :
+        type == Offsets.VoraxTypeModifier ? VoraxCardKind.Modifier :
+        type == Offsets.VoraxTypeBundleA || type == Offsets.VoraxTypeBundleB ? VoraxCardKind.Bundle :
+        VoraxCardKind.Unknown;
+
+    private static int ConfigTypeOf(VoraxCardKind kind) => kind switch
+    {
+        VoraxCardKind.Monster => Offsets.VoraxTypeMonster,
+        VoraxCardKind.Potion => Offsets.VoraxTypePotion,
+        VoraxCardKind.Instrument => Offsets.VoraxTypeInstrument,
+        VoraxCardKind.Modifier => Offsets.VoraxTypeModifier,
+        _ => Offsets.VoraxTypeBundleA,
+    };
+
+    private CardText Resolve(LuaTable manager, VoraxCardKind kind, int id)
+    {
+        if (kind == VoraxCardKind.Unknown) return CardText.Empty;
+        if (_texts.TryGetValue((kind, id), out var cached)) return cached;
+        if (!TryFindInfo(manager, ConfigTypeOf(kind), id, out var info, out var tableIndex)) return CardText.Empty;
+
+        var keys = Offsets.VoraxTypeNameKeys.Split(',');
+        var parameters = new List<int>();
+        if (_lua.TryGetTable(info, Offsets.LuaVoraxInfoParams, out var list))
+            while (parameters.Count < MaxDescParams && _lua.TryGetIntAt(list, parameters.Count + 1, out var value) && value is >= int.MinValue and <= int.MaxValue)
+                parameters.Add((int)value);
+
+        var text = new CardText(
+            TryGetInt(info, Offsets.LuaVoraxInfoRarity, out var rarity) ? rarity : 0,
+            _lua.TryGetString(info, Offsets.LuaVoraxInfoName, out var nameKey) ? Text(nameKey) : "",
+            _lua.TryGetString(info, Offsets.LuaVoraxInfoDesc, out var descKey) ? VoraxText.StripRichText(VoraxText.FillParams(Text(descKey), parameters)) : "",
+            tableIndex >= 0 && tableIndex < keys.Length ? Text(Offsets.VoraxTypeNamePrefix + keys[tableIndex]) : "");
+        return _texts[(kind, id)] = text;
+    }
+
+    private bool TryFindInfo(LuaTable manager, int type, int id, out LuaTable info, out int tableIndex)
+    {
+        info = default;
+        tableIndex = 0;
+        if (!_lua.TryGetTable(manager, Offsets.LuaVoraxConfigType, out var config) || !_lua.TryGetIntAt(config, type, out var index) || index < 0 || index > int.MaxValue) return false;
+        tableIndex = (int)index;
+        return _lua.TryGetTable(manager, Offsets.LuaVoraxTables, out var tables) && _lua.TryGetTableAt(tables, index, out var table) &&
+            _lua.TryGetTable(table, Offsets.LuaVoraxInfos, out var infos) && _lua.TryGetTableAt(infos, id, out info);
+    }
 
     private VoraxMonster[] ReadMonsters(LuaTable data)
     {

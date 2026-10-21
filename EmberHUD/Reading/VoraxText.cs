@@ -12,8 +12,9 @@ internal static partial class VoraxText
     public static string FillParams(string text, IReadOnlyList<int> parameters) =>
         ParamToken().Replace(text, m =>
         {
-            int n = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
-            return n >= 1 && n <= parameters.Count ? parameters[n - 1].ToString(CultureInfo.InvariantCulture) : m.Value;
+            return int.TryParse(m.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= parameters.Count
+                ? parameters[n - 1].ToString(CultureInfo.InvariantCulture)
+                : m.Value;
         }).Replace("%%", "%");
 
     public static string StripRichText(string text)
