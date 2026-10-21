@@ -158,6 +158,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             BagCapacities = Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? [56, 60, 100, 120] : null,
             Tartarus = Game.TartarusWanted(now, Offsets.TartarusWantedSeconds) ? TartarusAt(now) : null,
             Tarot = Game.TarotWanted(now, Offsets.TarotWantedSeconds) ? TarotAt(now) : null,
+            Vorax = Game.VoraxWanted(now, Offsets.VoraxWantedSeconds) ? VoraxAt(now) : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
@@ -201,6 +202,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     internal static TarotState TarotAt(long now) =>
         new(TarotPhase.Board, 1, 0, 3, (int)(now / Stopwatch.Frequency % FakeTarotTiles.Length), FakeTarotTiles, FakeTarotHand, [2], 0);
+
+    internal static VoraxState VoraxAt(long now) =>
+        new(VoraxPhase.Round, 2, 13, 761, 2000, 0, 2, 3, 6,
+            [
+                new(0, 14, 1, 3, 1, 300) { Name = "Bone Warden", RarityName = "Rare" },
+                new(1, 3, 2, 1, 24, 5) { Name = "Putrid Fly", RarityName = "Common" },
+                new(2, 4, 3, 2, 1, 341) { Name = "Mutated Monster", RarityName = "Magic" },
+            ],
+            [
+                new(0, 202, VoraxCardKind.Potion, 2) { Name = "Gray Matter Spinal Solution", Description = "Doubles the next monster's activity" },
+                new(1, 102, VoraxCardKind.Potion, 1) { Name = "Slender-Limb Powder - Pest", Description = "Adds a pest to the vat" },
+                new(2, 205, VoraxCardKind.Potion, 3) { Name = "Pure Leech Solution", Description = "Removes the weakest monster" },
+            ],
+            [new(0, 101, VoraxCardKind.Instrument, 1) { Name = "Aberrant Sprout", Description = "Grows the vat each round" }],
+            [0, 0, 0, 0, 0, 0]);
 
     internal static CombatStats CombatAt(long now)
     {

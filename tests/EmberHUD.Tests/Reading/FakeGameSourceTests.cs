@@ -153,6 +153,22 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameGivesVoraxAfterWantVorax()
+    {
+        Game.VoraxAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Vorax);
+        try
+        {
+            Game.WantVorax();
+            var vorax = At(Stopwatch.GetTimestamp()).Vorax!;
+            Assert.Equal(3, vorax.Monsters.Length);
+            Assert.Equal(vorax.Monsters.Sum(m => m.Total), vorax.Activity);
+            Assert.Equal(3, vorax.Offered.Length);
+        }
+        finally { Game.VoraxAsked = 0; }
+    }
+
+    [Fact]
     public void FakeGameSourceServesGroundItemsOnlyWhenAsked()
     {
         Game.GroundItemsAsked = 0;

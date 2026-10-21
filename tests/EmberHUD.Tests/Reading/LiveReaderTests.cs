@@ -290,6 +290,34 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void VoraxIsNullUntilAPluginAsks()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: new Reading.VoraxReaderTests.Fixture().Reader());
+        Game.VoraxAsked = 0;
+        Assert.True(reader.TryRead(out var idle, out _));
+        Assert.Null(idle.Vorax);
+    }
+
+    [Fact]
+    public void VoraxIsReadAfterWantVorax()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities();
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: new Reading.VoraxReaderTests.Fixture().Reader());
+        try
+        {
+            Game.VoraxAsked = 0;
+            Game.WantVorax();
+            Assert.True(reader.TryRead(out var asked, out _));
+            Assert.Equal(VoraxPhase.Round, asked.Vorax!.Phase);
+            Assert.Equal(2, asked.Vorax.Round);
+        }
+        finally { Game.VoraxAsked = 0; }
+    }
+
+    [Fact]
     public void GroundItemsAreOnlyReadWhenAsked()
     {
         var world = new FakeWorld();
