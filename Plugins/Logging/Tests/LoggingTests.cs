@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using EmberHUD;
 using EmberHUD.Testing;
 
@@ -150,9 +151,11 @@ public sealed class LoggingTests
         {
             TestLog.Use(Sample());
             var plugin = new Main();
-            Check.That(TestFrame.Vertices(plugin.Render) > 0, "shown draws the panel");
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(1, plugin.FramesDrawn);
             plugin.Settings.ShowPanel = false;
-            Check.That(TestFrame.Vertices(plugin.Render) == 0, "hidden draws nothing");
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(1, plugin.FramesDrawn);
         }
         finally
         {
@@ -192,39 +195,107 @@ public sealed class LoggingTests
     }
 
     [Test]
-    public void RowsTurnAMultiLineEntryIntoAFirstRowAndContinuationRows()
+    public void BlockLinesUpTheFourColumnsAndIndentsContinuationLines()
     {
-        var rows = LogFilter.Rows([Entry(LogLevel.Warn, "Host", "head\r\nsecond\nthird", 3), Entry(LogLevel.Info, "Pickit", "one")], 8);
-        Check.Equal(4, rows.Length);
-        Check.Equal("12:00:03.000", rows[0].Time);
-        Check.Equal("WARN ", rows[0].Level);
-        Check.Equal("Host    ", rows[0].Source);
-        Check.Equal("head", rows[0].Content);
-        Check.Equal("second", rows[1].Content);
-        Check.Equal("", rows[1].Time + rows[1].Level + rows[1].Source);
-        Check.Equal("third", rows[2].Content);
-        Check.Equal("head\r\nsecond\nthird", rows[2].Full);
-        Check.Equal(LogLevel.Warn, rows[2].Severity);
-        Check.Equal("Pickit  ", rows[3].Source);
-        Check.Equal("one", rows[3].Content);
+        var block = LogFilter.Block([Entry(LogLevel.Warn, "Host", "head\r\nsecond\nthird", 3), Entry(LogLevel.Info, "AVeryLongSourceNameIndeed", "one")], 16);
+        var lines = block.Split('\n');
+        Check.Equal(4, lines.Length);
+        Check.Equal("12:00:03.000 WARN  " + "Host".PadRight(16) + " head", lines[0]);
+        Check.Equal(new string(' ', 36) + "second", lines[1]);
+        Check.Equal(new string(' ', 36) + "third", lines[2]);
+        Check.Equal("12:00:00.000 INFO  AVeryLongSource~ one", lines[3]);
+        Check.Equal(36, lines[0].IndexOf("head"));
+        Check.Equal(36, lines[1].IndexOf("second"));
+        Check.Equal(36, lines[3].IndexOf("one"));
+        Check.That(!block.Contains('\r'), "no carriage returns");
     }
 
     [Test]
-    public void RowsAreRebuiltOnlyWhenTheFilterOutputIsRebuilt()
+    public void BlockOfNothingIsEmpty()
+    {
+        Check.Equal("", LogFilter.Block([], 0));
+    }
+
+    [Test]
+    public void TheTextBlockIsRebuiltOnlyWhenTheFilterOutputIsRebuilt()
     {
         try
         {
             TestLog.Use(Sample());
             var plugin = new Main();
             TestFrame.Vertices(plugin.Render);
-            var rows = plugin.Rows;
-            Check.Equal(4, rows.Length);
+            var block = plugin.Block;
+            Check.Equal(4, block.Split('\n').Length);
             TestFrame.Vertices(plugin.Render);
-            Check.That(ReferenceEquals(rows, plugin.Rows), "same rows while nothing changed");
+            Check.That(ReferenceEquals(block, plugin.Block), "same block while nothing changed");
             plugin.Search = "host";
             TestFrame.Vertices(plugin.Render);
-            Check.That(!ReferenceEquals(rows, plugin.Rows), "rows rebuilt after a filter change");
-            Check.Equal(2, plugin.Rows.Length);
+            Check.That(!ReferenceEquals(block, plugin.Block), "block rebuilt after a filter change");
+            Check.Equal(2, plugin.Block.Split('\n').Length);
+        }
+        finally
+        {
+            TestLog.Reset();
+        }
+    }
+
+    static string Utf8Text(Main plugin) => Encoding.UTF8.GetString(plugin.Utf8Bytes[..plugin.Utf8Length]);
+
+    [Test]
+    public void TheCachedUtf8BytesAreTheBlockWithNonAsciiTextAndANulTerminator()
+    {
+        try
+        {
+            TestLog.Use(Entry(LogLevel.Info, "Café", "crème brûlée"), Entry(LogLevel.Warn, "Host", "日本語のログ\nsecond ü"));
+            var plugin = new Main();
+            TestFrame.Vertices(plugin.Render);
+            Check.That(plugin.Block.Any(c => c > 127), "the block has non-ascii text");
+            Check.Equal(Encoding.UTF8.GetByteCount(plugin.Block), plugin.Utf8Length);
+            Check.Equal(plugin.Block, Utf8Text(plugin));
+            Check.Equal((byte)0, plugin.Utf8Bytes[plugin.Utf8Length]);
+        }
+        finally
+        {
+            TestLog.Reset();
+        }
+    }
+
+    [Test]
+    public void ShrinkingTheTextKeepsTheBytesAndTerminatorCorrect()
+    {
+        try
+        {
+            TestLog.Use(Enumerable.Range(0, 300).Select(i => Entry(LogLevel.Info, i == 7 ? "Tiny" : "Host", "a fairly long message with some padding " + i, i)).ToArray());
+            var plugin = new Main();
+            TestFrame.Vertices(plugin.Render);
+            var longLength = plugin.Utf8Length;
+            Check.Equal(plugin.Block, Utf8Text(plugin));
+            plugin.ToggleSource("Tiny");
+            TestFrame.Vertices(plugin.Render);
+            Check.That(plugin.Utf8Length < longLength / 10, "the text shrank a lot");
+            Check.Equal(plugin.Block, Utf8Text(plugin));
+            Check.Equal((byte)0, plugin.Utf8Bytes[plugin.Utf8Length]);
+            plugin.ClearSources();
+            plugin.Search = "message with some padding 29";
+            TestFrame.Vertices(plugin.Render);
+            Check.Equal(plugin.Block, Utf8Text(plugin));
+            Check.Equal((byte)0, plugin.Utf8Bytes[plugin.Utf8Length]);
+        }
+        finally
+        {
+            TestLog.Reset();
+        }
+    }
+
+    [Test]
+    public void TheTextAreaFindsItsInnerScrollWindow()
+    {
+        try
+        {
+            TestLog.Use(Sample());
+            var plugin = new Main();
+            TestFrame.Vertices(plugin.Render);
+            Check.That(plugin.ScrollWindowFound, "follow-bottom can reach the text area's scroll window");
         }
         finally
         {

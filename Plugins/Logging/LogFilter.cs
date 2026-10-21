@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using EmberHUD;
 
 namespace Logging;
-
-readonly record struct LogRow(string Time, string Level, string Source, string Content, LogLevel Severity, string Full);
 
 sealed class Throttle(long intervalMs, Func<long> clock)
 {
@@ -35,17 +34,18 @@ static class LogFilter
 
     public static string Pad(string source, int width) => source.Length > width ? source[..Math.Max(0, width - 1)] + "~" : source.PadRight(width);
 
-    public static LogRow[] Rows(IReadOnlyList<LogEntry> entries, int sourceWidth)
+    public static string Block(IReadOnlyList<LogEntry> entries, int sourceWidth)
     {
-        var rows = new List<LogRow>(entries.Count);
+        var text = new StringBuilder();
+        var blank = new string(' ', 12 + 1 + 5 + 1 + sourceWidth + 1);
         foreach (var entry in entries)
         {
-            var full = entry.Message ?? "";
-            var lines = full.Replace("\r", "").Split('\n');
-            rows.Add(new(entry.Time.ToString("HH:mm:ss.fff"), LogFormat.Level(entry.Level), Pad(entry.Source ?? "", sourceWidth), lines[0], entry.Level, full));
-            for (var i = 1; i < lines.Length; i++) rows.Add(new("", "", "", lines[i], entry.Level, full));
+            var lines = (entry.Message ?? "").Replace("\r", "").Split('\n');
+            if (text.Length > 0) text.Append('\n');
+            text.Append(entry.Time.ToString("HH:mm:ss.fff")).Append(' ').Append(LogFormat.Level(entry.Level)).Append(' ').Append(Pad(entry.Source ?? "", sourceWidth)).Append(' ').Append(lines[0]);
+            for (var i = 1; i < lines.Length; i++) text.Append('\n').Append(blank).Append(lines[i]);
         }
-        return rows.ToArray();
+        return text.ToString();
     }
 
     public static DateOnly[] FileDays(IEnumerable<DateOnly> days, DateOnly today) => days.Where(day => day != today).OrderByDescending(day => day).ToArray();

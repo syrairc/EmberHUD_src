@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using Hexa.NET.ImGui;
 using EmberHUD;
 using EmberHUD.Ui;
@@ -10,7 +11,9 @@ namespace Logging;
 
 public sealed class Main : Plugin<Settings>
 {
-    readonly Overlay _overlay = new();
+    const string WindowName = "Logging###logging";
+    const string TextLabel = "##text";
+
     readonly HashSet<string> _sources = [];
     readonly Throttle _daysThrottle = new(5000, () => Environment.TickCount64);
     LogEntry[]? _raw;
@@ -24,11 +27,17 @@ public sealed class Main : Plugin<Settings>
     DateOnly[] _days = [];
     string[] _dayLabels = ["Today"];
     bool _levelSet;
+    byte[] _utf8 = new byte[1];
+    string? _scrollWindowName;
 
     internal int Loads => _loads;
     internal int FilterRuns { get; private set; }
+    internal int FramesDrawn { get; private set; }
+    internal int Utf8Length { get; private set; }
+    internal ReadOnlySpan<byte> Utf8Bytes => _utf8;
+    internal bool ScrollWindowFound { get; private set; }
     internal LogEntry[] Shown { get; private set; } = [];
-    internal LogRow[] Rows { get; private set; } = [];
+    internal string Block { get; private set; } = "";
     internal LogLevel Level { get; set; }
     internal string Search { get; set; } = "";
     internal DateOnly? Day { get; set; }
@@ -37,7 +46,7 @@ public sealed class Main : Plugin<Settings>
     internal int MaxLines => Math.Clamp(Settings.MaxLines, 50, 20000);
     internal string CopyText => LogFilter.Text(Shown);
 
-    public override void Initialize() => RegisterHotkey("Toggle", "Shows or hides the log panel", () => Settings.ShowPanel = !Settings.ShowPanel, new Hotkey(Key.F9));
+    public override void Initialize() => RegisterHotkey("Toggle", "Shows or hides the log window", () => Settings.ShowPanel = !Settings.ShowPanel, new Hotkey(Key.F9));
 
     internal void Clear() => ClearedAt = DateTime.Now;
 
@@ -88,7 +97,12 @@ public sealed class Main : Plugin<Settings>
         _shownKey = shownKey;
         var cleared = ClearedAt;
         Shown = LogFilter.Apply(_raw.Where(entry => entry.Time > cleared).ToArray(), Level, _sources, Search);
-        Rows = LogFilter.Rows(Shown, LogFilter.SourceWidth(Shown));
+        Block = LogFilter.Block(Shown, LogFilter.SourceWidth(Shown));
+        var needed = Encoding.UTF8.GetByteCount(Block) + 1;
+        if (_utf8.Length < needed || _utf8.Length > needed * 2 + 64) _utf8 = new byte[needed];
+        Encoding.UTF8.GetBytes(Block, 0, Block.Length, _utf8, 0);
+        _utf8[needed - 1] = 0;
+        Utf8Length = needed - 1;
         FilterRuns++;
     }
 
@@ -117,27 +131,16 @@ public sealed class Main : Plugin<Settings>
         Refresh();
         RefreshDays();
 
-        _overlay.Locked = Settings.Lock;
-        _overlay.MoveHeld = Settings.MoveKey.Key != Key.None && Input.IsDown(Settings.MoveKey.Key);
-        var origin = new Vector2(Settings.PanelX, Settings.PanelY);
-        var size = new Vector2(Settings.Width, Settings.Height);
-        var (hovered, _, active) = _overlay.Handle("logging", ref origin, size, ref Settings.PanelX, ref Settings.PanelY, ref Settings.Width, 300, 4000, ref Settings.Height, 120, 2000, Overlay.ResizeEdge.Corner);
-        size = new Vector2(Settings.Width, Settings.Height);
-        if (hovered || active) Overlay.ClickBlocker("logging", origin, size);
-        Draw.RectFilled(origin, origin + size, GameColors.LabelBackground, 4);
-        if (_overlay.Movable) Overlay.DragHint(origin, origin + size, active, hovered, Overlay.ResizeEdge.Corner);
-
-        ImGui.SetNextWindowPos(origin);
-        ImGui.SetNextWindowSize(size);
-        var flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
-        if (_overlay.Movable) flags |= ImGuiWindowFlags.NoInputs;
-        var visible = ImGui.Begin("Log###logging", flags);
+        ImGui.SetNextWindowPos(new Vector2(40, 40), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(900, 360), ImGuiCond.FirstUseEver);
+        var visible = ImGui.Begin(WindowName, ref Settings.ShowPanel);
         try
         {
             if (!visible) return;
             FilterStrip();
             ImGui.Separator();
-            List();
+            TextArea();
+            FramesDrawn++;
         }
         finally
         {
@@ -190,57 +193,19 @@ public sealed class Main : Plugin<Settings>
         ClearedAt = DateTime.MinValue;
     }
 
-    void List()
+    void TextArea()
     {
+        _scrollWindowName ??= $"{WindowName}/{TextLabel}_{ImGui.GetID(TextLabel):X8}";
         using var _ = Fonts.Use(FontFace.Mono);
-        var sourceWidth = Rows.Length == 0 ? 0 : LogFilter.SourceWidth(Shown);
-        var charWidth = ImGui.CalcTextSize("0").X;
-        if (!ImGui.BeginTable("##lines", 4, ImGuiTableFlags.ScrollY | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.NoSavedSettings, Vector2.Zero)) return;
-        var clipper = ImGui.ImGuiListClipper();
-        try
-        {
-            ImGui.TableSetupColumn("time", ImGuiTableColumnFlags.WidthFixed, charWidth * 12 + 6);
-            ImGui.TableSetupColumn("level", ImGuiTableColumnFlags.WidthFixed, charWidth * 5 + 6);
-            ImGui.TableSetupColumn("source", ImGuiTableColumnFlags.WidthFixed, charWidth * Math.Max(1, sourceWidth) + 6);
-            ImGui.TableSetupColumn("content", ImGuiTableColumnFlags.WidthStretch);
-            var follow = !Paused && ImGui.GetScrollY() >= ImGui.GetScrollMaxY() - 4;
-            clipper.Begin(Rows.Length);
-            while (clipper.Step())
-                for (var i = clipper.DisplayStart; i < clipper.DisplayEnd; i++) Row(Rows[i], charWidth);
-            clipper.End();
-            if (follow) ImGui.SetScrollHereY(1);
-        }
-        finally
-        {
-            clipper.Destroy();
-            ImGui.EndTable();
-        }
+        ImGui.InputTextMultiline(TextLabel, ref _utf8[0], (nuint)_utf8.Length, Vector2.Max(ImGui.GetContentRegionAvail(), new Vector2(50, 40)), ImGuiInputTextFlags.ReadOnly);
+        FollowBottom();
     }
 
-    static void Row(in LogRow row, float charWidth)
+    void FollowBottom()
     {
-        ImGui.TableNextRow();
-        ImGui.PushStyleColor(ImGuiCol.Text, EColor.ToVector4(LevelColour(row.Severity)));
-        ImGui.TableSetColumnIndex(0);
-        ImGui.TextUnformatted(row.Time);
-        ImGui.TableSetColumnIndex(1);
-        ImGui.TextUnformatted(row.Level);
-        ImGui.TableSetColumnIndex(2);
-        ImGui.TextUnformatted(row.Source);
-        ImGui.TableSetColumnIndex(3);
-        ImGui.TextUnformatted(row.Content);
-        ImGui.PopStyleColor();
-        if (!ImGui.IsItemHovered() || (row.Full.Length == row.Content.Length && row.Content.Length * charWidth <= ImGui.GetContentRegionAvail().X)) return;
-        ImGui.BeginTooltip();
-        ImGui.TextUnformatted(row.Full);
-        ImGui.EndTooltip();
+        var window = ImGuiP.FindWindowByName(_scrollWindowName!);
+        ScrollWindowFound = !window.IsNull;
+        if (window.IsNull || Paused) return;
+        if (window.Scroll.Y >= window.ScrollMax.Y - 4) ImGuiP.SetScrollY(window, 1e9f);
     }
-
-    static System.Drawing.Color LevelColour(LogLevel level) => level switch
-    {
-        LogLevel.Trace or LogLevel.Debug => GameColors.TextDim,
-        LogLevel.Warn => GameColors.Gold,
-        LogLevel.Error => GameColors.Negative,
-        _ => GameColors.Text,
-    };
 }
