@@ -9,11 +9,9 @@ using Hexa.NET.ImGui;
 
 namespace Inspector;
 
-internal sealed record ActorSpot(nint Address, string Class, Vector3 Position);
-
 internal readonly record struct Hit(object Target, Vector3 Position, Vector2 At, float Distance);
 
-internal sealed class PickMode(Func<long> clock, Action<object> pin)
+internal sealed class PickMode(Action<object> pin)
 {
     const int MaxHits = 5;
     static readonly Comparison<Hit> ByDistance = (a, b) => a.Distance.CompareTo(b.Distance);
@@ -21,29 +19,17 @@ internal sealed class PickMode(Func<long> clock, Action<object> pin)
     readonly List<Hit> _hits = [];
     readonly List<Vector2> _projected = [];
     (Entity[] Source, HashSet<int> Ids) _entityIds = (Array.Empty<Entity>(), new HashSet<int>());
-    long _nextScan;
 
     public bool Active;
-    public BackgroundJob<ActorSpot[]> ActorsJob = new();
-    public ActorSpot[] Actors { get; set; } = [];
     public IReadOnlyList<Hit> Hits => _hits;
 
     public void Tick()
     {
         if (Active && Input.Pressed(new Hotkey(Key.Escape))) Active = false;
-        if (!Active) Actors = [];
     }
 
     public void Render(Settings settings)
     {
-        if (ActorsJob.TakeFinished() is { } done) Actors = done.IsCompletedSuccessfully ? done.Result : [];
-        if (!settings.PickActors) Actors = [];
-        else if (!ActorsJob.Running && clock() >= _nextScan)
-        {
-            _nextScan = clock() + 500;
-            ActorsJob.Start(ScanActors);
-        }
-
         var io = ImGui.GetIO();
         var clicked = Overlay.ClickBlocker("inspector-pick", Vector2.Zero, io.DisplaySize);
         using var layer = Draw.Layer(DrawLayer.Front);
@@ -76,7 +62,6 @@ internal sealed class PickMode(Func<long> clock, Action<object> pin)
             foreach (var icon in state.MapIcons)
                 if (icon.EntityId == 0 || !ids.Contains(icon.EntityId)) Consider(new Vector3(icon.Position, z), icon);
         }
-        foreach (var actor in Actors) Consider(actor.Position, actor);
         _hits.Sort(ByDistance);
         if (_hits.Count > MaxHits) _hits.RemoveRange(MaxHits, _hits.Count - MaxHits);
 
@@ -102,21 +87,7 @@ internal sealed class PickMode(Func<long> clock, Action<object> pin)
         {
             Entity e => $"{e.Kind} {e.Id}  cfg {e.CfgId}  {e.Rarity}  0x{e.Address:X}{distance}",
             MapIcon i => $"Icon {i.Texture}  type {i.Type}{distance}",
-            ActorSpot a => $"{a.Class}  0x{a.Address:X}{distance}",
             _ => "Player",
         };
-    }
-
-    public static ActorSpot[] ScanActors()
-    {
-        List<ActorSpot> spots = [];
-        foreach (var obj in Ue.Objects())
-        {
-            if (!obj.IsA("Actor") || obj.IsDefault || obj.Class is not { } cls) continue;
-            var at = ObjectIndex.PositionAddress(obj.Address, cls);
-            if (at == 0 || !Memory.TryRead(at, out Vector3 position) || !float.IsFinite(position.X + position.Y + position.Z)) continue;
-            spots.Add(new ActorSpot(obj.Address, cls.Name, position));
-        }
-        return [.. spots];
     }
 }

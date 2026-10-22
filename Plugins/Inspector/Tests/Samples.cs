@@ -13,6 +13,19 @@ internal sealed class Thrower
     public int Bad => throw new InvalidOperationException();
 }
 
+internal sealed class Counted
+{
+    public static int Reads;
+    public int Value
+    {
+        get
+        {
+            Reads++;
+            return 5;
+        }
+    }
+}
+
 internal static class Samples
 {
     public static void NoPin(object _)
@@ -53,25 +66,4 @@ internal static class Samples
         draw();
         ImGui.End();
     });
-
-    public static (TestUe Ue, nint Hero, nint Root, nint Monster) ActorWorld()
-    {
-        var ue = new TestUe();
-        var vector = ue.ScriptStruct("Vector", 12, new TestProp("X", "FloatProperty", 0), new TestProp("Y", "FloatProperty", 4), new TestProp("Z", "FloatProperty", 8));
-        var scene = ue.Class("SceneComponent", 0, 0x40, new TestProp("RelativeLocation", "StructProperty", 0x30, 12, Struct: vector));
-        var actor = ue.Class("Actor", 0, 0x50,
-            new TestProp("RootComponent", "ObjectProperty", 0x30, 8),
-            new TestProp("Tags", "ArrayProperty", 0x38, 16, Element: new TestProp("Tags", "NameProperty", 0, 8)),
-            new TestProp("bHidden", "BoolProperty", 0x48, 1, BoolMask: 1));
-        var monster = ue.Class("EMonster", actor, 0x58);
-        var root = ue.Object("Root", scene);
-        TestMemory.Write(root + 0x30, new Vector3(1, 2, 3));
-        var hero = ue.Object("Hero", monster);
-        TestMemory.Write(hero + 0x30, root);
-        var tags = TestMemory.Alloc(16);
-        TestMemory.Write(tags, ue.Name("Boss"));
-        TestMemory.Write(hero + 0x38, tags);
-        TestMemory.Write(hero + 0x40, 1);
-        return (ue, hero, root, monster);
-    }
 }

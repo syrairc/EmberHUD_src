@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -35,7 +36,6 @@ public sealed class WalkerTests
     {
         Check.Equal(typeof(Entity), Walker.ElementType(typeof(Entity[])));
         Check.Equal(typeof(KeyValuePair<string, int>), Walker.ElementType(typeof(Dictionary<string, int>)));
-        Check.That(Walker.IsFlat(typeof(int[])) && Walker.IsFlat(typeof(string)) && !Walker.IsFlat(typeof(Player)), "IsFlat wrong");
     }
 
     [Test]
@@ -59,7 +59,7 @@ public sealed class WalkerTests
     {
         Check.Equal(Samples.Entities[0].Position, Walker.Position(Samples.Entities[0])!.Value);
         Check.Equal(Samples.Player.Position, Walker.Position(Samples.Player)!.Value);
-        Check.That(Walker.Position(Samples.Icons[0]) is null, "MapIcon positions are 2D");
+        Check.Equal(new Vector3(1, 2, 0), Walker.Position(Samples.Icons[0])!.Value);
         Check.That(Walker.Position(null) is null, "null has no position");
         Check.That(Walker.HasPosition(typeof(Entity)) && !Walker.HasPosition(typeof(Camera)), "HasPosition wrong");
     }
@@ -74,11 +74,10 @@ public sealed class WalkerTests
     }
 
     [Test]
-    public void TryHexTakesAnOptionalPrefixAndRejectsGarbage()
+    public void BitArrayIsASummary()
     {
-        Check.That(Walker.TryHex("0x1A2b", out var prefixed) && prefixed == 0x1A2B, "prefixed");
-        Check.That(Walker.TryHex("  ff ", out var bare) && bare == 0xFF, "bare and padded");
-        Check.That(!Walker.TryHex("0x", out _) && !Walker.TryHex("", out _) && !Walker.TryHex("0xZZ", out _) && !Walker.TryHex("-1", out _), "garbage");
+        Check.That(Walker.IsScalar(typeof(BitArray)), "BitArray must be a scalar");
+        Check.Equal("3 bits, 2 set", Walker.Format(new BitArray(new[] { true, false, true })));
     }
 
     [Test]

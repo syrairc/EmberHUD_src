@@ -110,94 +110,53 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TheExplorerSitsBehindTheObjectsTab()
+    public void PinningAnEntityTwiceKeepsOneWindow()
     {
-        var main = new Main { Open = true };
-        TestGame.Set(Samples.Rich);
-
-        Check.That(main.Explorer is not null, "explorer exists");
-        TestFrame.Run(main.Render);
-    }
-
-    [Test]
-    public void PinningAnEntityTwiceKeepsOneWindowAndTheWindowsDraw()
-    {
-        var ue = new TestUe();
-        var hero = ue.Object("Hero", ue.Class("Actor"));
         var main = new Main();
         TestGame.Set(Samples.Rich);
 
         main.PinThing(Samples.Entities[0]);
         main.PinThing(Samples.Entities[0]);
         main.PinThing(Samples.Player);
-        main.PinThing(new RawPin(hero, "Actor Hero"));
 
-        Check.Equal(3, main.Pins.Count);
+        Check.Equal(2, main.Pins.Count);
         Check.Equal("Entity 1", main.Pins[0].Label);
-        Check.Equal((nint)0x1000, main.Pins[0].Address);
-        Check.Equal(hero, main.Pins[2].Address);
         TestFrame.Run(main.Render);
     }
 
     [Test]
-    public void PinsGoAwayWhenTheGameDoes()
+    public void AnEntityPinFollowsTheLiveRecordAndGoesGone()
     {
-        var ue = new TestUe();
-        var hero = ue.Object("Hero", ue.Class("Actor"));
-        var logic = TestMemory.Alloc(0x20);
         var main = new Main();
-        main.PinThing(new RawPin(hero, "Actor Hero"));
-        main.PinThing(new RawPin(logic, "logic"));
+        main.PinThing(Samples.Entities[0]);
+        var moved = Samples.Entities[0] with { Position = new Vector3(50, 60, 0) };
 
-        Check.That(main.Pins.All(p => !Main.Gone(p)), "fresh pins are not gone");
-
-        TestMemory.Clear();
-
-        Check.That(main.Pins.All(Main.Gone), "detached pins are gone");
-        TestFrame.Run(main.Render);
+        Check.Equal(moved, Main.Current(main.Pins[0], Samples.Rich with { Entities = [moved, Samples.Entities[1]] }));
+        Check.That(Main.Current(main.Pins[0], Samples.Rich with { Entities = [Samples.Entities[1]] }) is null, "missing entity is gone");
     }
 
     [Test]
-    public void APinGoesGoneWhenItsClassPointerChanges()
+    public void APlayerPinGoesGoneWhenThePlayerIsNull()
     {
-        var ue = new TestUe();
-        var hero = ue.Object("Hero", ue.Class("Actor"));
-        var other = ue.Class("Other");
         var main = new Main();
-        main.PinThing(new RawPin(hero, "Actor Hero"));
-        Check.That(!Main.Gone(main.Pins[0]), "fresh pin is not gone");
+        main.PinThing(Samples.Player);
+        var live = Samples.Player with { Position = new Vector3(1, 1, 1) };
 
-        TestMemory.Write(hero + 0x18, other);
-
-        Check.That(Main.Gone(main.Pins[0]), "a pin whose class pointer changed is gone");
+        Check.Equal(live, Main.Current(main.Pins[0], Samples.Rich with { Player = live }));
+        Check.That(Main.Current(main.Pins[0], Samples.Rich with { Player = null }) is null, "no player is gone");
     }
 
     [Test]
-    public void FreezeAlsoFreezesRawReads()
+    public void ALinkedIconPinIsRefoundByEntityIdAndASnapshotStays()
     {
         var main = new Main();
-        main.Freeze();
-        Check.That(main.Snapshots.Frozen, "raw reads still refresh");
-        main.Resume();
-        Check.That(!main.Snapshots.Frozen, "raw reads still frozen");
-    }
+        main.PinThing(Samples.Icons[1]);
+        main.PinThing(Samples.Icons[0]);
+        var moved = Samples.Icons[1] with { Position = new Vector2(70, 80) };
 
-    [Test]
-    public void EachPinWindowKeepsItsOwnSearchAndHideDefaults()
-    {
-        var (_, hero, root, _) = Samples.ActorWorld();
-        var main = new Main();
-        main.PinThing(new RawPin(hero, "Hero"));
-        main.PinThing(new RawPin(root, "Root"));
-
-        main.Pins[0].View.Search = "rare";
-        main.Pins[0].View.HideDefaults = true;
-
-        Check.Equal("", main.Pins[1].View.Search);
-        Check.That(!main.Pins[1].View.HideDefaults, "hide defaults leaked into the other pin");
-        Check.That(!ReferenceEquals(main.Pins[0].View, main.Explorer.View), "a pin shares the Objects pane view");
-        Check.That(!ReferenceEquals(main.Pins[0].View, main.Raw), "a pin shares the Globals tab view");
-        TestFrame.Run(main.Render);
+        Check.Equal(moved, Main.Current(main.Pins[0], Samples.Rich with { MapIcons = [Samples.Icons[0], moved] }));
+        Check.That(Main.Current(main.Pins[0], Samples.Rich with { MapIcons = [Samples.Icons[0]] }) is null, "missing linked icon is gone");
+        Check.Equal(Samples.Icons[0], Main.Current(main.Pins[1], Samples.Rich with { MapIcons = [] }));
     }
 
     [Test]
@@ -206,13 +165,35 @@ public sealed class MainTests
         var main = new Main();
 
         main.PinThing(Samples.Player);
-        main.PinThing(Samples.Player with { Position = new System.Numerics.Vector3(99, 99, 0) });
+        main.PinThing(Samples.Player with { Position = new Vector3(99, 99, 0) });
         main.PinThing(Samples.Entities[1]);
-        main.PinThing(Samples.Entities[1] with { Position = new System.Numerics.Vector3(7, 7, 7) });
+        main.PinThing(Samples.Entities[1] with { Position = new Vector3(7, 7, 7) });
         main.PinThing(Samples.Icons[0]);
         main.PinThing(Samples.Icons[0] with { Rotation = 3f });
+        main.PinThing(Samples.Icons[1]);
+        main.PinThing(Samples.Icons[1] with { Position = new Vector2(9, 9) });
 
-        Check.Equal(3, main.Pins.Count);
+        Check.Equal(4, main.Pins.Count);
+    }
+
+    [Test]
+    public void AnIconWithoutAnEntityIsLabelledSnapshot()
+    {
+        var main = new Main();
+        main.PinThing(Samples.Icons[0]);
+        main.PinThing(Samples.Icons[1]);
+        Check.Equal("Icon UI_MiniMap_Portal (snapshot)", main.Pins[0].Label);
+        Check.Equal("Icon UI_MiniMap_S15xiaoguai", main.Pins[1].Label);
+    }
+
+    [Test]
+    public void OldSettingsKeysAreIgnored()
+    {
+        var options = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+
+        var settings = System.Text.Json.JsonSerializer.Deserialize<Settings>("""{"PickActors":true,"RefreshRate":30,"PickRadius":40}""", options)!;
+
+        Check.Equal(40f, settings.PickRadius);
     }
 
     [Test]
