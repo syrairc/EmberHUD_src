@@ -390,7 +390,7 @@ public sealed record CombatStats(long At, double Effective, double Raw, long Hit
     public double Seconds => At / (double)Stopwatch.Frequency;
 }
 
-public readonly record struct Buff(int Id, string? Name, double Remaining, double Total, string? Icon = null);
+public readonly record struct Buff(int Id, string? Name, double Remaining, double Total, string? Icon = null, int Stacks = 1);
 
 public readonly record struct Skill(int CfgId, int Slot, double CooldownRemaining, double CooldownTotal, int Charges, int MaxCharges, string? Icon = null)
 {

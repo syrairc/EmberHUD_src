@@ -493,6 +493,25 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void GetBuffsListsStacksAndFiltersById()
+    {
+        TestGame.Set(GameState.Empty with { Buffs = [new Buff(43022, "Vorax", 1, 1, null, 4), new Buff(10, "Marker", 1, 1)] });
+        var all = Wire.Run(Tools, "get_buffs");
+        Check.Equal(true, (bool)all["ready"]!);
+        Check.Equal(2, all["buffs"]!.AsArray().Count);
+        var one = Wire.Run(Tools, "get_buffs", new JsonObject { ["id"] = 43022 })["buffs"]!.AsArray();
+        Check.Equal(1, one.Count);
+        Check.Equal(4, (int)one[0]!["stacks"]!);
+    }
+
+    [Test]
+    public void GetBuffsBeforeTheReaderHasRunIsNotReady()
+    {
+        TestGame.Set(GameState.Empty);
+        Check.Equal(false, (bool)Wire.Run(Tools, "get_buffs")["ready"]!);
+    }
+
+    [Test]
     public void GetVoraxWithoutStateIsNotReady()
     {
         TestGame.Set(GameState.Empty);
