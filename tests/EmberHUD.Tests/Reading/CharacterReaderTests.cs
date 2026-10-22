@@ -60,6 +60,33 @@ public class CharacterReaderTests
     }
 
     [Fact]
+    public void ReadsStacksOfAStackableBuff()
+    {
+        var rig = new Rig();
+        rig.GivePlayerBuffs(rig.World.AddBuff(43022, 1, 1, stacks: 4));
+
+        Assert.Equal(4, rig.Reader.ReadBuffs()!.Single().Stacks);
+    }
+
+    [Fact]
+    public void ABuffThatIsNotStackableHasOneStack()
+    {
+        var rig = new Rig();
+        rig.GivePlayerBuffs(rig.World.AddBuff(1, 1, 1, stacks: 7, stackable: false), rig.World.AddBuff(2, 1, 1));
+
+        Assert.All(rig.Reader.ReadBuffs()!, b => Assert.Equal(1, b.Stacks));
+    }
+
+    [Fact]
+    public void GarbageStackCountFallsBackToOne()
+    {
+        var rig = new Rig();
+        rig.GivePlayerBuffs(rig.World.AddBuff(1, 1, 1, stacks: -5), rig.World.AddBuff(2, 1, 1, stacks: 0));
+
+        Assert.All(rig.Reader.ReadBuffs()!, b => Assert.Equal(1, b.Stacks));
+    }
+
+    [Fact]
     public void SkipsABuffWithoutAConfigRow()
     {
         var rig = new Rig();

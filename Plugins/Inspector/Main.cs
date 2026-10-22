@@ -9,7 +9,7 @@ using Hexa.NET.ImGui;
 
 namespace Inspector;
 
-internal sealed record Pin(int Id, string Label, object? Api, nint Address, nint ClassAtPin, RawView View);
+internal sealed record Pin(int Id, string Label, object Api);
 
 public sealed class Main : Plugin<Settings>
 {
@@ -18,15 +18,10 @@ public sealed class Main : Plugin<Settings>
     int _nextPin;
 
     internal bool Open;
-    internal Func<long> Clock = () => Environment.TickCount64;
     internal ApiTree Browser { get; }
-    internal Snapshots Snapshots { get; }
-    internal RawView Raw { get; }
-    internal Explorer Explorer { get; }
     internal PickMode Pick { get; }
     internal List<Pin> Pins { get; } = [];
     readonly Dictionary<int, (MapIcon[] Source, MapIcon[] Icons)> _icons = [];
-    readonly (string Label, Func<bool>? Body)[] _tabs;
 
     internal MapIcon[] IconsOf(Pin pin, Entity entity, GameState state)
     {
@@ -40,68 +35,44 @@ public sealed class Main : Plugin<Settings>
 
     public Main()
     {
-        Snapshots = new Snapshots(() => Clock());
         Browser = new ApiTree(PinThing);
-        Raw = new RawView(Snapshots, PinThing);
-        Explorer = new Explorer(Snapshots, PinThing);
-        Pick = new PickMode(() => Clock(), PinThing);
-        _tabs =
-        [
-            .. ApiTree.All.Select(section => (section.Name, (Func<bool>?)Tab(() => Browser.Show(section, Shown)))),
-            ("Globals", Tab(Raw.Globals)),
-            ("Objects", Tab(() => Explorer.Draw(Shown.AreaId))),
-            ("Address", Tab(Raw.Address)),
-        ];
+        Pick = new PickMode(PinThing);
     }
 
-    static Func<bool> Tab(Action draw) => () =>
-    {
-        draw();
-        return false;
-    };
+    internal void Freeze() => _frozen = Shown;
 
-    internal void Freeze()
-    {
-        _frozen = Shown;
-        Snapshots.Frozen = true;
-    }
-
-    internal void Resume()
-    {
-        _frozen = null;
-        Snapshots.Frozen = false;
-    }
+    internal void Resume() => _frozen = null;
 
     internal void PinThing(object target)
     {
-        var (label, api, address) = target switch
+        var label = target switch
         {
-            Entity entity => ($"Entity {entity.Id}", (object?)entity, entity.Address),
-            Player player => ("Player", player, (nint)0),
-            MapIcon icon => ($"Icon {icon.Texture}", icon, (nint)0),
-            ActorSpot actor => (actor.Class, null, actor.Address),
-            RawPin raw => (raw.Label, null, raw.Address),
-            _ => (target.GetType().Name, target, (nint)0),
+            Entity entity => $"Entity {entity.Id}",
+            Player => "Player",
+            MapIcon { EntityId: 0 } icon => $"Icon {icon.Texture} (snapshot)",
+            MapIcon icon => $"Icon {icon.Texture}",
+            _ => target.GetType().Name,
         };
-        if (Pins.Any(pin => address != 0 ? pin.Address == address : Equals(PinKey(pin.Api), PinKey(api)))) return;
-        Pins.Add(new Pin(_nextPin++, label, api, address, Ue.TryObject(address, out var obj) ? obj.ClassAddress : 0, new RawView(Snapshots, PinThing)));
+        if (Pins.Any(pin => Equals(PinKey(pin.Api), PinKey(target)))) return;
+        Pins.Add(new Pin(_nextPin++, label, target));
     }
 
-    static object? PinKey(object? api) => api switch
+    static object PinKey(object api) => api switch
     {
         Player => typeof(Player),
         Entity entity => entity.Id,
+        MapIcon { EntityId: not 0 } icon => ("icon", icon.EntityId),
         MapIcon icon => (icon.Texture, icon.Position),
         _ => api,
     };
 
-    internal static bool Gone(Pin pin)
+    internal static object? Current(Pin pin, GameState state) => pin.Api switch
     {
-        if (pin.Address == 0) return false;
-        if (!Memory.Attached) return true;
-        if (pin.ClassAtPin == 0) return !Memory.TryRead(pin.Address, out long _);
-        return !Ue.TryObject(pin.Address, out var obj) || obj.ClassAddress != pin.ClassAtPin;
-    }
+        Entity entity => state.Entities.Where(e => e.Id == entity.Id).Cast<object?>().FirstOrDefault(),
+        Player => state.Player,
+        MapIcon { EntityId: not 0 } icon => state.MapIcons.Where(i => i.EntityId == icon.EntityId).Cast<object?>().FirstOrDefault(),
+        var api => api,
+    };
 
     public override void Initialize()
     {
@@ -113,8 +84,6 @@ public sealed class Main : Plugin<Settings>
 
     public override void Render()
     {
-        Snapshots.RefreshRate = Settings.RefreshRate;
-        Snapshots.Prune();
         if (Pick.Active) Pick.Render(Settings);
         var state = Shown;
         Browser.BeginFrame();
@@ -126,7 +95,7 @@ public sealed class Main : Plugin<Settings>
             if (shown)
             {
                 DrawHeader(state);
-                Layout.SideTabs("sections", 110f, _tabs);
+                Browser.Show(state);
             }
             ImGui.End();
         }
@@ -138,7 +107,6 @@ public sealed class Main : Plugin<Settings>
     {
         Browser.Clear();
         Walker.Clear();
-        Snapshots.Clear();
         Pins.Clear();
         _icons.Clear();
     }
@@ -151,21 +119,9 @@ public sealed class Main : Plugin<Settings>
             ImGui.SetNextWindowSize(new Vector2(560, 480), ImGuiCond.FirstUseEver);
             if (ImGui.Begin($"{pin.Label}###pin{pin.Id}", ref open))
             {
-                if (pin.Api is { } api) Browser.Draw($"api{pin.Id}", Current(api, state));
+                if (Current(pin, state) is { } live) Browser.Draw($"api{pin.Id}", live);
+                else ImGui.TextDisabled("gone");
                 if (pin.Api is Entity entity && IconsOf(pin, entity, state) is { Length: > 0 } icons) Browser.Draw($"icons{pin.Id}", icons);
-                if (pin.Address != 0)
-                {
-                    ImGui.Separator();
-                    if (RawView.Attached())
-                    {
-                        if (Gone(pin)) ImGui.TextDisabled("gone");
-                        else
-                        {
-                            pin.View.Toolbar();
-                            pin.View.Node($"raw{pin.Id}", pin.Address, 0);
-                        }
-                    }
-                }
             }
             ImGui.End();
             if (open) continue;
@@ -173,13 +129,6 @@ public sealed class Main : Plugin<Settings>
             _icons.Remove(pin.Id);
         }
     }
-
-    static object Current(object api, GameState state) => api switch
-    {
-        Entity entity => state.Entities.FirstOrDefault(e => e.Id == entity.Id) is { Id: > 0 } live ? live : entity,
-        Player player => state.Player ?? (object)player,
-        _ => api,
-    };
 
     void DrawHeader(GameState state)
     {
@@ -196,6 +145,13 @@ public sealed class Main : Plugin<Settings>
         {
             if (Frozen) Resume();
             else Freeze();
+        }
+        ImGui.SameLine();
+        ImGui.Checkbox("Show not provided", ref Browser.ShowNulls);
+        if (!Browser.ShowNulls)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled($"{Browser.RootHidden} not provided");
         }
         ImGui.Separator();
     }

@@ -399,12 +399,17 @@ internal sealed class FakeWorld
         return component;
     }
 
-    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null, string? icon = null)
+    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null, string? icon = null, int? stacks = null, bool stackable = true)
     {
         var buff = Alloc(0x200);
         Memory.Write(buff + Offsets.BuffTotal, total);
         Memory.Write(buff + Offsets.BuffRemaining, remaining);
         Memory.Write(buff + Offsets.BuffId, id);
+        if (stacks is { } count)
+        {
+            Memory.Write(buff + Offsets.BuffStackable, (byte)(stackable ? 1 : 0));
+            Memory.Write(buff + Offsets.BuffStacks, count);
+        }
         if (!withCfgRow) return buff;
         var row = Alloc(0x200);
         WriteConfigString(row + Offsets.BuffCfgRowIcon, icon);

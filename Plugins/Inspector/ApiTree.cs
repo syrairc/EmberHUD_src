@@ -10,105 +10,80 @@ using Hexa.NET.ImGui;
 
 namespace Inspector;
 
-internal sealed record Section(string Name, Func<GameState, object?> Root);
-
 internal sealed record MemberSet(Type Type, string Filter, float FontSize, Member[] Members, float NameWidth);
-
-internal sealed class Row(object item)
-{
-    Dictionary<string, object?>? _values;
-    Dictionary<string, string>? _formatted;
-    string? _text;
-    Vector3? _distFrom;
-    float? _dist;
-    string _distText = "null";
-
-    public object Item => item;
-
-    public object? Value(Type owner, Member member)
-    {
-        _values ??= [];
-        if (!_values.TryGetValue(member.Name, out var value)) _values[member.Name] = value = Walker.Read(owner, member, item);
-        return value;
-    }
-
-    public IComparable? Key(Type owner, Member member) => Value(owner, member) as IComparable;
-
-    public string Formatted(Type owner, Member member)
-    {
-        _formatted ??= [];
-        if (!_formatted.TryGetValue(member.Name, out var text)) _formatted[member.Name] = text = Walker.Format(Value(owner, member));
-        return text;
-    }
-
-    public float? Dist(Player from)
-    {
-        if (_distFrom != from.Position)
-        {
-            _dist = Walker.Position(item) is { } position ? from.FlatDistance(position) : null;
-            _distText = _dist is { } distance ? Walker.Format(distance) : "null";
-            _distFrom = from.Position;
-        }
-        return _dist;
-    }
-
-    public string DistText => _distText;
-
-    public string Text => _text ??= BuildText();
-
-    string BuildText()
-    {
-        var type = item.GetType();
-        if (Walker.IsFlat(type)) return Walker.Format(item);
-        return string.Join(' ', Walker.Members(type).Where(m => Walker.IsScalar(m.Type)).Select(m => Formatted(type, m)));
-    }
-}
 
 internal sealed class ApiTree(Action<object> pin)
 {
     const int MaxDepth = 8;
-    const int MaxRows = 20000;
     static readonly Vector4 ErrorText = new(0.9f, 0.35f, 0.35f, 0.7f);
 
-    public static readonly Section[] All =
-    [
-        new("Player", s => s.Player),
-        new("Entities", s => s.Entities),
-        new("Map icons", s => s.MapIcons),
-        new("Quest targets", s => s.QuestTargets),
-        new("Terrain", s => s.Terrain),
-        new("Explored", s => s.Explored),
-        new("Camera", s => s.Camera),
-        new("Game UI", s => s.Ui.Panels),
-        new("Map view", _ => Map.View),
-    ];
+    sealed class ListState
+    {
+        public readonly ListModel Model = new();
+        public string Filter = "";
+        public SortMode Sort;
+        public int Shown = ListModel.Page;
+        public Row[]? Built;
+        public object? BuiltSource;
+        public string BuiltFilter = "";
+        public SortMode BuiltSort;
+        public Vector3? BuiltAt;
+    }
 
-    readonly Dictionary<uint, string> _filters = [];
-    sealed record RowSet(object Source, Row[] Rows);
-
-    readonly ViewCache<RowSet> _rowSets = new();
-    readonly Dictionary<Type, TableColumn<Row>[]> _columns = [];
-    Section? _current;
-    readonly ViewCache<MemberSet> _memberSets = new();
+    readonly Dictionary<uint, ListState> _lists = [];
+    readonly Dictionary<(Type, string), MemberSet> _memberSets = [];
     Player? _player;
 
     public object? Selected;
     public object? Hover;
+    public bool ShowNulls;
+    public int RootHidden { get; private set; }
+    internal int Builds { get; private set; }
 
     public void BeginFrame() => Hover = null;
 
-    public void Draw(string id, object? value) => Node(id, value, 0);
-
-    public void Show(Section section, GameState state)
+    public void Draw(string id, object? value)
     {
-        if (!ReferenceEquals(_current, section))
-        {
-            if (_current is not null) Selected = null;
-            _current = section;
-        }
-        _player = state.Player;
-        Node(section.Name, section.Root(state), 0);
+        ImGui.PushID(id);
+        Body(value, 0);
+        ImGui.PopID();
     }
+
+    public void Show(GameState state)
+    {
+        _player = state.Player;
+        var roots = Roots(state);
+        var width = roots.Where(r => r.Value is not null && IsLeaf(r.Value)).Select(r => ImGui.CalcTextSize(r.Name).X).DefaultIfEmpty(0f).Max() + 16f;
+        var start = ImGui.GetCursorPosX();
+        RootHidden = 0;
+        foreach (var (name, value) in roots)
+        {
+            if (value is null && !ShowNulls)
+            {
+                RootHidden++;
+                continue;
+            }
+            ImGui.PushID(name);
+            if (value is null) ImGui.TextDisabled(Text.EscPct(NotProvided(name)));
+            else Member(name, value, 0, start, width);
+            ImGui.PopID();
+        }
+    }
+
+    internal static string NotProvided(string name) => $"{name}  not provided right now";
+
+    internal static object? Key(object? item) => item switch
+    {
+        Entity entity => entity.Id,
+        MapIcon { EntityId: not 0 } icon => ("icon", icon.EntityId),
+        _ => item,
+    };
+
+    internal static (string Name, object? Value)[] Roots(GameState state) =>
+    [
+        .. Walker.Members(typeof(GameState)).Select(m => (m.Name, Walker.Read(typeof(GameState), m, state))),
+        ("Map view", Map.View),
+    ];
 
     public IEnumerable<(Vector3 Position, string Label)> Highlights()
     {
@@ -119,26 +94,32 @@ internal sealed class ApiTree(Action<object> pin)
 
     public void Clear()
     {
-        _filters.Clear();
-        _rowSets.Clear();
-        _columns.Clear();
+        _lists.Clear();
         _memberSets.Clear();
         Selected = null;
         Hover = null;
     }
 
-    void Node(string id, object? value, int depth)
+    internal int ShownOf(uint listId) => _lists.TryGetValue(listId, out var state) ? state.Shown : ListModel.Page;
+
+    internal void ShowMore(uint listId)
+    {
+        if (!_lists.TryGetValue(listId, out var state)) _lists[listId] = state = new ListState();
+        state.Shown += ListModel.Page;
+    }
+
+    static bool IsLeaf(object? value) => value is null || value is Failed || Walker.IsScalar(value.GetType());
+
+    void Body(object? value, int depth)
     {
         if (depth > MaxDepth)
             ImGui.TextDisabled("...");
-        else if (value is null || value is Failed || Walker.IsScalar(value.GetType()))
+        else if (IsLeaf(value))
             Scalar(value, Walker.Format(value));
-        else if (value is IEnumerable big && Walker.Count(big) > MaxRows)
-            ImGui.TextDisabled(Text.EscPct($"{Walker.Format(big)} - too many rows to list"));
         else if (value is IEnumerable items)
-            Table(id, items, depth == 0 ? 4000f : 300f);
+            ListBody(items, depth);
         else
-            Grid(id, value.GetType(), value, depth);
+            Members(value!, depth);
     }
 
     static void Scalar(object? value, string text)
@@ -171,119 +152,126 @@ internal sealed class ApiTree(Action<object> pin)
         ImGui.EndPopup();
     }
 
-    void DistCell(Row row)
-    {
-        if (_player is { } player) Cell(row.Dist(player), row.DistText);
-        else Cell(null, "null");
-    }
-
     internal MemberSet MembersFor(Type type, string filter)
     {
-        var id = ImGui.GetID("members");
         var fontSize = ImGui.GetFontSize();
-        if (_memberSets.Get(id) is { } cached && cached.Type == type && cached.Filter == filter && cached.FontSize == fontSize) return cached;
+        if (_memberSets.TryGetValue((type, filter), out var cached) && cached.FontSize == fontSize) return cached;
         var members = Walker.Members(type).Where(m => Text.Matches(filter, m.Name)).ToArray();
-        var set = new MemberSet(type, filter, fontSize, members, members.Length == 0 ? 0f : members.Max(m => ImGui.CalcTextSize(m.Name).X) + 16f);
-        _memberSets.Set(id, set);
-        return set;
+        return _memberSets[(type, filter)] = new MemberSet(type, filter, fontSize, members, members.Length == 0 ? 0f : members.Max(m => ImGui.CalcTextSize(m.Name).X) + 16f);
     }
 
-    void Grid(string id, Type type, object value, int depth)
+    void Members(object value, int depth)
     {
-        ImGui.PushID(id);
-        var key = ImGui.GetID("filter");
-        var filter = _filters.GetValueOrDefault(key, "");
-        Controls.Filter(ref filter, "Filter members...");
-        _filters[key] = filter;
-
-        var set = MembersFor(type, filter);
+        var (shown, hidden) = Walker.Visible(value, ShowNulls);
+        var width = MembersFor(value.GetType(), "").NameWidth;
         var start = ImGui.GetCursorPosX();
-        foreach (var member in set.Members)
+        foreach (var (member, memberValue) in shown)
         {
             ImGui.PushID(member.Name);
-            var memberValue = Walker.Read(type, member, value);
-            if (memberValue is null || memberValue is Failed || Walker.IsScalar(memberValue.GetType()))
-            {
-                ImGui.TextDisabled(member.Name);
-                ImGui.SameLine(start + set.NameWidth);
-                Scalar(memberValue, Walker.Format(memberValue));
-            }
-            else
-            {
-                var label = memberValue is IEnumerable sequence && Walker.Count(sequence) is { } count ? $"{member.Name} ({count})" : member.Name;
-                if (ImGui.TreeNode($"{label}###tree"))
-                {
-                    Node($"{id}/{member.Name}", memberValue, depth + 1);
-                    ImGui.TreePop();
-                }
-            }
+            if (memberValue is null) ImGui.TextDisabled(Text.EscPct(NotProvided(member.Name)));
+            else Member(member.Name, memberValue, depth, start, width);
             ImGui.PopID();
         }
-        ImGui.PopID();
+        if (hidden > 0 && !ShowNulls) ImGui.TextDisabled($"{hidden} not provided");
     }
 
-    void Table(string id, IEnumerable items, float maxHeight)
+    static void Leaf(string name, object? value, float start, float width)
     {
-        var key = ImGui.GetID(id);
-        var rows = RowsFor(key, items);
-        if (rows.Length > MaxRows)
+        ImGui.TextDisabled(Text.EscPct(name));
+        ImGui.SameLine(start + width);
+        Cell(value, Walker.Format(value));
+    }
+
+    void Member(string name, object value, int depth, float start, float width)
+    {
+        if (IsLeaf(value))
         {
-            ImGui.TextDisabled($"more than {MaxRows} rows - not listed");
+            Leaf(name, value, start, width);
             return;
         }
-        var type = Walker.ElementType(items.GetType());
-        if (type == typeof(object) && rows.Length > 0) type = rows[0].Item.GetType();
-
-        ImGui.TextDisabled($"{rows.Length} rows");
-        var filter = _filters.GetValueOrDefault(key, "");
-        SortableTable.Draw(id, rows, ColumnsFor(type), ref filter, row => filter.Length == 0 ? "" : row.Text, maxHeight);
-        _filters[key] = filter;
+        var label = value is IEnumerable sequence && Walker.Count(sequence) is { } count ? $"{name} ({count})" : name;
+        var open = ImGui.TreeNode(MemberLabel(label));
+        RowMenu(value, label, false);
+        if (!open) return;
+        Body(value, depth + 1);
+        ImGui.TreePop();
     }
 
-    Row[] RowsFor(uint key, IEnumerable items)
+    internal static string MemberLabel(string label) => $"{label}###tree";
+
+    internal static string RowLabel(Row row, bool distance, Player? player)
     {
-        if (_rowSets.Get(key) is { } cached && ReferenceEquals(cached.Source, items)) return cached.Rows;
-        var rows = items.Cast<object>().Take(MaxRows + 1).Select(item => new Row(item)).ToArray();
-        _rowSets.Set(key, new RowSet(items, rows));
-        return rows;
+        var label = row.Label;
+        if (distance && player is not null && row.Dist(player) is not null) label = $"{label}  d {row.DistText}";
+        return $"{label}###row{row.Index}";
     }
 
-    TableColumn<Row>[] ColumnsFor(Type type)
+    Row[] Rows(ListState state, IEnumerable items)
     {
-        if (_columns.TryGetValue(type, out var cached)) return cached;
-        List<TableColumn<Row>> columns = [new TableColumn<Row> { Header = "#", Width = 44f, Draw = SelectCell }];
-        if (Walker.IsFlat(type))
-            columns.Add(new TableColumn<Row> { Header = "Value", Draw = (row, _) => Cell(row.Item, row.Text) });
-        else
+        var at = state.Sort == SortMode.Distance ? _player?.Position : null;
+        if (state.Built is null || !ReferenceEquals(state.BuiltSource, items) || state.BuiltFilter != state.Filter || state.BuiltSort != state.Sort || state.BuiltAt != at)
         {
-            foreach (var member in Walker.Members(type))
-                columns.Add(new TableColumn<Row>
-                {
-                    Header = member.Name,
-                    SortKey = typeof(IComparable).IsAssignableFrom(member.Type) ? row => row.Key(type, member) : null,
-                    Draw = (row, _) => Cell(row.Value(type, member), row.Formatted(type, member))
-                });
-            if (Walker.HasPosition(type))
-                columns.Add(new TableColumn<Row>
-                {
-                    Header = "Dist",
-                    Width = 56f,
-                    SortKey = row => _player is { } player ? row.Dist(player) : null,
-                    Draw = (row, _) => DistCell(row)
-                });
+            state.Built = state.Model.Build(items, state.Filter, state.Sort, _player);
+            (state.BuiltSource, state.BuiltFilter, state.BuiltSort, state.BuiltAt) = (items, state.Filter, state.Sort, at);
+            Builds++;
         }
-        return _columns[type] = [.. columns];
+        return state.Built;
     }
 
-    void SelectCell(Row row, int index)
+    void ListBody(IEnumerable items, int depth)
     {
-        var selected = ReferenceEquals(Selected, row.Item);
-        if (ImGui.Selectable($"{index}###select", selected, ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowOverlap))
-            Selected = selected ? null : row.Item;
-        if (ImGui.IsItemHovered()) Hover = row.Item;
+        var key = ImGui.GetID("list");
+        if (Walker.Count(items) > ListModel.MaxCollectionRows)
+        {
+            ImGui.TextDisabled(Text.EscPct($"{Walker.Format(items)} - too many rows to list"));
+            return;
+        }
+        if (!_lists.TryGetValue(key, out var state)) _lists[key] = state = new ListState();
+        Rows(state, items);
+        if (state.Model.TooMany)
+        {
+            ImGui.TextDisabled($"more than {ListModel.LimitOf(items)} rows - not listed");
+            return;
+        }
+        Controls.Filter(ref state.Filter, "Filter...", state.Model.Positional ? -130f : -1f);
+        if (state.Model.Positional)
+        {
+            ImGui.SameLine();
+            Combo.Enum(ref state.Sort, "sort");
+        }
+        var rows = Rows(state, items);
+        var clipped = ListModel.Clip(rows, state.Shown);
+        foreach (var row in clipped) ListRow(row, state.Sort, depth);
+        if (rows.Length > clipped.Length && ImGui.Button($"show more ({rows.Length - clipped.Length} left)###more")) ShowMore(key);
+    }
+
+    void ListRow(Row row, SortMode sort, int depth)
+    {
+        var item = row.Item;
+        var leaf = IsLeaf(item);
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth;
+        if (leaf) flags |= ImGuiTreeNodeFlags.Leaf;
+        var selected = item is not null && Selected is not null && Equals(Key(Selected), Key(item));
+        if (selected)
+        {
+            flags |= ImGuiTreeNodeFlags.Selected;
+            Selected = item;
+        }
+        var open = ImGui.TreeNodeEx(RowLabel(row, sort == SortMode.Distance, _player), flags);
+        if (ImGui.IsItemClicked() && !ImGui.IsItemToggledOpen()) Selected = selected ? null : item;
+        if (ImGui.IsItemHovered()) Hover = item;
+        RowMenu(item, row.Label, leaf);
+        if (!open) return;
+        if (!leaf) Body(item, depth + 1);
+        ImGui.TreePop();
+    }
+
+    void RowMenu(object? item, string label, bool leaf)
+    {
         if (!ImGui.BeginPopupContextItem("row")) return;
-        if (ImGui.MenuItem("Copy row")) ImGui.SetClipboardText(Walker.Json(row.Item));
-        if (ImGui.MenuItem("Pin")) pin(row.Item);
+        if (ImGui.MenuItem("Copy value")) ImGui.SetClipboardText(label);
+        if (ImGui.MenuItem("Copy row")) ImGui.SetClipboardText(Walker.Json(item));
+        if (!leaf && ImGui.MenuItem("Pin")) pin(item!);
         ImGui.EndPopup();
     }
 }

@@ -47,6 +47,8 @@ internal static class StateTools
             Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
+        new("get_buffs", "Buffs and debuffs on the local player from Game.State.Buffs: id, name, stacks (1 when the buff is not stackable), remaining and total seconds. Asks the reader and returns what it has - ready is false until the character reader answered (it also stays false while the game has no fight entity), ask again. Optional id filter.",
+            Schema.Of([], ("id", "integer", "only this buff id")), GetBuffs),
         new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards, owned instruments and obtained protocols (slot, id, kind, rarity, name, description, typeName), rewardBonusPercent, chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
         new("get_frozen_canvas", "Season 8 Frozen Canvas (paint minigame) state from Game.State.FrozenCanvas: phase (Idle, Draw, Battle), difficulty, plotsDone / plotsTotal / plotsTarget, challengesLeft / challengesTotal, rewards (itemId, count), plots (slot, x, y, kind, paintId, paintName, level, servant, player; empty Unknown plots left out), objective (description, done, secondsLeft) and the draw block while drawing (screen, placed, total, maxLevel, revives, rerolls, uninstalls, mission, missionDetail, papers, bagSize). Asks the reader and returns what it has - ready is false when the minigame is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetFrozenCanvas()),
     ];
@@ -109,6 +111,25 @@ internal static class StateTools
         };
         if (plot.Stacked.Length > 0) json["stacked"] = new JsonArray([.. plot.Stacked.Select(paint => (JsonNode)paint.Id)]);
         return json;
+    }
+
+    static JsonObject GetBuffs(Args args)
+    {
+        Game.WantCharacter();
+        if (Game.State.Buffs is not { } buffs) return new JsonObject { ["ready"] = false, ["buffs"] = new JsonArray() };
+        var id = args.OptInt("id");
+        return new JsonObject
+        {
+            ["ready"] = true,
+            ["buffs"] = new JsonArray([.. buffs.Where(b => id is null || b.Id == id).Select(b => (JsonNode)new JsonObject
+            {
+                ["id"] = b.Id,
+                ["name"] = b.Name,
+                ["stacks"] = b.Stacks,
+                ["remaining"] = b.Remaining,
+                ["total"] = b.Total,
+            })]),
+        };
     }
 
     static JsonObject GetVorax()

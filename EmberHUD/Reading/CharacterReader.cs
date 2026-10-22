@@ -108,9 +108,15 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
 
         var icon = _buffIcons.Get(id) ?? memory.ReadIconName(row + Offsets.BuffCfgRowIcon);
         _buffIcons.Add(id, icon);
-        buff = new Buff(id, _loc.Get(Offsets.BuffNameKey + id + Offsets.BuffNameSuffix), remaining, total, icon);
+        buff = new Buff(id, _loc.Get(Offsets.BuffNameKey + id + Offsets.BuffNameSuffix), remaining, total, icon, ReadStacks(instance));
         return true;
     }
+
+    private int ReadStacks(nint instance) =>
+        memory.TryRead(instance + Offsets.BuffStackable, out byte stackable) && stackable != 0 &&
+        memory.TryRead(instance + Offsets.BuffStacks, out int stacks) && stacks > 0
+            ? stacks
+            : 1;
 
     private bool TryFightEntity(out nint entity)
     {

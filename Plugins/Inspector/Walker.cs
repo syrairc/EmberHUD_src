@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using EmberHUD;
@@ -22,11 +23,12 @@ internal static class Walker
     static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     static readonly Dictionary<Type, Member[]> _members = [];
     static readonly HashSet<(Type, string)> _logged = [];
+    static readonly ConditionalWeakTable<BitArray, string> _bitSummaries = [];
     static readonly JsonSerializerOptions _json = new()
     {
         IncludeFields = true,
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
-        Converters = { new JsonStringEnumConverter(), new FormatJson<Color>(), new FormatJson<Sprite>() }
+        Converters = { new JsonStringEnumConverter(), new FormatJson<Color>(), new FormatJson<Sprite>(), new FormatJson<BitArray>() }
     };
 
     internal static int ErrorsLogged => _logged.Count;
@@ -51,10 +53,16 @@ internal static class Walker
     public static bool IsScalar(Type type)
     {
         type = Nullable.GetUnderlyingType(type) ?? type;
-        return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(Vector2) || type == typeof(Vector3) || type == typeof(Quaternion) || type == typeof(Color) || type == typeof(Sprite) || type == typeof(ImTextureRef);
+        return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(Vector2) || type == typeof(Vector3) || type == typeof(Quaternion) || type == typeof(Color) || type == typeof(Sprite) || type == typeof(ImTextureRef) || type == typeof(BitArray);
     }
 
-    public static bool IsFlat(Type type) => IsScalar(type) || typeof(IEnumerable).IsAssignableFrom(type);
+    public static ((Member Member, object? Value)[] Shown, int Hidden) Visible(object target, bool showNulls)
+    {
+        var type = target.GetType();
+        var read = Members(type).Select(m => (Member: m, Value: Read(type, m, target))).ToArray();
+        var shown = showNulls ? read : read.Where(m => m.Value is not null).ToArray();
+        return (shown, read.Length - shown.Length);
+    }
 
     public static Type ElementType(Type type) =>
         type.IsArray ? type.GetElementType()! :
@@ -76,6 +84,7 @@ internal static class Walker
         Sprite s => $"{s.Uv0.X.ToString("0.000", Invariant)}, {s.Uv0.Y.ToString("0.000", Invariant)} .. {s.Uv1.X.ToString("0.000", Invariant)}, {s.Uv1.Y.ToString("0.000", Invariant)}",
         ImTextureRef => "texture",
         Failed failed => $"<error: {failed.Exception}>",
+        BitArray bits => _bitSummaries.GetValue(bits, b => $"{b.Length} bits, {SetBits(b)} set"),
         Enum e => e.ToString(),
         ICollection collection => $"{value.GetType().Name} [{collection.Count}]",
         IFormattable formattable => formattable.ToString(null, Invariant),
@@ -96,26 +105,23 @@ internal static class Walker
         }
     }
 
-    public static bool HasPosition(Type type) => Members(type).Any(IsPosition);
+    public static bool HasPosition(Type type) => PositionMember(type) is not null;
 
     public static Vector3? Position(object? row)
     {
         if (row is null) return null;
         var type = row.GetType();
-        return Members(type).FirstOrDefault(IsPosition) is { } member && Read(type, member, row) is Vector3 position ? position : null;
+        return PositionMember(type) is { } member ? Read(type, member, row) switch
+        {
+            Vector3 position => position,
+            Vector2 flat => new Vector3(flat, 0f),
+            _ => null,
+        } : null;
     }
 
-    public static bool TryHex(string text, out nint address)
+    public static string Json(object? row)
     {
-        text = text.Trim();
-        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) text = text[2..];
-        var ok = long.TryParse(text, NumberStyles.HexNumber, Invariant, out var parsed);
-        address = (nint)parsed;
-        return ok;
-    }
-
-    public static string Json(object row)
-    {
+        if (row is null) return "null";
         try
         {
             return JsonSerializer.Serialize(row, row.GetType(), _json);
@@ -126,7 +132,19 @@ internal static class Walker
         }
     }
 
-    static bool IsPosition(Member member) => member.Name == "Position" && member.Type == typeof(Vector3);
+    static int SetBits(BitArray bits)
+    {
+        var words = new int[(bits.Length + 31) / 32];
+        bits.CopyTo(words, 0);
+        if (bits.Length % 32 != 0) words[^1] &= (1 << bits.Length % 32) - 1;
+        return words.Sum(w => BitOperations.PopCount((uint)w));
+    }
+
+    static Member? PositionMember(Type type)
+    {
+        var members = Members(type);
+        return members.FirstOrDefault(m => m.Name == "Position" && m.Type == typeof(Vector3)) ?? members.FirstOrDefault(m => m.Name == "Position" && m.Type == typeof(Vector2));
+    }
 
     sealed class FormatJson<T> : JsonConverter<T>
     {

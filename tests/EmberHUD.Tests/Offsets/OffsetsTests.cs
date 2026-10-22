@@ -250,6 +250,8 @@ public class OffsetsTests
         Assert.Equal(200, Offsets.BuffRemaining);
         Assert.Equal(208, Offsets.BuffCfgRow);
         Assert.Equal(488, Offsets.BuffId);
+        Assert.Equal(384, Offsets.BuffStackable);
+        Assert.Equal(408, Offsets.BuffStacks);
         Assert.Equal(12, Offsets.BuffCfgId);
         Assert.Equal("char_buff|name|", Offsets.BuffNameKey);
         Assert.Equal("_0", Offsets.BuffNameSuffix);
