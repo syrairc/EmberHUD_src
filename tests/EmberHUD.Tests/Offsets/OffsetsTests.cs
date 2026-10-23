@@ -397,6 +397,8 @@ public class OffsetsTests
     [Fact]
     public void VoraxKeysExist()
     {
+        Assert.Equal("Widget", Offsets.LuaVoraxItemWidgets);
+        Assert.Equal("SelectBtn", Offsets.LuaVoraxMonsterRectWidget);
         Assert.Equal("ViewMgr", Offsets.LuaVoraxViewManager);
         Assert.Equal("SingleViewList", Offsets.LuaVoraxViewList);
         Assert.Equal("S13GamePlayMainCtrl", Offsets.LuaVoraxPageSuffix);

@@ -138,9 +138,9 @@ public class VoraxReaderTests
             Lua.SetIntKeyTable(Relics, ++_relicKey, row);
         }
 
-        public void CardItem(int slot, Vector2 min, bool slate = true) => Item(Offsets.LuaVoraxCardItems, slot, Widget(World.AddClass("CardItem"), min, new Vector2(460, 568), slate));
+        public void CardItem(int slot, Vector2 min, bool slate = true) => _ = Item(Offsets.LuaVoraxCardItems, slot, Widget(World.AddClass("CardItem"), min, new Vector2(460, 568), slate));
 
-        public void MonsterItem(int slot, Vector2 min, bool? selected, bool slate = true)
+        public void MonsterItem(int slot, Vector2 min, bool? selected, bool slate = true, Vector2? jar = null, bool jarSlate = true)
         {
             var cls = ItemClass = World.AddClass("MonsterItem");
             var widget = Widget(cls, min, new Vector2(100, 30), slate);
@@ -159,7 +159,13 @@ public class VoraxReaderTests
                 Memory.Write(widget + 0x2F0, image);
             }
 
-            Item(Offsets.LuaVoraxMonsterItems, slot, widget);
+            var row = Item(Offsets.LuaVoraxMonsterItems, slot, widget);
+            if (jar is not { } at) return;
+            var userdata = World.Alloc(0x100);
+            Memory.Write(userdata + Offsets.VoraxRootViewWidgetOffset, Widget(World.AddClass("Jar"), at, new Vector2(338, 678), jarSlate));
+            var widgets = Lua.NewTable(0, 1);
+            Lua.SetValue(widgets, Offsets.LuaVoraxMonsterRectWidget, userdata, Offsets.LuaTagUserdata);
+            Lua.SetTable(row, Offsets.LuaVoraxItemWidgets, widgets);
         }
 
         private nint Widget(nint cls, Vector2 min, Vector2 extent, bool slate)
@@ -169,7 +175,7 @@ public class VoraxReaderTests
             return widget;
         }
 
-        private void Item(string list, int slot, nint widget)
+        private LuaTable Item(string list, int slot, nint widget)
         {
             if (!_lists.TryGetValue(list, out var items))
             {
@@ -182,6 +188,7 @@ public class VoraxReaderTests
             Memory.Write(userdata + Offsets.VoraxRootViewWidgetOffset, widget);
             Lua.SetValue(row, Offsets.LuaVoraxRootView, userdata, Offsets.LuaTagUserdata);
             Lua.SetIntKeyTable(items, slot + 1, row);
+            return row;
         }
 
         public void RewardTiers(int tier, params int[] scores)
@@ -775,6 +782,29 @@ public class VoraxReaderTests
         Assert.Equal(100, monsters[0].Max.X - monsters[0].Min.X, 2);
         Assert.False(monsters[1].HasRect);
         Assert.False(monsters[2].HasRect);
+    }
+
+    [Fact]
+    public void MonsterRectComesFromTheSelectBtnJarWidget()
+    {
+        var f = new Fixture();
+        f.MonsterItem(0, new Vector2(836, 597), null, jar: new Vector2(1211, 289));
+        var monster = f.Reader().Read()!.Monsters[0];
+        Assert.True(monster.HasRect);
+        Assert.Equal(1211, monster.Min.X, 2);
+        Assert.Equal(289, monster.Min.Y, 2);
+        Assert.Equal(338, monster.Max.X - monster.Min.X, 2);
+        Assert.Equal(678, monster.Max.Y - monster.Min.Y, 2);
+    }
+
+    [Fact]
+    public void MonsterRectFallsBackToTheLabelWidget()
+    {
+        var f = new Fixture();
+        f.MonsterItem(0, new Vector2(836, 597), null, jar: new Vector2(1211, 289), jarSlate: false);
+        var monster = f.Reader().Read()!.Monsters[0];
+        Assert.Equal(836, monster.Min.X, 2);
+        Assert.Equal(100, monster.Max.X - monster.Min.X, 2);
     }
 
     [Fact]

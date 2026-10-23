@@ -109,7 +109,7 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         for (var i = 0; i < monsters.Length; i++)
         {
             if (!TryItemWidget(view, Offsets.LuaVoraxMonsterItems, monsters[i].Slot, out var widget)) continue;
-            if (TryWidgetRect(widget, origin, out var rect)) monsters[i] = monsters[i] with { Min = rect.Min, Max = rect.Max };
+            if (TryJarRect(view, monsters[i].Slot, origin, out var rect) || TryWidgetRect(widget, origin, out rect)) monsters[i] = monsters[i] with { Min = rect.Min, Max = rect.Max };
             if (IsSelected(widget)) selected.Add(monsters[i].Slot);
         }
 
@@ -119,9 +119,26 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     private bool TryItemWidget(LuaTable view, string listKey, int slot, out nint widget)
     {
         widget = 0;
-        return _lua.TryGetTable(view, listKey, out var items) && _lua.TryGetTableAt(items, slot + 1, out var item) &&
-            _lua.TryGetUserdata(item, Offsets.LuaVoraxRootView, out var rootView) &&
-            memory.TryReadPtr(rootView + Offsets.VoraxRootViewWidgetOffset, out widget) && widget != 0;
+        return TryItem(view, listKey, slot, out var item) && TryUserdataWidget(item, Offsets.LuaVoraxRootView, out widget);
+    }
+
+    private bool TryItem(LuaTable view, string listKey, int slot, out LuaTable item)
+    {
+        item = default;
+        return _lua.TryGetTable(view, listKey, out var items) && _lua.TryGetTableAt(items, slot + 1, out item);
+    }
+
+    private bool TryUserdataWidget(LuaTable table, string key, out nint widget)
+    {
+        widget = 0;
+        return _lua.TryGetUserdata(table, key, out var userdata) && memory.TryReadPtr(userdata + Offsets.VoraxRootViewWidgetOffset, out widget) && widget != 0;
+    }
+
+    private bool TryJarRect(LuaTable view, int slot, Vector2? origin, out (Vector2 Min, Vector2 Max) rect)
+    {
+        rect = default;
+        return TryItem(view, Offsets.LuaVoraxMonsterItems, slot, out var item) && _lua.TryGetTable(item, Offsets.LuaVoraxItemWidgets, out var widgets) &&
+            TryUserdataWidget(widgets, Offsets.LuaVoraxMonsterRectWidget, out var jar) && TryWidgetRect(jar, origin, out rect);
     }
 
     private bool TryWidgetRect(nint widget, Vector2? origin, out (Vector2 Min, Vector2 Max) rect)
