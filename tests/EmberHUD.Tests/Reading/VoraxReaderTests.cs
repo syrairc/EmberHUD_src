@@ -23,6 +23,9 @@ public class VoraxReaderTests
         public long Now;
         private int _handKey;
         private int _relicKey;
+        private readonly Dictionary<string, LuaTable> _lists = [];
+        public readonly LuaTable PageList;
+        public nint ItemClass;
 
         public Fixture(string page = "1122_S13GamePlayMainCtrl", string? state = null, bool withManager = true, bool withViewData = true, int round = 2, int rounds = 13, int rerolls = 3, int slots = 6, bool defaultMonsters = true, int[]? chests = null, bool withGameManager = true)
         {
@@ -36,7 +39,7 @@ public class VoraxReaderTests
             Bag = Lua.NewTable(0, 3);
             var obj = Lua.NewTable(0, 1);
             var pageTable = Lua.NewTable(0, 1);
-            var list = Lua.NewTable(0, 2);
+            var list = PageList = Lua.NewTable(0, 8);
             var manager = Lua.NewTable(0, 1);
 
             Lua.SetString(View, Offsets.LuaVoraxState, state);
@@ -67,7 +70,7 @@ public class VoraxReaderTests
             Monster(3, 2, 201, 1, 341, 2, 4);
         }
 
-        public VoraxReader Reader(Func<string, string?>? loc = null) => new(Memory, Module, loc, () => Now);
+        public VoraxReader Reader(Func<string, string?>? loc = null, Func<Vector2?>? origin = null) => new(Memory, Module, loc, () => Now, origin);
 
         private void InstallGameManager(int[] chests)
         {
@@ -89,6 +92,10 @@ public class VoraxReaderTests
             Lua.SetTable(mgr, Offsets.LuaVoraxConfigType, configType);
             Lua.SetTable(mgr, Offsets.LuaVoraxTables, tables);
             Lua.SetTable(mgr, Offsets.LuaVoraxChests, chestTable);
+            var rarityNames = Lua.NewTable(4, 0);
+            string[] rarityKeys = ["Func_S13CardGame_Rarity1", "Func_S13CardGame_Rarity2", "Func_S13CardGame_Rarity3", "Func_S13CardGame_Rarity4_2"];
+            for (var i = 0; i < rarityKeys.Length; i++) Lua.SetIntKeyString(rarityNames, i + 1, rarityKeys[i]);
+            Lua.SetTable(mgr, Offsets.LuaVoraxRarityNames, rarityNames);
             Lua.SetTable(Lua.Globals, Offsets.LuaVoraxManager, mgr);
         }
 
@@ -135,7 +142,7 @@ public class VoraxReaderTests
 
         public void MonsterItem(int slot, Vector2 min, bool? selected, bool slate = true)
         {
-            var cls = World.AddClass("MonsterItem");
+            var cls = ItemClass = World.AddClass("MonsterItem");
             var widget = Widget(cls, min, new Vector2(100, 30), slate);
             if (selected is { } on)
             {
@@ -162,8 +169,6 @@ public class VoraxReaderTests
             return widget;
         }
 
-        private readonly Dictionary<string, LuaTable> _lists = [];
-
         private void Item(string list, int slot, nint widget)
         {
             if (!_lists.TryGetValue(list, out var items))
@@ -177,6 +182,21 @@ public class VoraxReaderTests
             Memory.Write(userdata + Offsets.VoraxRootViewWidgetOffset, widget);
             Lua.SetValue(row, Offsets.LuaVoraxRootView, userdata, Offsets.LuaTagUserdata);
             Lua.SetIntKeyTable(items, slot + 1, row);
+        }
+
+        public void RewardTiers(int tier, params int[] scores)
+        {
+            var list = Lua.NewTable(scores.Length, 0);
+            for (var i = 0; i < scores.Length; i++)
+            {
+                var row = Lua.NewTable(0, 2);
+                Lua.SetInt(row, Offsets.LuaVoraxIndex, i + 1);
+                Lua.SetInt(row, Offsets.LuaVoraxRewardScore, scores[i]);
+                Lua.SetIntKeyTable(list, i + 1, row);
+            }
+
+            Lua.SetInt(ViewData, Offsets.LuaVoraxRewardTier, tier);
+            Lua.SetTable(ViewData, Offsets.LuaVoraxRewardList, list);
         }
 
         public void Attr(int index, int value) => Lua.SetIntKey(BaseAttr, index, value, Offsets.LuaTagInt);
@@ -234,10 +254,10 @@ public class VoraxReaderTests
     [Fact]
     public void MonsterNamesAndRarityNamesComeFromLoc()
     {
-        var names = new Dictionary<string, string> { [Offsets.VoraxMonsterNameKey + "14"] = "Bone Warden", [Offsets.VoraxRarityNameKey + "4"] = "Red" };
+        var names = new Dictionary<string, string> { [Offsets.VoraxMonsterNameKey + "14"] = "Bone Warden", [Offsets.VoraxTypeNamePrefix + "Func_S13CardGame_Rarity4_2"] = "ULT" };
         var s = new Fixture().Reader(k => names.GetValueOrDefault(k)).Read()!;
         Assert.Equal("Bone Warden", s.Monsters[0].Name);
-        Assert.Equal("Red", s.Monsters[0].RarityName);
+        Assert.Equal("ULT", s.Monsters[0].RarityName);
         Assert.Equal("", s.Monsters[1].Name);
         Assert.Equal("", s.Monsters[1].RarityName);
     }
@@ -248,6 +268,38 @@ public class VoraxReaderTests
         var m = new Fixture().Reader().Read()!.Monsters[0];
         Assert.Equal("", m.Name);
         Assert.Equal("", m.RarityName);
+    }
+
+    [Fact]
+    public void RarityFourMonsterHasAName()
+    {
+        var names = new Dictionary<string, string> { [Offsets.VoraxTypeNamePrefix + "Func_S13CardGame_Rarity4_2"] = "ULT", [Offsets.VoraxTypeNamePrefix + "Func_S13CardGame_Rarity2"] = "Magic" };
+        var monsters = new Fixture().Reader(k => names.GetValueOrDefault(k)).Read()!.Monsters;
+        Assert.Equal(["ULT", "Magic", "Magic"], monsters.Select(m => m.RarityName));
+    }
+
+    [Fact]
+    public void NextRewardComesFromTheTierList()
+    {
+        var f = new Fixture();
+        f.RewardTiers(2, 2000, 8000, 18000, 38000);
+        Assert.Equal(18000, f.Reader().Read()!.NextRewardActivity);
+    }
+
+    [Fact]
+    public void NoNextTierMeansNoNextReward()
+    {
+        var f = new Fixture();
+        f.RewardTiers(4, 2000, 8000, 18000, 38000);
+        Assert.Equal(0, f.Reader().Read()!.NextRewardActivity);
+    }
+
+    [Fact]
+    public void StaleNilPageKeyIsSkipped()
+    {
+        var f = new Fixture();
+        foreach (var key in new[] { "6543_S13GamePlayMainCtrl", "1_S13GamePlayMainCtrl", "2_S13GamePlayMainCtrl", "3_S13GamePlayMainCtrl" }) f.Lua.SetInt(f.PageList, key, 0);
+        Assert.NotNull(f.Reader().Read());
     }
 
     [Fact]
@@ -653,8 +705,7 @@ public class VoraxReaderTests
     {
         var f = Cards();
         f.CardItem(0, new Vector2(1500, 1000));
-        var reader = f.Reader(LocOf(Texts()));
-        reader.Origin = () => new Vector2(100, 40);
+        var reader = f.Reader(LocOf(Texts()), () => new Vector2(100, 40));
         var card = reader.Read()!.Offered[0];
         Assert.Equal(1400, card.Min.X, 2);
         Assert.Equal(960, card.Min.Y, 2);
@@ -665,8 +716,7 @@ public class VoraxReaderTests
     {
         var f = Cards();
         f.CardItem(0, new Vector2(1500, 1000));
-        var reader = f.Reader(LocOf(Texts()));
-        reader.Origin = () => null;
+        var reader = f.Reader(LocOf(Texts()), () => null);
         Assert.False(reader.Read()!.Offered[0].HasRect);
     }
 
@@ -680,6 +730,34 @@ public class VoraxReaderTests
         f.Lua.SetInt(f.View, Offsets.LuaVoraxCardId, cardId);
         f.Lua.SetInt(f.View, Offsets.LuaVoraxCardIndex, cardIndex);
         Assert.Equal(expected, f.Reader(LocOf(Texts())).Read()!.SelectedCard);
+    }
+
+    [Fact]
+    public void AStaleCardIndexIsNotASelection()
+    {
+        var f = Cards();
+        f.Lua.SetInt(f.View, Offsets.LuaVoraxCardId, 207);
+        f.Lua.SetInt(f.View, Offsets.LuaVoraxCardIndex, 5);
+        Assert.Equal(-1, f.Reader(LocOf(Texts())).Read()!.SelectedCard);
+    }
+
+    [Fact]
+    public void AFailedSelectedLookupIsNotRepeated()
+    {
+        var f = new Fixture();
+        f.MonsterItem(0, new Vector2(836, 597), null);
+        var other = f.World.Alloc(0x100);
+        f.Memory.Write(other + Offsets.FFieldName, f.World.AddName("Other"));
+        f.Memory.Write(other + Offsets.FPropertyOffset, 0x2E0);
+        f.Memory.Write(f.ItemClass + Offsets.UStructChildProperties, other);
+        var counting = new CountReads(f.Memory, f.ItemClass + Offsets.UStructChildProperties);
+        var reader = new VoraxReader(counting, Module, null, () => f.Now);
+        reader.Read();
+        var first = counting.Hits;
+        Assert.True(first > 0);
+        f.Now = long.MaxValue / 2;
+        reader.Read();
+        Assert.Equal(first, counting.Hits);
     }
 
     [Fact]
@@ -728,6 +806,17 @@ public class VoraxReaderTests
         Assert.All(s.Monsters, m => Assert.False(m.HasRect));
         Assert.Empty(s.SelectedMonsters);
         Assert.Equal(-1, s.SelectedCard);
+    }
+
+    private sealed class CountReads(FakeMemory inner, nint watched) : EmberHUD.Host.Memory.IReadBackend
+    {
+        public int Hits;
+
+        public bool TryRead(nint address, Span<byte> target)
+        {
+            if (address == watched) Hits++;
+            return inner.TryRead(address, target);
+        }
     }
 
     private sealed class SwapOnRead(FakeMemory inner) : EmberHUD.Host.Memory.IReadBackend

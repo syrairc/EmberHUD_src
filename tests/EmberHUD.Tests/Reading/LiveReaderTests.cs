@@ -294,7 +294,7 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.PublishEntities();
-        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: new Reading.VoraxReaderTests.Fixture().Reader());
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: origin => new Reading.VoraxReaderTests.Fixture().Reader(origin: origin));
         Game.VoraxAsked = 0;
         Assert.True(reader.TryRead(out var idle, out _));
         Assert.Null(idle.Vorax);
@@ -305,7 +305,7 @@ public class LiveReaderTests
     {
         var world = new FakeWorld();
         world.PublishEntities();
-        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: new Reading.VoraxReaderTests.Fixture().Reader());
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, vorax: origin => new Reading.VoraxReaderTests.Fixture().Reader(origin: origin));
         try
         {
             Game.VoraxAsked = 0;

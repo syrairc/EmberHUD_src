@@ -430,6 +430,15 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void VoraxRewardAndRarityKeysExist()
+    {
+        Assert.Equal("CardTypeRarityName", Offsets.LuaVoraxRarityNames);
+        Assert.Equal("RewardTier", Offsets.LuaVoraxRewardTier);
+        Assert.Equal("RewardListData", Offsets.LuaVoraxRewardList);
+        Assert.Equal("Score", Offsets.LuaVoraxRewardScore);
+    }
+
+    [Fact]
     public void FrozenCanvasKeysExist()
     {
         Assert.Equal("S8GamePlayMgr", Offsets.LuaFrozenManager);

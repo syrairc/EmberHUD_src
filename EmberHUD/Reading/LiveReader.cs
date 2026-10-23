@@ -36,11 +36,10 @@ internal sealed class LiveReader
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
 
-    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, GroundItemReader? groundItems = null, TarotReader? tarot = null, VoraxReader? vorax = null, FrozenCanvasReader? frozenCanvas = null, Func<long>? clockMilliseconds = null)
+    public LiveReader(IReadBackend memory, nint moduleBase, int firstAreaId = 0, CombatReader? combat = null, InventoryReader? inventory = null, CharacterReader? character = null, TartarusReader? tartarus = null, GroundItemReader? groundItems = null, TarotReader? tarot = null, Func<Func<Vector2?>, VoraxReader>? vorax = null, FrozenCanvasReader? frozenCanvas = null, Func<long>? clockMilliseconds = null)
     {
         _frozenCanvas = frozenCanvas;
         _tarot = tarot;
-        _vorax = vorax;
         _character = character;
         _memory = memory;
         _combat = combat;
@@ -62,7 +61,7 @@ internal sealed class LiveReader
         _groundHazards = new GroundHazardReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
-        if (_vorax is not null) _vorax.Origin = _ui.TryOrigin;
+        _vorax = vorax?.Invoke(_ui.TryOrigin);
         _clock = clockMilliseconds ?? (() => Environment.TickCount64);
         _paused = new PausedReader(memory, moduleBase, _clock);
         _generation = firstAreaId;
