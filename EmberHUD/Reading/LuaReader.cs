@@ -67,6 +67,14 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         return !double.IsNaN(value) && !double.IsInfinity(value);
     }
 
+    public bool TryGetUserdata(LuaTable table, string key, out nint address)
+    {
+        address = 0;
+        if (!TryFind(table, key, out var raw, out var tag) || tag != Offsets.LuaTagUserdata || raw == 0) return false;
+        address = (nint)raw;
+        return true;
+    }
+
     public bool TryGetBool(LuaTable table, string key, out bool value)
     {
         value = false;

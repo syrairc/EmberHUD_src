@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Numerics;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
@@ -9,6 +10,8 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     private const int MaxPages = 32;
     private const int MaxChests = 16;
     private const int MaxDescParams = 16;
+    private const int MaxProperties = 512;
+    private const int MaxClassDepth = 16;
 
     private readonly record struct CardText(int Rarity, string Name, string Description, string TypeName)
     {
@@ -18,8 +21,13 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     private readonly Dictionary<(VoraxCardKind, int), CardText> _texts = [];
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LuaReader _lua = new(memory, moduleBase);
+    private readonly SlateWidgets _slate = new(memory);
+    private readonly Names _names = new(memory, moduleBase);
+    private readonly Dictionary<nint, int> _selectedOffsets = [];
     private long _nextRefresh;
     private VoraxState? _state;
+
+    public Func<Vector2?> Origin { get; set; } = () => Vector2.Zero;
 
     public VoraxState? Read()
     {
@@ -74,9 +82,80 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         var hand = CardRows(data, Offsets.LuaVoraxHand);
         var chests = ReadChests(manager);
         var (protocols, bonus) = ReadProtocols(manager, data);
-        return new VoraxState(ReadPhase(view, hand), round, rounds, activity, next, chests.Count(c => c != 0), rewards, rerolls, slots, ReadMonsters(data),
-            ReadCards(manager, hand, false), ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests) { Protocols = protocols, RewardBonusPercent = bonus };
+        var origin = Origin();
+        var (monsters, selectedMonsters) = ReadMonsterWidgets(view, ReadMonsters(data), origin);
+        return new VoraxState(ReadPhase(view, hand), round, rounds, activity, next, chests.Count(c => c != 0), rewards, rerolls, slots, monsters,
+            [.. ReadCards(manager, hand, false).Select(c => WithRect(c, view, origin))], ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests)
+        { Protocols = protocols, RewardBonusPercent = bonus, SelectedCard = ReadSelectedCard(view), SelectedMonsters = selectedMonsters };
     }
+
+    private int ReadSelectedCard(LuaTable view) =>
+        TryGetInt(view, Offsets.LuaVoraxCardId, out var id) && id != -1 && TryGetInt(view, Offsets.LuaVoraxCardIndex, out var index) && index >= 0 ? index : -1;
+
+    private VoraxCard WithRect(VoraxCard card, LuaTable view, Vector2? origin) =>
+        TryItemWidget(view, Offsets.LuaVoraxCardItems, card.Slot, out var widget) && TryWidgetRect(widget, origin, out var rect) ? card with { Min = rect.Min, Max = rect.Max } : card;
+
+    private (VoraxMonster[] Monsters, int[] Selected) ReadMonsterWidgets(LuaTable view, VoraxMonster[] monsters, Vector2? origin)
+    {
+        var selected = new List<int>();
+        for (var i = 0; i < monsters.Length; i++)
+        {
+            if (!TryItemWidget(view, Offsets.LuaVoraxMonsterItems, monsters[i].Slot, out var widget)) continue;
+            if (TryWidgetRect(widget, origin, out var rect)) monsters[i] = monsters[i] with { Min = rect.Min, Max = rect.Max };
+            if (IsSelected(widget)) selected.Add(monsters[i].Slot);
+        }
+
+        return (monsters, [.. selected]);
+    }
+
+    private bool TryItemWidget(LuaTable view, string listKey, int slot, out nint widget)
+    {
+        widget = 0;
+        return _lua.TryGetTable(view, listKey, out var items) && _lua.TryGetTableAt(items, slot + 1, out var item) &&
+            _lua.TryGetUserdata(item, Offsets.LuaVoraxRootView, out var rootView) &&
+            memory.TryReadPtr(rootView + Offsets.VoraxRootViewWidgetOffset, out widget) && widget != 0;
+    }
+
+    private bool TryWidgetRect(nint widget, Vector2? origin, out (Vector2 Min, Vector2 Max) rect)
+    {
+        rect = default;
+        return origin is { } at && _slate.TryWeak(widget + Offsets.UWidgetSlate, out var slate) && _slate.TryRect(slate, at, out rect);
+    }
+
+    private bool IsSelected(nint widget) =>
+        TrySelectedOffset(widget, out var offset) && memory.TryReadPtr(widget + offset, out var image) && image != 0 &&
+        memory.TryRead(image + Offsets.UWidgetVisibility, out byte visibility) && visibility == Offsets.VoraxSelectedVisible;
+
+    private bool TrySelectedOffset(nint widget, out int offset)
+    {
+        offset = 0;
+        if (!memory.TryReadPtr(widget + Offsets.UObjectClass, out var widgetClass)) return false;
+        if (_selectedOffsets.TryGetValue(widgetClass, out offset)) return true;
+        var cls = widgetClass;
+        for (var depth = 0; cls != 0 && depth < MaxClassDepth; depth++)
+        {
+            memory.TryReadPtr(cls + Offsets.UStructChildProperties, out var field);
+            for (var guard = 0; field != 0 && guard < MaxProperties; guard++)
+            {
+                if (IsNamed(field, Offsets.VoraxMonsterSelectedWidget) && memory.TryRead(field + Offsets.FPropertyOffset, out offset) && offset > 0)
+                {
+                    _selectedOffsets[widgetClass] = offset;
+                    return true;
+                }
+
+                if (!memory.TryReadPtr(field + Offsets.FFieldNext, out field)) break;
+            }
+
+            if (!memory.TryReadPtr(cls + Offsets.UStructSuper, out cls)) break;
+        }
+
+        offset = 0;
+        return false;
+    }
+
+    private bool IsNamed(nint field, string wanted) =>
+        memory.TryRead(field + Offsets.FFieldName, out uint index) && memory.TryRead(field + Offsets.FFieldName + Offsets.FNameNumber, out uint number) &&
+        number == 0 && _names.TryRead(index, out var name) && name == wanted;
 
     private (VoraxCard[] Cards, int Bonus) ReadProtocols(LuaTable manager, LuaTable data)
     {

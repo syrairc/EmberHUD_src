@@ -62,6 +62,7 @@ internal sealed class LiveReader
         _groundHazards = new GroundHazardReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
+        if (_vorax is not null) _vorax.Origin = _ui.TryOrigin;
         _clock = clockMilliseconds ?? (() => Environment.TickCount64);
         _paused = new PausedReader(memory, moduleBase, _clock);
         _generation = firstAreaId;

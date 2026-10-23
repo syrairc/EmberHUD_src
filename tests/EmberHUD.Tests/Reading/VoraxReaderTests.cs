@@ -9,7 +9,9 @@ public class VoraxReaderTests
 
     internal sealed class Fixture
     {
-        public readonly FakeMemory Memory = new();
+        public readonly FakeWorld World = new();
+        public readonly FakeMemory Memory;
+        public readonly FakeUi Ui;
         public readonly FakeLua Lua;
         public readonly LuaTable View;
         public readonly LuaTable ViewData;
@@ -25,11 +27,13 @@ public class VoraxReaderTests
         public Fixture(string page = "1122_S13GamePlayMainCtrl", string? state = null, bool withManager = true, bool withViewData = true, int round = 2, int rounds = 13, int rerolls = 3, int slots = 6, bool defaultMonsters = true, int[]? chests = null, bool withGameManager = true)
         {
             state ??= Offsets.VoraxStateRound;
+            Memory = World.Memory;
+            Ui = new FakeUi(World);
             Lua = new FakeLua(Memory, Module);
-            View = Lua.NewTable(0, 3);
+            View = Lua.NewTable(0, 4);
             ViewData = Lua.NewTable(0, 3);
             BaseAttr = Lua.NewTable(7, 0);
-            Bag = Lua.NewTable(0, 2);
+            Bag = Lua.NewTable(0, 3);
             var obj = Lua.NewTable(0, 1);
             var pageTable = Lua.NewTable(0, 1);
             var list = Lua.NewTable(0, 2);
@@ -125,6 +129,54 @@ public class VoraxReaderTests
             Lua.SetInt(row, Offsets.LuaVoraxIndex, index);
             Lua.SetInt(row, Offsets.LuaVoraxId, id);
             Lua.SetIntKeyTable(Relics, ++_relicKey, row);
+        }
+
+        public void CardItem(int slot, Vector2 min, bool slate = true) => Item(Offsets.LuaVoraxCardItems, slot, Widget(World.AddClass("CardItem"), min, new Vector2(460, 568), slate));
+
+        public void MonsterItem(int slot, Vector2 min, bool? selected, bool slate = true)
+        {
+            var cls = World.AddClass("MonsterItem");
+            var widget = Widget(cls, min, new Vector2(100, 30), slate);
+            if (selected is { } on)
+            {
+                var other = World.Alloc(0x100);
+                Memory.Write(other + Offsets.FFieldName, World.AddName("Other"));
+                Memory.Write(other + Offsets.FPropertyOffset, 0x2E0);
+                var field = World.Alloc(0x100);
+                Memory.Write(field + Offsets.FFieldName, World.AddName("Selected"));
+                Memory.Write(field + Offsets.FPropertyOffset, 0x2F0);
+                Memory.Write(other + Offsets.FFieldNext, field);
+                Memory.Write(cls + Offsets.UStructChildProperties, other);
+                var image = World.AddObject(World.AddClass("UIImage"), "Selected");
+                Memory.Write(image + Offsets.UWidgetVisibility, (byte)(on ? Offsets.VoraxSelectedVisible : 1));
+                Memory.Write(widget + 0x2F0, image);
+            }
+
+            Item(Offsets.LuaVoraxMonsterItems, slot, widget);
+        }
+
+        private nint Widget(nint cls, Vector2 min, Vector2 extent, bool slate)
+        {
+            var widget = World.AddObject(cls, "Item");
+            if (slate) Ui.WeakPtr(widget + Offsets.UWidgetSlate, Ui.Slate(min, extent / 0.64f, 0.64f));
+            return widget;
+        }
+
+        private readonly Dictionary<string, LuaTable> _lists = [];
+
+        private void Item(string list, int slot, nint widget)
+        {
+            if (!_lists.TryGetValue(list, out var items))
+            {
+                _lists[list] = items = Lua.NewTable(8, 0);
+                Lua.SetTable(View, list, items);
+            }
+
+            var row = Lua.NewTable(0, 1);
+            var userdata = World.Alloc(0x100);
+            Memory.Write(userdata + Offsets.VoraxRootViewWidgetOffset, widget);
+            Lua.SetValue(row, Offsets.LuaVoraxRootView, userdata, Offsets.LuaTagUserdata);
+            Lua.SetIntKeyTable(items, slot + 1, row);
         }
 
         public void Attr(int index, int value) => Lua.SetIntKey(BaseAttr, index, value, Offsets.LuaTagInt);
@@ -565,6 +617,117 @@ public class VoraxReaderTests
         f.HandCard(0, 202, 102);
         f.HandCard(1, 102, 102);
         Assert.Equal([0, 1, 2], f.Reader().Read()!.Offered.Select(c => c.Slot));
+    }
+
+    [Fact]
+    public void OfferedCardsGetTheirRects()
+    {
+        var f = Cards();
+        f.CardItem(0, new Vector2(1483.5f, 978));
+        f.CardItem(1, new Vector2(1704, 963));
+        f.CardItem(2, new Vector2(1925, 978));
+        var cards = f.Reader(LocOf(Texts())).Read()!.Offered;
+        Assert.All(cards, c => Assert.True(c.HasRect));
+        Assert.Equal([1483.5, 1704, 1925], cards.Select(c => (double)c.Min.X));
+        Assert.Equal([978, 963, 978], cards.Select(c => (double)c.Min.Y));
+        Assert.Equal(460, cards[1].Max.X - cards[1].Min.X, 2);
+        Assert.Equal(568, cards[1].Max.Y - cards[1].Min.Y, 2);
+    }
+
+    [Fact]
+    public void RectReadFailureKeepsTheCard()
+    {
+        var f = Cards();
+        f.CardItem(0, new Vector2(1483.5f, 978), slate: false);
+        f.CardItem(1, new Vector2(1704, 963));
+        var cards = f.Reader(LocOf(Texts())).Read()!.Offered;
+        Assert.Equal(3, cards.Length);
+        Assert.False(cards[0].HasRect);
+        Assert.Equal("Gray Matter Spinal Solution", cards[0].Name);
+        Assert.True(cards[1].HasRect);
+        Assert.False(cards[2].HasRect);
+    }
+
+    [Fact]
+    public void ARectIsRelativeToTheOverlayOrigin()
+    {
+        var f = Cards();
+        f.CardItem(0, new Vector2(1500, 1000));
+        var reader = f.Reader(LocOf(Texts()));
+        reader.Origin = () => new Vector2(100, 40);
+        var card = reader.Read()!.Offered[0];
+        Assert.Equal(1400, card.Min.X, 2);
+        Assert.Equal(960, card.Min.Y, 2);
+    }
+
+    [Fact]
+    public void NoOriginMeansNoRects()
+    {
+        var f = Cards();
+        f.CardItem(0, new Vector2(1500, 1000));
+        var reader = f.Reader(LocOf(Texts()));
+        reader.Origin = () => null;
+        Assert.False(reader.Read()!.Offered[0].HasRect);
+    }
+
+    [Theory]
+    [InlineData(207, 0, 0)]
+    [InlineData(207, 2, 2)]
+    [InlineData(-1, 0, -1)]
+    public void SelectedCardFollowsCardId(int cardId, int cardIndex, int expected)
+    {
+        var f = Cards();
+        f.Lua.SetInt(f.View, Offsets.LuaVoraxCardId, cardId);
+        f.Lua.SetInt(f.View, Offsets.LuaVoraxCardIndex, cardIndex);
+        Assert.Equal(expected, f.Reader(LocOf(Texts())).Read()!.SelectedCard);
+    }
+
+    [Fact]
+    public void WithoutCardIdNothingIsSelected() => Assert.Equal(-1, Cards().Reader(LocOf(Texts())).Read()!.SelectedCard);
+
+    [Fact]
+    public void MonstersGetTheirRects()
+    {
+        var f = new Fixture();
+        f.MonsterItem(0, new Vector2(836, 597), null);
+        f.MonsterItem(1, new Vector2(900, 600), null, slate: false);
+        var monsters = f.Reader().Read()!.Monsters;
+        Assert.True(monsters[0].HasRect);
+        Assert.Equal(836, monsters[0].Min.X, 2);
+        Assert.Equal(100, monsters[0].Max.X - monsters[0].Min.X, 2);
+        Assert.False(monsters[1].HasRect);
+        Assert.False(monsters[2].HasRect);
+    }
+
+    [Fact]
+    public void SelectedGroupsAreTheVisibleSelectedImages()
+    {
+        var f = new Fixture(defaultMonsters: false);
+        for (var slot = 0; slot < 6; slot++)
+        {
+            f.Monster(slot + 1, slot, 201, 1, 10, 2, slot + 1);
+            f.MonsterItem(slot, new Vector2(800 + slot * 100, 600), slot is 0 or 4);
+        }
+
+        Assert.Equal([0, 4], f.Reader().Read()!.SelectedMonsters);
+    }
+
+    [Fact]
+    public void NoSelectedImageMeansNoGroups()
+    {
+        var f = new Fixture();
+        for (var slot = 0; slot < 3; slot++) f.MonsterItem(slot, new Vector2(800 + slot * 100, 600), null);
+        Assert.Empty(f.Reader().Read()!.SelectedMonsters);
+    }
+
+    [Fact]
+    public void NoItemListsMeansNoRectsAndNoSelection()
+    {
+        var s = Cards().Reader(LocOf(Texts())).Read()!;
+        Assert.All(s.Offered, c => Assert.False(c.HasRect));
+        Assert.All(s.Monsters, m => Assert.False(m.HasRect));
+        Assert.Empty(s.SelectedMonsters);
+        Assert.Equal(-1, s.SelectedCard);
     }
 
     private sealed class SwapOnRead(FakeMemory inner) : EmberHUD.Host.Memory.IReadBackend

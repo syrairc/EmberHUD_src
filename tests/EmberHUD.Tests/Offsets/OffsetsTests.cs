@@ -416,6 +416,20 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void VoraxItemKeysExist()
+    {
+        Assert.Equal("CardItems", Offsets.LuaVoraxCardItems);
+        Assert.Equal("MonsterItems", Offsets.LuaVoraxMonsterItems);
+        Assert.Equal("RootView", Offsets.LuaVoraxRootView);
+        Assert.Equal("CardId", Offsets.LuaVoraxCardId);
+        Assert.Equal("CardIndex", Offsets.LuaVoraxCardIndex);
+        Assert.Equal(0x30, Offsets.VoraxRootViewWidgetOffset);
+        Assert.Equal("Selected", Offsets.VoraxMonsterSelectedWidget);
+        Assert.Equal(4, Offsets.VoraxSelectedVisible);
+        Assert.Equal(0x47, Offsets.LuaTagUserdata);
+    }
+
+    [Fact]
     public void FrozenCanvasKeysExist()
     {
         Assert.Equal("S8GamePlayMgr", Offsets.LuaFrozenManager);

@@ -207,20 +207,21 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     internal static VoraxState VoraxAt(long now) =>
         new(VoraxPhase.Round, 2, 13, 761, 2000, 0, 2, 3, 6,
             [
-                new(0, 14, 1, 3, 1, 300) { Name = "Bone Warden", RarityName = "Rare" },
-                new(1, 3, 2, 1, 24, 5) { Name = "Putrid Fly", RarityName = "Common" },
-                new(2, 4, 3, 2, 1, 341) { Name = "Mutated Monster", RarityName = "Magic" },
+                new(0, 14, 1, 3, 1, 300) { Name = "Bone Warden", RarityName = "Rare", Min = new(836, 597), Max = new(936, 627) },
+                new(1, 3, 2, 1, 24, 5) { Name = "Putrid Fly", RarityName = "Common", Min = new(1000, 597), Max = new(1100, 627) },
+                new(2, 4, 3, 2, 1, 341) { Name = "Mutated Monster", RarityName = "Magic", Min = new(1164, 597), Max = new(1264, 627) },
             ],
             [
-                new(0, 202, VoraxCardKind.Potion, 2) { Name = "Gray Matter Spinal Solution", Description = "Doubles the next monster's activity" },
-                new(1, 102, VoraxCardKind.Potion, 1) { Name = "Slender-Limb Powder - Pest", Description = "Adds a pest to the vat" },
-                new(2, 205, VoraxCardKind.Potion, 3) { Name = "Pure Leech Solution", Description = "Removes the weakest monster" },
+                new(0, 202, VoraxCardKind.Potion, 2) { Name = "Gray Matter Spinal Solution", Description = "Doubles the next monster's activity", Min = new(1483.5f, 978), Max = new(1943.5f, 1546) },
+                new(1, 102, VoraxCardKind.Potion, 1) { Name = "Slender-Limb Powder - Pest", Description = "Adds a pest to the vat", Min = new(1704, 963), Max = new(2164, 1531) },
+                new(2, 205, VoraxCardKind.Potion, 3) { Name = "Pure Leech Solution", Description = "Removes the weakest monster", Min = new(1925, 978), Max = new(2385, 1546) },
             ],
             [new(0, 101, VoraxCardKind.Instrument, 1) { Name = "Aberrant Sprout", Description = "Grows the vat each round" }],
             [0, 0, 0, 0, 0, 0])
         {
             Protocols = [new(0, 3, VoraxCardKind.Modifier, 1) { Name = "Spinal Cord Stimulation", Description = "Increases the rewards", TypeName = "Surgical Protocol" }],
             RewardBonusPercent = 20,
+            SelectedMonsters = [0],
         };
 
     private static readonly int[] FakeFreeSlots = [13, 14, 15, 19, 20, 21, 25, 26, 27, 31, 32];
