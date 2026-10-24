@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using EmberHUD;
 using EmberHUD.Testing;
+using EmberHUD.Ui;
 
 namespace EmberAuras;
 
@@ -76,6 +77,18 @@ public sealed class SettingsUiTests
         Check.That(Draw(AllKinds()) > 0);
         SettingsUI.Select(50, 50);
         Check.That(Draw(AllKinds()) > 0);
+    }
+
+    [Test]
+    public void SettingsUiDrawsStyleBlockForIconAndBarAuras()
+    {
+        TestGame.Set(GameState.Empty);
+        var settings = new Settings { Groups = [new Group { Auras = [new Aura { Shape = IconShape.Rounded }, new Aura { Style = AuraStyle.Bar, BarIcon = BarIcon.Left, Shape = IconShape.Circle }] }] };
+        settings.Normalize();
+        SettingsUI.Select(0, 0);
+        Check.That(Draw(settings) > 0);
+        SettingsUI.Select(0, 1);
+        Check.That(Draw(settings) > 0);
     }
 
     [Test]

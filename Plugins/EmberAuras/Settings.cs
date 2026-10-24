@@ -52,6 +52,11 @@ public sealed class Aura
     public int BarHeight = 22;
     public string Icon = "";
     public Color FillColor = Color.FromArgb(0xFF, 0xC8, 0x32, 0x32);
+    public IconShape Shape;
+    public int CornerRadius = 8;
+    public int BorderWidth;
+    public Color BorderColor = Color.White;
+    public Color BackdropColor = Color.Transparent;
     public WhenInactive WhenInactive;
     public List<Condition> Conditions = [];
     public List<AuraText> Texts = [];

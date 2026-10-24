@@ -96,12 +96,23 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void OldJsonWithoutStyleFieldsLoadsDefaults()
+    {
+        var loaded = Load("""{"Groups":[{"Name":"G","Auras":[{"Name":"Old","IconSize":33}]}]}""");
+        var aura = loaded.Groups.Single().Auras.Single();
+        Check.That(aura is { Name: "Old", IconSize: 33, Shape: IconShape.Square, CornerRadius: 8, BorderWidth: 0 });
+        Check.Equal(Color.White.ToArgb(), aura.BorderColor.ToArgb());
+        Check.Equal(0, aura.BackdropColor.A);
+    }
+
+    [Test]
     public void JsonRoundTripKeepsEverything()
     {
         var aura = new Aura
         {
             Name = "Haste", Style = AuraStyle.Bar, BarIcon = BarIcon.Right, IconSize = 33, BarWidth = 111, BarHeight = 12, Icon = "buff/haste",
             FillColor = Color.FromArgb(0x80, 1, 2, 3), WhenInactive = WhenInactive.Dim,
+            Shape = IconShape.Hexagon, CornerRadius = 17, BorderWidth = 3, BorderColor = Color.FromArgb(0x70, 4, 5, 6), BackdropColor = Color.FromArgb(0x40, 7, 8, 9),
             Conditions = [new Condition { Kind = ConditionKind.SkillCharges, Percent = 12, Direction = Direction.Above, Text = "x", Missing = true, Ending = true, Seconds = 2.5f, MinStacks = 3, SkillCfgId = 77, Ready = false, Charges = 2 }],
         };
         var settings = new Settings { Lock = false, HideOnFullScreen = false, Groups = [new Group { Name = "G", X = 1, Y = 2, Growth = Growth.OutwardVertical, Align = GroupAlign.End, Spacing = 9, Enabled = false, Auras = [aura] }] };
@@ -113,6 +124,9 @@ public sealed class SettingsTests
         var back = group.Auras.Single();
         Check.That(back is { Name: "Haste", Style: AuraStyle.Bar, BarIcon: BarIcon.Right, IconSize: 33, BarWidth: 111, BarHeight: 12, Icon: "buff/haste", WhenInactive: WhenInactive.Dim });
         Check.Equal(Color.FromArgb(0x80, 1, 2, 3).ToArgb(), back.FillColor.ToArgb());
+        Check.That(back is { Shape: IconShape.Hexagon, CornerRadius: 17, BorderWidth: 3 });
+        Check.Equal(Color.FromArgb(0x70, 4, 5, 6).ToArgb(), back.BorderColor.ToArgb());
+        Check.Equal(Color.FromArgb(0x40, 7, 8, 9).ToArgb(), back.BackdropColor.ToArgb());
         Check.That(back.Conditions.Single() is { Kind: ConditionKind.SkillCharges, Percent: 12, Direction: Direction.Above, Text: "x", Missing: true, Ending: true, Seconds: 2.5f, MinStacks: 3, SkillCfgId: 77, Ready: false, Charges: 2 });
         Check.Equal(Enum.GetValues<TextField>().Length, back.Texts.Count);
     }
