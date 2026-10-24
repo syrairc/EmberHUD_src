@@ -49,6 +49,16 @@ public sealed class MainTests
     }
 
     [Test]
+    public void MoveKeyIsTheMouseButtonVirtualKey()
+    {
+        Check.Equal(0x01, (int)Main.MoveKey(MoveInput.Left));
+        Check.Equal(0x02, (int)Main.MoveKey(MoveInput.Right));
+        Check.Equal(0x04, (int)Main.MoveKey(MoveInput.Middle));
+        Check.That(Main.MoveKey(MoveInput.None) == Key.None, "none");
+        Check.That(new Settings().MoveButton == MoveInput.Left, "left by default");
+    }
+
+    [Test]
     public void SlotRectIsOneBasedAndNullOutOfRange()
     {
         var rect = new ScreenRect(new Vector2(1, 2), new Vector2(3, 4));

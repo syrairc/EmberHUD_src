@@ -18,6 +18,8 @@ public sealed class Main : Plugin<Settings>
 
     internal static bool Yields(Hotkey yield, Hotkey hold, bool down) => yield.Key != Key.None && yield.Key != hold.Key && down;
 
+    internal static Key MoveKey(MoveInput button) => button switch { MoveInput.Left => (Key)0x01, MoveInput.Right => (Key)0x02, MoveInput.Middle => (Key)0x04, _ => Key.None };
+
     internal static ScreenRect? SlotRect(GameState state, int slot) =>
         state.SkillSlots is { } slots && slot >= 1 && slot <= slots.Length ? slots[slot - 1] : null;
 
@@ -26,7 +28,7 @@ public sealed class Main : Plugin<Settings>
         Game.WantCharacter();
         if (Input.Pressed(Settings.ToggleKey)) _toggled = !_toggled;
         var settled = !Settings.WaitForStop || _motion.StillMs(Game.State.Player?.Position, Environment.TickCount64) >= Settings.StopDelayMs;
-        _active = settled && !Yields(Settings.YieldKey, Settings.HoldKey, Input.IsDown(Settings.YieldKey.Key)) && Active(Game.State, Settings, _toggled);
+        _active = settled && !Input.IsDown(MoveKey(Settings.MoveButton)) && !Yields(Settings.YieldKey, Settings.HoldKey, Input.IsDown(Settings.YieldKey.Key)) && Active(Game.State, Settings, _toggled);
         // the host drops every held key when the game loses focus
         if (!Send.Allowed) _held = Key.None;
         if (_held != Key.None && (!_active || _held != Settings.HoldKey.Key)) Release();
