@@ -10,6 +10,7 @@ public sealed class Settings : PluginSettings
     public Hotkey ToggleKey;
     public bool NearbyEnabled = true;
     public float Radius = 600;
+    public bool ShowRadius;
     public Rarity MinRarity = Rarity.Normal;
     public int Slot = 1;
     public bool ShowHighlight = true;
@@ -21,6 +22,7 @@ public sealed class Settings : PluginSettings
         Setting.Hotkey("Toggle key", ref ToggleKey, "Turns auto attack on and off, while on the key stays held no matter who is near");
         Setting.Checkbox("Hold when enemies are near", ref NearbyEnabled, "Hold the key while at least one enemy is within the radius");
         Setting.Slider("Radius", ref Radius, 50, 3000, "World units around you");
+        Setting.Checkbox("Show radius", ref ShowRadius, "Draws the radius as a ring on the ground around you");
         Setting.Choice("Min rarity", ref MinRarity, "Weakest enemy that counts as near");
         Setting.Slider("Skill slot", ref Slot, 1, 5, "The skill bar slot that lights up while active");
         Setting.Checkbox("Highlight slot", ref ShowHighlight);

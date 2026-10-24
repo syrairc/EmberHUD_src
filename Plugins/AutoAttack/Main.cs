@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Numerics;
 using EmberHUD;
 
@@ -30,6 +31,8 @@ public sealed class Main : Plugin<Settings>
 
     public override void Render()
     {
+        if (Settings.ShowRadius && Settings.NearbyEnabled && Game.State.Player is { } player)
+            Ground.Circle(new Vector2(player.Position.X, player.Position.Y), Settings.Radius, Color.FromArgb(200, Settings.HighlightColor), 2, player.Position.Z);
         if (_active && Settings.ShowHighlight && SlotRect(Game.State, Settings.Slot) is { } rect)
             Draw.GlowRect(rect.Min, rect.Max, Settings.HighlightColor, 3, 10);
     }

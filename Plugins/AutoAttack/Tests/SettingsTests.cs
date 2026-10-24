@@ -11,4 +11,10 @@ public sealed class SettingsTests
         TestGame.Set(GameState.Empty);
         Check.That(TestFrame.Vertices(new Settings().Draw, inWindow: true) > 0);
     }
+
+    [Test]
+    public void ShowRadiusIsOffByDefault()
+    {
+        Check.That(!new Settings().ShowRadius);
+    }
 }
