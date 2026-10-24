@@ -55,9 +55,9 @@ internal sealed partial class GameUiReader
         if (open < 0) return null;
 
         var tile = widgets.Tiles[open];
-        if (!TryPointers(tile + Offsets.ListViewItems, out var items) ||
+        if (!TryPointers(tile + Offsets.ListViewItems, out var items, Offsets.MaxBoothItems) ||
             Geometry(tile, origin) is not { } clip ||
-            !TryPointers(tile + Offsets.ListViewEntryPool, out var entries))
+            !TryPointers(tile + Offsets.ListViewEntryPool, out var entries, Offsets.MaxBoothItems))
             return null;
 
         List<BagCell> cells = [];

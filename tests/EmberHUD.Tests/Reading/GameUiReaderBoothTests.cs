@@ -125,15 +125,26 @@ public sealed class GameUiReaderBoothTests
         Assert.Equal(InventoryBag.Equipment, Tick(Reader(equipment), equipment)!.Tab);
     }
 
-    [Theory]
-    [InlineData(2)]
-    [InlineData(1)]
-    public void HiddenAndCollapsedTilesAreNeverPicked(byte visibility)
+    [Fact]
+    public void HiddenAndCollapsedTilesAreNeverPicked()
     {
-        var booth = Open(openTab: 0);
-        booth.World.Memory.Write(booth.Tiles[3] + Offsets.UWidgetVisibility, visibility);
+        var booth = Open(openTab: 0, alsoVisible: 3);
         Pool(booth, 0, Entry(booth, booth.Items[0][0], 1010, 310));
-        Assert.Equal(InventoryBag.Equipment, Tick(Reader(booth), booth)!.Tab);
+        var reader = Reader(booth);
+        Assert.Equal(InventoryBag.Other, Tick(reader, booth)!.Tab);
+        foreach (var visibility in new byte[] { 2, 1 })
+        {
+            booth.World.Memory.Write(booth.Tiles[3] + Offsets.UWidgetVisibility, visibility);
+            Assert.Equal(InventoryBag.Equipment, Tick(reader, booth)!.Tab);
+        }
+    }
+
+    [Fact]
+    public void MoreThanSixtyFourItemsReadFully()
+    {
+        var booth = Open(items: 72);
+        Pool(booth, 0, [.. booth.Items[0].Select((item, i) => Entry(booth, item, 1010 + i % 9 * 10, 310 + i / 9 * 10))]);
+        Assert.Equal(Enumerable.Range(0, 72), Tick(Reader(booth), booth)!.Cells.Select(c => c.Slot).Order());
     }
 
     [Fact]

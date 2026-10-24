@@ -60,13 +60,13 @@ internal sealed partial class GameUiReader
         if (open < 0) return null;
 
         var list = widgets.Lists[open];
-        if (!TryPointers(list + Offsets.ListViewItems, out var items) ||
+        if (!TryPointers(list + Offsets.ListViewItems, out var items, Offsets.MaxBagRows) ||
             Geometry(list, origin) is not { } clip ||
             !_slate.TryWeak(list + Offsets.UWidgetSlate, out var slate) ||
             !memory.TryRead(slate + Offsets.ListViewScrollOffset, out double offset) ||
             !(offset >= 0 && offset <= items.Length) ||
             !memory.TryRead(list + Offsets.ListViewEntrySpacing, out float spacing) || !(spacing >= 0) ||
-            !TryPointers(list + Offsets.ListViewEntryPool, out var rows))
+            !TryPointers(list + Offsets.ListViewEntryPool, out var rows, Offsets.MaxBagRows))
             return null;
 
         var clipHeight = clip.Max.Y - clip.Min.Y;
@@ -90,10 +90,10 @@ internal sealed partial class GameUiReader
         return new BagView((InventoryBag)open, clip.Min, clip.Max, [.. cells]);
     }
 
-    private bool TryPointers(nint arrayAt, out nint[] pointers)
+    private bool TryPointers(nint arrayAt, out nint[] pointers, int limit)
     {
         pointers = [];
-        if (!memory.TryRead(arrayAt + Offsets.TArrayNum, out int count) || count < 0 || count > Offsets.MaxBagRows) return false;
+        if (!memory.TryRead(arrayAt + Offsets.TArrayNum, out int count) || count < 0 || count > limit) return false;
         if (count == 0) return true;
         if (!memory.TryReadPtr(arrayAt, out var data) || !memory.TryReadArray(data, count, out long[] read)) return false;
         pointers = [.. read.Select(p => (nint)p)];

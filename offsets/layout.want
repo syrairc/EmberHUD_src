@@ -443,6 +443,7 @@ BagRowItemData = 0x288
 BagRowCells = 0x298
 BagRowCellCount = 9
 MaxBagRows = 64
+MaxBoothItems = 256
 BagRefreshMilliseconds = 33
 BoothPageClassName = "AuctionHouseV2_C"
 BoothSwitcher = "WidgetSwitcher_Content"

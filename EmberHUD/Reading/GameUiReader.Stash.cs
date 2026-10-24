@@ -66,7 +66,7 @@ internal sealed partial class GameUiReader
 
     private int? ReadOpenStashTab(nint strip)
     {
-        if (!TryPointers(strip + Offsets.PanelSlots, out var slots) || slots.Length < 2) return null;
+        if (!TryPointers(strip + Offsets.PanelSlots, out var slots, Offsets.MaxBagRows) || slots.Length < 2) return null;
         var open = -1;
         for (var i = 0; i < slots.Length; i++)
         {
@@ -85,7 +85,7 @@ internal sealed partial class GameUiReader
 
     private StashView? ReadStashCells(StashWidgets widgets, int tab, Vector2 origin)
     {
-        if (Geometry(widgets.Scroll, origin) is not { } clip || !TryPointers(widgets.Grid + Offsets.PanelSlots, out var slots)) return null;
+        if (Geometry(widgets.Scroll, origin) is not { } clip || !TryPointers(widgets.Grid + Offsets.PanelSlots, out var slots, Offsets.MaxBagRows)) return null;
 
         var rows = Offsets.StashCells / Offsets.StashColumns;
         HashSet<int> seen = [], ambiguous = [];
