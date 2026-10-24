@@ -1,6 +1,8 @@
+using System.Drawing;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
+using EmberHUD.Ui;
 
 namespace EmberAuras;
 
@@ -87,6 +89,81 @@ public sealed class MainTests
 
     [Test]
     public void RenderDrawsSomethingForShownAura() => Check.That(Drawn(Plugin(Life(percent: 50, direction: Direction.Above)), Alive()) > 0);
+
+    static GameState HalfLife() => new()
+    {
+        Player = new Player(Vector3.Zero, Vector2.UnitX) { Life = 50, MaxLife = 100 },
+        Ui = GameUi.Empty,
+    };
+
+    static int DrawnStyled(IconShape shape, int border = 0, Color? backdrop = null, WhenInactive whenInactive = WhenInactive.Hide, GameState? state = null)
+    {
+        var aura = Life(whenInactive, 80, Direction.Below);
+        aura.Shape = shape;
+        aura.BorderWidth = border;
+        aura.BackdropColor = backdrop ?? Color.Transparent;
+        return Drawn(Plugin(aura), state ?? HalfLife());
+    }
+
+    [Test]
+    public void CircleWithBorderDrawsMoreThanPlainSquare() =>
+        Check.That(DrawnStyled(IconShape.Circle, 3) > DrawnStyled(IconShape.Square));
+
+    [Test]
+    public void BackdropOnlyAddsGeometryWhenAlphaIsAboveZero()
+    {
+        var plain = DrawnStyled(IconShape.Square);
+        Check.Equal(plain, DrawnStyled(IconShape.Square, 0, Color.FromArgb(0, 9, 9, 9)));
+        Check.That(DrawnStyled(IconShape.Square, 0, Color.FromArgb(128, 9, 9, 9)) > plain, "visible backdrop adds");
+    }
+
+    [Test]
+    public void SweepIsClippedToTheShape()
+    {
+        var square = DrawnStyled(IconShape.Square);
+        var circle = DrawnStyled(IconShape.Circle);
+        Check.That(circle != square, "circle sweep is not the square sweep");
+        var full = DrawnStyled(IconShape.Circle, state: Alive());
+        Check.That(circle > full, "a half sweep adds geometry over a full icon");
+    }
+
+    [Test]
+    public void DimmedStyledAuraStillDraws()
+    {
+        Check.That(DrawnStyled(IconShape.Hexagon, 2, Color.FromArgb(200, 0, 0, 0), whenInactive: WhenInactive.Dim, state: Alive()) > 0);
+    }
+
+    [Test]
+    public void BarWithNoIconDrawsNoBorder()
+    {
+        int Bar(int border)
+        {
+            var aura = Life(WhenInactive.Hide, 80, Direction.Below);
+            aura.Style = AuraStyle.Bar;
+            aura.BarIcon = BarIcon.None;
+            aura.BorderWidth = border;
+            aura.Shape = IconShape.Circle;
+            return Drawn(Plugin(aura), HalfLife());
+        }
+        Check.Equal(Bar(0), Bar(4));
+    }
+
+    [Test]
+    public void HugeOrNegativeBorderWidthIsHarmless()
+    {
+        Check.That(DrawnStyled(IconShape.Rounded, -5) > 0);
+        Check.That(DrawnStyled(IconShape.Rounded, 100000) > 0);
+    }
+
+    [Test]
+    public void DefaultsDrawLikeBefore()
+    {
+        var aura = Life(percent: 50, direction: Direction.Above);
+        var drawn = Drawn(Plugin(aura), Alive());
+        var square = TestFrame.Vertices(() => IconShapes.FillPolygon(IconShapes.Outline(IconShape.Square, Vector2.Zero, new Vector2(40)), aura.FillColor));
+        var text = TestFrame.Vertices(() => Draw.Text("100%", Vector2.Zero, Color.White));
+        Check.Equal(square + text, drawn);
+    }
 
     [Test]
     public void RenderSkipsHiddenAndKeepsDimmed()

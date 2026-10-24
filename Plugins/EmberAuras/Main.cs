@@ -12,6 +12,7 @@ public sealed class Main : Plugin<Settings>
     const float DimOpacity = 0.35f;
     const float PlaceholderSize = 24f;
     const float TextPad = 2f;
+    const int MaxBorder = 16;
     static readonly Color Back = Color.FromArgb(170, 20, 20, 20);
     static readonly Color Sweep = Color.FromArgb(170, 0, 0, 0);
 
@@ -134,12 +135,8 @@ public sealed class Main : Plugin<Settings>
             {
                 min = at;
                 max = at + new Vector2(aura.IconSize);
-                DrawIcon(aura, view, min, max, opacity);
-                if (view.Seconds is not null || view.MaxCharges > 0 || view.HasPercent)
-                {
-                    var swept = (max.Y - min.Y) * (1f - Math.Clamp(view.Fill, 0f, 1f));
-                    if (swept > 0) Draw.RectFilled(min, new Vector2(max.X, min.Y + swept), Faded(Sweep, opacity));
-                }
+                var swept = view.Seconds is not null || view.MaxCharges > 0 || view.HasPercent ? (max.Y - min.Y) * (1f - Math.Clamp(view.Fill, 0f, 1f)) : 0f;
+                DrawIcon(aura, view, min, max, opacity, swept);
             }
             else
             {
@@ -147,7 +144,7 @@ public sealed class Main : Plugin<Settings>
                 min = rects.Min;
                 max = rects.Max;
                 IconBar.DrawBar(rects, view.Fill, aura.FillColor, Back, opacity);
-                if (rects.IconMax != rects.IconMin) DrawIcon(aura, view, rects.IconMin, rects.IconMax, opacity);
+                if (rects.IconMax != rects.IconMin) DrawIcon(aura, view, rects.IconMin, rects.IconMax, opacity, 0f);
             }
             foreach (var text in aura.Texts)
             {
@@ -162,13 +159,18 @@ public sealed class Main : Plugin<Settings>
         }
     }
 
-    static void DrawIcon(Aura aura, AuraView view, Vector2 min, Vector2 max, float opacity)
+    static void DrawIcon(Aura aura, AuraView view, Vector2 min, Vector2 max, float opacity, float swept)
     {
+        if (max.X <= min.X || max.Y <= min.Y) return;
+        var outline = IconShapes.Outline(aura.Shape, min, max, aura.CornerRadius);
+        IconShapes.FillPolygon(outline, Faded(aura.BackdropColor, opacity));
         Sprite sprite = default;
         var found = (view.BuffId is { } buff && Draw.BuffIcon(buff, out sprite)) || (view.SkillCfgId is { } skill && Draw.SkillIcon(skill, out sprite));
-        if (found) Draw.Image(sprite, min, max, Faded(Color.White, opacity));
+        if (found) IconShapes.DrawImage(sprite, outline, min, max, Faded(Color.White, opacity));
         else if (aura.Icon.Length > 0) Draw.Icon(aura.Icon, (min + max) / 2, (max.X - min.X) / 2, Faded(Color.White, opacity));
-        else Draw.RectFilled(min, max, Faded(aura.FillColor, opacity));
+        else IconShapes.FillPolygon(outline, Faded(aura.FillColor, opacity));
+        if (swept > 0) IconShapes.FillPolygon(IconShapes.ClipTop(outline, min.Y + swept), Faded(Sweep, opacity));
+        IconShapes.StrokePolygon(outline, Faded(aura.BorderColor, opacity), Math.Clamp(aura.BorderWidth, 0, MaxBorder));
     }
 
     static Color Faded(Color colour, float opacity) => Color.FromArgb((int)(colour.A * Math.Clamp(opacity, 0f, 1f)), colour);
