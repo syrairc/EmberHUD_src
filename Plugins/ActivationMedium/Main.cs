@@ -14,7 +14,10 @@ public sealed class Main : Plugin<Settings>
 
     internal static bool Active(GameState state, Settings settings, bool toggled) =>
         (state.Status.StartsWith("live") || state.Status == "fake game") && state.Paused == false && !state.Ui.AnyFullScreen && state.Player is not null &&
-        (toggled || settings.NearbyEnabled && state.CountNear(settings.Radius, settings.MinRarity) > 0);
+        (toggled || settings.NearbyEnabled && EnemyNear(state, settings));
+
+    static bool EnemyNear(GameState state, Settings settings) =>
+        state.CountNear(settings.Radius, settings.MinRarity) > 0 && !(settings.TownNeedsDpsMeter && state.Area is { IsTown: true } && state.WoodStake is not { Running: true });
 
     internal static bool Yields(Hotkey yield, Hotkey hold, bool down) => yield.Key != Key.None && yield.Key != hold.Key && down;
 

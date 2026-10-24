@@ -28,6 +28,22 @@ public sealed class MainTests
         Check.That(!Main.Active(Live(100), new Settings { NearbyEnabled = false }, false), "nearby off");
     }
 
+    static readonly MapInfo Hideout = new("Hideout", 1, null, null, true, [], []);
+
+    static WoodStakeStats Stake(bool running) => new(running, 0, 0, 0, 0, 0, 0, 0);
+
+    [Test]
+    public void TownDummyOnlyCountsWhileTheDpsMeterRuns()
+    {
+        var settings = new Settings();
+        Check.That(!Main.Active(Live(100) with { Area = Hideout }, settings, false), "town, no meter");
+        Check.That(!Main.Active(Live(100) with { Area = Hideout, WoodStake = Stake(false) }, settings, false), "town, meter off");
+        Check.That(Main.Active(Live(100) with { Area = Hideout, WoodStake = Stake(true) }, settings, false), "town, meter on");
+        Check.That(Main.Active(Live(100) with { WoodStake = Stake(false) }, settings, false), "not town, meter irrelevant");
+        Check.That(Main.Active(Live(100) with { Area = Hideout }, new Settings { TownNeedsDpsMeter = false }, false), "option off");
+        Check.That(Main.Active(Live() with { Area = Hideout }, settings, true), "toggle still works in town");
+    }
+
     [Test]
     public void NeverActiveWhilePausedCoveredOrWithoutAPlayer()
     {

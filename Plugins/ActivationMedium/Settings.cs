@@ -10,6 +10,7 @@ public sealed class Settings : PluginSettings
 {
     public Hotkey HoldKey = new(Key.D1);
     public Hotkey ToggleKey;
+    public bool TownNeedsDpsMeter = true;
     public bool WaitForStop;
     public int StopDelayMs = 50;
     public MoveInput MoveButton = MoveInput.Left;
@@ -26,6 +27,7 @@ public sealed class Settings : PluginSettings
     {
         Setting.Hotkey("Hold key", ref HoldKey, "The key held down in game while auto attack is active - modifiers are ignored");
         Setting.Hotkey("Toggle key", ref ToggleKey, "Turns auto attack on and off, while on the key stays held no matter who is near");
+        Setting.Checkbox("Town dummy needs DPS meter", ref TownNeedsDpsMeter, "In town the only enemy is the training dummy, only count it while the game's DPS meter mode is on");
         Setting.Checkbox("Wait until stopped", ref WaitForStop, "Only hold after you have stood still for the delay, and let go as soon as you move again");
         Setting.Slider("Stop delay (ms)", ref StopDelayMs, 0, 2000, "How long you must stand still first");
         Setting.Choice("Move button", ref MoveButton, "While you hold this mouse button auto attack lets go, so click-to-move is never fought");
