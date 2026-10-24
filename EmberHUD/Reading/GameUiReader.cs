@@ -65,6 +65,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             if (++_bagMisses >= 2) _bagPage = 0;
             if (++_boothMisses >= 2) _boothPage = 0;
             if (++_mapRewardMisses >= 2) _mapRewardPage = 0;
+            if (++_bossRewardMisses >= 2) _bossRewardPage = 0;
             if (++_stashMisses >= 2) _stashPage = 0;
             ui = _last = GameUi.Empty;
             return false;
@@ -83,6 +84,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         nint bagPage = 0;
         nint boothPage = 0;
         nint mapRewardPage = 0;
+        nint bossRewardPage = 0;
         nint stashPage = 0;
         var gameMinimapHidden = false;
         _panels.Clear();
@@ -130,6 +132,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             if (root.Spec.Kind == PanelKind.Inventory) bagPage = root.Page;
             if (root.PageClass == Offsets.BoothPageClassName) boothPage = root.Page;
             if (root.PageClass == Offsets.MapRewardPageClassName) mapRewardPage = root.Page;
+            if (root.PageClass == Offsets.BossRewardPageClassName) bossRewardPage = root.Page;
             if (root.Spec.Kind == PanelKind.Stash) stashPage = root.Page;
             if (RectOf(root.Page, root.Spec.RectChild, origin) is not { } rect)
             {
@@ -184,6 +187,13 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         }
         else if (++_mapRewardMisses >= 2) _mapRewardPage = 0;
 
+        if (bossRewardPage != 0)
+        {
+            _bossRewardPage = bossRewardPage;
+            _bossRewardMisses = 0;
+        }
+        else if (++_bossRewardMisses >= 2) _bossRewardPage = 0;
+
         if (stashPage != 0)
         {
             _stashPage = stashPage;
@@ -227,7 +237,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         {
             if (!TryHostedPage(widget, out page) || !names.TryReadClassName(page, out pageClass)) return null;
         }
-        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName || pageClass == Offsets.BoothPageClassName || pageClass == Offsets.MapRewardPageClassName || pageClass == Offsets.CompareTipPanelClassName;
+        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName || pageClass == Offsets.BoothPageClassName || pageClass == Offsets.MapRewardPageClassName || pageClass == Offsets.BossRewardPageClassName || pageClass == Offsets.CompareTipPanelClassName;
 
         return new Root(widget, page, pageClass, Specs.GetValueOrDefault(pageClass, Unknown), reached);
     }

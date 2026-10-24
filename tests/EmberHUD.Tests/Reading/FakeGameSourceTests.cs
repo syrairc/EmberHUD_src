@@ -265,6 +265,18 @@ public class FakeGameSourceTests
         Assert.NotEmpty(state.MapReward!.Items);
         Assert.All(state.MapReward.Items, i => Assert.True(i.BaseId > 0 && i.Count > 0 && i.Max.X > i.Min.X));
         Assert.Null(At(closed).MapReward);
+        Assert.False(state.MapReward.Boss);
+    }
+
+    [Fact]
+    public void FakeBossRewardShowsOnlyWhileItsPageIsOpen()
+    {
+        var open = 21 * Stopwatch.Frequency;
+        var state = At(open);
+        Assert.Contains(state.Ui.Panels, p => p.Name == Offsets.BossRewardPageClassName);
+        Assert.True(state.MapReward!.Boss);
+        Assert.Contains(state.MapReward.Items, i => i.SpecialId > 0);
+        Assert.Null(At(2 * Stopwatch.Frequency).MapReward);
     }
 
     [Fact]

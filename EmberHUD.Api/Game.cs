@@ -526,9 +526,9 @@ public sealed record BagView(InventoryBag Tab, Vector2 ClipMin, Vector2 ClipMax,
 
 public sealed record StashView(int Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
 
-public sealed record MapRewardItem(int BaseId, int Count, Vector2 Min, Vector2 Max);
+public sealed record MapRewardItem(int BaseId, int Count, Vector2 Min, Vector2 Max, int SpecialId = 0);
 
-public sealed record MapRewardView(MapRewardItem[] Items);
+public sealed record MapRewardView(MapRewardItem[] Items, bool Boss = false);
 
 public sealed record Camera
 {

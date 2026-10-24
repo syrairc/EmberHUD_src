@@ -20,7 +20,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const int QuestBlinkSeconds = 60;
     private const int QuestBlinkOnSeconds = 30;
     private static readonly Vector2 Center = new(1000, 1000);
-    private const float UiCycleSeconds = 20f;
+    private const float UiCycleSeconds = 24f;
     private const float InventoryOpenSeconds = 4f;
     private static readonly GameUi InventoryOpen = new([new GamePanel("PCBag_C", PanelKind.Inventory, new Vector2(2400, 200), new Vector2(3300, 1200), false)]);
     private const float StashOpenFromSeconds = 5f;
@@ -33,6 +33,10 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float MapRewardOpenSeconds = 4f;
     private static readonly GameUi MapRewardOpen = new([new GamePanel(Offsets.MapRewardPageClassName, PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false)]);
     private static readonly MapRewardView FakeMapReward = new([new(6216, 1, new Vector2(1000, 600), new Vector2(1094, 694)), new(6002, 1, new Vector2(1110, 600), new Vector2(1204, 694)), new(5080, 12, new Vector2(1220, 600), new Vector2(1314, 694)), new(382001, 1, new Vector2(2000, 300), new Vector2(2094, 394))]);
+    private const float BossRewardOpenFromSeconds = 20f;
+    private const float BossRewardOpenSeconds = 4f;
+    private static readonly GameUi BossRewardOpen = new([new GamePanel(Offsets.BossRewardPageClassName, PanelKind.Other, Vector2.Zero, new Vector2(3440, 1440), false)]);
+    private static readonly MapRewardView FakeBossReward = new([new(3610, 1, new Vector2(1000, 600), new Vector2(1078, 712), 112258), new(77, 1, new Vector2(1100, 600), new Vector2(1178, 712), 112259), new(5080, 12, new Vector2(1200, 600), new Vector2(1278, 712))], true);
     private static readonly BagView FakeBooth = BuildBooth();
     private static readonly StashView FakeStash = BuildStash();
     private const int BagColumns = 9;
@@ -154,7 +158,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Ui = ui,
             Bag = ReferenceEquals(ui, InventoryOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeBag : null,
             Booth = ReferenceEquals(ui, BoothOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeBooth : null,
-            MapReward = ReferenceEquals(ui, MapRewardOpen) ? FakeMapReward : null,
+            MapReward = ReferenceEquals(ui, MapRewardOpen) ? FakeMapReward : ReferenceEquals(ui, BossRewardOpen) ? FakeBossReward : null,
             Stash = ReferenceEquals(ui, StashOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeStash : null,
             StashItems = ReferenceEquals(ui, StashOpen) && Game.InventoryWanted(now, Offsets.InventoryWantedSeconds) ? FakeStashItems : null,
             ChatOpen = false,
@@ -271,7 +275,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     internal static GameUi UiAt(long now)
     {
         var seconds = now / (double)Stopwatch.Frequency % UiCycleSeconds;
-        return seconds < InventoryOpenSeconds ? InventoryOpen : seconds >= StashOpenFromSeconds && seconds < StashOpenFromSeconds + StashOpenSeconds ? StashOpen : seconds >= BoothOpenFromSeconds && seconds < BoothOpenFromSeconds + BoothOpenSeconds ? BoothOpen : seconds >= MapRewardOpenFromSeconds && seconds < MapRewardOpenFromSeconds + MapRewardOpenSeconds ? MapRewardOpen : GameUi.Empty;
+        return seconds < InventoryOpenSeconds ? InventoryOpen : seconds >= StashOpenFromSeconds && seconds < StashOpenFromSeconds + StashOpenSeconds ? StashOpen : seconds >= BoothOpenFromSeconds && seconds < BoothOpenFromSeconds + BoothOpenSeconds ? BoothOpen : seconds >= MapRewardOpenFromSeconds && seconds < MapRewardOpenFromSeconds + MapRewardOpenSeconds ? MapRewardOpen : seconds >= BossRewardOpenFromSeconds && seconds < BossRewardOpenFromSeconds + BossRewardOpenSeconds ? BossRewardOpen : GameUi.Empty;
     }
 
     internal static MapInfo MapAt(long now)

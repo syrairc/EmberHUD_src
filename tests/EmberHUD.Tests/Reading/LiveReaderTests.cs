@@ -223,6 +223,17 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void BossRewardIsPublishedAsTheMapRewardView()
+    {
+        var screen = GameUiReaderMapRewardTests.OpenBoss();
+        screen.World.PublishEntities();
+        screen.Ui.SetChildren(screen.Drops, GameUiReaderMapRewardTests.Cell(screen, GameUiReaderMapRewardTests.Item(screen, "/Game/Icon/UI_Memory_6002_Icon_128.UI_Memory_6002_Icon", null, 1010, 310)));
+        Assert.True(new LiveReader(screen.World.Memory, FakeWorld.Module).TryRead(out var state, out _));
+        Assert.True(state.MapReward!.Boss);
+        Assert.Equal([(6002, 1)], state.MapReward.Items.Select(i => (i.BaseId, i.Count)));
+    }
+
+    [Fact]
     public void StashIsNullWhenNobodyAskedOrNoStashPageIsOpen()
     {
         var world = new FakeWorld();
