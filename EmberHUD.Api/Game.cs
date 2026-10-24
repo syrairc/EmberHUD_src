@@ -291,6 +291,8 @@ public sealed record GameState
 
     public Skill[]? Skills { get; init; }
 
+    public ScreenRect?[]? SkillSlots { get; init; }
+
     public GameMinimap? GameMinimap { get; init; }
 
     public BossBar? BossBar { get; init; }

@@ -165,6 +165,7 @@ internal sealed class LiveReader
             GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
+            SkillSlots = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _ui.ReadSkillSlots() : null,
         };
         return true;
     }

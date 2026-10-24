@@ -202,6 +202,20 @@ internal sealed class FakeUi
         return pad;
     }
 
+    public nint[] AddSkillSlots(nint pad, Vector2[] positions, Vector2 size, byte visibility = 3)
+    {
+        var root = Widget(PanelClass("CanvasPanel"), "Root", Vector2.Zero, new Vector2(3440, 1440));
+        var slots = new nint[positions.Length];
+        for (var i = 0; i < slots.Length; i++)
+        {
+            slots[i] = Widget(UserClass("CtrlSkillIcon_C"), Offsets.SkillSlotPrefix + i, positions[i], size, visibility);
+            WeakPtr(slots[i] + Offsets.UWidgetSlate, Slate(positions[i], size, 1));
+        }
+        SetTree(pad, root);
+        SetChildren(root, slots);
+        return slots;
+    }
+
     public nint AddChat()
     {
         var chat = Widget(UserClass(Offsets.ChatPageClassName), Offsets.ChatPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
