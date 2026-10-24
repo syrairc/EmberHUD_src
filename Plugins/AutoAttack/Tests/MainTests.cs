@@ -39,6 +39,16 @@ public sealed class MainTests
     }
 
     [Test]
+    public void YieldsOnlyToAnotherKeyThatIsDown()
+    {
+        var space = new Hotkey(Key.Space);
+        Check.That(Main.Yields(space, new Hotkey(Key.D1), true), "held");
+        Check.That(!Main.Yields(space, new Hotkey(Key.D1), false), "not held");
+        Check.That(!Main.Yields(default, new Hotkey(Key.D1), true), "no yield key");
+        Check.That(!Main.Yields(space, space, true), "same as the hold key, that is our own press");
+    }
+
+    [Test]
     public void SlotRectIsOneBasedAndNullOutOfRange()
     {
         var rect = new ScreenRect(new Vector2(1, 2), new Vector2(3, 4));
