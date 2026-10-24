@@ -114,6 +114,48 @@ public sealed class EngineTests
         Check.That(rig.Settings.Log[1].EndsWith("Heal: pressed D1"), rig.Settings.Log[1]);
     }
 
+    static Reaction Nearby(string name) => new()
+    {
+        Name = name,
+        Trigger = new Hotkey(Key.D1),
+        Conditions = [new Condition { Kind = ConditionKind.NearbyEnemies, Radius = 500, MinRarity = Rarity.Magic }],
+    };
+
+    [Test]
+    public void DebugOffLogsNothingForAFailedReactionOrClosedGate()
+    {
+        var rig = With(0, Nearby("Near"));
+        rig.Step(Hurt(), 0, _ => true);
+        rig.Step(Hurt(paused: true), 1, _ => true);
+        Check.Equal(0, rig.Settings.Log.Count);
+    }
+
+    [Test]
+    public void DebugLogsEachFailedConditionWithItsNumbersOncePerChange()
+    {
+        var rig = With(0, Nearby("Near"));
+        rig.Settings.Debug = true;
+        rig.Step(Hurt(), 0, _ => true);
+        rig.Step(Hurt(), 1, _ => true);
+        Check.Equal(1, rig.Settings.Log.Count);
+        Check.That(rig.Settings.Log[0].EndsWith("Near: not met - NearbyEnemies r500 min Magic need 1 got 0 FAIL"), rig.Settings.Log[0]);
+        var boss = new Entity(1, 100, new Vector3(100, 0, 0), EntityKind.Monster, Rarity.Boss);
+        rig.Step(Hurt() with { Entities = [boss] }, 2, _ => true);
+        Check.Equal(2, rig.Settings.Log.Count);
+        Check.That(rig.Settings.Log[1].EndsWith("Near: pressed D1"), rig.Settings.Log[1]);
+    }
+
+    [Test]
+    public void DebugLogsWhyTheGateIsClosedOncePerChange()
+    {
+        var rig = With(0, Nearby("Near"));
+        rig.Settings.Debug = true;
+        rig.Step(Hurt(paused: null), 0, _ => true);
+        rig.Step(Hurt(paused: null), 1, _ => true);
+        Check.Equal(1, rig.Settings.Log.Count);
+        Check.That(rig.Settings.Log[0].EndsWith("gate closed - status=live paused=unknown fullScreen=False player=True"), rig.Settings.Log[0]);
+    }
+
     [Test]
     public void RefusedPressFallsThroughToNextReaction()
     {
