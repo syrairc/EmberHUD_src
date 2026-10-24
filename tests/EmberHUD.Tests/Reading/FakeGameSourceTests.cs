@@ -256,6 +256,18 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeMapRewardShowsOnlyWhileItsPageIsOpen()
+    {
+        var open = 16 * Stopwatch.Frequency;
+        var closed = 2 * Stopwatch.Frequency;
+        var state = At(open);
+        Assert.Contains(state.Ui.Panels, p => p.Name == Offsets.MapRewardPageClassName);
+        Assert.NotEmpty(state.MapReward!.Items);
+        Assert.All(state.MapReward.Items, i => Assert.True(i.BaseId > 0 && i.Count > 0 && i.Max.X > i.Min.X));
+        Assert.Null(At(closed).MapReward);
+    }
+
+    [Fact]
     public void FakeBagFollowsTheOpenInventory()
     {
         var open = Stopwatch.Frequency;

@@ -4,7 +4,7 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, Names names, Func<long>? clockMilliseconds = null)
+internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase, Names names, Func<long>? clockMilliseconds = null, ItemInfoReader? items = null)
 {
     private readonly record struct PanelSpec(PanelKind Kind, string RectChild);
 
@@ -64,6 +64,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             }
             if (++_bagMisses >= 2) _bagPage = 0;
             if (++_boothMisses >= 2) _boothPage = 0;
+            if (++_mapRewardMisses >= 2) _mapRewardPage = 0;
             if (++_stashMisses >= 2) _stashPage = 0;
             ui = _last = GameUi.Empty;
             return false;
@@ -81,6 +82,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         var compareTipPanelSeen = false;
         nint bagPage = 0;
         nint boothPage = 0;
+        nint mapRewardPage = 0;
         nint stashPage = 0;
         var gameMinimapHidden = false;
         _panels.Clear();
@@ -127,6 +129,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             if (root.PageClass == Offsets.CompareTipPanelClassName) compareTipPanelSeen = true;
             if (root.Spec.Kind == PanelKind.Inventory) bagPage = root.Page;
             if (root.PageClass == Offsets.BoothPageClassName) boothPage = root.Page;
+            if (root.PageClass == Offsets.MapRewardPageClassName) mapRewardPage = root.Page;
             if (root.Spec.Kind == PanelKind.Stash) stashPage = root.Page;
             if (RectOf(root.Page, root.Spec.RectChild, origin) is not { } rect)
             {
@@ -174,6 +177,13 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         }
         else if (++_boothMisses >= 2) _boothPage = 0;
 
+        if (mapRewardPage != 0)
+        {
+            _mapRewardPage = mapRewardPage;
+            _mapRewardMisses = 0;
+        }
+        else if (++_mapRewardMisses >= 2) _mapRewardPage = 0;
+
         if (stashPage != 0)
         {
             _stashPage = stashPage;
@@ -217,7 +227,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         {
             if (!TryHostedPage(widget, out page) || !names.TryReadClassName(page, out pageClass)) return null;
         }
-        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName || pageClass == Offsets.BoothPageClassName || pageClass == Offsets.CompareTipPanelClassName;
+        else reached = Specs.ContainsKey(pageClass) || pageClass == Offsets.TradePageClassName || pageClass == Offsets.BoothPageClassName || pageClass == Offsets.MapRewardPageClassName || pageClass == Offsets.CompareTipPanelClassName;
 
         return new Root(widget, page, pageClass, Specs.GetValueOrDefault(pageClass, Unknown), reached);
     }

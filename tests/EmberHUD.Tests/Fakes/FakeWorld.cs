@@ -30,7 +30,7 @@ internal sealed class FakeWorld
     private nint _chunkTable;
     private readonly nint[] _chunks = new nint[Offsets.MaxGObjectChunks];
 
-    public GameUiReader UiReader(Func<long>? clock = null) => new(Memory, Module, new Names(Memory, Module), clock);
+    public GameUiReader UiReader(Func<long>? clock = null, ItemInfoReader? items = null) => new(Memory, Module, new Names(Memory, Module), clock, items);
 
     public FakeWorld()
     {

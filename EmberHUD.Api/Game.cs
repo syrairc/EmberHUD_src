@@ -258,6 +258,8 @@ public sealed record GameState
     public BagView? Bag { get; init; }
     public BagView? Booth { get; init; }
 
+    public MapRewardView? MapReward { get; init; }
+
     public StashView? Stash { get; init; }
 
     public InventoryItem[]? StashItems { get; init; }
@@ -523,6 +525,10 @@ public readonly record struct BagCell(int Slot, Vector2 Min, Vector2 Max);
 public sealed record BagView(InventoryBag Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
 
 public sealed record StashView(int Tab, Vector2 ClipMin, Vector2 ClipMax, BagCell[] Cells);
+
+public sealed record MapRewardItem(int BaseId, int Count, Vector2 Min, Vector2 Max);
+
+public sealed record MapRewardView(MapRewardItem[] Items);
 
 public sealed record Camera
 {

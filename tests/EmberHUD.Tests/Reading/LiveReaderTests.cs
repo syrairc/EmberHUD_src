@@ -210,6 +210,19 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void MapRewardIsPublishedWhileThePageIsOpen()
+    {
+        var screen = GameUiReaderMapRewardTests.Open();
+        screen.World.PublishEntities();
+        Assert.True(new LiveReader(screen.World.Memory, FakeWorld.Module).TryRead(out var state, out _));
+        Assert.Null(state.MapReward);
+
+        screen.Ui.SetChildren(screen.Drops, GameUiReaderMapRewardTests.Item(screen, "/Game/Icon/UI_Memory_6002_Icon_128.UI_Memory_6002_Icon", "3", 1010, 310));
+        Assert.True(new LiveReader(screen.World.Memory, FakeWorld.Module).TryRead(out state, out _));
+        Assert.Equal([(6002, 3)], state.MapReward!.Items.Select(i => (i.BaseId, i.Count)));
+    }
+
+    [Fact]
     public void StashIsNullWhenNobodyAskedOrNoStashPageIsOpen()
     {
         var world = new FakeWorld();

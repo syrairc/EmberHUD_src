@@ -59,7 +59,7 @@ internal sealed class LiveReader
         _icons = new MapIconReader(memory, moduleBase, names);
         _questTargets = new QuestTargetReader(memory);
         _explored = new ExploredReader(memory);
-        _ui = new GameUiReader(memory, moduleBase, names);
+        _ui = new GameUiReader(memory, moduleBase, names, null, new ItemInfoReader(memory, moduleBase));
         _death = new DeathReader(memory, moduleBase, _ui);
         _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
         _woodStake = new WoodStakeReader(memory, moduleBase);
@@ -154,6 +154,7 @@ internal sealed class LiveReader
             TradeGoods = trade is not null && Game.TradeGoodsWanted(Stopwatch.GetTimestamp(), Offsets.TradeGoodsWantedSeconds) ? _inventory?.ReadTradeGoods() : null,
             Bag = inventoryWanted ? _ui.ReadBag() : null,
             Booth = inventoryWanted ? _ui.ReadBooth() : null,
+            MapReward = _ui.ReadMapReward(),
             Stash = stash,
             StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),
