@@ -51,9 +51,11 @@ public static class IconShapes
 
     static Vector2[] Hexagon(Vector2 min, Vector2 max)
     {
-        var quarter = (max.X - min.X) / 4;
-        var middle = (min.Y + max.Y) / 2;
-        return [new(min.X, middle), new(min.X + quarter, min.Y), new(max.X - quarter, min.Y), new(max.X, middle), new(max.X - quarter, max.Y), new(min.X + quarter, max.Y)];
+        const float WidthPerHeight = 0.8660254f;
+        var centre = (min + max) / 2;
+        var height = Math.Max(0, Math.Min(max.Y - min.Y, (max.X - min.X) / WidthPerHeight));
+        var halfWidth = height * WidthPerHeight / 2;
+        return [new(centre.X, centre.Y - height / 2), new(centre.X + halfWidth, centre.Y - height / 4), new(centre.X + halfWidth, centre.Y + height / 4), new(centre.X, centre.Y + height / 2), new(centre.X - halfWidth, centre.Y + height / 4), new(centre.X - halfWidth, centre.Y - height / 4)];
     }
 
     public static Vector2[] ClipTop(ReadOnlySpan<Vector2> polygon, float cutY)
