@@ -63,6 +63,69 @@ public class ItemInfoReaderTests
         Assert.Equal(9, reader.ByIcon("Late"));
     }
 
+    private static FakeWorld GoldWorld(params (uint UniqueId, uint BaseId, string? Icon)[] rows)
+    {
+        var world = new FakeWorld();
+        world.SetItemGoldTable(5, rows.Select(r => (r.UniqueId, r.BaseId)).ToArray());
+        foreach (var r in rows) world.SetItemGoldIcon(r.UniqueId, r.Icon);
+        return world;
+    }
+
+    [Fact]
+    public void UniqueIconResolvesToUniqueAndBase()
+    {
+        var world = GoldWorld((112258, 3610, "Icon_Equip_Ring_Epic_202_128"), (112259, 77, "Icon_Equip_Ring_Epic_203_128"));
+
+        Assert.Equal((112258, 3610), ReaderFor(world).ByUniqueIcon("Icon_Equip_Ring_Epic_202_128"));
+    }
+
+    [Fact]
+    public void SharedUniqueIconIsNull()
+    {
+        var world = GoldWorld((1, 10, "Same_128"), (2, 20, "Same_128"));
+
+        Assert.Null(ReaderFor(world).ByUniqueIcon("Same_128"));
+    }
+
+    [Fact]
+    public void UnknownUniqueIconIsNull()
+    {
+        var world = GoldWorld((1, 10, "A_128"));
+
+        Assert.Null(ReaderFor(world).ByUniqueIcon("Nope_128"));
+    }
+
+    [Fact]
+    public void UniqueIconIsCaseInsensitive()
+    {
+        var world = GoldWorld((1, 10, "Icon_Equip_Ring_Epic_202_128"));
+
+        Assert.Equal((1, 10), ReaderFor(world).ByUniqueIcon("icon_equip_ring_epic_202_128"));
+    }
+
+    [Fact]
+    public void SizeSuffixDifferenceStillMatches()
+    {
+        var world = GoldWorld((1, 10, "Icon_Equip_Ring_Epic_202_128"), (2, 20, "Other_Ring_5_128"), (3, 30, "Other_Ring_5_112"), (4, 40, "NoSuffix"));
+        var reader = ReaderFor(world);
+
+        Assert.Equal((1, 10), reader.ByUniqueIcon("Icon_Equip_Ring_Epic_202_112"));
+        Assert.Null(reader.ByUniqueIcon("Other_Ring_5_128"));
+        Assert.Equal((4, 40), reader.ByUniqueIcon("NoSuffix"));
+    }
+
+    [Fact]
+    public void PartialWalkIsNotCached()
+    {
+        var world = GoldWorld((1, 10, "A_128"));
+        world.Memory.Write(FakeWorld.Module + Offsets.ItemGoldBucketCountRva, (uint)Offsets.MaxBuckets + 1);
+        var reader = ReaderFor(world);
+        Assert.Null(reader.ByUniqueIcon("A_128"));
+
+        world.Memory.Write(FakeWorld.Module + Offsets.ItemGoldBucketCountRva, 5u);
+        Assert.Equal((1, 10), reader.ByUniqueIcon("A_128"));
+    }
+
     [Fact]
     public void ReadsTheBaseRow()
     {
