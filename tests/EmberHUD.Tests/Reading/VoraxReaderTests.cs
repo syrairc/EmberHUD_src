@@ -316,6 +316,9 @@ public class VoraxReaderTests
     public void RewardRelicStateIsTheInstrumentPhase() => Assert.Equal(VoraxPhase.Instrument, new Fixture(state: Offsets.VoraxStateRewardRelic).Reader().Read()!.Phase);
 
     [Fact]
+    public void TheRawStateNameIsKept() => Assert.Equal("S13CardPlay_Unseen", new Fixture(state: "S13CardPlay_Unseen").Reader().Read()!.State);
+
+    [Fact]
     public void UnknownStateIsOther() => Assert.Equal(VoraxPhase.Other, new Fixture(state: "S13CardPlay_Unseen").Reader().Read()!.Phase);
 
     [Fact]
@@ -691,6 +694,22 @@ public class VoraxReaderTests
         Assert.Equal([978, 963, 978], cards.Select(c => (double)c.Min.Y));
         Assert.Equal(460, cards[1].Max.X - cards[1].Min.X, 2);
         Assert.Equal(568, cards[1].Max.Y - cards[1].Min.Y, 2);
+    }
+
+    [Fact]
+    public void StartInstrumentRowsNumberedFromOneStillGetTheirOwnRects()
+    {
+        var f = new Fixture();
+        foreach (var id in new[] { 104, 105, 106 }) f.Info(0, id, $"relic|name|{id}", $"relic|desc|{id}", []);
+        f.HandCard(1, 104, 103, true);
+        f.HandCard(2, 105, 103, true);
+        f.HandCard(3, 106, 103, true);
+        f.CardItem(0, new Vector2(1483.5f, 978));
+        f.CardItem(1, new Vector2(1704, 963));
+        f.CardItem(2, new Vector2(1925, 978));
+        var cards = f.Reader(LocOf(Texts())).Read()!.Offered;
+        Assert.Equal([1, 2, 3], cards.Select(c => c.Slot));
+        Assert.Equal([1483.5, 1704, 1925], cards.Select(c => (double)c.Min.X));
     }
 
     [Fact]

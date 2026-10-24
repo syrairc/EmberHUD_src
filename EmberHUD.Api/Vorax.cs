@@ -29,6 +29,7 @@ public readonly record struct VoraxCard(int Slot, int Id, VoraxCardKind Kind, in
 public sealed record VoraxState(VoraxPhase Phase, int Round, int Rounds, int Activity, int NextRewardActivity, int RewardsTaken, int RewardsTotal, int Rerolls, int MonsterSlots, VoraxMonster[] Monsters, VoraxCard[] Offered, VoraxCard[] Instruments, int[] Chests)
 {
     public VoraxCard[] Protocols { get; init; } = [];
+    public string State { get; init; } = "";
     public int RewardBonusPercent { get; init; }
     public int SelectedCard { get; init; } = -1;
     public int[] SelectedMonsters { get; init; } = [];

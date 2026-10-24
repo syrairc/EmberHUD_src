@@ -173,6 +173,7 @@ internal static class StateTools
             ["offered"] = Cards(vorax.Offered),
             ["instruments"] = Cards(vorax.Instruments),
             ["protocols"] = Cards(vorax.Protocols),
+            ["state"] = vorax.State,
             ["rewardBonusPercent"] = vorax.RewardBonusPercent,
             ["chests"] = new JsonArray([.. vorax.Chests.Select(chest => (JsonNode)chest)]),
         };

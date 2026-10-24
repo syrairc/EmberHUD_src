@@ -84,10 +84,10 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
         var (protocols, bonus) = ReadProtocols(manager, data);
         var origin = _origin();
         var (monsters, selectedMonsters) = ReadMonsterWidgets(view, ReadMonsters(manager, data), origin);
-        VoraxCard[] offered = [.. ReadCards(manager, hand, false).Select(c => WithRect(c, view, origin))];
+        VoraxCard[] offered = [.. ReadCards(manager, hand, false).Select((c, position) => WithRect(c, view, origin, position))];
         return new VoraxState(ReadPhase(view, hand), round, rounds, activity, next, chests.Count(c => c != 0), rewards, rerolls, slots, monsters,
             offered, ReadCards(manager, CardRows(data, Offsets.LuaVoraxRelics), true), chests)
-        { Protocols = protocols, RewardBonusPercent = bonus, SelectedCard = ReadSelectedCard(view, offered), SelectedMonsters = selectedMonsters };
+        { Protocols = protocols, State = _lua.TryGetString(view, Offsets.LuaVoraxState, out var stateName) ? stateName : "", RewardBonusPercent = bonus, SelectedCard = ReadSelectedCard(view, offered), SelectedMonsters = selectedMonsters };
     }
 
     private int NextReward(LuaTable view, LuaTable data)
@@ -100,8 +100,9 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     private int ReadSelectedCard(LuaTable view, VoraxCard[] offered) =>
         TryGetInt(view, Offsets.LuaVoraxCardId, out var id) && id != -1 && TryGetInt(view, Offsets.LuaVoraxCardIndex, out var index) && offered.Any(c => c.Slot == index) ? index : -1;
 
-    private VoraxCard WithRect(VoraxCard card, LuaTable view, Vector2? origin) =>
-        TryItemWidget(view, Offsets.LuaVoraxCardItems, card.Slot, out var widget) && TryWidgetRect(widget, origin, out var rect) ? card with { Min = rect.Min, Max = rect.Max } : card;
+    // The start instrument rows are numbered from 1, potion rows from 0, the widget list is always in hand order
+    private VoraxCard WithRect(VoraxCard card, LuaTable view, Vector2? origin, int position) =>
+        TryItemWidget(view, Offsets.LuaVoraxCardItems, position, out var widget) && TryWidgetRect(widget, origin, out var rect) ? card with { Min = rect.Min, Max = rect.Max } : card;
 
     private (VoraxMonster[] Monsters, int[] Selected) ReadMonsterWidgets(LuaTable view, VoraxMonster[] monsters, Vector2? origin)
     {
