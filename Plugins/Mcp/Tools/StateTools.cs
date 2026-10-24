@@ -45,7 +45,7 @@ internal static class StateTools
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
         new("fight_entities", "Fighters in the fight world near the player, which the scene list and Game.State often miss (ground rings, bullets, auras). Per fighter: id, x / y, distance, component ids, shape kind (1 circle, 2 rect) with radius and extents, scale (null = no Scale component), side camp (-1 none, 1 hostile, 2 player), owner id. Nearest first. radius is world units around the player (default 600), limit defaults to 100, max 500. Empty without a live game.",
             Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
-        new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type. Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
+        new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type, icon (texture short name, null when the row is not loaded). Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
         new("get_buffs", "Buffs and debuffs on the local player from Game.State.Buffs: id, name, stacks (1 when the buff is not stackable), remaining and total seconds. Asks the reader and returns what it has - ready is false until the character reader answered (it also stays false while the game has no fight entity), ask again. Optional id filter.",
             Schema.Of([], ("id", "integer", "only this buff id")), GetBuffs),
@@ -402,6 +402,7 @@ internal static class StateTools
                 ["count"] = item.Count,
                 ["stackMax"] = item.StackMax,
                 ["type"] = item.Type,
+                ["icon"] = Items.TryGet(item.BaseId, out var info) ? info.Icon : null,
             })]),
         };
     }
