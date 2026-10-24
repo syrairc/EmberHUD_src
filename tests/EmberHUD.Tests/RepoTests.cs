@@ -24,6 +24,7 @@ public class RepoTests
     public void EveryShippedPluginCompilesAndPassesItsTests()
     {
         var report = new StringWriter();
+        Environment.SetEnvironmentVariable("EMBER_PLUGINS", Path.Combine(Src(), "Plugins"));
         var code = CheckRunner.Run(Path.Combine(Src(), "Plugins"), report);
         Assert.True(code == 0, report.ToString());
         Assert.Contains("PASS Sample compile", report.ToString());
