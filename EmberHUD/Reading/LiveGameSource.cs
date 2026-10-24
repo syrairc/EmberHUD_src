@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
@@ -36,6 +37,12 @@ internal sealed class LiveGameSource : IGameSource
         var ok = _reader!.TryRead(out state, out failure);
         if (ok) _lastAreaId = state.AreaId;
         return ok;
+    }
+
+    public bool TryReadPlayer(out Vector3 position)
+    {
+        position = default;
+        return _reader is { } reader && reader.TryReadPlayerPosition(out position);
     }
 
     private static string HealCache => Path.Combine(AppContext.BaseDirectory, "Config", "rva-heal.txt");

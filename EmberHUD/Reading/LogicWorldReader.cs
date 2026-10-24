@@ -211,6 +211,18 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return _kinds;
     }
 
+    public bool TryReadPlayerPosition(out Vector3 position)
+    {
+        position = default;
+        if (!TryReadScene(out var scene, out _) || !TryReadLocalPawn(out var pawn) ||
+            !memory.TryRead(pawn + Offsets.UObjectEntityId, out int id) || id == 0 ||
+            !TryReadRawPosition(scene, id, out position) || position.Z >= Offsets.ParkedZ)
+            return false;
+
+        if (TryReadWorldZ(pawn, out var z)) position = position with { Z = z };
+        return true;
+    }
+
     public bool TryReadLocalPlayerId(out int id)
     {
         id = 0;

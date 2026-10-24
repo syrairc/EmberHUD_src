@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 
 namespace EmberHUD.Host.Reading;
 
@@ -15,8 +16,30 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
     private IGameSource? _source;
     private bool _disposed;
     private volatile ReaderSnapshot _current = new(GameState.Empty, 0);
+    private volatile PlayerSample? _fast;
 
-    public ReaderSnapshot Current => _current;
+    public ReaderSnapshot Current
+    {
+        get
+        {
+            var snapshot = _current;
+            return _fast is { } fast && fast.At > snapshot.PlayerAt && snapshot.State.Player is { } player
+                ? snapshot with { State = snapshot.State with { Player = player with { Position = fast.Position } }, PlayerAt = fast.At }
+                : snapshot;
+        }
+    }
+
+    public void SamplePlayer()
+    {
+        try
+        {
+            _fast = _source is { } source && source.TryReadPlayer(out var position) ? new PlayerSample(position, Stopwatch.GetTimestamp()) : null;
+        }
+        catch (Exception)
+        {
+            _fast = null;
+        }
+    }
 
     public void Start()
     {
@@ -69,6 +92,14 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
 internal interface IGameSource : IDisposable
 {
     bool TryRead(out GameState state, out string? failure);
+
+    bool TryReadPlayer(out Vector3 position)
+    {
+        position = default;
+        return false;
+    }
 }
+
+internal sealed record PlayerSample(Vector3 Position, long At);
 
 internal sealed record ReaderSnapshot(GameState State, long PlayerAt);

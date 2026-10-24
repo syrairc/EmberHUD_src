@@ -72,6 +72,8 @@ internal sealed class LiveReader
         _generation = firstAreaId;
     }
 
+    public bool TryReadPlayerPosition(out Vector3 position) => _world.TryReadPlayerPosition(out position);
+
     public bool TryRead(out GameState state, out string? failure)
     {
         state = GameState.Empty;

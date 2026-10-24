@@ -153,6 +153,7 @@ void Frame()
     }
     if (Input.Pressed(sdk.Hotkeys.Settings)) window.Toggle();
 
+    reader.SamplePlayer();
     var snapshot = reader.Current;
     var state = snapshot.State;
     if (state.Player is { } player)

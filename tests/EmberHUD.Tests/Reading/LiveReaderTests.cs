@@ -622,6 +622,18 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void PlayerPositionReadsAloneWithoutWalkingTheScene()
+    {
+        var (world, player) = WorldWithPlayerAt(0, 0);
+        var reader = ReaderFor(world);
+        reader.TryRead(out _, out _);
+        world.MoveEntity(player, 300, -40, 0);
+        Assert.True(reader.TryReadPlayerPosition(out var position));
+        Assert.Equal(300, position.X);
+        Assert.Equal(-40, position.Y);
+    }
+
+    [Fact]
     public void ForwardFollowsMovementAndStaysWhenStill()
     {
         var (world, player) = WorldWithPlayerAt(0, 0);

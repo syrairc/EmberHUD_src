@@ -16,6 +16,63 @@ public class ReaderLoopTests
         public void Dispose() { }
     }
 
+    private sealed class Fast(GameState state, Func<System.Numerics.Vector3?> sample) : IGameSource
+    {
+        public bool TryRead(out GameState result, out string? failure)
+        {
+            result = state;
+            failure = null;
+            return true;
+        }
+
+        public bool TryReadPlayer(out System.Numerics.Vector3 position)
+        {
+            var at = sample();
+            position = at ?? default;
+            return at is not null;
+        }
+
+        public void Dispose() { }
+    }
+
+    private static GameState PlayerAtOrigin() => GameState.Empty with { Status = "ok", Player = new Player(System.Numerics.Vector3.Zero, System.Numerics.Vector2.UnitX) };
+
+    private static ReaderLoop StartedWith(IGameSource source)
+    {
+        var loop = new ReaderLoop(() => source, _ => { }, 8);
+        loop.Start();
+        Assert.True(SpinWait.SpinUntil(() => loop.Current.State.Status == "ok", 2000));
+        return loop;
+    }
+
+    [Fact]
+    public void ASampledPlayerPositionReplacesTheOneFromTheLastFullRead()
+    {
+        using var loop = StartedWith(new Fast(PlayerAtOrigin(), () => new System.Numerics.Vector3(50, 0, 0)));
+        loop.SamplePlayer();
+        Assert.Equal(50, loop.Current.State.Player!.Position.X);
+    }
+
+    [Fact]
+    public void WithoutASampleOrWhenItFailsThePlayerStaysAsRead()
+    {
+        using var loop = StartedWith(new Fast(PlayerAtOrigin(), () => null));
+        loop.SamplePlayer();
+        Assert.Equal(0, loop.Current.State.Player!.Position.X);
+
+        using var throwing = StartedWith(new Fast(PlayerAtOrigin(), () => throw new ObjectDisposedException("handle")));
+        throwing.SamplePlayer();
+        Assert.Equal(0, throwing.Current.State.Player!.Position.X);
+    }
+
+    [Fact]
+    public void ASampleDoesNotInventAPlayerWhenThereIsNone()
+    {
+        using var loop = StartedWith(new Fast(GameState.Empty with { Status = "ok" }, () => new System.Numerics.Vector3(50, 0, 0)));
+        loop.SamplePlayer();
+        Assert.Null(loop.Current.State.Player);
+    }
+
     [Fact]
     public void ThrowingSourceKeepsTheLastStateAndReportsTheFailure()
     {
