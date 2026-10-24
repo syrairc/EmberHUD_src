@@ -139,6 +139,15 @@ static class SettingsUI
             Setting.Slider("Bar height", ref aura.BarHeight, 4, 200);
         }
         Setting.Color("Fill colour", ref aura.FillColor);
+        if (aura.Style == AuraStyle.Icon || aura.BarIcon != BarIcon.None)
+        {
+            ImGui.SeparatorText("Icon style");
+            Setting.Choice("Shape", ref aura.Shape);
+            if (aura.Shape == IconShape.Rounded) Setting.Slider("Corner radius", ref aura.CornerRadius, 0, 40);
+            Setting.Slider("Border width", ref aura.BorderWidth, 0, 8);
+            Setting.Color("Border colour", ref aura.BorderColor);
+            Setting.Color("Backdrop colour", ref aura.BackdropColor);
+        }
         Setting.Choice("When inactive", ref aura.WhenInactive, "Hide removes the aura, Dim keeps it drawn faded");
         ImGui.SeparatorText("Fallback icon");
         ImGui.TextDisabled("Used when the buff or skill has no icon of its own");
