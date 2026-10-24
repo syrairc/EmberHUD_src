@@ -31,7 +31,7 @@ public static class Conditions
         var detail = condition.Kind switch
         {
             ConditionKind.NearbyEnemies => $" r{condition.Radius} min {condition.MinRarity} need {Math.Max(condition.Count, 1)} got {state.CountNear(condition.Radius, condition.MinRarity)}",
-            ConditionKind.SkillCooldown or ConditionKind.SkillCharges => FindSkill(state, condition.SkillCfgId) is { } skill ? $" {condition.SkillCfgId} ready={skill.Ready} charges={skill.Charges}" : $" {condition.SkillCfgId} missing",
+            ConditionKind.SkillCooldown or ConditionKind.SkillCharges => FindSkill(state, condition.SkillCfgId) is { } skill ? $" {condition.SkillCfgId} ready={skill.Ready} cd={skill.CooldownRemaining:0.0}/{skill.CooldownTotal:0.0} charges={skill.Charges}" : $" {condition.SkillCfgId} missing",
             ConditionKind.Buff => $" '{condition.Text}'",
             _ => "",
         };
