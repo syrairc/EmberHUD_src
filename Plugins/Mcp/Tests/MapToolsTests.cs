@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json.Nodes;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -84,5 +85,30 @@ public sealed class MapToolsTests
         Check.Equal(Hex.Of(component), (string?)result["component"]);
         Check.Equal(Hex.Of(0), (string?)Wire.Run(Tools, "fight_component", new JsonObject { ["entity"] = 12, ["component"] = 3 })["component"]);
         Check.That(Wire.Fails(Tools, "fight_component", new JsonObject { ["entity"] = 13 }).Contains("no fight entity"), "missing entity");
+    }
+
+    [Test]
+    public void ScanRowsFindsKeysWhoseRowHoldsTheValue()
+    {
+        var header = Block(64);
+        var buckets = TestMemory.Alloc(8 * 4);
+        TestMemory.Write(header, buckets);
+        TestMemory.Write(header + 12, 4u);
+        (uint Key, int[] Entries)[] rows = [(1, [5, 7]), (2, [9]), (3, [7, 3])];
+        foreach (var (key, entries) in rows)
+        {
+            var array = TestMemory.Alloc(entries.Length * 16);
+            for (var i = 0; i < entries.Length; i++) TestMemory.Write(array + i * 16, entries[i]);
+            var row = TestMemory.Alloc(48);
+            TestMemory.Write(row + 16, array);
+            TestMemory.Write(row + 24, (uint)entries.Length);
+            var node = TestMemory.Alloc(40);
+            TestMemory.Write(node, key);
+            TestMemory.Write(node + 8, row);
+            TestMemory.Write(node + 24, 0L);
+            TestMemory.Write(buckets + (int)(key % 4) * 8, node);
+        }
+        var result = Wire.Run(Tools, "scan_rows", new JsonObject { ["address"] = Hex.Of(header), ["nextOffset"] = 24, ["arrayOffset"] = 16, ["countOffset"] = 24, ["stride"] = 16, ["match"] = 7 });
+        Check.Equal("1,3", string.Join(',', result["keys"]!.AsArray().Select(key => (long)key!)));
     }
 }

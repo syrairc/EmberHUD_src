@@ -8,6 +8,7 @@ namespace Mcp;
 internal static class MapTools
 {
     const int MaxNodes = 20000;
+    const int MaxScan = 400000;
     const int MaxBuckets = 1 << 20;
 
     public static Tool[] Create() =>
@@ -16,6 +17,8 @@ internal static class MapTools
             Schema.Of(["entity"], ("entity", "integer", "fight entity id, e.g. the player id from scene_entities"), ("component", "integer", "component type id, default 0 = entity only")), FightComponent),
         new("walk_map", "Walk a chained hash map in game memory. address is the map header: pointer to the bucket array at bucketsOffset (default 0), u32 bucket count at countOffset (default 12). Nodes chain through the pointer at nextOffset. Per node: address, key (u32 at +0) and the first dump bytes as hex. match keeps only nodes holding that u32 anywhere in the dumped bytes and lists the offsets. limit defaults to 50, max 2000, skip pages.",
             Schema.Of(["address", "nextOffset"], ("address", "string", "hex address of the map header"), ("nextOffset", "integer", "offset of the next-node pointer inside a node"), ("bucketsOffset", "integer", "offset of the bucket array pointer, default 0"), ("countOffset", "integer", "offset of the u32 bucket count, default 12"), ("dump", "integer", "bytes of each node to return, 8 to 512, default 64"), ("match", "integer", "only nodes holding this u32"), ("limit", "integer", "nodes to return, 1 to 2000"), ("skip", "integer", "matching nodes to skip")), WalkMap),
+        new("scan_rows", "Scan every row of a chained hash map for an i32 inside a row array, in-process (one call instead of one read per row). Node: key u32 at +0, row pointer at valueOffset (default 8), next at nextOffset. The row holds an array pointer at arrayOffset with a u32 count at countOffset; entries are stride bytes and match is compared with the i32 at the start of each entry. Returns the keys of rows that hold match, up to limit (default 100, max 2000). Example: the modifier table rows (arrayOffset 128, countOffset 136, stride 16) holding an affix class id.",
+            Schema.Of(["address", "nextOffset", "arrayOffset", "countOffset", "stride", "match"], ("address", "string", "hex address of the map header"), ("nextOffset", "integer", "next-node pointer offset"), ("valueOffset", "integer", "row pointer offset inside a node, default 8"), ("arrayOffset", "integer", "array pointer offset inside a row"), ("countOffset", "integer", "u32 count offset inside a row"), ("stride", "integer", "bytes per array entry, 4 to 256"), ("match", "integer", "i32 to look for"), ("limit", "integer", "keys to return, 1 to 2000")), ScanRows),
     ];
 
     static JsonObject FightComponent(Args args)
@@ -41,6 +44,42 @@ internal static class MapTools
             Memory.TryRead(node + 24, out node);
         }
         throw new ToolError($"no fight entity {id}");
+    }
+
+    static JsonObject ScanRows(Args args)
+    {
+        Live.Require();
+        var header = args.Addr("address");
+        var next = args.RequiredInt("nextOffset", 0, 4096);
+        var valueAt = args.Int("valueOffset", 8, 0, 4096);
+        var arrayAt = args.RequiredInt("arrayOffset", 0, 4096);
+        var countAt = args.RequiredInt("countOffset", 0, 4096);
+        var stride = args.RequiredInt("stride", 4, 256);
+        var match = args.RequiredInt("match", int.MinValue, int.MaxValue);
+        var limit = args.Int("limit", 100, 1, 2000);
+        var buckets = Deref(header, "bucket array");
+        if (!Memory.TryRead(header + 12, out uint count) || count == 0 || count > MaxBuckets) throw new ToolError("map has no buckets");
+
+        var keys = new JsonArray();
+        var visited = 0;
+        for (var bucket = 0; bucket < count && keys.Count < limit && visited < MaxScan; bucket++)
+        {
+            if (!Memory.TryRead(buckets + bucket * 8, out nint node)) continue;
+            for (var hops = 0; node != 0 && hops < 64 && visited < MaxScan; hops++, visited++)
+            {
+                if (Memory.TryRead(node, out uint key) && Memory.TryRead(node + valueAt, out nint row) && row != 0 && RowHolds(row, arrayAt, countAt, stride, match) && keys.Count < limit) keys.Add((long)key);
+                if (!Memory.TryRead(node + next, out node)) break;
+            }
+        }
+        return new JsonObject { ["visited"] = visited, ["truncated"] = visited >= MaxScan, ["keys"] = keys };
+    }
+
+    static bool RowHolds(nint row, int arrayAt, int countAt, int stride, int match)
+    {
+        if (!Memory.TryRead(row + arrayAt, out nint array) || array == 0 || !Memory.TryRead(row + countAt, out uint entries) || entries > 256) return false;
+        for (var i = 0; i < entries; i++)
+            if (Memory.TryRead(array + i * stride, out int value) && value == match) return true;
+        return false;
     }
 
     static nint ComponentOf(nint entity, int type)
