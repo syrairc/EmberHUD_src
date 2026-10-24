@@ -32,7 +32,7 @@ public sealed class GeneralTab
     public bool FollowPlayer = true;
     public bool HideBehindPanels = true;
     public float Zoom = DefaultZoom;
-    public float SmoothingMs = 100;
+    public float LeadMs = 50;
     public float Rotation;
     public float VerticalScale = 1;
     public float OffsetX;
@@ -215,7 +215,7 @@ public sealed class Settings : PluginSettings
         {
             changed |= Setting.Checkbox("Follow Player", ref General.FollowPlayer);
         }
-        changed |= Setting.Slider("Smoothing", ref General.SmoothingMs, 0, 500, "Milliseconds the map takes to catch up with you, matches the game map's own camera lag so icons don't double up while running. 0 snaps to your position");
+        changed |= Setting.Slider("Lead", ref General.LeadMs, 0, 300, "Milliseconds the map looks ahead along your movement. Our player position is read a few frames behind the game, so raise this if icons trail the game's map while you run. 0 follows the read position exactly");
         changed |= Setting.Checkbox("Hide behind full-screen panels", ref General.HideBehindPanels, "Nothing draws while the game has a full-screen panel open, e.g. the big map or the talent tree");
         using (Layout.Dim(General.UseGameMinimap))
         {

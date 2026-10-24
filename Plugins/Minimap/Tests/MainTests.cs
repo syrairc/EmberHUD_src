@@ -159,25 +159,24 @@ public sealed class MainTests
     }
 
     [Test]
-    public void TickTrailsThePlayerWhileSmoothingAndSnapsWhenOff()
+    public void TickLooksAheadAlongTheMovementAndNotWhenLeadIsOff()
     {
         var main = RegionPlugin();
         TickTwiceAt(main, 0, Scene.State(player: new Player(Vector3.Zero, Vector2.UnitX), terrain: _cell));
-        TickTwiceAt(main, 16, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
-        var trailing = Map.View?.ToScreen(new Vector3(100, 0, 0)).X;
-        Check.That(trailing > 960 && trailing < 960 + 100 * 0.037f);
+        TickTwiceAt(main, 100, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
+        Check.That(Map.View?.ToScreen(new Vector3(100, 0, 0)).X != 960f);
 
-        main.Settings.General.SmoothingMs = 0;
-        TickTwiceAt(main, 32, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
+        main.Settings.General.LeadMs = 0;
+        TickTwiceAt(main, 200, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
         Check.Equal<float?>(960f, Map.View?.ToScreen(new Vector3(100, 0, 0)).X);
     }
 
     [Test]
-    public void TickSnapsToTheNewAreaInsteadOfSliding()
+    public void TickDropsTheLeadOnANewArea()
     {
         var main = RegionPlugin();
         TickTwiceAt(main, 0, Scene.State(player: new Player(Vector3.Zero, Vector2.UnitX), terrain: _cell));
-        TickTwiceAt(main, 16, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell, area: 2));
+        TickTwiceAt(main, 100, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell, area: 2));
         Check.Equal<float?>(960f, Map.View?.ToScreen(new Vector3(100, 0, 0)).X);
     }
 

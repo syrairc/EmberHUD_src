@@ -5,7 +5,7 @@
     "Show": true,
     "FollowPlayer": true,
     "HideBehindPanels": true,
-    "SmoothingMs": 100,
+    "LeadMs": 50,
     "Rotation": 0,
     "VerticalScale": 1,
     "OffsetX": 0,
