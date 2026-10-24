@@ -303,6 +303,18 @@ public class CharacterReaderTests
     }
 
     [Fact]
+    public void ASingleChargeSkillWithItsChargeBackIsReadyWhateverRemainingSaysLeft()
+    {
+        var rig = new Rig();
+        rig.GiveSkills((50, 1230, 1, 1, 7.6, 8.2), (51, 1960, 0, 1, 0.9, 8));
+
+        var skills = rig.Reader.ReadSkills(BarOf)!.ToDictionary(s => s.CfgId);
+
+        Assert.True(skills[1230].Ready);
+        Assert.False(skills[1960].Ready);
+    }
+
+    [Fact]
     public void AChargeSkillReadsChargesAndMax()
     {
         var rig = new Rig();

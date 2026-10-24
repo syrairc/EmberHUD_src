@@ -53,8 +53,12 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
             _skillIcons.Add(cfgId, icon);
             var maxCharges = BitConverter.ToInt32(node[Offsets.CooldownMaxCharges..]);
             var hasCharges = maxCharges > 1;
+            var charges = BitConverter.ToInt32(node[Offsets.CooldownCharges..]);
+            // the game leaves the old remaining in a ready single-charge record, its charge is the truth
+            if (maxCharges == 1 && charges >= 1)
+                remaining = 0;
             var slot = cfgId == 0 ? -1 : Array.IndexOf(bar, cfgId);
-            skills.Add(new Skill(cfgId, slot, remaining, total, hasCharges ? BitConverter.ToInt32(node[Offsets.CooldownCharges..]) : 0, hasCharges ? maxCharges : 0, icon) { Name = slot >= 0 && slots is { } tabList ? BarSkillName(tabList, slot) : null });
+            skills.Add(new Skill(cfgId, slot, remaining, total, hasCharges ? charges : 0, hasCharges ? maxCharges : 0, icon) { Name = slot >= 0 && slots is { } tabList ? BarSkillName(tabList, slot) : null });
             return true;
         });
 
