@@ -256,6 +256,7 @@ public sealed record GameState
     public TradeGood[]? TradeGoods { get; init; }
 
     public BagView? Bag { get; init; }
+    public BagView? Booth { get; init; }
 
     public StashView? Stash { get; init; }
 

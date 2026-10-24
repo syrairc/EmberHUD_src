@@ -153,6 +153,7 @@ internal sealed class LiveReader
             Compare = compare,
             TradeGoods = trade is not null && Game.TradeGoodsWanted(Stopwatch.GetTimestamp(), Offsets.TradeGoodsWantedSeconds) ? _inventory?.ReadTradeGoods() : null,
             Bag = inventoryWanted ? _ui.ReadBag() : null,
+            Booth = inventoryWanted ? _ui.ReadBooth() : null,
             Stash = stash,
             StashItems = stash is not null && _ui.OpenStashTab is { } tab ? _inventory?.ReadStash(tab) : null,
             Area = _mapInfo.Read(scene, _terrain.Generation, monsters, icons),

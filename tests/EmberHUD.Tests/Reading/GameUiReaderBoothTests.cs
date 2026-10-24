@@ -5,7 +5,7 @@ namespace EmberHUD.Tests;
 
 public sealed class GameUiReaderBoothTests
 {
-    sealed class Booth
+    internal sealed class Booth
     {
         public required FakeWorld World;
         public required FakeUi Ui;
@@ -20,7 +20,7 @@ public sealed class GameUiReaderBoothTests
     static readonly Vector2 ClipMin = new(1000, 300);
     static readonly Vector2 ClipMax = new(1900, 900);
 
-    static Booth Open(int openTab = 0, int items = 3, int switcherIndex = 2, params int[] alsoVisible)
+    internal static Booth Open(int openTab = 0, int items = 3, int switcherIndex = 2, params int[] alsoVisible)
     {
         var world = new FakeWorld();
         var ui = new FakeUi(world);
@@ -59,14 +59,14 @@ public sealed class GameUiReaderBoothTests
         booth.World.Memory.Write(at + Offsets.TArrayNum, values.Length);
     }
 
-    static nint Entry(Booth booth, nint item, float x, float y)
+    internal static nint Entry(Booth booth, nint item, float x, float y)
     {
         var entry = booth.Ui.Widget(booth.EntryClass, "AuctionHouseTileItemV2_C", new Vector2(x, y), new Vector2(94, 94));
         booth.World.Memory.Write(entry + Offsets.BoothEntryItemData, item);
         return entry;
     }
 
-    static void Pool(Booth booth, int tab, params nint[] entries) => WriteArray(booth, booth.Tiles[tab] + Offsets.ListViewEntryPool, entries);
+    internal static void Pool(Booth booth, int tab, params nint[] entries) => WriteArray(booth, booth.Tiles[tab] + Offsets.ListViewEntryPool, entries);
 
     static BagView? Tick(GameUiReader reader, Booth booth)
     {

@@ -192,6 +192,24 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void BoothIsPublishedOnlyWhenTheInventoryIsWanted()
+    {
+        var booth = GameUiReaderBoothTests.Open();
+        booth.World.PublishEntities();
+        GameUiReaderBoothTests.Pool(booth, 0, GameUiReaderBoothTests.Entry(booth, booth.Items[0][0], 1010, 310));
+        Game.InventoryAsked = 0;
+        Assert.True(new LiveReader(booth.World.Memory, FakeWorld.Module).TryRead(out var state, out _));
+        Assert.Null(state.Booth);
+        Game.WantInventory();
+        try
+        {
+            Assert.True(new LiveReader(booth.World.Memory, FakeWorld.Module).TryRead(out state, out _));
+            Assert.Equal(InventoryBag.Equipment, state.Booth!.Tab);
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void StashIsNullWhenNobodyAskedOrNoStashPageIsOpen()
     {
         var world = new FakeWorld();

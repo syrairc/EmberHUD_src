@@ -237,6 +237,25 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeBoothShowsInItsOwnPanelWithTheWarehouseButton()
+    {
+        var open = 11 * Stopwatch.Frequency;
+        try
+        {
+            Game.InventoryAsked = open;
+            var state = At(open);
+            var panel = Assert.Single(state.Ui.Panels, p => p.Name == "AuctionHouseV2_C");
+            Assert.Contains(panel.Parts, p => p.Name == "Button_WareHouse");
+            Assert.NotEmpty(state.Booth!.Cells);
+            Assert.All(state.Booth.Cells, c => Assert.True(c.Min.X >= state.Booth.ClipMin.X && c.Min.Y >= state.Booth.ClipMin.Y && c.Max.X <= state.Booth.ClipMax.X && c.Max.Y <= state.Booth.ClipMax.Y));
+
+            Game.InventoryAsked = 0;
+            Assert.Null(At(open).Booth);
+        }
+        finally { Game.InventoryAsked = 0; }
+    }
+
+    [Fact]
     public void FakeBagFollowsTheOpenInventory()
     {
         var open = Stopwatch.Frequency;
