@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
 using System.Threading;
@@ -13,13 +12,7 @@ public sealed class Main : Plugin<Settings>
 {
     internal BackgroundJob<Walls> WallJob = new();
     internal BackgroundJob<Region> RegionJob = new();
-    internal Func<long> Clock = () => Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
-    const float SnapDistance = 5000;
-    const float VelocityFilterMs = 50;
-    Vector3? _previous;
-    Vector3 _velocity;
-    int _ledArea;
-    long _ledAt;
+    internal Func<long> Clock = () => Environment.TickCount64;
     Walls _walls = Walls.Empty;
     Region _region = Region.Empty;
     Polyline[] _unexploredOutline = [];
@@ -68,35 +61,7 @@ public sealed class Main : Plugin<Settings>
         }
         if (view.Show && !WallsStyle) UpdateRegion(state);
 
-        Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, Led(state), _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation, state.GameMinimap);
-    }
-
-    Vector3? Led(GameState state)
-    {
-        var now = Clock();
-        var elapsed = now - _ledAt;
-        var target = state.Player?.Position;
-        if (target is not { } to || !float.IsFinite(to.X) || !float.IsFinite(to.Y) || !float.IsFinite(to.Z))
-        {
-            _previous = null;
-            return null;
-        }
-        if (_previous is not { } from || _ledArea != state.AreaId || Vector2.DistanceSquared(new(from.X, from.Y), new(to.X, to.Y)) > SnapDistance * SnapDistance)
-        {
-            _velocity = Vector3.Zero;
-            _ledArea = state.AreaId;
-        }
-        else if (elapsed > 0)
-        {
-            var instant = (to - from) / elapsed;
-            _velocity = Vector3.Lerp(_velocity, instant, 1 - MathF.Exp(-elapsed / VelocityFilterMs));
-        }
-        if (elapsed > 0 || _previous is null)
-        {
-            _previous = to;
-            _ledAt = now;
-        }
-        return to + _velocity * Math.Max(0, Settings.General.LeadMs);
+        Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation, state.GameMinimap);
     }
 
     void UpdateRegion(GameState state)
