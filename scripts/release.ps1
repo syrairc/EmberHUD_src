@@ -112,7 +112,7 @@ try {
             $relative = $file.FullName.Substring($plugin.FullName.Length)
             if ($relative -match '[\\/](bin|obj)[\\/]') { continue }
             if ($Public -and $relative -match '^[\\/]Tests[\\/]') { continue }
-            if ($file.Extension -ne '.cs' -and $file.Name -ne 'defaults.json' -and $relative -notmatch '^[\\/]Icons[\\/][^\\/]+\.svg$' -and $relative -notmatch '^[\\/]Tests[\\/]Oracle[\\/][^\\/]+\.json$') { continue }
+            if ($file.Extension -ne '.cs' -and $file.Name -ne 'defaults.json' -and $relative -notmatch '^[\\/]dashboard[\\/]' -and $relative -notmatch '^[\\/]Icons[\\/][^\\/]+\.svg$' -and $relative -notmatch '^[\\/]Tests[\\/]Oracle[\\/][^\\/]+\.json$') { continue }
             $target = Join-Path $plugins "$($plugin.Name)$relative"
             New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
             Copy-Item $file.FullName $target
