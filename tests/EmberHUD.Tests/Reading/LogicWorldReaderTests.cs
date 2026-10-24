@@ -1149,4 +1149,87 @@ public class LogicWorldReaderTests
         world.BreakPlayerMgr();
         Assert.Equal((nint)0, reader.ReadWorld(scene, 0).Pawn);
     }
-}
+
+    private static (FakeWorld World, LogicWorldReader Reader, nint Pawn, nint Component) WorldWithPlayerComponent()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer));
+        var (pawn, _) = world.SetLocalPlayer(10);
+        var components = world.AddComponents(pawn, "ECfgComponent", Offsets.PlayerComponentClassName);
+        return (world, ReaderFor(world), pawn, components[1]);
+    }
+
+    private static void WriteName(FakeWorld world, nint component, string text, int? count = null, int? max = null)
+    {
+        var chars = world.Alloc(0x100);
+        world.Memory.WriteArray(chars, System.Text.Encoding.Unicode.GetBytes(text));
+        world.Memory.Write(component + Offsets.PlayerComponentName, chars);
+        world.Memory.Write(component + Offsets.PlayerComponentName + Offsets.FStringNum, count ?? text.Length);
+        world.Memory.Write(component + Offsets.PlayerComponentName + Offsets.FStringMax, max ?? count ?? text.Length);
+    }
+
+    [Fact]
+    public void ReadsThePlayerNameFromThePlayerComponent()
+    {
+        var (world, reader, pawn, component) = WorldWithPlayerComponent();
+        WriteName(world, component, "Terayen#8674\0");
+
+        Assert.Equal("Terayen#8674", reader.ReadPlayerName(pawn));
+    }
+
+    [Fact]
+    public void NonAsciiPlayerNamesAreKept()
+    {
+        var (world, reader, pawn, component) = WorldWithPlayerComponent();
+        WriteName(world, component, "刺客#1\0");
+
+        Assert.Equal("刺客#1", reader.ReadPlayerName(pawn));
+    }
+
+    [Fact]
+    public void NoPlayerComponentGivesNoName()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer));
+        var (pawn, _) = world.SetLocalPlayer(10);
+        world.AddComponents(pawn, "ECfgComponent");
+
+        Assert.Null(ReaderFor(world).ReadPlayerName(pawn));
+        Assert.Null(ReaderFor(world).ReadPlayerName(0));
+    }
+
+    [Theory]
+    [InlineData("\0", 1)]
+    [InlineData("abc\0", 0)]
+    [InlineData("abc\0", -4)]
+    [InlineData("abc\0", 5000)]
+    [InlineData("abc", 3)]
+    [InlineData("ab\u0001c\0", 5)]
+    [InlineData("ab\0c\0", 5)]
+    [InlineData("\0\0", 2)]
+    public void GarbageNamesGiveNoName(string text, int count)
+    {
+        var (world, reader, pawn, component) = WorldWithPlayerComponent();
+        WriteName(world, component, text, count);
+
+        Assert.Null(reader.ReadPlayerName(pawn));
+    }
+
+    [Fact]
+    public void ANameLongerThanItsCapacityGivesNoName()
+    {
+        var (world, reader, pawn, component) = WorldWithPlayerComponent();
+        WriteName(world, component, "Terayen#8674\0", max: 4);
+
+        Assert.Null(reader.ReadPlayerName(pawn));
+    }
+
+    [Fact]
+    public void AnUnreadableNamePointerGivesNoName()
+    {
+        var (world, reader, pawn, component) = WorldWithPlayerComponent();
+        WriteName(world, component, "Terayen#8674\0");
+        world.Memory.Write(component + Offsets.PlayerComponentName, FakeWorld.Unmapped);
+
+        Assert.Null(reader.ReadPlayerName(pawn));
+    }}

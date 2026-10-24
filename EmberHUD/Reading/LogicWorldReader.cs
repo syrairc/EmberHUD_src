@@ -347,6 +347,21 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         return false;
     }
 
+    public string? ReadPlayerName(nint pawn)
+    {
+        if (pawn == 0 || !TryFindComponent(pawn, Offsets.PlayerComponentClassName, out var component)) return null;
+
+        var name = component + Offsets.PlayerComponentName;
+        if (!memory.TryReadPtr(name, out var chars) ||
+            !memory.TryRead(name + Offsets.FStringNum, out int count) || !memory.TryRead(name + Offsets.FStringMax, out int max) ||
+            count < 2 || count > Offsets.MaxPlayerNameChars || max < count ||
+            !memory.TryReadArray(chars, count, out char[] text) || text[^1] != '\0')
+            return null;
+
+        var value = new string(text, 0, count - 1);
+        return value.Any(char.IsControl) ? null : value;
+    }
+
     private Vitals ReadVitals(nint role)
     {
         TryReadStat(role, Offsets.RoleLifeMax, false, out var life, out var maxLife);

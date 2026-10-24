@@ -139,7 +139,7 @@ public sealed class StateToolsTests
         {
             Status = "playing",
             AreaId = 12,
-            Player = new Player(new Vector3(1, 2, 3), new Vector2(0, 1)) { Life = 100.5, MaxLife = 200, Shield = 30, MaxShield = 40 },
+            Player = new Player(new Vector3(1, 2, 3), new Vector2(0, 1)) { Name = "Terayen#8674", Life = 100.5, MaxLife = 200, Shield = 30, MaxShield = 40 },
             Entities = [Mob(1, 5, 10), Mob(2, 5, 20, rarity: Rarity.Rare), Mob(3, 9, 30, EntityKind.Portal)],
             Camera = new Camera(new Vector3(1, 2, 3), new Vector3(-45, 90, 0), 80),
         };
@@ -152,6 +152,7 @@ public sealed class StateToolsTests
         Check.Equal(2, (int)result["byRarity"]!["Normal"]!);
         Check.Equal(3d, (double)result["player"]!["z"]!, "z");
         Check.Equal(1d, (double)result["player"]!["forwardY"]!, "forwardY");
+        Check.Equal("Terayen#8674", (string)result["player"]!["name"]!, "name");
         Check.Equal(100.5, (double)result["player"]!["life"]!, "life");
         Check.Equal(40d, (double)result["player"]!["maxShield"]!, "maxShield");
         Check.Equal(80d, (double)result["camera"]!["fov"]!, "fov");

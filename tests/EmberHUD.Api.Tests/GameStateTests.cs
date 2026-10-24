@@ -36,6 +36,7 @@ public class GameStateTests
     public void FlatDistanceIgnoresHeight()
     {
         var player = new Player(new Vector3(0, 0, 500), Vector2.UnitX);
+        Assert.Null(player.Name);
 
         Assert.Equal(5f, player.FlatDistance(new Vector3(3, 4, -20)));
         Assert.Equal(0f, player.FlatDistance(new Vector3(0, 0, 9)));
