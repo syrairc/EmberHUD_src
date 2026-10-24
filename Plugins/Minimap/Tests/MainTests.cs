@@ -159,6 +159,29 @@ public sealed class MainTests
     }
 
     [Test]
+    public void TickTrailsThePlayerWhileSmoothingAndSnapsWhenOff()
+    {
+        var main = RegionPlugin();
+        TickTwiceAt(main, 0, Scene.State(player: new Player(Vector3.Zero, Vector2.UnitX), terrain: _cell));
+        TickTwiceAt(main, 16, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
+        var trailing = Map.View?.ToScreen(new Vector3(100, 0, 0)).X;
+        Check.That(trailing > 960 && trailing < 960 + 100 * 0.037f);
+
+        main.Settings.General.SmoothingMs = 0;
+        TickTwiceAt(main, 32, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell));
+        Check.Equal<float?>(960f, Map.View?.ToScreen(new Vector3(100, 0, 0)).X);
+    }
+
+    [Test]
+    public void TickSnapsToTheNewAreaInsteadOfSliding()
+    {
+        var main = RegionPlugin();
+        TickTwiceAt(main, 0, Scene.State(player: new Player(Vector3.Zero, Vector2.UnitX), terrain: _cell));
+        TickTwiceAt(main, 16, Scene.State(player: new Player(new Vector3(100, 0, 0), Vector2.UnitX), terrain: _cell, area: 2));
+        Check.Equal<float?>(960f, Map.View?.ToScreen(new Vector3(100, 0, 0)).X);
+    }
+
+    [Test]
     public void TheGameMinimapRotationIsUsedForTheView()
     {
         var view = Main.ViewFor(new Settings(), new Vector3(4, 7, 0), Walls.Empty, Screen, -90);

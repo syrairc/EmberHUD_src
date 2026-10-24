@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Numerics;
 using System.Threading;
@@ -12,7 +13,11 @@ public sealed class Main : Plugin<Settings>
 {
     internal BackgroundJob<Walls> WallJob = new();
     internal BackgroundJob<Region> RegionJob = new();
-    internal Func<long> Clock = () => Environment.TickCount64;
+    internal Func<long> Clock = () => Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
+    const float SnapDistance = 5000;
+    Vector3? _smoothed;
+    int _smoothedArea;
+    long _smoothedAt;
     Walls _walls = Walls.Empty;
     Region _region = Region.Empty;
     Polyline[] _unexploredOutline = [];
@@ -61,7 +66,23 @@ public sealed class Main : Plugin<Settings>
         }
         if (view.Show && !WallsStyle) UpdateRegion(state);
 
-        Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, state.Player?.Position, _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation, state.GameMinimap);
+        Map.View = Hidden(Settings, state.Ui) ? null : ViewFor(Settings, Smoothed(state), _walls, ImGui.GetIO().DisplaySize, state.MinimapRotation, state.GameMinimap);
+    }
+
+    Vector3? Smoothed(GameState state)
+    {
+        var now = Clock();
+        var elapsed = now - _smoothedAt;
+        _smoothedAt = now;
+        var target = state.Player?.Position;
+        var tau = Settings.General.SmoothingMs;
+        if (target is not { } to || !float.IsFinite(to.X) || !float.IsFinite(to.Y) || !float.IsFinite(to.Z)) return _smoothed = null;
+        if (tau <= 0 || _smoothed is not { } from || _smoothedArea != state.AreaId || Vector2.DistanceSquared(new(from.X, from.Y), new(to.X, to.Y)) > SnapDistance * SnapDistance)
+        {
+            _smoothedArea = state.AreaId;
+            return _smoothed = to;
+        }
+        return _smoothed = Vector3.Lerp(from, to, 1 - MathF.Exp(-elapsed / tau));
     }
 
     void UpdateRegion(GameState state)
