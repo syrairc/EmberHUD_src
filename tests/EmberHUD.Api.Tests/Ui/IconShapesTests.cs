@@ -85,6 +85,20 @@ public class IconShapesTests
     }
 
     [Fact]
+    public void RoundedOnInvertedRectDoesNotThrow() =>
+        Assert.Equal(4, IconShapes.Outline(IconShape.Rounded, Max, Min, 8).Length);
+
+    [Fact]
+    public void ClipTopWithAVertexOnTheCutHasNoDuplicateConsecutivePoints()
+    {
+        Vector2[] diamond = [new(5, 0), new(10, 5), new(5, 10), new(0, 5)];
+        var clipped = IconShapes.ClipTop(diamond, 5);
+        Assert.Equal(3, clipped.Length);
+        for (var i = 0; i < clipped.Length; i++)
+            Assert.NotEqual(clipped[i], clipped[(i + 1) % clipped.Length]);
+    }
+
+    [Fact]
     public void ClipTopAboveTopIsEmpty()
     {
         var square = IconShapes.Outline(IconShape.Square, Vector2.Zero, new Vector2(10, 10));

@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Numerics;
 using EmberHUD;
@@ -90,69 +91,95 @@ public sealed class MainTests
     [Test]
     public void RenderDrawsSomethingForShownAura() => Check.That(Drawn(Plugin(Life(percent: 50, direction: Direction.Above)), Alive()) > 0);
 
-    static GameState HalfLife() => new()
+    static GameState LifeAt(double life) => new()
     {
-        Player = new Player(Vector3.Zero, Vector2.UnitX) { Life = 50, MaxLife = 100 },
+        Player = new Player(Vector3.Zero, Vector2.UnitX) { Life = life, MaxLife = 100 },
         Ui = GameUi.Empty,
     };
 
-    static int DrawnStyled(IconShape shape, int border = 0, Color? backdrop = null, WhenInactive whenInactive = WhenInactive.Hide, GameState? state = null)
+    static int DrawnAura(Aura aura, GameState state)
     {
-        var aura = Life(whenInactive, 80, Direction.Below);
+        var plugin = Plugin(aura);
+        foreach (var text in aura.Texts) text.Enabled = false;
+        return Drawn(plugin, state);
+    }
+
+    static Aura Styled(IconShape shape, int border = 0, Color? backdrop = null, WhenInactive whenInactive = WhenInactive.Hide, Direction direction = Direction.Above, float percent = 40)
+    {
+        var aura = Life(whenInactive, percent, direction);
         aura.Shape = shape;
         aura.BorderWidth = border;
         aura.BackdropColor = backdrop ?? Color.Transparent;
-        return Drawn(Plugin(aura), state ?? HalfLife());
+        return aura;
     }
 
+    static int Outlined(IconShape shape, Action<Vector2[]> draw) => TestFrame.Vertices(() => draw(IconShapes.Outline(shape, Vector2.Zero, new Vector2(40), 8)));
+
+    static void Fill(Vector2[] polygon) => IconShapes.FillPolygon(polygon, Color.White);
+
     [Test]
-    public void CircleWithBorderDrawsMoreThanPlainSquare() =>
-        Check.That(DrawnStyled(IconShape.Circle, 3) > DrawnStyled(IconShape.Square));
+    public void CircleWithBorderDrawsMoreThanPlainSquare()
+    {
+        var plain = DrawnAura(Styled(IconShape.Circle), LifeAt(100));
+        var bordered = DrawnAura(Styled(IconShape.Circle, 3), LifeAt(100));
+        var stroke = Outlined(IconShape.Circle, o => IconShapes.StrokePolygon(o, Color.White, 3));
+        Check.That(stroke > 0, "stroke measures");
+        Check.Equal(plain + stroke, bordered);
+    }
 
     [Test]
     public void BackdropOnlyAddsGeometryWhenAlphaIsAboveZero()
     {
-        var plain = DrawnStyled(IconShape.Square);
-        Check.Equal(plain, DrawnStyled(IconShape.Square, 0, Color.FromArgb(0, 9, 9, 9)));
-        Check.That(DrawnStyled(IconShape.Square, 0, Color.FromArgb(128, 9, 9, 9)) > plain, "visible backdrop adds");
+        var plain = DrawnAura(Styled(IconShape.Square), LifeAt(100));
+        Check.Equal(plain, DrawnAura(Styled(IconShape.Square, 0, Color.FromArgb(0, 9, 9, 9)), LifeAt(100)));
+        var backdrop = Outlined(IconShape.Square, Fill);
+        Check.Equal(plain + backdrop, DrawnAura(Styled(IconShape.Square, 0, Color.FromArgb(128, 9, 9, 9)), LifeAt(100)));
     }
 
     [Test]
     public void SweepIsClippedToTheShape()
     {
-        var square = DrawnStyled(IconShape.Square);
-        var circle = DrawnStyled(IconShape.Circle);
-        Check.That(circle != square, "circle sweep is not the square sweep");
-        var full = DrawnStyled(IconShape.Circle, state: Alive());
-        Check.That(circle > full, "a half sweep adds geometry over a full icon");
+        foreach (var shape in new[] { IconShape.Square, IconShape.Circle, IconShape.Hexagon })
+        {
+            var unswept = DrawnAura(Styled(shape), LifeAt(100));
+            var swept = DrawnAura(Styled(shape), LifeAt(60));
+            var sweep = Outlined(shape, o => Fill(IconShapes.ClipTop(o, 16)));
+            Check.That(sweep > 0, $"{shape} sweep measures");
+            Check.Equal(unswept + sweep, swept, shape.ToString());
+        }
+        var square = Outlined(IconShape.Square, o => Fill(IconShapes.ClipTop(o, 16)));
+        var circle = Outlined(IconShape.Circle, o => Fill(IconShapes.ClipTop(o, 16)));
+        Check.That(square != circle, "the circle sweep is its own polygon");
     }
 
     [Test]
     public void DimmedStyledAuraStillDraws()
     {
-        Check.That(DrawnStyled(IconShape.Hexagon, 2, Color.FromArgb(200, 0, 0, 0), whenInactive: WhenInactive.Dim, state: Alive()) > 0);
+        var plain = DrawnAura(Styled(IconShape.Hexagon, 0, null, WhenInactive.Dim, Direction.Below, 80), LifeAt(100));
+        var styled = DrawnAura(Styled(IconShape.Hexagon, 2, Color.FromArgb(200, 0, 0, 0), WhenInactive.Dim, Direction.Below, 80), LifeAt(100));
+        Check.That(plain > 0, "dim draws");
+        Check.That(styled > plain, "dim keeps border and backdrop");
+    }
+
+    static int Bar(BarIcon icon, int border)
+    {
+        var aura = Styled(IconShape.Circle, border);
+        aura.Style = AuraStyle.Bar;
+        aura.BarIcon = icon;
+        return DrawnAura(aura, LifeAt(50));
     }
 
     [Test]
-    public void BarWithNoIconDrawsNoBorder()
-    {
-        int Bar(int border)
-        {
-            var aura = Life(WhenInactive.Hide, 80, Direction.Below);
-            aura.Style = AuraStyle.Bar;
-            aura.BarIcon = BarIcon.None;
-            aura.BorderWidth = border;
-            aura.Shape = IconShape.Circle;
-            return Drawn(Plugin(aura), HalfLife());
-        }
-        Check.Equal(Bar(0), Bar(4));
-    }
+    public void BarWithNoIconDrawsNoBorder() => Check.Equal(Bar(BarIcon.None, 0), Bar(BarIcon.None, 4));
 
     [Test]
-    public void HugeOrNegativeBorderWidthIsHarmless()
+    public void BarIconGetsTheBorder() => Check.That(Bar(BarIcon.Left, 4) > Bar(BarIcon.Left, 0));
+
+    [Test]
+    public void HugeOrNegativeBorderWidthIsClamped()
     {
-        Check.That(DrawnStyled(IconShape.Rounded, -5) > 0);
-        Check.That(DrawnStyled(IconShape.Rounded, 100000) > 0);
+        Check.Equal(DrawnAura(Styled(IconShape.Rounded, 0), LifeAt(100)), DrawnAura(Styled(IconShape.Rounded, -5), LifeAt(100)));
+        Check.Equal(DrawnAura(Styled(IconShape.Rounded, 16), LifeAt(100)), DrawnAura(Styled(IconShape.Rounded, 100000), LifeAt(100)));
     }
 
     [Test]

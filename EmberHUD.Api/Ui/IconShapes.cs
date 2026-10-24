@@ -23,7 +23,7 @@ public static class IconShapes
 
     static Vector2[] Rounded(Vector2 min, Vector2 max, float radius)
     {
-        radius = Math.Clamp(radius, 0, Math.Min(max.X - min.X, max.Y - min.Y) / 2);
+        radius = Math.Clamp(radius, 0, Math.Max(0, Math.Min(max.X - min.X, max.Y - min.Y) / 2));
         if (radius <= 0) return Square(min, max);
         var points = new Vector2[4 * (ArcSegments + 1)];
         Vector2[] centres = [new(min.X + radius, min.Y + radius), new(max.X - radius, min.Y + radius), new(max.X - radius, max.Y - radius), new(min.X + radius, max.Y - radius)];
@@ -65,7 +65,7 @@ public static class IconShapes
             var b = polygon[(i + 1) % polygon.Length];
             var aIn = a.Y <= cutY;
             if (aIn) result.Add(a);
-            if (aIn != (b.Y <= cutY)) result.Add(a + (b - a) * ((cutY - a.Y) / (b.Y - a.Y)));
+            if (aIn != (b.Y <= cutY) && a.Y != cutY && b.Y != cutY) result.Add(a + (b - a) * ((cutY - a.Y) / (b.Y - a.Y)));
         }
         return result.Count < 3 || polygon.Length > 0 && cutY <= TopOf(polygon) ? [] : [.. result];
     }
