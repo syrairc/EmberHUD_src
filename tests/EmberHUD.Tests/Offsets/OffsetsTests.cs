@@ -119,6 +119,9 @@ public class OffsetsTests
             Assert.Equal(0x6BB0CD0, Offsets.WoodStakeMgrGlobalRva);
             Assert.Equal(0x8147E00, Offsets.LuaGlobalRva);
             Assert.Equal(0x710, Offsets.FightMapNpc);
+            Assert.Equal(0x188, Offsets.PlayerComponentName);
+            Assert.True(Offsets.SelectBuild(124465080));
+            Assert.Equal(0x1C8, Offsets.PlayerComponentName);
         }
         finally
         {
