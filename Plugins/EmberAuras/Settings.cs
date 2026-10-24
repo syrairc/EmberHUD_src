@@ -80,6 +80,16 @@ public sealed class Settings : PluginSettings
     public bool HideOnFullScreen = true;
     public List<Group> Groups = [];
 
+    static readonly TextField[] TextFields = Enum.GetValues<TextField>();
+
+    static bool TextsClean(List<AuraText>? texts)
+    {
+        if (texts is null || texts.Count != TextFields.Length) return false;
+        for (var i = 0; i < TextFields.Length; i++)
+            if (texts[i] is null || texts[i].Field != TextFields[i]) return false;
+        return true;
+    }
+
     static AuraText DefaultText(TextField field) => field switch
     {
         TextField.Name => new AuraText { Field = field, Anchor = Anchor.TopLeft },
@@ -103,8 +113,11 @@ public sealed class Settings : PluginSettings
                 aura.Conditions ??= [];
                 aura.Conditions.RemoveAll(condition => condition is null);
                 foreach (var condition in aura.Conditions) condition.Text ??= "";
-                var texts = (aura.Texts ?? []).Where(text => text is not null).GroupBy(text => text.Field).ToDictionary(g => g.Key, g => g.First());
-                aura.Texts = Enum.GetValues<TextField>().Select(field => texts.TryGetValue(field, out var text) ? text : DefaultText(field)).ToList();
+                if (!TextsClean(aura.Texts))
+                {
+                    var texts = (aura.Texts ?? []).Where(text => text is not null).GroupBy(text => text.Field).ToDictionary(g => g.Key, g => g.First());
+                    aura.Texts = TextFields.Select(field => texts.TryGetValue(field, out var text) ? text : DefaultText(field)).ToList();
+                }
             }
         }
     }

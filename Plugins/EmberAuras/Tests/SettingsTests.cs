@@ -66,6 +66,26 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void NormalizeKeepsCleanListAndRepairsBrokenOne()
+    {
+        var settings = WithAura(new Aura { Texts = [] });
+        settings.Normalize();
+        var aura = settings.Groups[0].Auras[0];
+        var list = aura.Texts;
+        settings.Normalize();
+        Check.That(ReferenceEquals(list, aura.Texts));
+
+        (list[0], list[1]) = (list[1], list[0]);
+        settings.Normalize();
+        Check.That(!ReferenceEquals(list, aura.Texts));
+        Check.That(aura.Texts.Select(text => text.Field).SequenceEqual(Enum.GetValues<TextField>()));
+
+        aura.Texts[2] = null!;
+        settings.Normalize();
+        Check.That(aura.Texts.Select(text => text.Field).SequenceEqual(Enum.GetValues<TextField>()));
+    }
+
+    [Test]
     public void NormalizeIsIdempotent()
     {
         var settings = WithAura(new Aura { Texts = [new AuraText { Field = TextField.Stacks, Enabled = false, Anchor = Anchor.Top }] });

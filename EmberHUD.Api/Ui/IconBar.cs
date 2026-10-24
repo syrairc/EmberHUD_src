@@ -26,5 +26,5 @@ public static class IconBar
         Draw.RectFilled(rects.BarMin, fillMax, Faded(fillColor, opacity));
     }
 
-    static Color Faded(Color colour, float opacity) => Color.FromArgb((int)(colour.A * opacity), colour);
+    static Color Faded(Color colour, float opacity) => Color.FromArgb((int)(colour.A * Math.Clamp(opacity, 0f, 1f)), colour);
 }

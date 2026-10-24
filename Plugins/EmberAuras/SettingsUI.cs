@@ -99,7 +99,7 @@ static class SettingsUI
         Setting.Input("Name", ref group.Name);
         Setting.Slider("X", ref group.X, 0, 4000, "Pixels from the left of the screen");
         Setting.Slider("Y", ref group.Y, 0, 4000, "Pixels from the top of the screen");
-        Setting.Choice("Align", ref group.Align);
+        Setting.Choice("Align", ref group.Align, "Start = left or top edge sits at the anchor, End = right or bottom edge, Center = centred on it. Outward growth is always centred");
         Setting.Choice("Growth", ref group.Growth);
         Setting.Slider("Spacing", ref group.Spacing, 0, 100);
         ImGui.SeparatorText("Auras");

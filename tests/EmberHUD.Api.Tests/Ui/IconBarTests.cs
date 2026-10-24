@@ -55,4 +55,11 @@ public class IconBarTests
             Assert.True(xs.Max() - xs.Min() <= Bar.X + 1e-3f, $"fill {fill} drew {xs.Max() - xs.Min()} wide");
         }
     });
+
+    [Fact]
+    public void DrawBarSurvivesOpacityOutsideZeroToOne() => TestFrame.Run(() =>
+    {
+        var rects = IconBar.Layout(Origin, Bar, 0, Controls.IconSide.Left);
+        foreach (var opacity in new[] { 2f, -1f }) IconBar.DrawBar(rects, 0.5f, Color.Gold, Color.Black, opacity);
+    });
 }
