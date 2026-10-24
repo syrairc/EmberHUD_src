@@ -2,7 +2,7 @@ using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
 
-namespace AutoAttack;
+namespace ActivationMedium;
 
 public sealed class MainTests
 {

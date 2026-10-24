@@ -1,7 +1,7 @@
 using System.Numerics;
 using EmberHUD.Testing;
 
-namespace AutoAttack;
+namespace ActivationMedium;
 
 public sealed class MotionTests
 {

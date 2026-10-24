@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace AutoAttack;
+namespace ActivationMedium;
 
 sealed class Motion
 {

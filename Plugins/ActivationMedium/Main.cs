@@ -3,7 +3,7 @@ using System.Drawing;
 using System.Numerics;
 using EmberHUD;
 
-namespace AutoAttack;
+namespace ActivationMedium;
 
 public sealed class Main : Plugin<Settings>
 {

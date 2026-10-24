@@ -2,7 +2,7 @@ using System.Drawing;
 using EmberHUD;
 using EmberHUD.Ui;
 
-namespace AutoAttack;
+namespace ActivationMedium;
 
 public sealed class Settings : PluginSettings
 {
