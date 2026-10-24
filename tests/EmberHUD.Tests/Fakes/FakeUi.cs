@@ -171,6 +171,26 @@ internal sealed class FakeUi
         return (hud, view, bar);
     }
 
+    public (nint Hud, nint View, nint Bar) AddXpBar(Vector2 position, Vector2 size, float scale = 1, byte viewVisibility = 4, byte barVisibility = 0, bool hosted = false)
+    {
+        var hud = Widget(UserClass(Offsets.HudPageClassName), Offsets.HudPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));
+        var hudRoot = Widget(PanelClass("CanvasPanel"), "Root", Vector2.Zero, new Vector2(3440, 1440));
+        var uiView = Widget(PanelClass("CanvasPanel"), "UIVIew", Vector2.Zero, new Vector2(3440, 1440));
+        var view = Widget(UserClass(Offsets.XpBarViewClassName), Offsets.XpBarViewClassName + "_1", Vector2.Zero, new Vector2(3440, 1440), viewVisibility);
+        var viewRoot = Widget(PanelClass("CanvasPanel"), "CanvasMain", Vector2.Zero, new Vector2(3440, 1440));
+        var highLight = Widget(_world.AddClass("ProgressBar"), Offsets.XpBarTrack + "_HighLight", new Vector2(5, 6), new Vector2(7, 8), 1);
+        var bar = Widget(_world.AddClass("ProgressBar"), Offsets.XpBarTrack, position, size, barVisibility);
+        WeakPtr(highLight + Offsets.UWidgetSlate, Slate(new Vector2(5, 6), new Vector2(7, 8), 1));
+        WeakPtr(bar + Offsets.UWidgetSlate, Slate(position, size, scale));
+        SetTree(hud, hudRoot);
+        SetChildren(hudRoot, uiView);
+        SetChildren(uiView, view);
+        SetTree(view, viewRoot);
+        SetChildren(viewRoot, highLight, bar);
+        AddRoot(hosted ? Host(hud) : hud);
+        return (hud, view, bar);
+    }
+
     public nint AddPad(int[] cfgIds, bool hosted = false)
     {
         var pad = Widget(UserClass(Offsets.PadPageClassName), Offsets.PadPageClassName + "_1", Vector2.Zero, new Vector2(3440, 1440));

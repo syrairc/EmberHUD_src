@@ -283,6 +283,8 @@ public sealed record GameState
 
     public XpState? Xp { get; init; }
 
+    public ScreenRect? XpBar { get; init; }
+
     public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }

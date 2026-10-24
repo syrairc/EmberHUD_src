@@ -157,6 +157,7 @@ internal sealed class LiveReader
             Vorax = Game.VoraxWanted(Stopwatch.GetTimestamp(), Offsets.VoraxWantedSeconds) ? _vorax?.Read() : null,
             FrozenCanvas = Game.FrozenCanvasWanted(Stopwatch.GetTimestamp(), Offsets.FrozenWantedSeconds) ? _frozenCanvas?.Read() : null,
             Xp = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _xp?.Read() : null,
+            XpBar = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _ui.ReadXpBar() : null,
             GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
