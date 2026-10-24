@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
@@ -203,6 +204,27 @@ public sealed class DummyDpsTests
         Check.That(plugin._meter.HasFight, "fight survives the pause");
         Check.That(plugin._meter.Active, "idle timer did not run");
         Check.Equal(2000.0, plugin._meter.Total);
+    }
+
+    [Test]
+    public void BossMeterCountsOnlyDamageToTheBossOnTheBar()
+    {
+        var plugin = new Main();
+        TestInput.Hold();
+        var second = System.Diagnostics.Stopwatch.Frequency;
+        var bar = new BossBar(new ScreenRect(new Vector2(10, 10), new Vector2(110, 30)), 0.5f);
+        var boss = new Entity(7, 1, Vector3.Zero, EntityKind.Monster, Rarity.Boss) { Life = 50, MaxLife = 100 };
+        void Tick(long seconds, double bossDamage, double allDamage)
+        {
+            var stats = new CombatStats(seconds * second, allDamage, allDamage, 1) { ByVictim = new Dictionary<int, VictimDamage> { [7] = new(bossDamage, bossDamage) } };
+            TestGame.Set(GameState.Empty with { Combat = stats, BossBar = bar, Entities = [boss] });
+            plugin.Tick();
+        }
+
+        Tick(0, 0, 0);
+        Tick(1, 1000, 5000);
+        Check.Equal(1000.0, plugin._bossMeter.Total);
+        Check.Equal(5000.0, plugin._meter.Total);
     }
 
     [Test]

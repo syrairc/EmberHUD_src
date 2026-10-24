@@ -14,6 +14,7 @@ internal sealed class CombatReader(IReadBackend memory, nint moduleBase, Func<lo
     private readonly List<(int Key, nint Value)> _pairs = [];
     private readonly List<(int Victim, nint Container)> _containers = [];
     private readonly Dictionary<int, HashSet<HitKey>> _seen = [];
+    private readonly Dictionary<int, VictimDamage> _byVictim = [];
     private readonly byte[] _header = new byte[HeaderSize];
     private readonly byte[] _hit = new byte[Offsets.HitSize];
     private nint _fightMgr;
@@ -56,7 +57,7 @@ internal sealed class CombatReader(IReadBackend memory, nint moduleBase, Func<lo
 
         foreach (var (victim, container) in _containers)
             Scan(victim, container);
-        _snapshot = new CombatStats(now, _effective, _raw, _hits);
+        _snapshot = new CombatStats(now, _effective, _raw, _hits) { ByVictim = new Dictionary<int, VictimDamage>(_byVictim) };
     }
 
     private void Refresh()
@@ -71,7 +72,10 @@ internal sealed class CombatReader(IReadBackend memory, nint moduleBase, Func<lo
                 _containers.Add((key, container));
         var live = _containers.Select(c => c.Victim).ToHashSet();
         foreach (var stale in _seen.Keys.Where(k => !live.Contains(k)).ToArray())
+        {
             _seen.Remove(stale);
+            _byVictim.Remove(stale);
+        }
     }
 
     private void Reset(nint fightMgr)
@@ -80,6 +84,7 @@ internal sealed class CombatReader(IReadBackend memory, nint moduleBase, Func<lo
         _effective = _raw = 0;
         _hits = 0;
         _seen.Clear();
+        _byVictim.Clear();
         _containers.Clear();
         _localPlayerId = 0;
         _snapshot = null;
@@ -108,9 +113,12 @@ internal sealed class CombatReader(IReadBackend memory, nint moduleBase, Func<lo
             var effective = BitConverter.Int64BitsToDouble(bits);
             if (!double.IsFinite(effective) || effective < 0) continue;
             var raw = BitConverter.ToDouble(_hit, Offsets.HitRaw);
+            raw = double.IsFinite(raw) && raw >= effective ? raw : effective;
             _effective += effective;
-            _raw += double.IsFinite(raw) && raw >= effective ? raw : effective;
+            _raw += raw;
             _hits++;
+            _byVictim.TryGetValue(victim, out var total);
+            _byVictim[victim] = new VictimDamage(total.Effective + effective, total.Raw + raw);
         }
     }
 }

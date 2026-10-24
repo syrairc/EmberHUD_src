@@ -303,6 +303,25 @@ public sealed record GameState
 
     public bool? Paused { get; init; }
 
+    const double BossBarTolerance = 0.1;
+
+    public static Entity? BossOnBar(Entity[] entities, float percent)
+    {
+        Entity? best = null;
+        var bestGap = BossBarTolerance;
+        foreach (var entity in entities)
+        {
+            if (entity.Kind != EntityKind.Monster || entity.Rarity != Rarity.Boss || entity.Friendly || entity.Hidden || !(entity.MaxLife > 0)) continue;
+            var gap = Math.Abs(entity.Life / entity.MaxLife - percent);
+            if (gap > bestGap) continue;
+            best = entity;
+            bestGap = gap;
+        }
+        return best;
+    }
+
+    public Entity? BossOnBar() => BossBar is { } bar ? BossOnBar(Entities, bar.Percent) : null;
+
     public int CountNear(float radius, Rarity minRarity = Rarity.Normal)
     {
         if (Player is not { } player || float.IsNaN(radius) || radius < 0) return 0;
@@ -432,8 +451,14 @@ public sealed record MapInfo(string Name, int MonsterLevel, int? Remaining, stri
 
 public sealed record WoodStakeStats(bool Running, int Seconds, long Avg, long Cur, long Max, long CurUnlimited, long MaxUnlimited, long AvgUnlimited);
 
+public readonly record struct VictimDamage(double Effective, double Raw);
+
 public sealed record CombatStats(long At, double Effective, double Raw, long Hits)
 {
+    static readonly IReadOnlyDictionary<int, VictimDamage> NoVictims = new Dictionary<int, VictimDamage>();
+
+    public IReadOnlyDictionary<int, VictimDamage> ByVictim { get; init; } = NoVictims;
+
     public double Seconds => At / (double)Stopwatch.Frequency;
 }
 

@@ -69,6 +69,18 @@ public class CombatReaderTests
     }
 
     [Fact]
+    public void SplitsDamageByVictim()
+    {
+        var rig = new Rig();
+        rig.AddMonster(1, LocalPlayer, 100, 160);
+        rig.AddMonster(2, LocalPlayer, 30, 30);
+        var stats = rig.Poll();
+        Assert.Equal(new VictimDamage(100, 160), stats.ByVictim[1]);
+        Assert.Equal(new VictimDamage(30, 30), stats.ByVictim[2]);
+        Assert.Equal(130, stats.Effective);
+    }
+
+    [Fact]
     public void IgnoresHitsFromOtherAttackers()
     {
         var rig = new Rig();
