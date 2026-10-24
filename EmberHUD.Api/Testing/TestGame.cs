@@ -56,6 +56,13 @@ public static class TestGame
         return Game.FrozenCanvasAsked != 0;
     }
 
+    public static bool XpAskedDuring(Action run)
+    {
+        Game.XpAsked = 0;
+        run();
+        return Game.XpAsked != 0;
+    }
+
     public static bool GroundItemsAskedDuring(Action run)
     {
         Game.GroundItemsAsked = 0;

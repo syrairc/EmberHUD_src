@@ -910,6 +910,12 @@ FrozenDirectionKey = "TextTable_GameFunc|value|Func_S8Gameplay_UI_Direction"
 FrozenKindKey = "TextTable_GameFunc|value|Func_S8Gameplay_UI_ItemType"
 FrozenRefreshMilliseconds = 100
 FrozenWantedSeconds = 3
+LuaExpManager = "ExpMgr"
+LuaExpLevel = "CurRoleLevel"
+LuaExpCurrent = "CurRoleExp"
+LuaExpNext = "UpgradeExp"
+XpRefreshMilliseconds = 100
+XpWantedSeconds = 3
 MaxFrozenPlots = 36
 MaxFrozenPaints = 64
 

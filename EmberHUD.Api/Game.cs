@@ -17,6 +17,7 @@ public static class Game
     static long _tarotAsked;
     static long _voraxAsked;
     static long _frozenCanvasAsked;
+    static long _xpAsked;
     static long _groundItemsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
@@ -183,6 +184,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantXp() => Interlocked.Exchange(ref _xpAsked, Stopwatch.GetTimestamp());
+
+    internal static long XpAsked
+    {
+        get => Interlocked.Read(ref _xpAsked);
+        set => Interlocked.Exchange(ref _xpAsked, value);
+    }
+
+    internal static bool XpWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _xpAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     public static void WantGroundItems() => Interlocked.Exchange(ref _groundItemsAsked, Stopwatch.GetTimestamp());
 
     internal static long GroundItemsAsked
@@ -266,6 +281,8 @@ public sealed record GameState
 
     public FrozenCanvasState? FrozenCanvas { get; init; }
 
+    public XpState? Xp { get; init; }
+
     public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }
@@ -305,6 +322,8 @@ public readonly record struct QuestTarget(int Id, Vector2 Position)
 }
 
 public sealed record GameMinimap(bool Open, float WorldWidth);
+
+public sealed record XpState(int Level, long Exp, long ToNext);
 
 public sealed record BossBar(ScreenRect Rect, float Percent);
 

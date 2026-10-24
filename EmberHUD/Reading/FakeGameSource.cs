@@ -160,6 +160,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Tarot = Game.TarotWanted(now, Offsets.TarotWantedSeconds) ? TarotAt(now) : null,
             Vorax = Game.VoraxWanted(now, Offsets.VoraxWantedSeconds) ? VoraxAt(now) : null,
             FrozenCanvas = Game.FrozenCanvasWanted(now, Offsets.FrozenWantedSeconds) ? FrozenCanvasAt(now) : null,
+            Xp = Game.XpWanted(now, Offsets.XpWantedSeconds) ? FakeXp : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
@@ -225,6 +226,8 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         };
 
     private static readonly int[] FakeFreeSlots = [13, 14, 15, 19, 20, 21, 25, 26, 27, 31, 32];
+
+    private static readonly XpState FakeXp = new(50, 1_000_000, 5_000_000);
 
     internal static FrozenCanvasState FrozenCanvasAt(long now) =>
         new(FrozenCanvasPhase.Battle, 101,
