@@ -116,6 +116,7 @@ public sealed class Main : Plugin<Settings>
             [
                 .. StateTools.Create(CurrentStatus),
                 .. MemoryTools.Create(() => Settings.MaxReadBytes),
+                .. MapTools.Create(),
                 .. UeTools.Create(Path.Combine(DataDirectory, "reflection")),
                 .. LocTools.Create(),
                 .. WatchTools.Create(Watching),
