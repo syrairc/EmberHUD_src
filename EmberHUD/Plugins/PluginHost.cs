@@ -70,18 +70,25 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
         if (Environment.TickCount64 - SavedAt >= (_settingsOpen ? 2000 : 30000)) SaveAll();
     }
 
+    internal DrawStats Stats { get; set; } = new();
+
     public void RenderAll()
     {
         var inFrame = InFrame();
         if (inFrame) Draw.SplitLayers();
         foreach (var slot in _renderOrder)
             if (slot.Enabled)
+            {
+                var before = inFrame ? Draw.Background.VtxBuffer.Size : 0;
                 Call(slot, PluginStage.Render, plugin =>
                 {
                     try { plugin.Render(); }
                     finally { Ground.FlushGroups(); }
                 });
+                if (inFrame) Stats.Add(slot.Name, Draw.Background.VtxBuffer.Size - before);
+            }
         if (inFrame) Draw.MergeLayers();
+        if (Stats.Report(Environment.TickCount64, Game.State.Projectiles.Length) is { } heavy) Log.Warn(heavy);
     }
 
     public void DrawSettings(PluginSlot slot) => Call(slot, PluginStage.Settings, plugin =>
