@@ -26,6 +26,9 @@ public sealed class SettingsTests
     }
 
     [Test]
+    public void DeathPanelBackgroundIsTransparentByDefault() => Check.Equal(0, new Settings().BackgroundOpacity);
+
+    [Test]
     public void DefaultsRoundTripThroughJson()
     {
         var s = new Settings { OffsetY = 11, MapTimeOnly = false };

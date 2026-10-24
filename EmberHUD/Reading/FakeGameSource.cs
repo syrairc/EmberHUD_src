@@ -163,6 +163,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             FrozenCanvas = Game.FrozenCanvasWanted(now, Offsets.FrozenWantedSeconds) ? FrozenCanvasAt(now) : null,
             Xp = Game.XpWanted(now, Offsets.XpWantedSeconds) ? FakeXp : null,
             XpBar = Game.XpWanted(now, Offsets.XpWantedSeconds) ? FakeXpBar : null,
+            Death = Game.XpWanted(now, Offsets.XpWantedSeconds) ? DeathAt(now) : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
@@ -229,7 +230,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly int[] FakeFreeSlots = [13, 14, 15, 19, 20, 21, 25, 26, 27, 31, 32];
 
-    private static readonly XpState FakeXp = new(50, 1_000_000, 5_000_000);
+    internal static DeathState? DeathAt(long now) => (int)(now / Stopwatch.Frequency / 6 % 3) switch
+    {
+        0 => null,
+        1 => new DeathState(10, true, false),
+        _ => new DeathState(10, true, true),
+    };
+
+    private static readonly XpState FakeXp =new(50, 1_000_000, 5_000_000);
 
     private static readonly ScreenRect FakeXpBar = new(new Vector2(700, 1380), new Vector2(2740, 1388));
 

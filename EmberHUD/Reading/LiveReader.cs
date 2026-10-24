@@ -24,6 +24,7 @@ internal sealed class LiveReader
     private readonly VoraxReader? _vorax;
     private readonly FrozenCanvasReader? _frozenCanvas;
     private readonly XpReader? _xp;
+    private readonly DeathReader _death;
     private readonly GroundItemReader? _groundItems;
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
@@ -59,6 +60,7 @@ internal sealed class LiveReader
         _questTargets = new QuestTargetReader(memory);
         _explored = new ExploredReader(memory);
         _ui = new GameUiReader(memory, moduleBase, names);
+        _death = new DeathReader(memory, moduleBase, _ui);
         _mapInfo = new MapInfoReader(memory, moduleBase, new LocText(memory, moduleBase), _ui, names);
         _woodStake = new WoodStakeReader(memory, moduleBase);
         _casts = new CastReader(memory, moduleBase);
@@ -164,6 +166,7 @@ internal sealed class LiveReader
             FrozenCanvas = Game.FrozenCanvasWanted(Stopwatch.GetTimestamp(), Offsets.FrozenWantedSeconds) ? _frozenCanvas?.Read() : null,
             Xp = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _xp?.Read() : null,
             XpBar = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _ui.ReadXpBar() : null,
+            Death = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _death.Read(ui) : null,
             GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,

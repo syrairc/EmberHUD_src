@@ -285,6 +285,8 @@ public sealed record GameState
 
     public ScreenRect? XpBar { get; init; }
 
+    public DeathState? Death { get; init; }
+
     public GroundItem[]? GroundItems { get; init; }
 
     public Buff[]? Buffs { get; init; }
@@ -328,6 +330,8 @@ public readonly record struct QuestTarget(int Id, Vector2 Position)
 public sealed record GameMinimap(bool Open, float WorldWidth);
 
 public sealed record XpState(int Level, long Exp, long ToNext);
+
+public sealed record DeathState(float XpLossPercent, bool CanUseToken, bool? TokenChecked);
 
 public sealed record BossBar(ScreenRect Rect, float Percent);
 
