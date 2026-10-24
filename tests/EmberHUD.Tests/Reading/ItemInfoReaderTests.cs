@@ -7,6 +7,63 @@ public class ItemInfoReaderTests
     private static ItemInfoReader ReaderFor(FakeWorld world) => new(world.Memory, FakeWorld.Module);
 
     [Fact]
+    public void UniqueIconResolvesToItsBaseId()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7, new FakeItemRow(6216, Icon: "UI_Memory_6216_Icon_128"), new FakeItemRow(100300, Icon: "UI_Item_chuhuoyuanzhiV3_Icon_128"));
+
+        Assert.Equal(100300, ReaderFor(world).ByIcon("UI_Item_chuhuoyuanzhiV3_Icon_128"));
+    }
+
+    [Fact]
+    public void SharedIconIsNull()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7, new FakeItemRow(4522, Icon: "Icon_Equip_Amulet_Norm_002_03_128"), new FakeItemRow(4528, Icon: "Icon_Equip_Amulet_Norm_002_03_128"));
+
+        Assert.Null(ReaderFor(world).ByIcon("Icon_Equip_Amulet_Norm_002_03_128"));
+    }
+
+    [Fact]
+    public void UnknownIconIsNull()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7, new FakeItemRow(1, Icon: "A_Icon"));
+
+        Assert.Null(ReaderFor(world).ByIcon("Nope"));
+    }
+
+    [Fact]
+    public void IconIsCaseInsensitive()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7, new FakeItemRow(400028, Icon: "UI_BeaconIcon_Light_Icon_128"));
+
+        Assert.Equal(400028, ReaderFor(world).ByIcon("ui_beaconicon_light_icon_128"));
+    }
+
+    [Fact]
+    public void UnreadableRowIsSkipped()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7, new FakeItemRow(1, Icon: "X", IconUnreadable: true), new FakeItemRow(2, NoRow: true), new FakeItemRow(3, Icon: "Good"));
+
+        Assert.Equal(3, ReaderFor(world).ByIcon("Good"));
+    }
+
+    [Fact]
+    public void TableThatLoadsLaterIsPickedUp()
+    {
+        var world = new FakeWorld();
+        world.SetItemBaseTable(7);
+        var reader = ReaderFor(world);
+        Assert.Null(reader.ByIcon("Late"));
+
+        world.SetItemBaseTable(7, new FakeItemRow(9, Icon: "Late"));
+        Assert.Equal(9, reader.ByIcon("Late"));
+    }
+
+    [Fact]
     public void ReadsTheBaseRow()
     {
         var world = new FakeWorld();

@@ -7,6 +7,31 @@ internal sealed class ItemInfoReader(IReadBackend memory, nint moduleBase)
     private readonly Dictionary<int, ItemInfo> _bases = [];
     private readonly Dictionary<int, ItemInfo> _uniques = [];
 
+    private const int Shared = -1;
+    private const int MaxItemRows = 1_000_000;
+    private readonly Dictionary<string, int> _byIcon = new(StringComparer.OrdinalIgnoreCase);
+
+    public int? ByIcon(string icon)
+    {
+        if (_byIcon.Count == 0) BuildIconIndex();
+        return _byIcon.TryGetValue(icon, out var baseId) && baseId != Shared ? baseId : null;
+    }
+
+    private void BuildIconIndex()
+    {
+        var built = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var complete = memory.TryWalkBuckets(moduleBase + Offsets.ItemBaseBucketCountRva, moduleBase + Offsets.ItemBaseBucketsRva, Offsets.MaxBuckets, Offsets.NodeSize, Offsets.NodeNext, MaxItemRows, (_, node) =>
+        {
+            var row = (nint)BitConverter.ToInt64(node[Offsets.NodeEntity..]);
+            if (row != 0 && memory.TryRead(row + Offsets.ItemRowId, out int id) && id > 0 &&
+                memory.TryReadIconName(row + Offsets.ItemRowIcon, out var icon) && icon is not null)
+                built[icon] = built.ContainsKey(icon) ? Shared : id;
+            return true;
+        });
+        if (!complete) return;
+        foreach (var (icon, baseId) in built) _byIcon[icon] = baseId;
+    }
+
     public ItemInfo? ByBase(int baseId)
     {
         if (_bases.TryGetValue(baseId, out var cached)) return cached;
