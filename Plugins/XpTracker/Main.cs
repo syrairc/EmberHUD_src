@@ -43,15 +43,24 @@ public sealed class Main : Plugin<Settings>
     public override void Initialize()
     {
         Settings.Normalize();
-        Settings.ResetSession = _session.Reset;
+        Bind();
+    }
+
+    internal void Bind() => Settings.ResetSession = _session.Reset;
+
+    internal static XpSample Sample(GameState state, bool paused, double seconds)
+    {
+        var area = state.Area;
+        var xp = area is { Name.Length: > 0 } ? state.Xp : null;
+        return new XpSample(xp, state.AreaId, area?.Name ?? "", area?.IsTown ?? false, paused, seconds);
     }
 
     public override void Tick()
     {
         Game.WantXp();
-        var state = Game.State;
+        Bind();
         _session.MapTimeOnly = Settings.MapTimeOnly;
-        _session.Add(new XpSample(state.Xp, state.AreaId, state.Area?.Name ?? "", state.Area?.IsTown ?? false, state.Paused == true, _clock.Elapsed.TotalSeconds));
+        _session.Add(Sample(Game.State, Game.State.Paused == true, _clock.Elapsed.TotalSeconds));
     }
 
     public override void Render()

@@ -26,4 +26,38 @@ public sealed class MainTests
         Check.That(!Main.Visible(state, new Settings()), "covered");
         Check.That(Main.Visible(state, new Settings { HideBehindPanels = false }), "panel hiding off");
     }
+
+    static readonly MapInfo MapA = new("Map A", 80, null, null, false, [], []);
+
+    [Test]
+    public void SampleDropsXpWhileTheAreaIsUnreadOrUnnamed()
+    {
+        var xp = new XpState(92, 100, 1000);
+        Check.That(Main.Sample(new GameState { Xp = xp, Area = MapA }, false, 1).Xp is not null, "named area keeps xp");
+        Check.That(Main.Sample(new GameState { Xp = xp }, false, 1).Xp is null, "area null");
+        Check.That(Main.Sample(new GameState { Xp = xp, Area = MapA with { Name = "" } }, false, 1).Xp is null, "empty name");
+    }
+
+    [Test]
+    public void AreaLoadReadDoesNotMakeAFakeMap()
+    {
+        var xp = new XpState(92, 100, 1000);
+        var town = new MapInfo("Ember's Rest", 1, null, null, true, [], []);
+        var session = new XpSession();
+        session.Add(Main.Sample(new GameState { Xp = xp, Area = MapA, AreaId = 5 }, false, 0));
+        session.Add(Main.Sample(new GameState { Xp = xp, AreaId = 6 }, false, 10));
+        session.Add(Main.Sample(new GameState { Xp = xp, Area = town, AreaId = 7 }, false, 20));
+        Check.Equal(1, session.CompletedMaps);
+    }
+
+    [Test]
+    public void ResetIsBoundOnEveryBind()
+    {
+        var main = new Main();
+        main.Bind();
+        Check.That(main.Settings.ResetSession is not null, "bound");
+        main.Settings.ResetSession = null;
+        main.Bind();
+        Check.That(main.Settings.ResetSession is not null, "rebound after settings swap");
+    }
 }

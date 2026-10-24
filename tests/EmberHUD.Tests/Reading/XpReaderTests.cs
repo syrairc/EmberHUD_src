@@ -61,4 +61,21 @@ public class XpReaderTests
     [InlineData(50, 0L, 0L, false)]
     [InlineData(50, -1L, 100L, false)]
     public void ValidRejectsGarbage(int level, long exp, long toNext, bool valid) => Assert.Equal(valid, XpReader.Valid(level, exp, toNext));
+
+    [Fact]
+    public void TornTripleIsRejected()
+    {
+        Assert.Null(XpReader.Stable((92, 100L, 1000L), (93, 100L, 1000L)));
+        Assert.Null(XpReader.Stable((92, 100L, 1000L), (92, 5L, 1000L)));
+        Assert.Null(XpReader.Stable(null, (92, 100L, 1000L)));
+        Assert.Null(XpReader.Stable((92, 100L, 1000L), null));
+    }
+
+    [Fact]
+    public void MatchingTripleIsPublished()
+    {
+        var xp = XpReader.Stable((92, 100L, 1000L), (92, 100L, 1000L))!;
+        Assert.Equal(new XpState(92, 100, 1000), xp);
+        Assert.Null(XpReader.Stable((0, 100L, 1000L), (0, 100L, 1000L)));
+    }
 }
