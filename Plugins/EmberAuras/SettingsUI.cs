@@ -142,7 +142,7 @@ static class SettingsUI
         Setting.Choice("When inactive", ref aura.WhenInactive, "Hide removes the aura, Dim keeps it drawn faded");
         ImGui.SeparatorText("Fallback icon");
         ImGui.TextDisabled("Used when the buff or skill has no icon of its own");
-        iconSheets ??= [Controls.IconSheet.GameIcons(), Controls.IconSheet.SvgIcons()];
+        iconSheets ??= [Controls.IconSheet.GameIcons(), Controls.IconSheet.BuffIcons(), Controls.IconSheet.SkillIcons(), Controls.IconSheet.SvgIcons()];
         Controls.IconPicker($"icon{id}", iconSheets, ref aura.Icon, System.Drawing.Color.White);
         if (aura.Icon.Length > 0)
         {

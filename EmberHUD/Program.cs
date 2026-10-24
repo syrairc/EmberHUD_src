@@ -95,6 +95,7 @@ var gameSets = new GameIconSets(gameIconsDirectory, overlay.Textures.TryUpload, 
 Draw.GameIcons = texture => gameSets.Resolve(AssetKind.Minimap, texture);
 Draw.GameIconNames = gameSets.MinimapNames;
 gameSets.Changed += () => Draw.GameIconNames = gameSets.MinimapNames;
+Draw.AssetIconNames = gameSets.Names;
 GameAssets.Probe = gameSets.Probe;
 GameAssets.Resolver = (kind, name) => gameSets.Resolve(kind, name);
 var svgIcons = new SvgIconStore(LoadSvgSources(), overlay.Textures.TryUpload, overlay.Textures.Resolve, overlay.Textures.Release);

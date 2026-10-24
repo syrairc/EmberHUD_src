@@ -27,6 +27,14 @@ public static class GameAssets
 
     internal static bool TryBuff(int buffId, out Sprite sprite) => TrySprite(AssetKind.Buffs, BuffNames, buffId, out sprite);
 
+    internal static bool TryNamed(AssetKind kind, string name, out Sprite sprite)
+    {
+        sprite = default;
+        if (Resolver is not { } resolve || !IsExtracted(kind) || resolve(kind, name) is not { } found) return false;
+        sprite = found;
+        return true;
+    }
+
     internal static void ResetNames()
     {
         BaseNames.Clear();

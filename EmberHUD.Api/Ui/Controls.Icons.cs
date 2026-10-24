@@ -35,6 +35,12 @@ public static partial class Controls
 
         public static IconSheet SvgIcons(string name = "SVG") => Named(name, [.. EmberHUD.Draw.SvgIconNames.Order(StringComparer.Ordinal)]);
 
+        public static IconSheet BuffIcons(string name = "Buffs") => Assets(name, AssetKind.Buffs, EmberHUD.Draw.BuffIconPrefix);
+
+        public static IconSheet SkillIcons(string name = "Skills") => Assets(name, AssetKind.Skills, EmberHUD.Draw.SkillIconPrefix);
+
+        static IconSheet Assets(string name, AssetKind kind, string prefix) => Named(name, [.. EmberHUD.Draw.AssetNames(kind).Select(n => prefix + n).Order(StringComparer.Ordinal)]);
+
         static IconSheet Named(string name, string[] icons) => new()
         {
             Name = name,
@@ -164,7 +170,7 @@ public static partial class Controls
 
         if (sh.Count == 0)
         {
-            ImGui.TextDisabled("not loaded - run Setup");
+            ImGui.TextDisabled("No icons extracted yet - extract them via Setup or the Game Assets tab");
             return false;
         }
 
@@ -214,14 +220,20 @@ public static partial class Controls
     static IconSheet[]? _styleSheets;
     static IReadOnlyList<string>? _styleGameNames;
     static IReadOnlyList<string>? _styleSvgNames;
+    static IReadOnlyList<string>? _styleBuffNames;
+    static IReadOnlyList<string>? _styleSkillNames;
 
     static IconSheet[] StyleSheets()
     {
-        if (_styleSheets is null || !ReferenceEquals(EmberHUD.Draw.GameIconNames, _styleGameNames) || !ReferenceEquals(EmberHUD.Draw.SvgIconNames, _styleSvgNames))
+        var buffs = EmberHUD.Draw.AssetNames(AssetKind.Buffs);
+        var skills = EmberHUD.Draw.AssetNames(AssetKind.Skills);
+        if (_styleSheets is null || !ReferenceEquals(EmberHUD.Draw.GameIconNames, _styleGameNames) || !ReferenceEquals(EmberHUD.Draw.SvgIconNames, _styleSvgNames) || !ReferenceEquals(buffs, _styleBuffNames) || !ReferenceEquals(skills, _styleSkillNames))
         {
-            _styleSheets = [IconSheet.GameIcons(), IconSheet.SvgIcons(), IconSheet.Markers("Shapes")];
+            _styleSheets = [IconSheet.GameIcons(), IconSheet.BuffIcons(), IconSheet.SkillIcons(), IconSheet.SvgIcons(), IconSheet.Markers("Shapes")];
             _styleGameNames = EmberHUD.Draw.GameIconNames;
             _styleSvgNames = EmberHUD.Draw.SvgIconNames;
+            _styleBuffNames = buffs;
+            _styleSkillNames = skills;
         }
         return _styleSheets;
     }

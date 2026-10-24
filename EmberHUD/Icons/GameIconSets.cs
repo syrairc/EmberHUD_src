@@ -25,7 +25,9 @@ internal sealed class GameIconSets
 
     public event Action? Changed;
 
-    public IReadOnlyList<string> MinimapNames => _slots[(int)AssetKind.Minimap].Store?.Names ?? [];
+    public IReadOnlyList<string> MinimapNames => Names(AssetKind.Minimap);
+
+    public IReadOnlyList<string> Names(AssetKind kind) => For(kind).Store?.Names ?? [];
 
     public GameIconSets(string directory, TextureUpload upload, Func<string, Sprite?> resolve, bool inline = false)
     {

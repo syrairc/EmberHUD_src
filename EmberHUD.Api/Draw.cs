@@ -22,6 +22,8 @@ public static class Draw
     public const string MarkerPrefix = "marker:";
 
     public const string GameIconPrefix = "game:";
+    public const string BuffIconPrefix = "buff:";
+    public const string SkillIconPrefix = "skill:";
 
     public const string SvgIconPrefix = "svg:";
 
@@ -276,7 +278,11 @@ public static class Draw
 
     internal static IReadOnlyList<string> SvgIconNames { get; set; } = [];
 
-    internal readonly record struct ParsedIcon(MarkerShape Shape, string? GameTexture, bool IsSvg);
+    internal static Func<AssetKind, IReadOnlyList<string>>? AssetIconNames { get; set; }
+
+    internal static IReadOnlyList<string> AssetNames(AssetKind kind) => AssetIconNames?.Invoke(kind) ?? [];
+
+    internal readonly record struct ParsedIcon(MarkerShape Shape, string? GameTexture, bool IsSvg, AssetKind Kind = AssetKind.Minimap);
 
     static ParsedIcon Parse(string icon)
     {
@@ -284,6 +290,8 @@ public static class Draw
         if (ParsedIcons.Count >= 256) ParsedIcons.Clear();
         parsed = TryMarker(icon, out var shape) ? new ParsedIcon(shape, null, false)
             : icon.StartsWith(GameIconPrefix, StringComparison.Ordinal) ? new ParsedIcon(MarkerShape.Dot, icon[GameIconPrefix.Length..], false)
+            : icon.StartsWith(BuffIconPrefix, StringComparison.Ordinal) ? new ParsedIcon(MarkerShape.Dot, icon[BuffIconPrefix.Length..], false, AssetKind.Buffs)
+            : icon.StartsWith(SkillIconPrefix, StringComparison.Ordinal) ? new ParsedIcon(MarkerShape.Dot, icon[SkillIconPrefix.Length..], false, AssetKind.Skills)
             : new ParsedIcon(MarkerShape.Dot, null, icon.StartsWith(SvgIconPrefix, StringComparison.Ordinal));
         return ParsedIcons[icon] = parsed;
     }
@@ -295,7 +303,7 @@ public static class Draw
         var found = false;
         var parsed = icon is null ? default : Parse(icon);
         var shape = parsed.Shape;
-        if (parsed.GameTexture is { } texture) found = TryGameIcon(texture, out sprite);
+        if (parsed.GameTexture is { } texture) found = parsed.Kind == AssetKind.Minimap ? TryGameIcon(texture, out sprite) : GameAssets.TryNamed(parsed.Kind, texture, out sprite);
         else if (parsed.IsSvg)
         {
             tint = Color.FromArgb(color.A, Color.White);

@@ -27,6 +27,29 @@ public class ControlsIconsTests
     }
 
     [Fact]
+    public void TheBuffAndSkillSheetsPrefixTheirAssetNames()
+    {
+        Draw.AssetIconNames = kind => kind == AssetKind.Buffs ? ["UI_Buff_B", "UI_Buff_A"] : kind == AssetKind.Skills ? ["UI_Skill_A"] : [];
+        try
+        {
+            var buffs = Controls.IconSheet.BuffIcons();
+            Assert.Equal("Buffs", buffs.Name);
+            Assert.Equal(2, buffs.Count);
+            Assert.Equal("buff:UI_Buff_A", buffs.Label!(0));
+            Assert.Equal("skill:UI_Skill_A", Controls.IconSheet.SkillIcons().Label!(0));
+        }
+        finally { Draw.AssetIconNames = null; }
+    }
+
+    [Fact]
+    public void AnUnextractedAssetSheetIsEmpty()
+    {
+        Draw.AssetIconNames = null;
+        Assert.Equal(0, Controls.IconSheet.BuffIcons().Count);
+        Assert.Equal(0, Controls.IconSheet.SkillIcons().Count);
+    }
+
+    [Fact]
     public void TheSvgSheetKeepsTheFullIconNames()
     {
         Draw.SvgIconNames = ["svg:quest", "svg:elite"];
