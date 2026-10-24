@@ -548,7 +548,12 @@ public static class Scene
     public static SceneEntity[] Entities() => Lister?.Invoke() ?? [];
 }
 
-public readonly record struct FightProbe(int Id, Vector2 Position, int[] Components, uint ShapeKind, uint ShapeRadius, uint ExtentA, uint ExtentB, double Scale, int Camp, int OwnerId);
+public readonly record struct FightBuff(int Id, int Stacks, double Remaining);
+
+public readonly record struct FightProbe(int Id, Vector2 Position, int[] Components, uint ShapeKind, uint ShapeRadius, uint ExtentA, uint ExtentB, double Scale, int Camp, int OwnerId)
+{
+    public FightBuff[] Buffs { get; init; } = [];
+}
 
 public static class FightScan
 {

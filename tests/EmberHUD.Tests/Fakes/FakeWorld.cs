@@ -281,6 +281,9 @@ internal sealed class FakeWorld
         return AddHazard(id, centre, radius, scale, kind, [.. extra]);
     }
 
+    public nint AddBuffed(uint id, (double X, double Y) centre, params nint[] buffs) =>
+        AddHazard(id, centre, 100, 1, 1, (Offsets.ComponentBuff, AddBuffComponent(buffs)));
+
     public nint AddRing(uint id, uint ownerId, (double X, double Y) centre, uint radius, uint width, double scale = 1, byte ownerCamp = 1, uint kindBits = 0, bool buffArea = false)
     {
         if (!_fighters.ContainsKey(ownerId)) AddSideFighter(ownerId, ownerCamp);

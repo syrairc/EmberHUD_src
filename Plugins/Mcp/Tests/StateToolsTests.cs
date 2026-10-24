@@ -357,7 +357,7 @@ public sealed class StateToolsTests
         TestGame.UseFightScan((at, radius) =>
         {
             (askedAt, askedRadius) = (at, radius);
-            return [new FightProbe(9, new Vector2(130, 40), [16, 124], 1, 300, 0, 0, double.NaN, 2, 77)];
+            return [new FightProbe(9, new Vector2(130, 40), [16, 124], 1, 300, 0, 0, double.NaN, 2, 77) { Buffs = [new FightBuff(82151, 2, 3.5)] }];
         });
         try
         {
@@ -371,6 +371,9 @@ public sealed class StateToolsTests
             Check.That(row["scale"] is null, "no Scale component is null");
             Check.Equal(2, (int)row["camp"]!);
             Check.Equal(77, (int)row["ownerId"]!);
+            Check.Equal(82151, (int)row["buffs"]![0]!["id"]!);
+            Check.Equal(2, (int)row["buffs"]![0]!["stacks"]!);
+            Check.Equal(3.5, (double)row["buffs"]![0]!["remaining"]!);
         }
         finally
         {

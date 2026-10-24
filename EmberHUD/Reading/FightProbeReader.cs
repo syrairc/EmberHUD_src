@@ -54,7 +54,25 @@ internal sealed class FightProbeReader(IReadBackend memory, nint moduleBase)
         var owner = 0;
         if (_fight.TryReadComponent(fighter, Offsets.AttachmentComponentId, out var attachment) && attachment != 0) memory.TryRead(attachment + Offsets.AttachmentOwnerId, out owner);
 
-        probe = new FightProbe(id, position, [.. components], kind, shapeRadius, extentA, extentB, scale, camp, owner);
+        probe = new FightProbe(id, position, [.. components], kind, shapeRadius, extentA, extentB, scale, camp, owner) { Buffs = ReadBuffs(fighter) };
         return true;
+    }
+
+    private FightBuff[] ReadBuffs(nint fighter)
+    {
+        if (!_fight.TryReadComponent(fighter, Offsets.ComponentBuff, out var component) || component == 0) return [];
+
+        var buffs = new List<FightBuff>();
+        memory.TryWalkBuckets(component + Offsets.BuffMapCount, component + Offsets.BuffMap, Offsets.MaxBuckets, Offsets.NodeNext + sizeof(long), Offsets.NodeNext, Offsets.MaxBuffs, (_, node) =>
+        {
+            var instance = (nint)BitConverter.ToInt64(node[Offsets.FightNodeValue..]);
+            if (instance != 0 && memory.TryRead(instance + Offsets.BuffId, out int buffId) && buffId > 0 && memory.TryRead(instance + Offsets.BuffRemaining, out double remaining) && double.IsFinite(remaining))
+            {
+                var stacks = memory.TryRead(instance + Offsets.BuffStackable, out byte stackable) && stackable != 0 && memory.TryRead(instance + Offsets.BuffStacks, out int count) && count > 0 ? count : 1;
+                buffs.Add(new FightBuff(buffId, stacks, remaining));
+            }
+            return true;
+        });
+        return [.. buffs];
     }
 }

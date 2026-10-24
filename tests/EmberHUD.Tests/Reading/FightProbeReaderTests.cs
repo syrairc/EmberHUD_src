@@ -30,6 +30,25 @@ public class FightProbeReaderTests
     }
 
     [Fact]
+    public void ReadsTheBuffsOnAFighter()
+    {
+        var (world, reader) = Rig();
+        world.AddBuffed(178, Spot, world.AddBuff(82151, 3.5, 4, stacks: 2), world.AddBuff(10, 1, 1));
+        var buffs = Assert.Single(reader.Near(Vector2.Zero, 1000)).Buffs.OrderBy(buff => buff.Id).ToArray();
+        Assert.Equal([10, 82151], buffs.Select(buff => buff.Id));
+        Assert.Equal([1, 2], buffs.Select(buff => buff.Stacks));
+        Assert.Equal(3.5, buffs[1].Remaining);
+    }
+
+    [Fact]
+    public void AFighterWithoutBuffsHasNone()
+    {
+        var (world, reader) = Rig();
+        world.AddArea(1, Spot, 300, 1);
+        Assert.Empty(Assert.Single(reader.Near(Vector2.Zero, 1000)).Buffs);
+    }
+
+    [Fact]
     public void ReadsTheOwnerOfARock()
     {
         var (world, reader) = Rig();

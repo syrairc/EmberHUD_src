@@ -450,20 +450,26 @@ internal static class StateTools
         var radius = args.OptFloat("radius") ?? 600;
         var player = Game.State.Player ?? throw new ToolError("fight_entities needs a player position and there is none yet");
         var at = new Vector2(player.Position.X, player.Position.Y);
-        return Page(FightScan.Near(at, radius), limit, probe => new JsonObject
+        return Page(FightScan.Near(at, radius), limit, probe =>
         {
-            ["id"] = probe.Id,
-            ["x"] = Num.F(probe.Position.X),
-            ["y"] = Num.F(probe.Position.Y),
-            ["distance"] = Num.F(Vector2.Distance(probe.Position, at)),
-            ["components"] = new JsonArray([.. probe.Components.Select(component => (JsonNode)component)]),
-            ["shapeKind"] = probe.ShapeKind,
-            ["shapeRadius"] = probe.ShapeRadius,
-            ["extentA"] = probe.ExtentA,
-            ["extentB"] = probe.ExtentB,
-            ["scale"] = double.IsFinite(probe.Scale) ? Math.Round(probe.Scale, 3) : null,
-            ["camp"] = probe.Camp,
-            ["ownerId"] = probe.OwnerId,
+            var row = new JsonObject
+            {
+                ["id"] = probe.Id,
+                ["x"] = Num.F(probe.Position.X),
+                ["y"] = Num.F(probe.Position.Y),
+                ["distance"] = Num.F(Vector2.Distance(probe.Position, at)),
+                ["components"] = new JsonArray([.. probe.Components.Select(component => (JsonNode)component)]),
+                ["shapeKind"] = probe.ShapeKind,
+                ["shapeRadius"] = probe.ShapeRadius,
+                ["extentA"] = probe.ExtentA,
+                ["extentB"] = probe.ExtentB,
+                ["scale"] = double.IsFinite(probe.Scale) ? Math.Round(probe.Scale, 3) : null,
+                ["camp"] = probe.Camp,
+                ["ownerId"] = probe.OwnerId,
+            };
+            if (probe.Buffs.Length > 0)
+                row["buffs"] = new JsonArray([.. probe.Buffs.Select(buff => (JsonNode)new JsonObject { ["id"] = buff.Id, ["stacks"] = buff.Stacks, ["remaining"] = Math.Round(buff.Remaining, 2) })]);
+            return row;
         });
     }
 
