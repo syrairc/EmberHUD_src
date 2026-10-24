@@ -10,7 +10,6 @@ internal sealed partial class GameUiReader
     private sealed record MapRewardWidgets(nint Page, nint[] Scrolls);
 
     private static readonly string[] MapRewardScrollNames = Offsets.MapRewardScrolls.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-    private static readonly int[] MapRewardCostIcons = [Offsets.MapRewardRequireIcon, Offsets.MapRewardAdditionIcon];
     private static readonly Regex MapRewardMemoryName = MemoryNameOf(Offsets.MapRewardMemoryIcon);
 
     private nint _mapRewardPage;
@@ -76,10 +75,6 @@ internal sealed partial class GameUiReader
                     item.Max.X > clip.Min.X && item.Min.X < clip.Max.X && item.Max.Y > clip.Min.Y && item.Min.Y < clip.Max.Y)
                     found.Add(item);
         }
-
-        foreach (var at in MapRewardCostIcons)
-            if (memory.TryReadPtr(widgets.Page + at, out var widget) && widget != 0 && MapRewardItemOf(widget, origin) is { } item)
-                found.Add(item);
         return found.Count == 0 ? null : new MapRewardView([.. found]);
     }
 

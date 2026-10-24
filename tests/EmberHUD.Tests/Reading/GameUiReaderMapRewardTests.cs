@@ -218,15 +218,12 @@ public sealed class GameUiReaderMapRewardTests
     }
 
     [Fact]
-    public void CostIconsCountOnlyWhenVisibleAndAreNeverClipped()
+    public void UnlockRequirementIconsAreNotRead()
     {
         var screen = Open();
         var require = Item(screen, MemoryPath, "1", 100, 100);
-        var addition = Item(screen, MemoryPath.Replace("6002", "6216"), "1", 200, 100, visibility: 1);
-        screen.World.Memory.Write(screen.Page + Offsets.MapRewardRequireIcon, require);
-        screen.World.Memory.Write(screen.Page + Offsets.MapRewardAdditionIcon, addition);
-        var view = Tick(Reader(screen), screen)!;
-        Assert.Equal([(6002, new Vector2(100, 100))], view.Items.Select(i => (i.BaseId, i.Min)));
+        screen.World.Memory.Write(screen.Page + 0x460, require);
+        Assert.Null(Tick(Reader(screen), screen));
     }
 
     [Fact]
