@@ -11,6 +11,8 @@ public sealed class GameUiReaderBoothTests
         public required FakeUi Ui;
         public required nint Page;
         public required nint Switcher;
+        public required nint PageRoot;
+        public required nint Grid;
         public required nint[] Tiles;
         public required nint[][] Items;
         public required nint EntryClass;
@@ -20,7 +22,7 @@ public sealed class GameUiReaderBoothTests
     static readonly Vector2 ClipMin = new(1000, 300);
     static readonly Vector2 ClipMax = new(1900, 900);
 
-    internal static Booth Open(int openTab = 0, int items = 3, int switcherIndex = 2, params int[] alsoVisible)
+    internal static Booth Open(int openTab = 0, int items = 3, int switcherIndex = 2, bool withGrid = true, params int[] alsoVisible)
     {
         var world = new FakeWorld();
         var ui = new FakeUi(world);
@@ -34,12 +36,16 @@ public sealed class GameUiReaderBoothTests
             ui.Widget(tileClass, Offsets.BoothTilePrefix + (Offsets.InventoryTabFirst + i), ClipMin, ClipMax - ClipMin,
                 visibility: i == openTab || alsoVisible.Contains(i) ? (byte)4 : (byte)1)).ToArray();
         ui.SetTree(page, pageRoot);
-        ui.SetChildren(pageRoot, [switcher, .. tiles]);
+        var grid = ui.Widget(ui.UserClass("UIGoodTileView_C"), Offsets.BoothGrid, Vector2.Zero, size);
+        var gridRoot = ui.Widget(ui.PanelClass("CanvasPanel"), "CanvasPanel_0", Vector2.Zero, size);
+        ui.SetTree(grid, gridRoot);
+        ui.SetChildren(gridRoot, tiles);
+        ui.SetChildren(pageRoot, withGrid ? [switcher, grid] : [switcher]);
         ui.AddRoot(page);
 
         var booth = new Booth
         {
-            World = world, Ui = ui, Page = page, Switcher = switcher, Tiles = tiles, Items = new nint[tiles.Length][],
+            World = world, Ui = ui, Page = page, PageRoot = pageRoot, Grid = grid, Switcher = switcher, Tiles = tiles, Items = new nint[tiles.Length][],
             EntryClass = world.AddClass("AuctionHouseTileItemV2_C"),
         };
         for (var i = 0; i < tiles.Length; i++)
@@ -137,6 +143,25 @@ public sealed class GameUiReaderBoothTests
             booth.World.Memory.Write(booth.Tiles[3] + Offsets.UWidgetVisibility, visibility);
             Assert.Equal(InventoryBag.Equipment, Tick(reader, booth)!.Tab);
         }
+    }
+
+    [Fact]
+    public void DecoyTileOutsideTheGridIsIgnored()
+    {
+        var booth = Open(openTab: 0);
+        var decoy = booth.Ui.Widget(booth.World.AddClass("UITileView"), Offsets.BoothTilePrefix + (Offsets.InventoryTabFirst + 2), ClipMin, ClipMax - ClipMin, visibility: 4);
+        var other = booth.Ui.Widget(booth.Ui.PanelClass("CanvasPanel"), "CanvasPanel_1", Vector2.Zero, new Vector2(3440, 1440));
+        booth.Ui.SetChildren(other, decoy);
+        booth.Ui.SetChildren(booth.PageRoot, booth.Switcher, other, booth.Grid);
+        Pool(booth, 0, Entry(booth, booth.Items[0][0], 1010, 310));
+        Assert.Equal(InventoryBag.Equipment, Tick(Reader(booth), booth)!.Tab);
+    }
+
+    [Fact]
+    public void PageWithoutGridIsNull()
+    {
+        var booth = Open(withGrid: false);
+        Assert.Null(Tick(Reader(booth), booth));
     }
 
     [Fact]

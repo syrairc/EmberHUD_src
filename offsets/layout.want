@@ -447,6 +447,7 @@ MaxBoothItems = 256
 BagRefreshMilliseconds = 33
 BoothPageClassName = "AuctionHouseV2_C"
 BoothSwitcher = "WidgetSwitcher_Content"
+BoothGrid = "UIGoodTileView"
 BoothSwitcherIndex = 2
 BoothTilePrefix = "UITileView"
 BoothEntryItemData = 0x288

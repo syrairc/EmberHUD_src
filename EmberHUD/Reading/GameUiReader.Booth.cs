@@ -41,10 +41,11 @@ internal sealed partial class GameUiReader
     private BoothWidgets? BoothWidgetsOf(nint page)
     {
         var switcher = FindChild(page, Offsets.BoothSwitcher);
-        if (switcher == 0) return null;
+        var grid = FindChild(page, Offsets.BoothGrid);
+        if (switcher == 0 || grid == 0) return null;
         var tiles = new nint[Offsets.InventoryTabCount];
         for (var i = 0; i < tiles.Length; i++)
-            if ((tiles[i] = FindChild(page, Offsets.BoothTilePrefix + (Offsets.InventoryTabFirst + i))) == 0) return null;
+            if ((tiles[i] = FindChild(grid, Offsets.BoothTilePrefix + (Offsets.InventoryTabFirst + i))) == 0) return null;
         return new BoothWidgets(page, switcher, tiles);
     }
 
