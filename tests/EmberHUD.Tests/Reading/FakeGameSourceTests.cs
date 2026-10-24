@@ -36,6 +36,9 @@ public class FakeGameSourceTests
     public void SameClockGivesTheSameState() => Assert.Equal(At(5_000).Player, At(5_000).Player);
 
     [Fact]
+    public void ThePlayerHasAName() => Assert.Equal("Fake#0001", At(0).Player!.Name);
+
+    [Fact]
     public void PlayerMovesAsTimePasses() => Assert.NotEqual(At(0).Player!.Position, At(100_000_000).Player!.Position);
 
     [Fact]

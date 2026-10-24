@@ -310,6 +310,8 @@ public sealed record BossBar(ScreenRect Rect, float Percent);
 
 public sealed record Player(Vector3 Position, Vector2 Forward)
 {
+    public string? Name { get; init; }
+
     public double Life { get; init; }
 
     public double MaxLife { get; init; }
