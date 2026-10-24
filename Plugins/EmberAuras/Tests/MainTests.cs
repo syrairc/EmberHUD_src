@@ -59,7 +59,31 @@ public sealed class MainTests
     }
 
     [Test]
-    public void RenderDrawsNothingOnFullScreen() => Check.Equal(0, Drawn(Plugin(Life(percent: 100, direction: Direction.Below)), Alive(true)));
+    public void RenderDrawsNothingOnFullScreen()
+    {
+        var plugin = Plugin(Life(percent: 50, direction: Direction.Above));
+        Check.That(Drawn(plugin, Alive()) > 0, "control draws");
+        Check.Equal(0, Drawn(plugin, Alive(true)));
+    }
+
+    [Test]
+    public void LockedEmptyGroupDrawsNothingAndUnlockedDrawsPlaceholder()
+    {
+        var plugin = Plugin(Life(percent: 50, direction: Direction.Below));
+        Check.Equal(0, Drawn(plugin, Alive()));
+        plugin.Settings.Lock = false;
+        Check.That(Drawn(plugin, Alive()) > 0, "placeholder");
+        Check.Equal(0, Drawn(plugin, Alive(true)));
+    }
+
+    [Test]
+    public void SkippedFramesDoNotThrow()
+    {
+        var plugin = Plugin(Life(percent: 50, direction: Direction.Below));
+        plugin.Settings.Groups.Add(new Group { Enabled = false });
+        Drawn(plugin, Alive(true));
+        Drawn(plugin, Alive());
+    }
 
     [Test]
     public void RenderDrawsSomethingForShownAura() => Check.That(Drawn(Plugin(Life(percent: 50, direction: Direction.Above)), Alive()) > 0);

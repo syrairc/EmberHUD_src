@@ -51,12 +51,21 @@ public sealed class Main : Plugin<Settings>
     public override void Render()
     {
         var state = Game.State;
-        if (!ShouldDraw(state, Settings)) return;
+        if (!ShouldDraw(state, Settings))
+        {
+            for (var i = 0; i < Settings.Groups.Count; i++) _overlay.Release(IdOf(i));
+            return;
+        }
         _overlay.Locked = Settings.Lock;
         _overlay.MoveHeld = Settings.MoveKey.Key != Key.None && Input.IsDown(Settings.MoveKey.Key);
         for (var i = 0; i < Settings.Groups.Count; i++)
+        {
             if (Settings.Groups[i].Enabled) RenderGroup(Settings.Groups[i], i, state);
+            else _overlay.Release(IdOf(i));
+        }
     }
+
+    static string IdOf(int index) => $"emberauras{index}";
 
     void RenderGroup(Group group, int index, GameState state)
     {
@@ -76,14 +85,18 @@ public sealed class Main : Plugin<Settings>
         }
 
         var placeholder = _visible.Count == 0;
-        if (placeholder && !_overlay.Movable) return;
+        if (placeholder && !_overlay.Movable)
+        {
+            _overlay.Release(IdOf(index));
+            return;
+        }
 
         var sizes = new Vector2[placeholder ? 1 : _visible.Count];
         for (var i = 0; i < sizes.Length; i++) sizes[i] = placeholder ? new Vector2(PlaceholderSize) : SizeOf(_visible[i].Aura);
         var positions = placeholder ? [new Vector2(group.X, group.Y)] : GroupLayout.Place(group, sizes);
         var (min, max) = GroupLayout.Bounds(positions, sizes);
 
-        var id = $"emberauras{index}";
+        var id = IdOf(index);
         var origin = min;
         int x = (int)Math.Round(min.X), y = (int)Math.Round(min.Y);
         int startX = x, startY = y;
