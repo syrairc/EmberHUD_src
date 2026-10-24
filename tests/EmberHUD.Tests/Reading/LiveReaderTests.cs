@@ -934,4 +934,64 @@ public class LiveReaderTests
         again.TryRead(out var with, out _);
         Assert.EndsWith("scans 1", with.Status);
     }
-}
+
+    private static (FakeWorld World, nint Component) WorldWithNamedPlayer(string name)
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer));
+        var (pawn, _) = world.SetLocalPlayer(10);
+        var component = world.AddComponents(pawn, Offsets.PlayerComponentClassName)[0];
+        SetPlayerName(world, component, name);
+        return (world, component);
+    }
+
+    private static void SetPlayerName(FakeWorld world, nint component, string name)
+    {
+        var chars = world.Alloc(0x100);
+        world.Memory.WriteArray(chars, System.Text.Encoding.Unicode.GetBytes(name + "\0"));
+        world.Memory.Write(component + Offsets.PlayerComponentName, chars);
+        world.Memory.Write(component + Offsets.PlayerComponentName + Offsets.FStringNum, name.Length + 1);
+        world.Memory.Write(component + Offsets.PlayerComponentName + Offsets.FStringMax, name.Length + 1);
+    }
+
+    [Fact]
+    public void ThePlayerCarriesTheCharacterName()
+    {
+        var (world, _) = WorldWithNamedPlayer("Terayen#8674");
+
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Equal("Terayen#8674", state.Player!.Name);
+    }
+
+    [Fact]
+    public void ThePlayerNameIsNullWhenTheComponentIsMissing()
+    {
+        var world = new FakeWorld();
+        world.SetGrid(4, 3, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+        world.PublishEntities(world.AddEntity(10, 52, true, 1, 2, 3, mapOffset: Offsets.FightMapPlayer));
+        world.SetLocalPlayer(10);
+
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.NotNull(state.Player);
+        Assert.Null(state.Player.Name);
+    }
+
+    [Fact]
+    public void ThePlayerNameIsReadOncePerRefreshWindow()
+    {
+        var (world, component) = WorldWithNamedPlayer("Terayen#8674");
+        var now = 100_000L;
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now);
+        Assert.True(reader.TryRead(out var state, out _));
+        Assert.Equal("Terayen#8674", state.Player!.Name);
+
+        SetPlayerName(world, component, "Other#1");
+        now += Offsets.PlayerNameRefreshMilliseconds - 1;
+        Assert.True(reader.TryRead(out state, out _));
+        Assert.Equal("Terayen#8674", state.Player!.Name);
+
+        now += 1;
+        Assert.True(reader.TryRead(out state, out _));
+        Assert.Equal("Other#1", state.Player!.Name);
+    }}

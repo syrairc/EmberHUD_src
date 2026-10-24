@@ -33,6 +33,9 @@ internal sealed class LiveReader
     private readonly PausedReader _paused;
     private readonly Func<long> _clock;
     private long? _chatSeenAt;
+    private nint _namePawn;
+    private long _nextNameRead;
+    private string? _playerName;
     private int _generation;
     private Vector3? _anchor;
     private Vector2 _forward = new(0, 1);
@@ -94,6 +97,7 @@ internal sealed class LiveReader
         var heading = _minimap.ReadHeadingDegrees();
         var player = playerPosition is { } position ? new Player(position, Forward(UpdateForward(position), heading))
         {
+            Name = ReadPlayerName(pawn),
             Life = _world.PlayerVitals.Life,
             MaxLife = _world.PlayerVitals.MaxLife,
             Shield = _world.PlayerVitals.Shield,
@@ -163,6 +167,15 @@ internal sealed class LiveReader
             Skills = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadSkills(_ui.ReadSkillBar) : null,
         };
         return true;
+    }
+
+    private string? ReadPlayerName(nint pawn)
+    {
+        var now = _clock();
+        if (pawn == _namePawn && now < _nextNameRead) return _playerName;
+        _namePawn = pawn;
+        _nextNameRead = now + Offsets.PlayerNameRefreshMilliseconds;
+        return _playerName = _world.ReadPlayerName(pawn);
     }
 
     private static Vector2 Forward(Vector2 moved, float? heading) =>

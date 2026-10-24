@@ -184,6 +184,30 @@ public static partial class Controls
         return changed;
     }
 
+    public static bool AnchorPicker(string id, ref Anchor anchor)
+    {
+        bool changed = false;
+        float cell = ImGui.GetFrameHeight();
+        ImGui.PushID(id);
+        if (ImGui.BeginTable("##grid", 3, ImGuiTableFlags.SizingFixedSame))
+        {
+            for (int i = 0; i < 9; i++)
+            {
+                if (i % 3 == 0) ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                var at = (Anchor)i;
+                if (ImGui.Selectable("##" + i, at == anchor, ImGuiSelectableFlags.None, new Vector2(cell, cell)) && at != anchor)
+                {
+                    anchor = at;
+                    changed = true;
+                }
+            }
+            ImGui.EndTable();
+        }
+        ImGui.PopID();
+        return changed;
+    }
+
     public readonly struct PanelStyleScope : IDisposable
     {
         public PanelStyleScope()

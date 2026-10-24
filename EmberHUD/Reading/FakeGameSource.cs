@@ -122,6 +122,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             new Vector3(Center.X + WalkRadius * MathF.Cos(angle), Center.Y + WalkRadius * MathF.Sin(angle), 0),
             new Vector2(-MathF.Sin(angle), MathF.Cos(angle)))
         {
+            Name = "Fake#0001",
             Life = 207 * (0.75 + 0.25 * Math.Sin(angle)),
             MaxLife = 207,
             Shield = 133 * (0.5 + 0.5 * Math.Cos(angle)),
