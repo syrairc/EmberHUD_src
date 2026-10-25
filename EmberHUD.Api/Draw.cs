@@ -193,18 +193,34 @@ public static class Draw
         }
     }
 
-    public static void GlowRect(Vector2 min, Vector2 max, Color color, float thickness = 2, float spread = 8, ImDrawListPtr? list = null)
+    public static void GlowRect(Vector2 min, Vector2 max, Color color, float thickness = 2, float spread = 8, ImDrawListPtr? list = null, float corner = 0)
     {
         if (color.A == 0 || thickness <= 0) return;
         var target = list ?? Background;
         var rings = (int)MathF.Ceiling(spread / 2);
         for (var ring = rings; ring >= 1; ring--)
         {
-            var grow = new Vector2(thickness / 2 + ring * 2);
+            var grow = thickness / 2 + ring * 2;
             var alpha = (int)(color.A * 0.5f * (1 - ring / (float)(rings + 1)));
-            target.AddRect(min - grow, max + grow, EColor.U32(Color.FromArgb(alpha, color)), 0, ImDrawFlags.None, 2);
+            Outline(target, min - new Vector2(grow), max + new Vector2(grow), corner > 0 ? corner + grow * 0.41f : 0, EColor.U32(Color.FromArgb(alpha, color)), 2);
         }
-        target.AddRect(min, max, EColor.U32(color), 0, ImDrawFlags.None, thickness);
+        Outline(target, min, max, corner, EColor.U32(color), thickness);
+    }
+
+    static void Outline(ImDrawListPtr target, Vector2 min, Vector2 max, float corner, uint color, float thickness)
+    {
+        if (corner <= 0)
+        {
+            target.AddRect(min, max, color, 0, ImDrawFlags.None, thickness);
+            return;
+        }
+        corner = MathF.Min(corner, MathF.Min(max.X - min.X, max.Y - min.Y) / 2);
+        Span<Vector2> points =
+        [
+            new(min.X + corner, min.Y), new(max.X - corner, min.Y), new(max.X, min.Y + corner), new(max.X, max.Y - corner),
+            new(max.X - corner, max.Y), new(min.X + corner, max.Y), new(min.X, max.Y - corner), new(min.X, min.Y + corner),
+        ];
+        target.AddPolyline(ref points[0], points.Length, color, ImDrawFlags.Closed, thickness);
     }
 
     public static void Marker(Vector2 centre, float radius, Color color, MarkerShape shape = MarkerShape.Dot, float glow = 0, ImDrawListPtr? list = null)
