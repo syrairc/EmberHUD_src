@@ -58,7 +58,7 @@ public static partial class Send
 
     public static bool MouseMove(int x, int y)
     {
-        if (ToScreen?.Invoke(x, y) is not var (screenX, screenY) || !Admit()) return false;
+        if (!Allowed || ToScreen?.Invoke(x, y) is not var (screenX, screenY)) return false;
         Sink(new SentInput(Key.None, null, false, screenX, screenY));
         return true;
     }

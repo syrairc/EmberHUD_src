@@ -156,6 +156,20 @@ public sealed class SendTests : IDisposable
     }
 
     [Fact]
+    public void MouseMovesAreNotRateLimited()
+    {
+        ChatIs(false);
+        var sent = TestSend.Record();
+        Send.ToScreen = (x, y) => (x, y);
+        Send.Clock = () => 1_000_000;
+        for (var i = 0; i < 100; i++) Assert.True(Send.MouseMove(i, i));
+        Assert.Equal(100, sent.Count);
+        for (var i = 0; i < 30; i++) Assert.True(Send.Down(Key.W));
+        Assert.False(Send.Down(Key.W));
+        Assert.Equal(130, sent.Count);
+    }
+
+    [Fact]
     public void ClickIsDownThenUp()
     {
         ChatIs(false);
