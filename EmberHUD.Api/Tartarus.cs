@@ -2,7 +2,7 @@ namespace EmberHUD;
 
 public enum TartarusBeast : byte { Unknown, Mammoth, Lion, Wolf, Rat }
 
-public readonly record struct TartarusCell(int Index, bool Open, int Tier, TartarusBeast Beast, bool DevourTarget, bool EventMarker, int Uid = 0);
+public readonly record struct TartarusCell(int Index, bool Open, int Tier, TartarusBeast Beast, bool DevourTarget, bool EventMarker, int Uid = 0, bool Tusk = false);
 
 public enum TartarusChoiceKind : byte { Doors, Operation, Office, Instrument, Reward, Event, Other }
 

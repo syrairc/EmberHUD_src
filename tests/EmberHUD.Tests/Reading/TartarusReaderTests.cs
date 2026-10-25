@@ -46,7 +46,7 @@ public class TartarusReaderTests
 
         public TartarusReader Reader() => new(Memory, Module, () => Now);
 
-        public void Cell(int index, string? uid, int species, int rating, bool devour = false, bool marker = false, bool flags = false, int? preview = null)
+        public void Cell(int index, string? uid, int species, int rating, bool devour = false, bool marker = false, bool flags = false, int? preview = null, bool tusk = false)
         {
             var prisoner = Lua.NewTable(0, 2);
             if (uid is not null) Lua.SetString(prisoner, Offsets.LuaTartarusUid, uid);
@@ -55,6 +55,7 @@ public class TartarusReaderTests
             var cell = Lua.NewTable(0, 3);
             Lua.SetTable(cell, Offsets.LuaTartarusPrisoner, prisoner);
             if (preview is { } p) Lua.SetInt(cell, Offsets.LuaTartarusPreviewType, p);
+            if (tusk) Lua.SetBool(cell, Offsets.LuaTartarusTusk, true);
             if (flags)
             {
                 Lua.SetBool(cell, Offsets.LuaTartarusDevourTarget, devour);
@@ -342,6 +343,14 @@ public class TartarusReaderTests
         f.Cell(2, "P7", 101, 205);
         var cell = f.Reader().Read()!.Cells.Single();
         Assert.Equal(new TartarusCell(2, true, 4, TartarusBeast.Mammoth, false, false, 7), cell);
+    }
+
+    [Fact]
+    public void TuskMarkIsRead()
+    {
+        var f = new Fixture();
+        f.Cell(2, "P7", 101, 201, tusk: true);
+        Assert.True(f.Reader().Read()!.Cells.Single().Tusk);
     }
 
     [Fact]

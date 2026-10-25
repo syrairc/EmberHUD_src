@@ -206,8 +206,9 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         var beast = TryGetInt(prisoner, Offsets.LuaTartarusSpecies, out var species) ? species - Offsets.TartarusSpeciesBase + 1 : 0;
         _lua.TryGetBool(cell, Offsets.LuaTartarusDevourTarget, out var devour);
         _lua.TryGetBool(cell, Offsets.LuaTartarusEventMarker, out var marker);
+        _lua.TryGetBool(cell, Offsets.LuaTartarusTusk, out var tusk);
 
-        read = new TartarusCell(index, open, tier is >= 0 and <= 5 ? tier : -1, beast is >= 1 and <= 4 ? (TartarusBeast)beast : TartarusBeast.Unknown, devour, marker, uidNumber);
+        read = new TartarusCell(index, open, tier is >= 0 and <= 5 ? tier : -1, beast is >= 1 and <= 4 ? (TartarusBeast)beast : TartarusBeast.Unknown, devour, marker, uidNumber, tusk);
         return true;
     }
 
