@@ -7,7 +7,7 @@ namespace MouseLab;
 
 public enum StepKind { Move, Click, MenuClick }
 
-public enum MenuOption { Lock, More }
+public enum MenuOption { Lock, More, None }
 
 public sealed record Step(string Label, ScreenRect Target, bool Scored, StepKind Kind = StepKind.Move, MenuOption Option = MenuOption.Lock);
 
@@ -57,7 +57,7 @@ public static class Suite
             scenarios.Add(new Scenario("Bag to stash", [Step(origin, "start", false), Step(bag.Cells.MinBy(cell => cell.Slot), "bag", true), Step(origin, "stash", true)]));
         else skipped.Add("Bag to stash: needs a bag view with cells and stash cell (0,0)");
 
-        if (menuOption is { } option)
+        if (menuOption is { } option and not MenuOption.None)
         {
             if (cells.TryGetValue(0, out var gear))
                 scenarios.Add(new Scenario("Click and menu", [Step(gear, "cell", false) with { Kind = StepKind.Click }, Step(gear, option.ToString(), true) with { Kind = StepKind.MenuClick, Option = option }]));

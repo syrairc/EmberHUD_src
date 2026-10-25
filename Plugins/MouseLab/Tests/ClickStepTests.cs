@@ -97,7 +97,7 @@ public sealed class ClickStepTests
     public void TakeOutIsNotSelectableAndNeverClicked()
     {
         Check.That(!Enum.GetNames<MenuOption>().Contains("TakeOut"), "no TakeOut value");
-        foreach (var option in Enum.GetValues<MenuOption>())
+        foreach (var option in Enum.GetValues<MenuOption>().Where(option => option != MenuOption.None))
         {
             var fixture = Setup();
             var result = Run(fixture.Runner(() => new ItemMenu(TakeOutRect, null, null, null, null, null, null)), ClickScenario(option));
@@ -141,6 +141,33 @@ public sealed class ClickStepTests
         Check.That(result.Cancelled, "cancelled");
         Check.Equal(2, fixture.Clicks().Count, "no second lock click");
         lock (fixture.Sent) Check.That(fixture.Sent.Contains(new SentInput(Key.D1, null, false, 0, 0)), "held key released");
+        Check.That(result.Note is { } note && note.Contains("one Lock click"), result.Note);
+    }
+
+    [Test]
+    public void MenuGoingAwayAfterTheFirstLockClickSaysSo()
+    {
+        var fixture = Setup();
+        var result = Run(fixture.Runner(() => fixture.Clicks().Count >= 2 ? null : FullMenu()), ClickScenario(MenuOption.Lock));
+        Check.That(result.Refused is not null, "refused");
+        Check.That(result.Note is { } note && note.Contains("one Lock click") && note.Contains("check it"), result.Note);
+        Check.Equal(2, fixture.Clicks().Count, "cell plus one lock click");
+    }
+
+    [Test]
+    public void ACompleteLockPairLeavesNoNote()
+    {
+        var fixture = Setup();
+        Check.That(Run(fixture.Runner(() => FullMenu()), ClickScenario(MenuOption.Lock)).Note is null, "no note");
+    }
+
+    [Test]
+    public void NoneBuildsNoClickScenarioAndNoSkip()
+    {
+        var build = Suite.Build(Stash(), null, menuOption: MenuOption.None);
+        Check.That(build.Scenarios.All(scenario => scenario.Name != "Click and menu"), "no scenario");
+        Check.That(build.Skipped.All(skip => !skip.StartsWith("Click and menu")), "no skip line");
+        Check.That(!Enum.GetNames<MenuOption>().Contains("TakeOut"), "still no TakeOut");
     }
 
     [Test]

@@ -8,10 +8,11 @@ namespace MouseLab;
 
 public sealed record MoveResult(string Scenario, string Label, PathScores Scores, Verdict Verdict, IReadOnlyList<PathSample> Trail);
 
-public sealed record RunResult(string Preset, IReadOnlyList<MoveResult> Moves, IReadOnlyList<string> Skipped, bool Cancelled, string? Refused);
+public sealed record RunResult(string Preset, IReadOnlyList<MoveResult> Moves, IReadOnlyList<string> Skipped, bool Cancelled, string? Refused, string? Note = null);
 
 public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, CancellationToken, Task> delay, Thresholds thresholds, Action<Step>? stepStarted = null, Func<ItemMenu?>? menu = null)
 {
+    const string HalfLockNote = "Stopped after one Lock click - the item may now be locked or unlocked, check it";
     const int MenuPollMs = 50;
     const int MenuTimeoutMs = 1000;
 
@@ -22,7 +23,8 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
     public async Task<RunResult> RunAsync(string presetName, SuiteBuild build, HumanizerConfig config, CancellationToken cancel)
     {
         var moves = new List<MoveResult>();
-        RunResult Result(bool cancelled = false, string? refused = null) => new(presetName, moves, build.Skipped, cancelled, refused);
+        string? pending = null;
+        RunResult Result(bool cancelled = false, string? refused = null) => new(presetName, moves, build.Skipped, cancelled, refused, pending);
 
         RunResult Stopped()
         {
@@ -83,8 +85,11 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                         {
                             if (click > 0) await delay(StepPauseMs, cancel);
                             if (OptionRect(step.Option) is not { } fresh) return Refused("The item menu went away mid click, stopped");
-                            if (!await Send.ClickAt(CentreX(fresh), CentreY(fresh), MouseButton.Left, MouseMode.Humanized, cancel, config) || cancel.IsCancellationRequested) return Stopped();
+                            var landed = await Send.ClickAt(CentreX(fresh), CentreY(fresh), MouseButton.Left, MouseMode.Humanized, cancel, config);
+                            if (landed && clicks > 1 && click == 0) pending = HalfLockNote;
+                            if (!landed || cancel.IsCancellationRequested) return Stopped();
                         }
+                        pending = null;
                     }
                     if (!step.Scored) continue;
                     if (Send.ClientToScreen((int)target.Min.X, (int)target.Min.Y) is not var (minX, minY) || Send.ClientToScreen((int)target.Max.X, (int)target.Max.Y) is not var (maxX, maxY)) return Stopped();

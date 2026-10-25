@@ -110,6 +110,36 @@ public sealed class MainTests
     }
 
     [Test]
+    public void ARefusedRunWithEarlierMovesIsStillWritten()
+    {
+        With(directory =>
+        {
+            var plugin = Ready(out _, directory);
+            TestGame.Set(StashOpen() with { ItemMenu = null });
+            plugin.Toggle(false);
+            Finish(plugin);
+            var result = plugin.Results.Single();
+            Check.That(result.Refused is not null && result.Moves.Count > 0, "refused after some moves");
+            Check.Equal(2, Directory.GetFiles(directory).Length, "json and csv");
+            Check.That(File.ReadAllText(Directory.GetFiles(directory, "*.csv").Single()).Contains("refused"), "csv status");
+        });
+    }
+
+    [Test]
+    public void ARefusedRunWithNoMovesIsNotWritten()
+    {
+        With(directory =>
+        {
+            var plugin = Ready(out _, directory);
+            TestGame.Set(StashOpen() with { ItemMenu = null, Bag = null, Stash = new StashView(0, Vector2.Zero, new Vector2(400, 300), [Cell(0)]) });
+            plugin.Toggle(false);
+            Finish(plugin);
+            Check.That(plugin.Results.Single().Refused is not null && plugin.Results.Single().Moves.Count == 0, "refused with nothing moved");
+            Check.That(!Directory.Exists(directory), "nothing written");
+        });
+    }
+
+    [Test]
     public void RunAllRunsTheFiveNamedPresetsInOrder()
     {
         With(directory =>

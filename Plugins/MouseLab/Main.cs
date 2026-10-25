@@ -116,7 +116,7 @@ public sealed class Main : Plugin<Settings>
             _step = null;
             Interlocked.Exchange(ref _finishedAt, Environment.TickCount64);
         }
-        if (done.Any(result => result.Refused is null)) Save(done);
+        if (done.Any(result => result.Refused is null || result.Moves.Count > 0)) Save(done);
     }
 
     void Save(List<RunResult> done)

@@ -111,6 +111,7 @@ public sealed class Panel
         {
             if (result.Refused is not null) lines.Add(new Cell($"{result.Preset}: refused - {result.Refused}", GameColors.Negative));
             else if (result.Cancelled) lines.Add(new Cell($"{result.Preset}: cancelled after {result.Moves.Count} moves", GameColors.Gold));
+            if (result.Note is not null) lines.Add(new Cell($"{result.Preset}: {result.Note}", GameColors.Negative));
         }
         foreach (var skipped in results.SelectMany(result => result.Skipped).Distinct()) lines.Add(new Cell($"Skipped - {skipped}", GameColors.TextDim));
         if (results.LastOrDefault(result => result.Moves.Count > 0) is { } last) tables.Add(MoveTable(last));
