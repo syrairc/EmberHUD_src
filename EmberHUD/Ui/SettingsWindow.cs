@@ -64,7 +64,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         if (Selected is { } slot) DrawPlugin(slot);
         else
         {
-            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater), ("Logging", DrawLogging)];
+            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater), ("Logging", DrawLogging), ("Input", DrawInput)];
             if (assets is not null) tabs = [.. tabs, ("Game Assets", assets.Draw)];
             Layout.TabBar("emberhud", debug is null ? tabs : [.. tabs, ("Debug", debug.Draw)]);
         }
@@ -204,6 +204,45 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         Controls.LogView("log", logs.RecentLines(50), 0);
         return false;
     }
+
+    bool DrawInput()
+    {
+        var input = sdk.Input;
+        var changed = false;
+        Controls.Section("Mouse");
+        ImGui.TextUnformatted("Mode");
+        ImGui.SameLine();
+        changed |= Combo.Enum(ref input.Mode, "inputMode");
+        Wrapped("Humanized moves the cursor along a smooth path with short pauses around clicks. Direct jumps instantly. Plugins can override per call.");
+        var speed = input.SpeedPercent;
+        if (Setting.Slider("Speed %", ref speed, 50, 150, "Scales the move step and every pause. Overwrites the advanced values below.", "inputSpeed"))
+        {
+            input.ApplySpeed(speed);
+            changed = true;
+        }
+        if (ImGui.CollapsingHeader("Advanced"))
+        {
+            changed |= Setting.Slider("Max step (px)", ref input.MaxStep, 1, 200, id: "inputMaxStep");
+            changed |= Range("Step delay (ms)", ref input.StepDelayMin, ref input.StepDelayMax, "inputStep");
+            changed |= Range("Before click (ms)", ref input.PreClickSettleMin, ref input.PreClickSettleMax, "inputPre");
+            changed |= Range("Click hold (ms)", ref input.ClickDwellMin, ref input.ClickDwellMax, "inputDwell");
+            changed |= Range("After click (ms)", ref input.PostClickSettleMin, ref input.PostClickSettleMax, "inputPost");
+        }
+        if (ImGui.Button("Reset"))
+        {
+            input.Reset();
+            changed = true;
+        }
+        if (changed)
+        {
+            Send.Mode = input.Mode;
+            Send.Config = input.ToConfig();
+        }
+        return changed;
+    }
+
+    static bool Range(string label, ref int min, ref int max, string id) =>
+        Setting.Slider(label + " min", ref min, 0, 500, id: id + "Min") | Setting.Slider(label + " max", ref max, 0, 500, id: id + "Max");
 
     bool DrawLogging()
     {

@@ -6,6 +6,7 @@ namespace EmberHUD.Host.Ui;
 internal sealed class SdkSettings : PluginSettings
 {
     public SdkHotkeys Hotkeys = new();
+    public InputSettings Input = new();
     public string Theme = ThemeStore.DefaultTheme;
     public bool AutoReload;
     public bool InteractiveOutOfFocus;

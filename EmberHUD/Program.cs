@@ -89,6 +89,8 @@ Send.ToScreen = (x, y) =>
     var point = new Win32.Point { X = x, Y = y };
     return overlay.TargetHandle != 0 && Win32.ClientToScreen(overlay.TargetHandle, ref point) ? (point.X, point.Y) : null;
 };
+Send.Mode = sdk.Input.Mode;
+Send.Config = sdk.Input.ToConfig();
 if (fake) Send.Sink = _ => { };
 var gameIconsDirectory = sdk.GameIconsDirectory.Length > 0 ? Path.GetFullPath(sdk.GameIconsDirectory, root) : Path.Combine(root, "GameIcons");
 var gameSets = new GameIconSets(gameIconsDirectory, overlay.Textures.TryUpload, overlay.Textures.Resolve);
