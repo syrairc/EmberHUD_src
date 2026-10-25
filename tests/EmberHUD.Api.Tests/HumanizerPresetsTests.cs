@@ -3,7 +3,7 @@ namespace EmberHUD.Api.Tests;
 public sealed class HumanizerPresetsTests
 {
     [Fact]
-    public void FromSpeedMatchesTheHostDefaultsAt100()
+    public void FromSpeedAt100IsTheOldHostDefault()
     {
         var c = HumanizerPresets.FromSpeed(100);
         Assert.Equal(40f, c.MaxStep);
@@ -11,6 +11,23 @@ public sealed class HumanizerPresetsTests
         Assert.Equal((6, 18), (c.PreClickSettleMin, c.PreClickSettleMax));
         Assert.Equal((12, 30), (c.ClickDwellMin, c.ClickDwellMax));
         Assert.Equal((6, 18), (c.PostClickSettleMin, c.PostClickSettleMax));
+    }
+
+    [Fact]
+    public void FromSpeedAt75AndAt35()
+    {
+        var normal = HumanizerPresets.FromSpeed(75);
+        Assert.Equal(30f, normal.MaxStep);
+        Assert.Equal((0, 4), (normal.StepDelayMin, normal.StepDelayMax));
+        Assert.Equal((8, 24), (normal.PreClickSettleMin, normal.PreClickSettleMax));
+        Assert.Equal((16, 40), (normal.ClickDwellMin, normal.ClickDwellMax));
+        Assert.Equal((8, 24), (normal.PostClickSettleMin, normal.PostClickSettleMax));
+        var verySlow = HumanizerPresets.FromSpeed(35);
+        Assert.Equal(14f, verySlow.MaxStep);
+        Assert.Equal((0, 9), (verySlow.StepDelayMin, verySlow.StepDelayMax));
+        Assert.Equal((17, 51), (verySlow.PreClickSettleMin, verySlow.PreClickSettleMax));
+        Assert.Equal((34, 86), (verySlow.ClickDwellMin, verySlow.ClickDwellMax));
+        Assert.Equal((17, 51), (verySlow.PostClickSettleMin, verySlow.PostClickSettleMax));
     }
 
     [Fact]
@@ -33,16 +50,16 @@ public sealed class HumanizerPresetsTests
     [Fact]
     public void FromSpeedClamps()
     {
-        Assert.Equal(HumanizerPresets.FromSpeed(50), HumanizerPresets.FromSpeed(10));
+        Assert.Equal(HumanizerPresets.FromSpeed(25), HumanizerPresets.FromSpeed(10));
         Assert.Equal(HumanizerPresets.FromSpeed(150), HumanizerPresets.FromSpeed(999));
     }
 
     [Theory]
-    [InlineData(HumanizerPreset.VerySlow, 50)]
-    [InlineData(HumanizerPreset.Slow, 75)]
-    [InlineData(HumanizerPreset.Normal, 100)]
-    [InlineData(HumanizerPreset.Fast, 125)]
-    [InlineData(HumanizerPreset.VeryFast, 150)]
+    [InlineData(HumanizerPreset.VerySlow, 35)]
+    [InlineData(HumanizerPreset.Slow, 50)]
+    [InlineData(HumanizerPreset.Normal, 75)]
+    [InlineData(HumanizerPreset.Fast, 100)]
+    [InlineData(HumanizerPreset.VeryFast, 125)]
     public void NamedPresetsAreFromTheirAnchorSpeeds(HumanizerPreset preset, int speed)
     {
         Assert.Equal(speed, HumanizerPresets.SpeedOf(preset));

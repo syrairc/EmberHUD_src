@@ -6,9 +6,11 @@ public class InputSettingsTests
 {
     [Theory]
     [InlineData(150, 60, 0, 2, 4, 12, 8, 20, 4, 12)]
+    [InlineData(75, 30, 0, 4, 8, 24, 16, 40, 8, 24)]
+    [InlineData(35, 14, 0, 9, 17, 51, 34, 86, 17, 51)]
     [InlineData(100, 40, 0, 3, 6, 18, 12, 30, 6, 18)]
     [InlineData(50, 20, 0, 6, 12, 36, 24, 60, 12, 36)]
-    public void ApplySpeedMatchesExileTradeAt50100And150(int speed, float maxStep, int stepMin, int stepMax, int preMin, int preMax, int dwellMin, int dwellMax, int postMin, int postMax)
+    public void ApplySpeedMatchesTheFormulaAtTheAnchors(int speed, float maxStep, int stepMin, int stepMax, int preMin, int preMax, int dwellMin, int dwellMax, int postMin, int postMax)
     {
         var input = new InputSettings();
         input.ApplySpeed(speed);
@@ -24,21 +26,23 @@ public class InputSettingsTests
     {
         var input = new InputSettings();
         input.ApplySpeed(10);
-        Assert.Equal(50, input.SpeedPercent);
-        Assert.Equal(20, input.MaxStep);
+        Assert.Equal(25, input.SpeedPercent);
+        Assert.Equal(10, input.MaxStep);
         input.ApplySpeed(999);
         Assert.Equal(150, input.SpeedPercent);
         Assert.Equal(60, input.MaxStep);
     }
 
     [Fact]
-    public void DefaultsAreHumanizedAt100Percent()
+    public void DefaultsAreHumanizedAtTheNormalPreset()
     {
         var fresh = new InputSettings();
         var applied = new InputSettings();
-        applied.ApplySpeed(100);
+        applied.ApplySpeed(75);
         Assert.Equal(MouseMode.Humanized, fresh.Mode);
-        Assert.Equal(100, fresh.SpeedPercent);
+        Assert.Equal(75, fresh.SpeedPercent);
+        Assert.Equal(HumanizerPreset.Normal, fresh.Preset);
+        Assert.Equal(HumanizerPresets.Get(HumanizerPreset.Normal).Clamped(), fresh.ToConfig());
         Assert.Equal(applied.ToConfig(), fresh.ToConfig());
         Assert.Equal(applied.MaxStep, fresh.MaxStep);
     }
@@ -60,8 +64,8 @@ public class InputSettingsTests
     {
         var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, "{}", _ => { });
         Assert.Equal(MouseMode.Humanized, loaded.Input.Mode);
-        Assert.Equal(100, loaded.Input.SpeedPercent);
-        Assert.Equal(40, loaded.Input.MaxStep);
+        Assert.Equal(75, loaded.Input.SpeedPercent);
+        Assert.Equal(30, loaded.Input.MaxStep);
     }
 
     [Fact]
@@ -71,7 +75,7 @@ public class InputSettingsTests
         sdk.Input.ClickDwellMin = 33;
         var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, SettingsJson.Serialize(sdk), _ => { });
         Assert.Equal(33, loaded.Input.ClickDwellMin);
-        Assert.Equal(100, loaded.Input.SpeedPercent);
+        Assert.Equal(75, loaded.Input.SpeedPercent);
     }
 
     [Fact]
@@ -82,7 +86,7 @@ public class InputSettingsTests
         input.Reset();
         Assert.Equal(new InputSettings().ToConfig(), input.ToConfig());
         Assert.Equal(MouseMode.Humanized, input.Mode);
-        Assert.Equal(100, input.SpeedPercent);
+        Assert.Equal(75, input.SpeedPercent);
     }
 
     [Fact]
@@ -170,7 +174,19 @@ public class InputSettingsTests
         input.MatchPreset();
         Assert.Equal(HumanizerPreset.Custom, input.Preset);
         Assert.Equal(33, input.ClickDwellMin);
-        Assert.Equal(100, input.SpeedPercent);
+        Assert.Equal(75, input.SpeedPercent);
+    }
+
+    [Fact]
+    public void OldDefaultValuesLoadAsFastAndAreKept()
+    {
+        var json = "{\"Input\":{\"SpeedPercent\":100,\"MaxStep\":40,\"StepDelayMin\":0,\"StepDelayMax\":3,\"PreClickSettleMin\":6,\"PreClickSettleMax\":18,\"ClickDwellMin\":12,\"ClickDwellMax\":30,\"PostClickSettleMin\":6,\"PostClickSettleMax\":18}}";
+        var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, json, _ => { });
+        loaded.Input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Fast, loaded.Input.Preset);
+        Assert.Equal(40, loaded.Input.MaxStep);
+        Assert.Equal(100, loaded.Input.SpeedPercent);
+        Assert.Equal((12, 30), (loaded.Input.ClickDwellMin, loaded.Input.ClickDwellMax));
     }
 
     [Fact]
@@ -195,6 +211,6 @@ public class InputSettingsTests
         var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, json, _ => { });
         loaded.Input.MatchPreset();
         Assert.Equal(HumanizerPreset.VerySlow, loaded.Input.Preset);
-        Assert.Equal(50, loaded.Input.SpeedPercent);
+        Assert.Equal(35, loaded.Input.SpeedPercent);
     }
 }

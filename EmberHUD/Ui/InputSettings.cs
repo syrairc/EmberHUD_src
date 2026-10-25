@@ -6,22 +6,22 @@ namespace EmberHUD.Host.Ui;
 internal sealed class InputSettings
 {
     public MouseMode Mode = MouseMode.Humanized;
-    public int SpeedPercent = 100;
-    public float MaxStep = 40;
+    public int SpeedPercent = 75;
+    public float MaxStep = 30;
     public int StepDelayMin = 0;
-    public int StepDelayMax = 3;
-    public int PreClickSettleMin = 6;
-    public int PreClickSettleMax = 18;
-    public int ClickDwellMin = 12;
-    public int ClickDwellMax = 30;
-    public int PostClickSettleMin = 6;
-    public int PostClickSettleMax = 18;
+    public int StepDelayMax = 4;
+    public int PreClickSettleMin = 8;
+    public int PreClickSettleMax = 24;
+    public int ClickDwellMin = 16;
+    public int ClickDwellMax = 40;
+    public int PostClickSettleMin = 8;
+    public int PostClickSettleMax = 24;
 
     public HumanizerPreset Preset = HumanizerPreset.Normal;
 
     public void ApplySpeed(int speedPercent)
     {
-        SpeedPercent = Math.Clamp(speedPercent, 50, 150);
+        SpeedPercent = Math.Clamp(speedPercent, 25, 150);
         var row = HumanizerPresets.FromSpeed(SpeedPercent);
         MaxStep = row.MaxStep;
         StepDelayMin = row.StepDelayMin; StepDelayMax = row.StepDelayMax;

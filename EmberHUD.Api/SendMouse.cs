@@ -31,7 +31,7 @@ public static partial class Send
     public static Task<bool> MoveTo(int x, int y, MouseMode? mode = null, CancellationToken cancel = default, HumanizerConfig? config = null) =>
         Enqueue(new MouseJob(x, y, null, mode, cancel, config));
 
-    /// <summary>Queues a move, then a click with the given button. Same ordering and result rules as <see cref="MoveTo"/>; a click refused by the rate limit leaves the cursor on the target and returns false.</summary>
+    /// <summary>Queues a move, then a click with the given button. Same ordering as <see cref="MoveTo"/>; returns true once the button went down and false only when nothing was pressed, a click refused by the rate limit leaves the cursor on the target and returns false.</summary>
     public static Task<bool> ClickAt(int x, int y, MouseButton button = MouseButton.Left, MouseMode? mode = null, CancellationToken cancel = default, HumanizerConfig? config = null) =>
         Enqueue(new MouseJob(x, y, button, mode, cancel, config));
 

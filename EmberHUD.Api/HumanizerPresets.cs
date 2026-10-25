@@ -9,7 +9,7 @@ public static class HumanizerPresets
 
     public static HumanizerConfig FromSpeed(int speedPercent)
     {
-        var speed = Math.Clamp(speedPercent, 50, 150);
+        var speed = Math.Clamp(speedPercent, 25, 150);
         int Delay(int atFullSpeed) => (int)Math.Round(atFullSpeed * 150.0 / speed);
         return new HumanizerConfig
         {
@@ -25,11 +25,11 @@ public static class HumanizerPresets
 
     public static int SpeedOf(HumanizerPreset preset) => preset switch
     {
-        HumanizerPreset.VerySlow => 50,
-        HumanizerPreset.Slow => 75,
-        HumanizerPreset.Normal => 100,
-        HumanizerPreset.Fast => 125,
-        HumanizerPreset.VeryFast => 150,
+        HumanizerPreset.VerySlow => 35,
+        HumanizerPreset.Slow => 50,
+        HumanizerPreset.Normal => 75,
+        HumanizerPreset.Fast => 100,
+        HumanizerPreset.VeryFast => 125,
         _ => throw new ArgumentOutOfRangeException(nameof(preset), preset, null),
     };
 }

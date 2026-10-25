@@ -223,7 +223,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
             changed = true;
         }
         var speed = input.SpeedPercent;
-        if (Setting.Slider("Speed %", ref speed, 50, 150, "Scales the move step and every pause. Overwrites the advanced values below.", "inputSpeed"))
+        if (Setting.Slider("Speed %", ref speed, 25, 150, "Scales the move step and every pause. Overwrites the advanced values below.", "inputSpeed"))
         {
             input.ApplySpeed(speed);
             input.MarkEdited();
