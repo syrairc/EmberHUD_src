@@ -9,15 +9,15 @@ public static class HumanizerPresets
 
     public static HumanizerConfig FromSpeed(int speedPercent)
     {
-        var speed = Math.Clamp(speedPercent, 25, 150);
-        int Delay(int atFullSpeed) => (int)Math.Round(atFullSpeed * 150.0 / speed);
-        return new HumanizerConfig
+        var speed = Math.Clamp(speedPercent, 25, 300);
+        int Delay(int atNormal) => (int)Math.Round(atNormal * 100.0 / speed);
+        var normal = new HumanizerConfig();
+        return normal with
         {
-            MaxStep = (float)Math.Round(60.0 * speed / 150, 1),
-            StepDelayMin = Delay(0), StepDelayMax = Delay(2),
-            PreClickSettleMin = Delay(4), PreClickSettleMax = Delay(12),
-            ClickDwellMin = Delay(8), ClickDwellMax = Delay(20),
-            PostClickSettleMin = Delay(4), PostClickSettleMax = Delay(12),
+            StepDelayMin = Delay(normal.StepDelayMin), StepDelayMax = Delay(normal.StepDelayMax),
+            PreClickSettleMin = Delay(normal.PreClickSettleMin), PreClickSettleMax = Delay(normal.PreClickSettleMax),
+            ClickDwellMin = Delay(normal.ClickDwellMin), ClickDwellMax = Delay(normal.ClickDwellMax),
+            PostClickSettleMin = Delay(normal.PostClickSettleMin), PostClickSettleMax = Delay(normal.PostClickSettleMax),
         };
     }
 
@@ -25,11 +25,11 @@ public static class HumanizerPresets
 
     public static int SpeedOf(HumanizerPreset preset) => preset switch
     {
-        HumanizerPreset.VerySlow => 35,
-        HumanizerPreset.Slow => 50,
-        HumanizerPreset.Normal => 75,
-        HumanizerPreset.Fast => 100,
-        HumanizerPreset.VeryFast => 125,
+        HumanizerPreset.VerySlow => 50,
+        HumanizerPreset.Slow => 70,
+        HumanizerPreset.Normal => 100,
+        HumanizerPreset.Fast => 150,
+        HumanizerPreset.VeryFast => 225,
         _ => throw new ArgumentOutOfRangeException(nameof(preset), preset, null),
     };
 }

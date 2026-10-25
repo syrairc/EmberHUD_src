@@ -66,6 +66,40 @@ public sealed class PathMetricsTests
     }
 
     [Fact]
+    public void StationarySamplesBeforeAndAfterDoNotExtendTheDuration()
+    {
+        var path = new List<PathSample>();
+        for (var i = 0; i < 150; i++) path.Add(new PathSample(i, 0, 0));
+        foreach (var s in Line(0, 1000, 100, 10)) path.Add(s with { TimeMs = s.TimeMs + 150 });
+        for (var i = 1; i <= 150; i++) path.Add(new PathSample(1150 + i, 1000, 0));
+        var scores = PathMetrics.Measure(path, Target);
+        Assert.Equal(1000, scores.DurationMs, 6);
+        Assert.Equal(1000, scores.MeanSpeed, 6);
+    }
+
+    [Fact]
+    public void PeakSpeedOfAOneMsLineIsItsSpeed()
+    {
+        Assert.Equal(1000, PathMetrics.Measure(Line(0, 1000, 1000, 1), Target).PeakSpeed, 3);
+    }
+
+    [Fact]
+    public void OneSampleJitterSpikeDoesNotDominatePeakSpeed()
+    {
+        var path = Line(0, 1000, 1000, 1);
+        path[500] = path[500] with { X = path[500].X + 3 };
+        var peak = PathMetrics.Measure(path, Target).PeakSpeed;
+        Assert.InRange(peak, 1000, 1300);
+    }
+
+    [Fact]
+    public void NothingMovingScoresZeroDurationAndSpeed()
+    {
+        var s = PathMetrics.Measure([new PathSample(0, 5, 5), new PathSample(50, 5, 5), new PathSample(100, 5.2, 5)], Target);
+        Assert.Equal((0, 0, 0), (s.DurationMs, s.MeanSpeed, s.PeakSpeed));
+    }
+
+    [Fact]
     public void EmptyOneSampleAndZeroLengthMovesDoNotThrowOrNaN()
     {
         var cases = new[]

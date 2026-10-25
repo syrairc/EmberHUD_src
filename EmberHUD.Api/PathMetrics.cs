@@ -9,6 +9,7 @@ public readonly record struct PathScores(double DurationMs, double Distance, dou
 public static class PathMetrics
 {
     const double StallPixels = 0.5;
+    const double PeakWindowMs = 30;
 
     public static PathScores Measure(IReadOnlyList<PathSample> samples, MetricsRect target)
     {
@@ -18,7 +19,6 @@ public static class PathMetrics
         var first = samples[0];
         var last = samples[^1];
 
-        var duration = last.TimeMs - first.TimeMs;
         var distance = Math.Sqrt(Sq(last.X - first.X) + Sq(last.Y - first.Y));
         var inside = last.X >= target.MinX && last.X <= target.MaxX && last.Y >= target.MinY && last.Y <= target.MaxY;
         var finalError = inside ? 0 : Math.Sqrt(Sq(last.X - cx) + Sq(last.Y - cy));
@@ -38,8 +38,8 @@ public static class PathMetrics
             }
         }
 
-        double pathLength = 0, peakSpeed = 0;
-        var speeds = new List<(double Speed, double Dt)>();
+        double pathLength = 0;
+        var steps = new List<double>();
         var headings = new List<double>();
         var moving = new List<bool>();
         var stepMs = new List<double>();
@@ -47,21 +47,30 @@ public static class PathMetrics
         {
             var dx = samples[i].X - samples[i - 1].X;
             var dy = samples[i].Y - samples[i - 1].Y;
-            var dt = samples[i].TimeMs - samples[i - 1].TimeMs;
             var step = Math.Sqrt(dx * dx + dy * dy);
             pathLength += step;
+            steps.Add(step);
             moving.Add(step >= StallPixels);
-            stepMs.Add(dt);
+            stepMs.Add(samples[i].TimeMs - samples[i - 1].TimeMs);
             if (step >= StallPixels) headings.Add(Math.Atan2(dy, dx));
-            if (dt > 0)
-            {
-                var speed = step / dt * 1000;
-                peakSpeed = Math.Max(peakSpeed, speed);
-                speeds.Add((speed, dt));
-            }
         }
 
-        var meanSpeed = duration > 0 ? pathLength / duration * 1000 : 0;
+        var firstMove = moving.IndexOf(true);
+        var lastMove = moving.LastIndexOf(true);
+        double duration = 0, moveLength = 0, peakSpeed = 0;
+        var speeds = new List<(double Speed, double Dt)>();
+        if (firstMove >= 0)
+        {
+            duration = samples[lastMove + 1].TimeMs - samples[firstMove].TimeMs;
+            for (var i = firstMove; i <= lastMove; i++)
+            {
+                moveLength += steps[i];
+                if (stepMs[i] > 0) speeds.Add((steps[i] / stepMs[i] * 1000, stepMs[i]));
+            }
+            peakSpeed = PeakSpeed(samples, steps, firstMove, lastMove, duration, moveLength);
+        }
+
+        var meanSpeed = duration > 0 ? moveLength / duration * 1000 : 0;
         return new PathScores(duration, distance, pathLength, meanSpeed, peakSpeed, finalError, overshoot, maxBacktrack, HeadingJitter(headings), SpeedRoughness(speeds, meanSpeed), LongestStall(moving, stepMs));
     }
 
@@ -75,6 +84,25 @@ public static class PathMetrics
             time += w.DelayMs;
         }
         return samples;
+    }
+
+    static double PeakSpeed(IReadOnlyList<PathSample> samples, List<double> steps, int firstMove, int lastMove, double duration, double moveLength)
+    {
+        if (duration <= 0) return 0;
+        if (duration < PeakWindowMs) return moveLength / duration * 1000;
+        var cumulative = new double[lastMove - firstMove + 2];
+        for (var i = firstMove; i <= lastMove; i++) cumulative[i - firstMove + 1] = cumulative[i - firstMove] + steps[i];
+        double peak = 0;
+        var start = 0;
+        for (var end = 1; end < cumulative.Length; end++)
+        {
+            var endTime = samples[firstMove + end].TimeMs;
+            if (endTime - samples[firstMove].TimeMs < PeakWindowMs) continue;
+            while (start + 1 < end && endTime - samples[firstMove + start + 1].TimeMs >= PeakWindowMs) start++;
+            var window = endTime - samples[firstMove + start].TimeMs;
+            if (window > 0) peak = Math.Max(peak, (cumulative[end] - cumulative[start]) / window * 1000);
+        }
+        return peak;
     }
 
     static double HeadingJitter(List<double> headings)

@@ -45,7 +45,7 @@ public sealed class MousePathTests
     internal static IEnumerable<HumanizerConfig> SweepConfigs()
     {
         yield return new HumanizerConfig();
-        foreach (var speed in new[] { 25, 35, 50, 75, 100, 125, 150 })
+        foreach (var speed in new[] { 25, 50, 70, 100, 150, 225, 300 })
             yield return HumanizerPresets.FromSpeed(speed);
     }
 
