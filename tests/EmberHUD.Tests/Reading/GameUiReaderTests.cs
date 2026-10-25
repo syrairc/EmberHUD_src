@@ -82,6 +82,24 @@ public sealed class GameUiReaderTests
     }
 
     [Fact]
+    public void ChildTokenGivesTheNamedWidgetInsideEachItem()
+    {
+        var (world, ui, root) = OpenRelicPop("S16BoardMain_C");
+        var box = ui.Widget(ui.PanelClass("HorizontalBox"), "List_S16Board_Bottom_Actions", Vector2.Zero, new Vector2(900, 300));
+        var card = ui.Widget(ui.UserClass("Image"), "S16BoardActionCell", new Vector2(10, 20), new Vector2(100, 200));
+        var art = ui.Widget(ui.UserClass("Image"), "Img_S16Board_ActionCell_Bg", new Vector2(14, 25), new Vector2(92, 180));
+        ui.SetTree(card, art);
+        ui.SetChildren(box, card);
+        ui.SetChildren(root, box);
+
+        var parts = Assert.Single(world.UiReader().Read().Panels).Parts;
+
+        Assert.Equal(["List_S16Board_Bottom_Actions[0]", "List_S16Board_Bottom_Actions[0]/Img_S16Board_ActionCell_Bg"], parts.Select(p => p.Name));
+        Assert.Equal(new Vector2(14, 25), parts[1].Min);
+        Assert.Equal(new Vector2(106, 205), parts[1].Max);
+    }
+
+    [Fact]
     public void ChildrenTokenOfACollapsedBoxGivesNoParts()
     {
         var (world, ui, root) = OpenRelicPop("S16BoardMain_C");

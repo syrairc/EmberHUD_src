@@ -28,6 +28,7 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
     private readonly Func<long> _clock = clockMilliseconds ?? (() => Environment.TickCount64);
     private readonly Dictionary<nint, (nint Child, long RetryAt)> _rectChildren = [];
     private readonly Dictionary<(nint Page, string Child), (nint Widget, long RetryAt)> _partWidgets = [];
+    private readonly Dictionary<(nint Item, string Child), nint> _itemChildren = [];
     private readonly Dictionary<string, nint> _hudChildren = [];
     private readonly Dictionary<nint, Root> _roots = [];
     private readonly HashSet<nint> _rootsSeen = [];
@@ -329,8 +330,10 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
         List<NamedRect> parts = [];
         foreach (var name in wanted)
         {
-            var each = name.EndsWith("[]");
-            var childName = each ? name[..^2] : name;
+            var nested = name.IndexOf("[]/", StringComparison.Ordinal);
+            var inner = nested >= 0 ? name[(nested + 3)..] : null;
+            var each = inner is not null || name.EndsWith("[]");
+            var childName = inner is not null ? name[..nested] : each ? name[..^2] : name;
             var key = (page, childName);
             if (!_partWidgets.TryGetValue(key, out var cached) || cached.Widget != 0 && !NameMatches(cached.Widget, childName[(childName.LastIndexOf('/') + 1)..]) || cached.Widget == 0 && now >= cached.RetryAt)
                 _partWidgets[key] = cached = (FindPart(page, childName), now + Offsets.RectChildRetryMilliseconds);
@@ -345,10 +348,21 @@ internal sealed partial class GameUiReader(IReadBackend memory, nint moduleBase,
             if (!Visible(cached.Widget)) continue;
             var index = 0;
             foreach (var item in PanelContents(cached.Widget, Offsets.MaxWidgetNodes))
-                if (Visible(item) && Geometry(item, origin) is { } itemRect)
-                    parts.Add(new NamedRect($"{childName}[{index++}]", itemRect.Min, itemRect.Max));
+            {
+                if (!Visible(item) || Geometry(item, origin) is not { } itemRect) continue;
+                if (inner is null) parts.Add(new NamedRect($"{childName}[{index}]", itemRect.Min, itemRect.Max));
+                else if (ItemChild(item, inner) is var child and not 0 && Visible(child) && Geometry(child, origin) is { } childRect) parts.Add(new NamedRect($"{childName}[{index}]/{inner}", childRect.Min, childRect.Max));
+                index++;
+            }
         }
         return parts.Count == 0 ? [] : [.. parts];
+    }
+
+    private nint ItemChild(nint item, string name)
+    {
+        if (_itemChildren.TryGetValue((item, name), out var found) && found != 0 && NameMatches(found, name)) return found;
+        if (_itemChildren.Count > Offsets.MaxWidgetNodes) _itemChildren.Clear();
+        return _itemChildren[(item, name)] = FindWidget(item, Named(name));
     }
 
     internal Vector2? TryOrigin() => TryOverlay(out _, out var origin) ? origin : null;
