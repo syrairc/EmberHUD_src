@@ -70,15 +70,15 @@ internal sealed partial class GameUiReader
         return new MapRewardWidgets(page, boss, names, roots);
     }
 
-    private IEnumerable<nint> MapRewardWidgetsIn(nint root, bool boss)
+    private IEnumerable<(nint Item, nint Frame)> MapRewardWidgetsIn(nint root, bool boss)
     {
         if (!boss)
         {
-            foreach (var widget in PanelContents(root, Offsets.MaxMapRewardItems)) yield return widget;
+            foreach (var widget in PanelContents(root, Offsets.MaxMapRewardItems)) yield return (widget, widget);
             yield break;
         }
         foreach (var cell in PanelContents(root, Offsets.MaxMapRewardItems))
-            foreach (var item in PanelContents(cell, 1)) yield return item;
+            foreach (var item in PanelContents(cell, 1)) yield return (item, cell);
     }
 
     private MapRewardView? ReadMapRewardItems(MapRewardWidgets widgets, Vector2 origin)
@@ -87,17 +87,17 @@ internal sealed partial class GameUiReader
         foreach (var root in widgets.Roots)
         {
             if (Geometry(root, origin) is not { } clip) continue;
-            foreach (var widget in MapRewardWidgetsIn(root, widgets.Boss))
-                if (MapRewardItemOf(widget, origin, widgets.Boss) is { } item &&
+            foreach (var (widget, frame) in MapRewardWidgetsIn(root, widgets.Boss))
+                if (MapRewardItemOf(widget, frame, origin, widgets.Boss) is { } item &&
                     item.Max.X > clip.Min.X && item.Min.X < clip.Max.X && item.Max.Y > clip.Min.Y && item.Min.Y < clip.Max.Y)
                     found.Add(item);
         }
         return found.Count == 0 ? null : new MapRewardView([.. found], widgets.Boss);
     }
 
-    private MapRewardItem? MapRewardItemOf(nint widget, Vector2 origin, bool boss)
+    private MapRewardItem? MapRewardItemOf(nint widget, nint frame, Vector2 origin, bool boss)
     {
-        if (!Visible(widget) || Geometry(widget, origin) is not { } rect || MapRewardFileName(widget) is not { } fileName || MapRewardBaseId(fileName, boss) is not { } id || MapRewardCount(widget, boss) is not { } count)
+        if (!Visible(widget) || Geometry(frame, origin) is not { } rect || MapRewardFileName(widget) is not { } fileName || MapRewardBaseId(fileName, boss) is not { } id || MapRewardCount(widget, boss) is not { } count)
             return null;
         return new MapRewardItem(id.BaseId, count, rect.Min, rect.Max, id.SpecialId);
     }
