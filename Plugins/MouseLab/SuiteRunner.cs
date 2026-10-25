@@ -10,8 +10,11 @@ public sealed record MoveResult(string Scenario, string Label, PathScores Scores
 
 public sealed record RunResult(string Preset, IReadOnlyList<MoveResult> Moves, IReadOnlyList<string> Skipped, bool Cancelled, string? Refused);
 
-public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, CancellationToken, Task> delay, Thresholds thresholds, Action<Step>? stepStarted = null)
+public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, CancellationToken, Task> delay, Thresholds thresholds, Action<Step>? stepStarted = null, Func<ItemMenu?>? menu = null)
 {
+    const int MenuPollMs = 50;
+    const int MenuTimeoutMs = 1000;
+
     const int SettleMs = 150;
     const int StepPauseMs = 250;
     const int ScenarioPauseMs = 500;
@@ -25,6 +28,18 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
         {
             Send.ReleaseAll();
             return Result(cancelled: true);
+        }
+
+        RunResult Refused(string reason)
+        {
+            Send.ReleaseAll();
+            return Result(refused: reason);
+        }
+
+        ScreenRect? OptionRect(MenuOption option)
+        {
+            var current = (menu ?? (() => Game.State.ItemMenu))();
+            return option == MenuOption.More ? current?.More : current?.Lock;
         }
 
         if (!Send.Allowed) return Result(refused: "Send is not allowed: game not focused or chat open");
@@ -41,16 +56,38 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                 {
                     if (i > 0) await delay(StepPauseMs, cancel);
                     var step = scenario.Steps[i];
-                    var centreX = (int)((step.Target.Min.X + step.Target.Max.X) / 2);
-                    var centreY = (int)((step.Target.Min.Y + step.Target.Max.Y) / 2);
                     stepStarted?.Invoke(step);
+                    var target = step.Target;
+                    if (step.Kind == StepKind.Click)
+                    {
+                        if (!await Send.ClickAt(CentreX(target), CentreY(target), MouseButton.Left, MouseMode.Humanized, cancel, config) || cancel.IsCancellationRequested) return Stopped();
+                        await delay(SettleMs, cancel);
+                        continue;
+                    }
+                    if (step.Kind == StepKind.MenuClick)
+                    {
+                        ScreenRect? shown = null;
+                        for (var waited = 0; waited < MenuTimeoutMs && (shown = OptionRect(step.Option)) is null; waited += MenuPollMs) await delay(MenuPollMs, cancel);
+                        if (shown is not { } found) return Refused($"The item menu did not show within {MenuTimeoutMs} ms, stopped");
+                        target = found;
+                    }
                     sampler.Start();
-                    var moved = await Send.MoveTo(centreX, centreY, MouseMode.Humanized, cancel, config);
+                    var moved = await Send.MoveTo(CentreX(target), CentreY(target), MouseMode.Humanized, cancel, config);
                     if (moved) await delay(SettleMs, cancel);
                     var trail = sampler.Stop();
                     if (!moved || cancel.IsCancellationRequested) return Stopped();
+                    if (step.Kind == StepKind.MenuClick)
+                    {
+                        var clicks = step.Option == MenuOption.Lock ? 2 : 1;
+                        for (var click = 0; click < clicks; click++)
+                        {
+                            if (click > 0) await delay(StepPauseMs, cancel);
+                            if (OptionRect(step.Option) is not { } fresh) return Refused("The item menu went away mid click, stopped");
+                            if (!await Send.ClickAt(CentreX(fresh), CentreY(fresh), MouseButton.Left, MouseMode.Humanized, cancel, config) || cancel.IsCancellationRequested) return Stopped();
+                        }
+                    }
                     if (!step.Scored) continue;
-                    if (Send.ClientToScreen((int)step.Target.Min.X, (int)step.Target.Min.Y) is not var (minX, minY) || Send.ClientToScreen((int)step.Target.Max.X, (int)step.Target.Max.Y) is not var (maxX, maxY)) return Stopped();
+                    if (Send.ClientToScreen((int)target.Min.X, (int)target.Min.Y) is not var (minX, minY) || Send.ClientToScreen((int)target.Max.X, (int)target.Max.Y) is not var (maxX, maxY)) return Stopped();
                     var scores = PathMetrics.Measure(trail, new MetricsRect(minX, minY, maxX, maxY));
                     moves.Add(new MoveResult(scenario.Name, step.Label, scores, Scoring.Judge(scores, thresholds), trail));
                 }
@@ -62,4 +99,8 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
         }
         return Result();
     }
+
+    static int CentreX(ScreenRect rect) => (int)((rect.Min.X + rect.Max.X) / 2);
+
+    static int CentreY(ScreenRect rect) => (int)((rect.Min.Y + rect.Max.Y) / 2);
 }

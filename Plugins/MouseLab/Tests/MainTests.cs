@@ -22,6 +22,7 @@ public sealed class MainTests
     static GameState StashOpen() => GameState.Empty with
     {
         ChatOpen = false,
+        ItemMenu = new ItemMenu(null, new ScreenRect(new Vector2(500, 500), new Vector2(560, 530)), new ScreenRect(new Vector2(500, 540), new Vector2(560, 570)), null, null, null, null),
         Stash = new StashView(0, Vector2.Zero, new Vector2(400, 300), Enumerable.Range(0, Columns * Rows).Select(slot => Cell(slot)).ToArray()),
         Bag = new BagView(InventoryBag.Equipment, Vector2.Zero, new Vector2(400, 300), [Cell(3, 1000), Cell(4, 1000)]),
     };

@@ -37,7 +37,11 @@ public sealed class Main : Plugin<Settings>
         RegisterHotkey("RunAll", "Runs the mouse suite once per named preset and compares them, press again to cancel", () => Toggle(true), new Hotkey(Key.F4, KeyModifiers.Shift));
     }
 
-    public override void Tick() => Game.WantInventory();
+    public override void Tick()
+    {
+        Game.WantInventory();
+        Game.WantItemMenu();
+    }
 
     public override void OnDisable() => Stop();
 
@@ -68,7 +72,7 @@ public sealed class Main : Plugin<Settings>
             _note = "No stash open - open the stash first";
             return;
         }
-        var build = Suite.Build(stash, Game.State.Bag);
+        var build = Suite.Build(stash, Game.State.Bag, menuOption: Settings.MenuOption);
         var presets = all ? Enum.GetValues<LabPreset>() : new[] { Settings.Preset };
         var thresholds = Settings.ToThresholds();
         _cancel = new CancellationTokenSource();

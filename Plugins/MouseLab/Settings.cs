@@ -8,6 +8,7 @@ public enum LabPreset { VerySlow, Slow, Normal, Fast, VeryFast }
 public sealed class Settings : PluginSettings
 {
     public LabPreset Preset = LabPreset.Normal;
+    public MenuOption MenuOption = MenuOption.Lock;
     public float MaxBacktrack = 3;
     public float Overshoot = 3;
     public float FinalError = 6;
@@ -24,6 +25,7 @@ public sealed class Settings : PluginSettings
     public override void Draw()
     {
         Setting.Choice("Preset", ref Preset, "The mouse speed preset the Run hotkey tests - Run all always goes through the five named ones");
+        Setting.Choice("Menu option", ref MenuOption, "The item menu button the Click and menu scenario presses - Lock is pressed twice so the lock ends where it started");
         Controls.Section("Pass marks");
         Setting.Slider("Max backtrack", ref MaxBacktrack, 0, 20, "Most the cursor may move backwards along the way, in pixels");
         Setting.Slider("Overshoot", ref Overshoot, 0, 20, "Most the cursor may run past the target before coming back, in pixels");
