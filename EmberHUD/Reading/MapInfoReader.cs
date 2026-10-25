@@ -97,6 +97,12 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
         return new MapContent(spec.Name, spec.Icon, total == 0 || done == 0 ? ContentState.Pending : done == total ? ContentState.Done : ContentState.Active, done, total);
     }
 
+    private static MapContent AppearRow(ContentSpec spec, MapIcon[] icons)
+    {
+        var type = int.Parse(spec.State.AsSpan("appear:".Length), CultureInfo.InvariantCulture);
+        return new MapContent(spec.Name, spec.Icon, icons.Any(i => i.Type == type) ? ContentState.Done : ContentState.Pending);
+    }
+
     private MapContent[] StatueRows()
     {
         if (memory.TryReadPtr(moduleBase + Offsets.FightMgrGlobalRva, out var fightMgr) && fightMgr != 0)
@@ -150,7 +156,7 @@ internal sealed class MapInfoReader(IReadBackend memory, nint moduleBase, LocTex
             remaining,
             XpOf(ui.HudText(Offsets.MapXpWidget, Offsets.ShrinkTextContent)),
             TownTypes.Contains(sceneType),
-            [.. found.Select(s => s.State.StartsWith("icon:", StringComparison.Ordinal) ? IconRow(s, icons) : new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
+            [.. found.Select(s => s.State.StartsWith("icon:", StringComparison.Ordinal) ? IconRow(s, icons) : s.State.StartsWith("appear:", StringComparison.Ordinal) ? AppearRow(s, icons) : new MapContent(s.Name, s.Icon, StateOf(s, gameplays))), .. TarotRows(gameplays, icons), .. statues],
             [.. ui.HudTexts(Offsets.MapAffixWidget, Offsets.TextBlockText).Where(line => !claimed.Contains(line))]);
     }
 

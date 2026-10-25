@@ -233,6 +233,38 @@ public class MapInfoReaderTests
     }
 
     [Fact]
+    public void DreamLotusIsDoneWhenItsCompletionIconAppears()
+    {
+        var world = FakeMapInfo.Demiman();
+        world.SetModifiers(5111003, 298001);
+        var reader = ReaderFor(world);
+        MapContent Row(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!.Content.Single(c => c.Name == "Dream Lotus");
+        }
+
+        Assert.Equal(ContentState.Pending, Row(new MapIcon(2262, "", default, 1, 0, 20)).State);
+        Assert.Equal(ContentState.Done, Row(new MapIcon(2262, "", default, 1, 0, 20), new MapIcon(2263, "", default, 1, 0, 9330)).State);
+    }
+
+    [Fact]
+    public void CreationEngineIsDoneWhenItsIconVanishes()
+    {
+        var world = FakeMapInfo.Demiman();
+        world.SetModifiers(5111003, 299401);
+        var reader = ReaderFor(world);
+        MapContent Row(params MapIcon[] icons)
+        {
+            _now += Offsets.MapInfoRefreshMilliseconds;
+            return reader.Read(world.Scene, 1, 0, [PortalIcon, .. icons])!.Content.Single(c => c.Name == "Creation Engine");
+        }
+
+        Assert.Equal(ContentState.Pending, Row(new MapIcon(2578, "", default, 1, 0, 200)).State);
+        Assert.Equal(ContentState.Done, Row().State);
+    }
+
+    [Fact]
     public void DyedSnowMonsterIsDoneWhenItsIconVanishes()
     {
         var world = FakeMapInfo.Demiman();
