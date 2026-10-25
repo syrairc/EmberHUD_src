@@ -95,6 +95,7 @@ public static partial class Send
     {
         lock (Gate)
         {
+            AbortQueuedMouse();
             foreach (var key in HeldKeys) Sink(new SentInput(key, null, false, 0, 0));
             foreach (var button in HeldButtons) Sink(new SentInput(Key.None, button, false, 0, 0));
             HeldKeys.Clear();
@@ -113,8 +114,10 @@ public static partial class Send
         GameForeground = null;
         ToScreen = null;
         Clock = Stopwatch.GetTimestamp;
+        ResetMouseSeams();
         lock (Gate)
         {
+            AbortQueuedMouse();
             HeldKeys.Clear();
             HeldButtons.Clear();
             _windowStart = 0;
