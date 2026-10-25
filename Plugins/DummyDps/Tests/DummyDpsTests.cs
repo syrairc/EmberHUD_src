@@ -75,6 +75,20 @@ public sealed class DummyDpsTests
     }
 
     [Test]
+    public void BossTtkAndDurationFollowTheFight()
+    {
+        var meter = new CombatMeter();
+        meter.Add(0, 0, 1, 5);
+        meter.Add(1, 1_000_000, 1, 5);
+        meter.Add(2, 3_000_000, 1, 5);
+        Check.Equal("TTK 0:02", Main.BossTtk(meter, 6_000_000));
+        Check.Equal("", Main.BossTtk(meter, 0));
+        Check.Equal("Fight 0:01", Main.BossDuration(meter));
+        Check.Equal("", Main.BossTtk(new CombatMeter(), 6_000_000));
+        Check.Equal("", Main.BossDuration(new CombatMeter()));
+    }
+
+    [Test]
     public void BossLineWaitsForAFight()
     {
         Check.Equal("", Main.BossLine(new CombatMeter(), false));
