@@ -459,6 +459,28 @@ public sealed class DrawTests
     });
 
     [Fact]
+    public void GlowPolygonRingsSitOutsideTheShape() => TestFrame.Run(() =>
+    {
+        var list = Draw.Background;
+        Vector2[] shield = [new(10, 10), new(60, 10), new(60, 70), new(35, 90), new(10, 70)];
+        var start = list.VtxBuffer.Size;
+        Draw.GlowPolygon(shield, Color.Gold, 2, 0);
+        var border = list.VtxBuffer.Size - start;
+        Assert.True(border > 0);
+
+        start = list.VtxBuffer.Size;
+        Draw.GlowPolygon(shield, Color.Gold, 2, 8);
+        Assert.Equal(border * 5, list.VtxBuffer.Size - start);
+        var furthest = 0f;
+        for (var i = start; i < list.VtxBuffer.Size; i++) furthest = MathF.Max(furthest, list.VtxBuffer[i].Pos.Y);
+        Assert.True(furthest > 90 + 8);
+
+        start = list.VtxBuffer.Size;
+        Draw.GlowPolygon(shield[..2], Color.Gold);
+        Assert.Equal(start, list.VtxBuffer.Size);
+    });
+
+    [Fact]
     public void ADotMarkerFillsItsRadiusAndGlowOnlyAddsTheHalo() => TestFrame.Run(() =>
     {
         var list = Draw.Background;

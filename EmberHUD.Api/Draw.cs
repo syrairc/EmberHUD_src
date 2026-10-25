@@ -207,6 +207,27 @@ public static class Draw
         Outline(target, min, max, corner, EColor.U32(color), thickness);
     }
 
+    // rings grow each point away from the centroid, exact for convex shapes
+    public static void GlowPolygon(ReadOnlySpan<Vector2> points, Color color, float thickness = 2, float spread = 8, ImDrawListPtr? list = null)
+    {
+        if (color.A == 0 || thickness <= 0 || points.Length < 3) return;
+        var target = list ?? Background;
+        var centre = Vector2.Zero;
+        foreach (var point in points) centre += point;
+        centre /= points.Length;
+        Span<Vector2> grown = stackalloc Vector2[points.Length];
+        var rings = (int)MathF.Ceiling(spread / 2);
+        for (var ring = rings; ring >= 1; ring--)
+        {
+            var grow = thickness / 2 + ring * 2;
+            for (var i = 0; i < points.Length; i++) grown[i] = points[i] + Vector2.Normalize(points[i] - centre) * grow;
+            var alpha = (int)(color.A * 0.5f * (1 - ring / (float)(rings + 1)));
+            target.AddPolyline(ref grown[0], grown.Length, EColor.U32(Color.FromArgb(alpha, color)), ImDrawFlags.Closed, 2);
+        }
+        points.CopyTo(grown);
+        target.AddPolyline(ref grown[0], grown.Length, EColor.U32(color), ImDrawFlags.Closed, thickness);
+    }
+
     static void Outline(ImDrawListPtr target, Vector2 min, Vector2 max, float corner, uint color, float thickness)
     {
         if (corner <= 0)
