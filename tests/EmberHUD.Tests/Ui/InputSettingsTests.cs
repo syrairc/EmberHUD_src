@@ -94,4 +94,107 @@ public class InputSettingsTests
         Assert.True(config.PreClickSettleMin >= 0);
         Assert.True(config.ClickDwellMin <= config.ClickDwellMax);
     }
+
+    [Theory]
+    [InlineData(HumanizerPreset.VerySlow)]
+    [InlineData(HumanizerPreset.Slow)]
+    [InlineData(HumanizerPreset.Normal)]
+    [InlineData(HumanizerPreset.Fast)]
+    [InlineData(HumanizerPreset.VeryFast)]
+    public void ApplyPresetCopiesTheRowAndSetsSpeed(HumanizerPreset preset)
+    {
+        var input = new InputSettings { ClickDwellMin = 77 };
+        input.ApplyPreset(preset);
+        Assert.Equal(preset, input.Preset);
+        Assert.Equal(HumanizerPresets.SpeedOf(preset), input.SpeedPercent);
+        Assert.Equal(HumanizerPresets.Get(preset).Clamped(), input.ToConfig());
+    }
+
+    [Fact]
+    public void ApplyPresetCustomOnlySetsTheName()
+    {
+        var input = new InputSettings { ClickDwellMin = 33, SpeedPercent = 70 };
+        input.ApplyPreset(HumanizerPreset.Custom);
+        Assert.Equal(HumanizerPreset.Custom, input.Preset);
+        Assert.Equal(33, input.ClickDwellMin);
+        Assert.Equal(70, input.SpeedPercent);
+    }
+
+    [Fact]
+    public void EditingARawRangeOrSpeedMarksCustom()
+    {
+        var input = new InputSettings();
+        Assert.Equal(HumanizerPreset.Normal, input.Preset);
+        input.MarkEdited();
+        Assert.Equal(HumanizerPreset.Custom, input.Preset);
+        input.ApplyPreset(HumanizerPreset.Fast);
+        input.ApplySpeed(90);
+        input.MarkEdited();
+        Assert.Equal(HumanizerPreset.Custom, input.Preset);
+    }
+
+    [Fact]
+    public void MatchPresetKeepsAnExactMatch()
+    {
+        var input = new InputSettings();
+        input.ApplyPreset(HumanizerPreset.Slow);
+        input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Slow, input.Preset);
+    }
+
+    [Fact]
+    public void MatchPresetRecognisesAnUnnamedMatchingRow()
+    {
+        var input = new InputSettings();
+        input.ApplyPreset(HumanizerPreset.Fast);
+        input.Preset = HumanizerPreset.Custom;
+        input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Fast, input.Preset);
+    }
+
+    [Fact]
+    public void MatchPresetRecognisesDefaultsAsNormal()
+    {
+        var fresh = new InputSettings();
+        fresh.MatchPreset();
+        Assert.Equal(HumanizerPreset.Normal, fresh.Preset);
+        var old = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, "{\"Input\":{\"Mode\":\"Direct\"}}", _ => { });
+        old.Input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Normal, old.Input.Preset);
+    }
+
+    [Fact]
+    public void MatchPresetFallsBackToCustomAndKeepsTheUsersValues()
+    {
+        var input = new InputSettings { ClickDwellMin = 33, Preset = HumanizerPreset.Slow };
+        input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Custom, input.Preset);
+        Assert.Equal(33, input.ClickDwellMin);
+        Assert.Equal(100, input.SpeedPercent);
+    }
+
+    [Fact]
+    public void UnknownPresetNameInJsonLoadsAsCustomOrMatch()
+    {
+        var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, "{\"Input\":{\"Preset\":\"Bogus\"}}", _ => { });
+        loaded.Input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Normal, loaded.Input.Preset);
+        var edited = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, "{\"Input\":{\"Preset\":\"Bogus\",\"ClickDwellMin\":33}}", _ => { });
+        edited.Input.MatchPreset();
+        Assert.Equal(HumanizerPreset.Custom, edited.Input.Preset);
+        Assert.Equal(33, edited.Input.ClickDwellMin);
+    }
+
+    [Fact]
+    public void PresetRoundTripsThroughSettingsJson()
+    {
+        var sdk = new SdkSettings();
+        sdk.Input.ApplyPreset(HumanizerPreset.VerySlow);
+        var json = SettingsJson.Serialize(sdk);
+        Assert.Contains("\"VerySlow\"", json);
+        var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, json, _ => { });
+        loaded.Input.MatchPreset();
+        Assert.Equal(HumanizerPreset.VerySlow, loaded.Input.Preset);
+        Assert.Equal(50, loaded.Input.SpeedPercent);
+    }
 }

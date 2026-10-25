@@ -214,19 +214,30 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         ImGui.SameLine();
         changed |= Combo.Enum(ref input.Mode, "inputMode");
         Wrapped("Humanized moves the cursor along a smooth path with short pauses around clicks. Direct jumps instantly. Plugins can override per call.");
+        ImGui.TextUnformatted("Preset");
+        ImGui.SameLine();
+        var preset = input.Preset;
+        if (Combo.Enum(ref preset, "inputPreset"))
+        {
+            input.ApplyPreset(preset);
+            changed = true;
+        }
         var speed = input.SpeedPercent;
         if (Setting.Slider("Speed %", ref speed, 50, 150, "Scales the move step and every pause. Overwrites the advanced values below.", "inputSpeed"))
         {
             input.ApplySpeed(speed);
+            input.MarkEdited();
             changed = true;
         }
         if (ImGui.CollapsingHeader("Advanced"))
         {
-            changed |= Setting.Slider("Max step (px)", ref input.MaxStep, 1, 200, id: "inputMaxStep");
-            changed |= Range("Step delay (ms)", ref input.StepDelayMin, ref input.StepDelayMax, "inputStep");
-            changed |= Range("Before click (ms)", ref input.PreClickSettleMin, ref input.PreClickSettleMax, "inputPre");
-            changed |= Range("Click hold (ms)", ref input.ClickDwellMin, ref input.ClickDwellMax, "inputDwell");
-            changed |= Range("After click (ms)", ref input.PostClickSettleMin, ref input.PostClickSettleMax, "inputPost");
+            var edited = Setting.Slider("Max step (px)", ref input.MaxStep, 1, 200, id: "inputMaxStep");
+            edited |= Range("Step delay (ms)", ref input.StepDelayMin, ref input.StepDelayMax, "inputStep");
+            edited |= Range("Before click (ms)", ref input.PreClickSettleMin, ref input.PreClickSettleMax, "inputPre");
+            edited |= Range("Click hold (ms)", ref input.ClickDwellMin, ref input.ClickDwellMax, "inputDwell");
+            edited |= Range("After click (ms)", ref input.PostClickSettleMin, ref input.PostClickSettleMax, "inputPost");
+            if (edited) input.MarkEdited();
+            changed |= edited;
         }
         if (ImGui.Button("Reset"))
         {

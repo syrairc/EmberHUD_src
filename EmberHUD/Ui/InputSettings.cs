@@ -17,21 +17,39 @@ internal sealed class InputSettings
     public int PostClickSettleMin = 6;
     public int PostClickSettleMax = 18;
 
+    public HumanizerPreset Preset = HumanizerPreset.Normal;
+
     public void ApplySpeed(int speedPercent)
     {
         SpeedPercent = Math.Clamp(speedPercent, 50, 150);
-        int Delay(int atFullSpeed) => (int)Math.Round(atFullSpeed * 150.0 / SpeedPercent);
-        MaxStep = (float)Math.Round(60.0 * SpeedPercent / 150, 1);
-        StepDelayMin = Delay(0); StepDelayMax = Delay(2);
-        PreClickSettleMin = Delay(4); PreClickSettleMax = Delay(12);
-        ClickDwellMin = Delay(8); ClickDwellMax = Delay(20);
-        PostClickSettleMin = Delay(4); PostClickSettleMax = Delay(12);
+        var row = HumanizerPresets.FromSpeed(SpeedPercent);
+        MaxStep = row.MaxStep;
+        StepDelayMin = row.StepDelayMin; StepDelayMax = row.StepDelayMax;
+        PreClickSettleMin = row.PreClickSettleMin; PreClickSettleMax = row.PreClickSettleMax;
+        ClickDwellMin = row.ClickDwellMin; ClickDwellMax = row.ClickDwellMax;
+        PostClickSettleMin = row.PostClickSettleMin; PostClickSettleMax = row.PostClickSettleMax;
+    }
+
+    public void ApplyPreset(HumanizerPreset preset)
+    {
+        if (preset != HumanizerPreset.Custom) ApplySpeed(HumanizerPresets.SpeedOf(preset));
+        Preset = preset;
+    }
+
+    public void MarkEdited() => Preset = HumanizerPreset.Custom;
+
+    public void MatchPreset()
+    {
+        var current = ToConfig();
+        bool Matches(HumanizerPreset preset) => preset != HumanizerPreset.Custom && HumanizerPresets.Get(preset).Clamped() == current;
+        if (Matches(Preset)) return;
+        Preset = HumanizerPresets.Named.Cast<HumanizerPreset?>().FirstOrDefault(preset => Matches(preset!.Value)) ?? HumanizerPreset.Custom;
     }
 
     public void Reset()
     {
         Mode = MouseMode.Humanized;
-        ApplySpeed(100);
+        ApplyPreset(HumanizerPreset.Normal);
     }
 
     public HumanizerConfig ToConfig() => new HumanizerConfig()

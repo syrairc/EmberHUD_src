@@ -89,6 +89,7 @@ Send.ToScreen = (x, y) =>
     var point = new Win32.Point { X = x, Y = y };
     return overlay.TargetHandle != 0 && Win32.ClientToScreen(overlay.TargetHandle, ref point) ? (point.X, point.Y) : null;
 };
+sdk.Input.MatchPreset();
 Send.Mode = sdk.Input.Mode;
 Send.Config = sdk.Input.ToConfig();
 if (fake) Send.Sink = _ => { };
