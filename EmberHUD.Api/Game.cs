@@ -19,6 +19,7 @@ public static class Game
     static long _voraxAsked;
     static long _frozenCanvasAsked;
     static long _xpAsked;
+    static long _itemMenuAsked;
     static long _groundItemsAsked;
 
     public static GameState State { get; internal set; } = GameState.Empty;
@@ -213,6 +214,20 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    public static void WantItemMenu() => Interlocked.Exchange(ref _itemMenuAsked, Stopwatch.GetTimestamp());
+
+    internal static long ItemMenuAsked
+    {
+        get => Interlocked.Read(ref _itemMenuAsked);
+        set => Interlocked.Exchange(ref _itemMenuAsked, value);
+    }
+
+    internal static bool ItemMenuWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _itemMenuAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
     public static void WantGroundItems() => Interlocked.Exchange(ref _groundItemsAsked, Stopwatch.GetTimestamp());
 
     internal static long GroundItemsAsked
@@ -302,6 +317,8 @@ public sealed record GameState
     public XpState? Xp { get; init; }
 
     public ScreenRect? XpBar { get; init; }
+
+    public ItemMenu? ItemMenu { get; init; }
 
     public DeathState? Death { get; init; }
 
@@ -433,6 +450,8 @@ public readonly record struct ScreenRect(Vector2 Min, Vector2 Max)
 
     public float Height => Max.Y - Min.Y;
 }
+
+public sealed record ItemMenu(ScreenRect? TakeOut, ScreenRect? Lock, ScreenRect? More, ScreenRect? DropSource, ScreenRect? Details, ScreenRect? Share, ScreenRect? PriceCheck);
 
 public readonly record struct MapIcon(int Type, string Texture, Vector2 Position, float Size, float Rotation, int EntityId)
 {

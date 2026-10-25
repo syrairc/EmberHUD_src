@@ -11,7 +11,6 @@ internal sealed partial class GameUiReader
 
     private static readonly string[] CompareRowNames = [Offsets.CompareRow1, Offsets.CompareRow2];
 
-    private readonly Dictionary<nint, bool> _isCompareClass = [];
     private CompareWidgets[] _compareTips = [];
     private EquipCompare? _compareShown;
     private bool _compareTipPanel;
@@ -125,17 +124,7 @@ internal sealed partial class GameUiReader
         return true;
     }
 
-    private bool IsCompareTip(nint obj) =>
-        memory.TryReadPtr(obj + Offsets.UObjectClass, out var cls) && IsCompareClass(cls) &&
-        memory.TryRead(obj + Offsets.UObjectName, out uint nameIndex) && names.TryRead(nameIndex, out var name) &&
-        !name.StartsWith(Offsets.DefaultObjectPrefix, StringComparison.Ordinal);
-
-    private bool IsCompareClass(nint cls)
-    {
-        if (_isCompareClass.TryGetValue(cls, out var known)) return known;
-        if (!memory.TryRead(cls + Offsets.UObjectName, out uint nameIndex) || !names.TryRead(nameIndex, out var name)) return false;
-        return _isCompareClass[cls] = name == Offsets.CompareTipClassName;
-    }
+    private bool IsCompareTip(nint obj) => IsLiveInstanceOf(obj, Offsets.CompareTipClassName);
 
     private CompareWidgets? CompareWidgetsOf(nint root)
     {
@@ -154,28 +143,6 @@ internal sealed partial class GameUiReader
         return new CompareWidgets(root, items, [.. rows]);
     }
 
-    private CompareWidgets[] ScanCompareTips()
-    {
-        var table = moduleBase + Offsets.GObjectsGlobalRva;
-        if (!memory.TryReadPtr(table, out var chunks) ||
-            !memory.TryRead(table + Offsets.GObjectsNumElements, out int count) ||
-            count <= 0 || count > Offsets.MaxGObjectChunks * Offsets.GObjectsPerChunk)
-            return [];
-
-        List<CompareWidgets> tips = [];
-        for (var chunk = (count - 1) / Offsets.GObjectsPerChunk; chunk >= 0; chunk--)
-        {
-            var inChunk = Math.Min(Offsets.GObjectsPerChunk, count - chunk * Offsets.GObjectsPerChunk);
-            if (!memory.TryReadPtr(chunks + chunk * nint.Size, out var items) ||
-                !memory.TryReadArray(items, inChunk * Offsets.GObjectsItemSize, out byte[] bytes))
-                continue;
-
-            for (var i = inChunk - 1; i >= 0; i--)
-            {
-                var obj = (nint)BitConverter.ToInt64(bytes, i * Offsets.GObjectsItemSize + Offsets.GObjectsItemObject);
-                if (obj != 0 && IsCompareTip(obj) && CompareWidgetsOf(obj) is { } widgets) tips.Add(widgets);
-            }
-        }
-        return [.. tips];
-    }
+    private CompareWidgets[] ScanCompareTips() =>
+        [.. ScanObjects(obj => IsCompareTip(obj) ? CompareWidgetsOf(obj) : null)];
 }

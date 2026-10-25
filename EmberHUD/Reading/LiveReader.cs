@@ -168,6 +168,7 @@ internal sealed class LiveReader
             FrozenCanvas = Game.FrozenCanvasWanted(Stopwatch.GetTimestamp(), Offsets.FrozenWantedSeconds) ? _frozenCanvas?.Read() : null,
             Xp = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _xp?.Read() : null,
             XpBar = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _ui.ReadXpBar() : null,
+            ItemMenu = Game.ItemMenuWanted(Stopwatch.GetTimestamp(), Offsets.ItemMenuWantedSeconds) ? _ui.ReadItemMenu() : null,
             Death = Game.XpWanted(Stopwatch.GetTimestamp(), Offsets.XpWantedSeconds) ? _death.Read(ui) : null,
             GroundItems = Game.GroundItemsWanted(Stopwatch.GetTimestamp(), Offsets.GroundItemsWantedSeconds) ? _groundItems?.Read() : null,
             Buffs = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _character?.ReadBuffs() : null,

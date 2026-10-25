@@ -114,6 +114,20 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameSourceServesTheItemMenuOnlyWhenAsked()
+    {
+        Game.ItemMenuAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).ItemMenu);
+        try
+        {
+            Game.WantItemMenu();
+            var menu = At(Stopwatch.GetTimestamp()).ItemMenu!;
+            Assert.All(new[] { menu.TakeOut, menu.Lock, menu.More, menu.DropSource, menu.Details, menu.Share, menu.PriceCheck }, rect => Assert.NotNull(rect));
+        }
+        finally { Game.ItemMenuAsked = 0; }
+    }
+
+    [Fact]
     public void FakeGameSourceServesTartarusOnlyWhenAsked()
     {
         Game.TartarusAsked = 0;

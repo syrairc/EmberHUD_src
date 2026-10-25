@@ -63,6 +63,13 @@ public static class TestGame
         return Game.XpAsked != 0;
     }
 
+    public static bool ItemMenuAskedDuring(Action run)
+    {
+        Game.ItemMenuAsked = 0;
+        run();
+        return Game.ItemMenuAsked != 0;
+    }
+
     public static bool GroundItemsAskedDuring(Action run)
     {
         Game.GroundItemsAsked = 0;

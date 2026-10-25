@@ -178,6 +178,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             Xp = Game.XpWanted(now, Offsets.XpWantedSeconds) ? FakeXp : null,
             XpBar = Game.XpWanted(now, Offsets.XpWantedSeconds) ? FakeXpBar : null,
             Death = Game.XpWanted(now, Offsets.XpWantedSeconds) ? DeathAt(now) : null,
+            ItemMenu = Game.ItemMenuWanted(now, Offsets.ItemMenuWantedSeconds) ? FakeItemMenu : null,
             GroundItems = Game.GroundItemsWanted(now, Offsets.GroundItemsWantedSeconds) ? FakeGroundItems : null,
             Buffs = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeBuffs : null,
             Skills = Game.CharacterWanted(now, Offsets.CharacterWantedSeconds) ? FakeSkills : null,
@@ -253,6 +254,14 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
 
     private static readonly XpState FakeXp =new(50, 1_000_000, 5_000_000);
 
+    private static readonly ItemMenu FakeItemMenu = new(
+        new ScreenRect(new Vector2(2238.5f, 829.1f), new Vector2(2348.1f, 870.1f)),
+        new ScreenRect(new Vector2(2096.2f, 829.1f), new Vector2(2160.2f, 870.1f)),
+        new ScreenRect(new Vector2(2167.4f, 829.1f), new Vector2(2231.4f, 870.1f)),
+        new ScreenRect(new Vector2(2091.6f, 721.1f), new Vector2(2218.6f, 768f)),
+        new ScreenRect(new Vector2(2225.7f, 721.1f), new Vector2(2352.7f, 768f)),
+        new ScreenRect(new Vector2(2091.6f, 768f), new Vector2(2218.6f, 814.8f)),
+        new ScreenRect(new Vector2(2280f, 382.5f), new Vector2(2362.9f, 414.2f)));
     private static readonly ScreenRect FakeXpBar = new(new Vector2(700, 1380), new Vector2(2740, 1388));
 
     internal static FrozenCanvasState FrozenCanvasAt(long now) =>
