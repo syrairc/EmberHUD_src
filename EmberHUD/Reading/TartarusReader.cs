@@ -1,25 +1,28 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json.Nodes;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null)
+internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null, long build = 0)
 {
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LuaReader _lua = new(memory, moduleBase);
     private long _nextRefresh;
     private TartarusState? _state;
 
-    public TartarusState? Read()
+    public TartarusState? Read(bool raw = false)
     {
         var now = _clock();
-        if (now < _nextRefresh) return _state;
+        if (now < _nextRefresh && (!raw || _state is not { Raw: null })) return _state;
         _nextRefresh = now + Stopwatch.Frequency * Offsets.TartarusRefreshMilliseconds / 1000;
-        return _state = Build();
+        return _state = Build(raw);
     }
 
-    private TartarusState? Build()
+    private TartarusState? Build(bool raw)
     {
         if (!_lua.TryOpen(out var globals) ||
             !_lua.TryGetTable(globals, Offsets.LuaTartarusManager, out var manager) ||
@@ -48,7 +51,17 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
             : [];
         var chromatics = _lua.TryGetTable(manager, Offsets.LuaTartarusArchive, out var archive) ? _lua.IntKeyedTables(archive).Count() : 0;
 
-        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics) { Tasks = ReadTasks(manager) };
+        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics) { Tasks = ReadTasks(manager), Raw = raw ? ReadRaw(manager) : null };
+    }
+
+    private TartarusRaw ReadRaw(LuaTable manager)
+    {
+        var budget = Offsets.MaxTartarusRawEntries;
+        var state = new JsonObject();
+        foreach (var key in Offsets.TartarusRawKeys.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            if (_lua.Dump(manager, key, Offsets.MaxTartarusRawDepth, ref budget) is { } value) state[key] = value;
+        var run = _lua.TryGetString(manager, Offsets.LuaTartarusRunId, out var id) && id.Length > 0 ? Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(id)))[..16] : "";
+        return new TartarusRaw(run, build, state.ToJsonString());
     }
 
     private TartarusTask[] ReadTasks(LuaTable manager)
@@ -124,7 +137,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
                 break;
             case TartarusChoiceKind.Instrument:
                 if (!_lua.TryGetTable(table, Offsets.LuaTartarusRelic, out _)) break;
-                ok = TryGetNested(table, Offsets.LuaTartarusRelic, Offsets.LuaTartarusRelicId, out param);
+                ok = TryGetNested(table, Offsets.LuaTartarusRelic, Offsets.LuaTartarusRelicId, out param) || TryLazyField(table, Offsets.LuaTartarusRelic, Offsets.TartarusProtoRelicId, out param);
                 optionKind = TartarusOptionKind.Instrument;
                 break;
             case TartarusChoiceKind.Reward:
@@ -152,7 +165,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         switch (type)
         {
             case var t when t == Offsets.TartarusOpDevour:
-                if (!TryGetNested(operation, Offsets.LuaTartarusDevour, Offsets.LuaTartarusTarget, out cell) && !TryLazyTarget(operation, out cell)) return false;
+                if (!TryGetNested(operation, Offsets.LuaTartarusDevour, Offsets.LuaTartarusTarget, out cell) && !TryLazyField(operation, Offsets.LuaTartarusDevour, Offsets.TartarusProtoTarget, out cell)) return false;
                 kind = TartarusOptionKind.Consume;
                 break;
             case var t when t == Offsets.TartarusOpReplace: kind = TartarusOptionKind.Replace; break;
@@ -163,15 +176,15 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         return true;
     }
 
-    private bool TryLazyTarget(LuaTable operation, out int cell)
+    private bool TryLazyField(LuaTable table, string key, int number, out int value)
     {
-        cell = -1;
-        if (!_lua.TryGetTable(operation, Offsets.LuaTartarusDevour, out var devour) ||
-            !_lua.TryGetBytesAt(devour, Offsets.TartarusLazyBytesKey, out var bytes) ||
+        value = -1;
+        if (!_lua.TryGetTable(table, key, out var lazy) ||
+            !_lua.TryGetBytesAt(lazy, Offsets.TartarusLazyBytesKey, out var bytes) ||
             !Protobuf.TryParse(bytes, out var fields)) return false;
-        var target = fields.LastOrDefault(field => field.Number == Offsets.TartarusProtoTarget).Varint;
-        if (target is < 0 or > int.MaxValue) return false;
-        cell = (int)target;
+        var read = fields.LastOrDefault(field => field.Number == number).Varint;
+        if (read is < 0 or > int.MaxValue) return false;
+        value = (int)read;
         return true;
     }
 

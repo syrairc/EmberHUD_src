@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json.Nodes;
 using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
@@ -255,44 +256,90 @@ internal sealed class LuaReader(IReadBackend memory, nint moduleBase)
         if (!TryReadHeader(table, out var header)) return [];
 
         var rows = new List<LuaEntryRow>();
-        var count = 0;
         skip = Math.Max(skip, 0);
-        void Add(string key, long raw, uint tag)
+        foreach (var (keyTag, keyRaw, tag, raw) in Slots(header))
         {
-            if (!key.Contains(filter, StringComparison.OrdinalIgnoreCase)) return;
-            if (count++ >= skip && rows.Count < max) rows.Add(Describe(key, raw, tag));
+            var key = keyTag == Offsets.LuaTagInt ? $"[{keyRaw}]"
+                : IsString(keyTag) && TryReadString((nint)keyRaw, out var text, true) ? Clean(text)
+                : $"<tag 0x{keyTag:X2}>";
+            if (!key.Contains(filter, StringComparison.OrdinalIgnoreCase)) continue;
+            if (total++ >= skip && rows.Count < max) rows.Add(Describe(key, raw, tag));
         }
 
+        return [.. rows];
+    }
+
+    public JsonNode? Dump(LuaTable table, string key, int depth, ref int budget) =>
+        TryFind(table, key, out var raw, out var tag) ? DumpValue(raw, tag, depth, ref budget) : null;
+
+    private JsonObject? Dump(LuaTable table, int depth, ref int budget)
+    {
+        if (depth < 0 || !TryReadHeader(table, out var header)) return null;
+        var rows = new List<(bool Text, long Index, string Key, JsonNode Value)>();
+        foreach (var (keyTag, keyRaw, tag, raw) in Slots(header))
+        {
+            if (--budget < 0) break;
+            var text = "";
+            if (keyTag != Offsets.LuaTagInt && !(IsString(keyTag) && TryReadString((nint)keyRaw, out text))) continue;
+            if (DumpValue(raw, tag, depth, ref budget) is { } value) rows.Add((keyTag != Offsets.LuaTagInt, keyRaw, keyTag == Offsets.LuaTagInt ? keyRaw.ToString(CultureInfo.InvariantCulture) : text, value));
+        }
+
+        var result = new JsonObject();
+        foreach (var row in rows.OrderBy(r => r.Text).ThenBy(r => r.Index).ThenBy(r => r.Key, StringComparer.Ordinal)) result[row.Key] = row.Value;
+        return result;
+    }
+
+    private JsonNode? DumpValue(long raw, uint tag, int depth, ref int budget)
+    {
+        if (tag == Offsets.LuaTagInt) return JsonValue.Create(raw);
+        if (tag == Offsets.LuaTagBool) return JsonValue.Create((int)raw != 0);
+        if (tag == Offsets.LuaTagFloat) return BitConverter.Int64BitsToDouble(raw) is var number && double.IsFinite(number) ? JsonValue.Create(number) : null;
+        if (tag == Offsets.LuaTagTable) return Dump(new LuaTable((nint)raw), depth - 1, ref budget);
+        if (!IsString(tag) || !TryReadBytes((nint)raw, out var bytes)) return null;
+        if (Printable(bytes, out var text)) return JsonValue.Create(text);
+        return Protobuf.TryParse(bytes, out var fields) ? ProtoObject(fields) : JsonValue.Create(Convert.ToHexStringLower(bytes));
+    }
+
+    private static JsonObject ProtoObject(ProtoField[] fields)
+    {
+        var result = new JsonObject();
+        foreach (var group in fields.GroupBy(field => field.Number))
+        {
+            JsonNode[] values = [.. group.Select(field => field.Bytes.Length == 0 ? JsonValue.Create(field.Varint) : (JsonNode)JsonValue.Create(Printable(field.Bytes, out var text) ? text : Convert.ToHexStringLower(field.Bytes)))];
+            result[group.Key.ToString(CultureInfo.InvariantCulture)] = values.Length == 1 ? values[0] : new JsonArray(values);
+        }
+
+        return result;
+    }
+
+    private static bool Printable(byte[] bytes, out string text)
+    {
+        text = "";
+        try { text = new UTF8Encoding(false, true).GetString(bytes); }
+        catch (DecoderFallbackException) { return false; }
+        return !text.Any(char.IsControl);
+    }
+
+    private IEnumerable<(uint KeyTag, long KeyRaw, uint Tag, long Raw)> Slots(Header header)
+    {
         if (header.ArraySize > 0 && memory.TryReadArray(header.Array, (int)header.ArraySize * Offsets.LuaTValueSize, out byte[] array))
         {
             for (var i = 0; i < header.ArraySize; i++)
             {
                 var at = i * Offsets.LuaTValueSize;
                 var tag = MemoryMarshal.Read<uint>(array.AsSpan(at + Offsets.LuaNodeTag));
-                if (tag != 0) Add($"[{i + 1}]", MemoryMarshal.Read<long>(array.AsSpan(at)), tag);
+                if (tag != 0) yield return ((uint)Offsets.LuaTagInt, i + 1, tag, MemoryMarshal.Read<long>(array.AsSpan(at)));
             }
         }
 
-        if (!TryReadNodes(header, out var nodes))
-        {
-            total = count;
-            return [.. rows];
-        }
-
+        if (!TryReadNodes(header, out var nodes)) yield break;
         for (var i = 0; i < nodes.Length; i += Offsets.LuaNodeSize)
         {
             var tag = NodeTag(nodes, i);
             var keyTag = NodeKeyTag(nodes, i);
             if (tag == 0 && keyTag == 0) continue;
-            var keyRaw = MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey));
-            var key = keyTag == Offsets.LuaTagInt ? $"[{keyRaw}]"
-                : (keyTag == Offsets.LuaTagShortString || keyTag == Offsets.LuaTagLongString) && TryReadString((nint)keyRaw, out var text, true) ? Clean(text)
-                : $"<tag 0x{keyTag:X2}>";
-            Add(key, MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue)), tag);
+            yield return (keyTag, MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeKey)), tag, MemoryMarshal.Read<long>(nodes.AsSpan(i + Offsets.LuaNodeValue)));
         }
-
-        total = count;
-        return [.. rows];
     }
 
     private bool TryGetMetatable(LuaTable table, out LuaTable value)

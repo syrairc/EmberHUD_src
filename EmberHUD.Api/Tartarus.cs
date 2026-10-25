@@ -14,7 +14,10 @@ public sealed record TartarusChoice(int Id, TartarusChoiceKind Kind, TartarusOpt
 
 public readonly record struct TartarusTask(int Id, int Target, int Progress, bool Completed);
 
+public sealed record TartarusRaw(string Run, long Build, string State);
+
 public sealed record TartarusState(int Position, int Size, int Day, int MaxDay, TartarusCell[] Cells, TartarusChoice? Choice, int[] Instruments, int Chromatics)
 {
     public TartarusTask[] Tasks { get; init; } = [];
+    public TartarusRaw? Raw { get; init; }
 }

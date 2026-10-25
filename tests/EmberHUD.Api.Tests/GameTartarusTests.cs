@@ -18,4 +18,13 @@ public class GameTartarusTests
         Assert.True(Game.TartarusWanted(now, 3));
         Assert.False(Game.TartarusWanted(now + 4 * Stopwatch.Frequency, 3));
     }
+
+    [Fact]
+    public void TartarusRawIsWantedForAWhileAfterAsking()
+    {
+        Game.WantTartarusRaw();
+        var now = Stopwatch.GetTimestamp();
+        Assert.True(Game.TartarusRawWanted(now, 3));
+        Assert.False(Game.TartarusRawWanted(now + 4 * Stopwatch.Frequency, 3));
+    }
 }

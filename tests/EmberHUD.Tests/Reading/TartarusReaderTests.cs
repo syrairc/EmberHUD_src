@@ -527,4 +527,62 @@ public class TartarusReaderTests
         f.Now += 1;
         Assert.Single(reader.Read()!.Cells);
     }
+    private static LuaTable LazyRelic(Fixture f, int relicId)
+    {
+        var lazy = f.Lua.NewTable(2, 0);
+        f.Lua.SetIntKeyString(lazy, 1, "rpc.S16WardenRelicChoiceOption");
+        f.Lua.SetIntKeyBytes(lazy, 2, [0x08, (byte)relicId]);
+        return lazy;
+    }
+
+    [Fact]
+    public void LazyRelicReadsItsIdFromTheBytes()
+    {
+        var f = new Fixture();
+        var choice = ReadChoice(f, Offsets.TartarusChoiceInstrument, Option(f, 3, (Offsets.LuaTartarusRelic, LazyRelic(f, 114))));
+        Assert.True(choice.Complete);
+        Assert.Equal(new TartarusOption(3, TartarusOptionKind.Instrument, -1, 114), choice.Options.Single());
+    }
+
+    [Fact]
+    public void RawIsOnlyReadWhenAsked()
+    {
+        var f = new Fixture();
+        Assert.Null(f.Reader().Read()!.Raw);
+    }
+
+    [Fact]
+    public void RawDumpsTheListedKeysWithRelicBytesDecodedAndAHashedRun()
+    {
+        var f = new Fixture();
+        f.Cell(1, "P27", 102, 203, marker: true, flags: true);
+        Queue(f, Choice(f, Offsets.TartarusChoiceInstrument, 9, Option(f, 3, (Offsets.LuaTartarusRelic, LazyRelic(f, 114)))));
+        const string runId = "200c22e7-d07d-11f1-9765-000000000029";
+        f.Lua.SetString(f.Manager, Offsets.LuaTartarusRunId, runId);
+        f.Lua.SetString(f.Manager, "PlayerName", "Somebody");
+        var raw = new TartarusReader(f.Memory, Module, () => f.Now, 1234).Read(raw: true)!.Raw!;
+        Assert.Equal(1234, raw.Build);
+        Assert.Matches("^[0-9a-f]{16}$", raw.Run);
+        Assert.DoesNotContain(runId, raw.State);
+        Assert.DoesNotContain("Somebody", raw.State);
+        var state = System.Text.Json.Nodes.JsonNode.Parse(raw.State)!;
+        Assert.Equal(20, (int)state["MaxTurn"]!);
+        Assert.Equal(7, (int)state["Attrs"]![Offsets.TartarusDayAttr.ToString()]!);
+        Assert.Equal("P27", (string)state["Board"]!["Cells"]!["1"]!["prisoner"]!["uid"]!);
+        Assert.True((bool)state["Board"]!["Cells"]!["1"]!["hasEventMarker"]!);
+        var relic = state["Choices"]!["1"]!["options"]!["1"]!["relic"]!;
+        Assert.Equal("rpc.S16WardenRelicChoiceOption", (string)relic["1"]!);
+        Assert.Equal(114, (int)relic["2"]!["1"]!);
+    }
+
+    [Fact]
+    public void RawRunIsEmptyWithoutARunIdAndTheSameStateDumpsTheSame()
+    {
+        var f = new Fixture();
+        var reader = f.Reader();
+        var first = reader.Read(raw: true)!.Raw!;
+        f.Now += Stopwatch.Frequency;
+        Assert.Equal("", first.Run);
+        Assert.Equal(first.State, reader.Read(raw: true)!.Raw!.State);
+    }
 }
