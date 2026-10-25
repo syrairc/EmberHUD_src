@@ -5,9 +5,14 @@ namespace XpTrackerPlugin;
 
 public sealed class DeathInfoTests
 {
-    static GameState State(XpState? xp, DeathState? death) => new() { Xp = xp, Death = death };
+    static DeathInfo? From(XpState? xp, DeathState? death, XpSession? session = null) => DeathInfo.From(new GameState { Xp = new XpState(93, 9_902, 100_000_000), Death = death }, xp, session ?? new XpSession());
 
-    static DeathInfo? From(XpState? xp, DeathState? death, XpSession? session = null) => DeathInfo.From(State(xp, death), session ?? new XpSession());
+    [Test]
+    public void UsesTheXpFromBeforeDeathNotTheResetOneInTheState()
+    {
+        var info = From(new XpState(93, 80_000_000, 100_000_000), new DeathState(10, true, true))!.Value;
+        Check.That(System.Math.Abs(info.Current - 0.8f) < 1e-6, "alive xp, not the 9902 in state");
+    }
 
     [Test]
     public void LossIsThePercentOfTheLevel()
