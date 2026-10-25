@@ -15,7 +15,7 @@ public sealed class MainTests
     const int Columns = 7;
     const int Rows = 5;
 
-    static readonly Hotkey[] TakenByOthers = [new(Key.F2), new(Key.F3), new(Key.F5), new(Key.F6), new(Key.F7), new(Key.F8), new(Key.F9), new(Key.F10), new(Key.F11), new(Key.F12, KeyModifiers.Ctrl)];
+    static readonly Hotkey[] TakenByOthers = [new(Key.F2), new(Key.F3), new(Key.F4), new(Key.F5), new(Key.F6), new(Key.F7), new(Key.F8), new(Key.F9), new(Key.F10), new(Key.F11), new(Key.F12, KeyModifiers.Ctrl)];
 
     static BagCell Cell(int slot, float originX = 0) => new(slot, new Vector2(originX + slot % Columns * 50, slot / Columns * 50), new Vector2(originX + slot % Columns * 50 + 40, slot / Columns * 50 + 40));
 
@@ -165,6 +165,32 @@ public sealed class MainTests
             Check.That(plugin.Results.Single().Cancelled, "cancelled result kept");
             Check.Equal(2, Directory.GetFiles(directory).Length, "partial run still written");
         });
+    }
+
+    [Test]
+    public void DisablingWhileIdleReleasesNothing()
+    {
+        With(directory =>
+        {
+            var plugin = Ready(out var sent, directory);
+            Send.Down(Key.D1);
+            plugin.OnDisable();
+            plugin.Dispose();
+            lock (sent) Check.That(!sent.Contains(new SentInput(Key.D1, null, false, 0, 0)), "another plugin's held key left alone");
+        });
+    }
+
+    [Test]
+    public void ASaveFailureOfAnyKindBecomesANote()
+    {
+        var plugin = new Main { OutputDirectory = "bad\0folder", Delay = (_, _) => Task.CompletedTask };
+        plugin.Initialize();
+        TestSend.Record();
+        TestSend.Instant();
+        TestGame.Set(StashOpen());
+        plugin.Toggle(false);
+        Finish(plugin);
+        Check.That(plugin.Note is { } note && note.StartsWith("Not saved"), plugin.Note);
     }
 
     [Test]

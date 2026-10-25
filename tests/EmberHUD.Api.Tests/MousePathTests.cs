@@ -24,6 +24,13 @@ public sealed class MousePathTests
     }
 
     [Fact]
+    public void ExhaustedStepBudgetStillEndsOnTheTarget()
+    {
+        var path = MousePath.Generate((0, 0), (100_000, 0), Default with { MaxStep = 1, StopTolerance = 3 }, new Random(1));
+        Assert.Equal((100_000, 0), (path[^1].X, path[^1].Y));
+    }
+
+    [Fact]
     public void ToleranceBiggerThanTheMoveStillTerminates()
     {
         for (var seed = 1; seed <= 50; seed++)

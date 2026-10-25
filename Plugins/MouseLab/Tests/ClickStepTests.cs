@@ -90,7 +90,7 @@ public sealed class ClickStepTests
         Check.That(result.Refused is { } note && note.Contains("menu", StringComparison.OrdinalIgnoreCase), result.Refused);
         Check.Equal(0, result.Moves.Count);
         Check.Equal(1, fixture.Clicks().Count, "only the cell click");
-        Check.Equal(20, fixture.Delays.Count(delay => delay == 50), "waited 1 s in 50 ms steps");
+        Check.Equal(80, fixture.Delays.Count(delay => delay == 50), "waited 4 s in 50 ms steps");
     }
 
     [Test]
@@ -152,6 +152,36 @@ public sealed class ClickStepTests
         Check.That(result.Refused is not null, "refused");
         Check.That(result.Note is { } note && note.Contains("one Lock click") && note.Contains("check it"), result.Note);
         Check.Equal(2, fixture.Clicks().Count, "cell plus one lock click");
+    }
+
+    [Test]
+    public void CancelDuringTheFirstLockClickDwellStillSaysSo()
+    {
+        var fixture = Setup();
+        Send.Down(Key.D1);
+        using var source = new CancellationTokenSource();
+        TestSend.OnWait(_ =>
+        {
+            if (fixture.Clicks().Count == 2) source.Cancel();
+        });
+        var result = Run(fixture.Runner(() => FullMenu()), ClickScenario(MenuOption.Lock), source.Token);
+        Check.That(result.Cancelled, "cancelled");
+        Check.That(result.Note is { } note && note.Contains("one Lock click"), result.Note);
+        lock (fixture.Sent) Check.That(fixture.Sent.Contains(new SentInput(Key.D1, null, false, 0, 0)), "held key released");
+    }
+
+    [Test]
+    public void AnOptionOverlappingTakeOutIsNeverClicked()
+    {
+        foreach (var option in new[] { MenuOption.Lock, MenuOption.More })
+        {
+            var fixture = Setup();
+            var overlapping = new ItemMenu(TakeOutRect, Rect(210, 70), Rect(210, 70), null, null, null, null);
+            var result = Run(fixture.Runner(() => overlapping), ClickScenario(option));
+            Check.That(result.Refused is { } reason && reason.Contains("Take Out"), result.Refused);
+            Check.Equal(1, fixture.Clicks().Count, "only the cell click");
+            Check.Equal(0, fixture.Delays.Count(delay => delay == 50), "no wait for a menu that is there");
+        }
     }
 
     [Test]

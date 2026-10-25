@@ -15,7 +15,7 @@ public static class MousePath
         var cfg = config.Clamped();
         var points = new List<Waypoint>();
         if (from != to) WindMouse(from, to, cfg, rng, points);
-        if (cfg.StopTolerance <= 0 || points.Count == 0) points.Add(new Waypoint(to.X, to.Y, StepDelay(cfg, rng)));
+        if (cfg.StopTolerance <= 0 || points.Count == 0 || Dist(points[^1].X, points[^1].Y, to.X, to.Y) > MathF.Max(cfg.StopTolerance, 1f)) points.Add(new Waypoint(to.X, to.Y, StepDelay(cfg, rng)));
         return points;
     }
 

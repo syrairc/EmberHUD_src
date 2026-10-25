@@ -25,7 +25,7 @@ public static partial class Send
     internal static Random Rng { get; set; } = Random.Shared;
 
     /// <summary>
-    /// Queues a cursor move and returns when the cursor is on the target (humanized) or the single move was sent (direct). Calls run in order on one worker. True only if every event was sent.
+    /// Queues a cursor move and returns when the cursor is within the humanizer's StopTolerance of the target (humanized) or the single move was sent (direct). Calls run in order on one worker. True only if every event was sent.
     /// The immediate <see cref="MouseMove"/>, <see cref="Click"/>, <see cref="MouseDown"/> and <see cref="MouseUp"/> bypass the queue and can interleave with an in-flight call.
     /// </summary>
     public static Task<bool> MoveTo(int x, int y, MouseMode? mode = null, CancellationToken cancel = default, HumanizerConfig? config = null) =>

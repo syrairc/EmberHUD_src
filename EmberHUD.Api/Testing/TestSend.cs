@@ -24,5 +24,7 @@ public static class TestSend
         return waits;
     }
 
+    public static void OnWait(Action<int> wait) => Send.Wait = wait;
+
     public static void Reset() => Send.Reset();
 }

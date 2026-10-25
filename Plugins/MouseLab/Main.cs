@@ -33,14 +33,14 @@ public sealed class Main : Plugin<Settings>
 
     public override void Initialize()
     {
-        RegisterHotkey("Run", "Runs the mouse suite on the stash with the preset from the settings, press again to cancel", () => Toggle(false), new Hotkey(Key.F4));
-        RegisterHotkey("RunAll", "Runs the mouse suite once per named preset and compares them, press again to cancel", () => Toggle(true), new Hotkey(Key.F4, KeyModifiers.Shift));
+        RegisterHotkey("Run", "Runs the mouse suite on the stash with the preset from the settings, press again to cancel", () => Toggle(false), new Hotkey(Key.F4, KeyModifiers.Ctrl));
+        RegisterHotkey("RunAll", "Runs the mouse suite once per named preset and compares them, press again to cancel", () => Toggle(true), new Hotkey(Key.F4, KeyModifiers.Ctrl | KeyModifiers.Shift));
     }
 
     public override void Tick()
     {
         Game.WantInventory();
-        Game.WantItemMenu();
+        if (Running || Game.State.Stash is not null) Game.WantItemMenu();
     }
 
     public override void OnDisable() => Stop();
@@ -85,6 +85,7 @@ public sealed class Main : Plugin<Settings>
 
     void Stop()
     {
+        if (!Running) return;
         _cancel?.Cancel();
         Send.ReleaseAll();
     }
@@ -125,7 +126,7 @@ public sealed class Main : Plugin<Settings>
         {
             _note = $"Saved {Path.GetFileName(RunWriter.Write(OutputDirectory, done, DateTimeOffset.Now))} in Config\\MouseLab";
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception)
         {
             Log.Warn($"MouseLab could not save the run: {exception.Message}");
             _note = $"Not saved - {exception.Message}";

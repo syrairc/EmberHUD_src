@@ -14,7 +14,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
 {
     const string HalfLockNote = "Stopped after one Lock click - the item may now be locked or unlocked, check it";
     const int MenuPollMs = 50;
-    const int MenuTimeoutMs = 1000;
+    const int MenuTimeoutMs = 4000;
 
     const int SettleMs = 150;
     const int StepPauseMs = 250;
@@ -38,11 +38,17 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
             return Result(refused: reason);
         }
 
+        var overlapsTakeOut = false;
+
         ScreenRect? OptionRect(MenuOption option)
         {
             var current = (menu ?? (() => Game.State.ItemMenu))();
-            return option == MenuOption.More ? current?.More : current?.Lock;
+            var rect = option == MenuOption.More ? current?.More : current?.Lock;
+            overlapsTakeOut = rect is { } chosen && current?.TakeOut is { } takeOut && Overlap(chosen, takeOut);
+            return overlapsTakeOut ? null : rect;
         }
+
+        string Gone(string reason) => overlapsTakeOut ? "The menu option overlaps Take Out, stopped" : reason;
 
         if (!Send.Allowed) return Result(refused: "Send is not allowed: game not focused or chat open");
         if (build.Scenarios.Count == 0) return Result(refused: "Nothing to run: the suite has no scenarios");
@@ -69,8 +75,8 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                     if (step.Kind == StepKind.MenuClick)
                     {
                         ScreenRect? shown = null;
-                        for (var waited = 0; waited < MenuTimeoutMs && (shown = OptionRect(step.Option)) is null; waited += MenuPollMs) await delay(MenuPollMs, cancel);
-                        if (shown is not { } found) return Refused($"The item menu did not show within {MenuTimeoutMs} ms, stopped");
+                        for (var waited = 0; waited < MenuTimeoutMs && (shown = OptionRect(step.Option)) is null && !overlapsTakeOut; waited += MenuPollMs) await delay(MenuPollMs, cancel);
+                        if (shown is not { } found) return Refused(Gone($"The item menu did not show within {MenuTimeoutMs} ms, stopped"));
                         target = found;
                     }
                     sampler.Start();
@@ -84,9 +90,9 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                         for (var click = 0; click < clicks; click++)
                         {
                             if (click > 0) await delay(StepPauseMs, cancel);
-                            if (OptionRect(step.Option) is not { } fresh) return Refused("The item menu went away mid click, stopped");
+                            if (OptionRect(step.Option) is not { } fresh) return Refused(Gone("The item menu went away mid click, stopped"));
+                            if (clicks > 1 && click == 0) pending = HalfLockNote;
                             var landed = await Send.ClickAt(CentreX(fresh), CentreY(fresh), MouseButton.Left, MouseMode.Humanized, cancel, config);
-                            if (landed && clicks > 1 && click == 0) pending = HalfLockNote;
                             if (!landed || cancel.IsCancellationRequested) return Stopped();
                         }
                         pending = null;
@@ -104,6 +110,8 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
         }
         return Result();
     }
+
+    static bool Overlap(ScreenRect a, ScreenRect b) => a.Min.X < b.Max.X && b.Min.X < a.Max.X && a.Min.Y < b.Max.Y && b.Min.Y < a.Max.Y;
 
     static int CentreX(ScreenRect rect) => (int)((rect.Min.X + rect.Max.X) / 2);
 
