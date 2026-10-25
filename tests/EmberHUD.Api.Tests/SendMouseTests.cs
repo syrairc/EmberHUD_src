@@ -49,6 +49,13 @@ public sealed class SendMouseTests : IDisposable
     static SentInput ButtonUp(MouseButton button) => new(Key.None, button, false, 0, 0);
 
     [Fact]
+    public void CursorScreenReturnsTheCursorPosition()
+    {
+        TestSend.Instant(cursor: (12, 34));
+        Assert.Equal((12, 34), Send.CursorScreen());
+    }
+
+    [Fact]
     public async Task DirectMoveSendsOneMoveEvent()
     {
         var sent = TestSend.Record();

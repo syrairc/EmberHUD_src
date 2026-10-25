@@ -5,7 +5,10 @@ public static class TestSend
     public static List<SentInput> Record(bool allowed = true)
     {
         var sent = new List<SentInput>();
-        Send.Sink = sent.Add;
+        Send.Sink = input =>
+        {
+            lock (sent) sent.Add(input);
+        };
         Send.GameForeground = () => allowed;
         return sent;
     }

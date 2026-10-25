@@ -33,11 +33,14 @@ public sealed class RunnerTests
         public (int X, int Y) Cursor()
         {
             Interlocked.Increment(ref CursorReads);
-            var count = Sent.Count;
-            for (var i = count - 1; i >= 0; i--)
+            var sent = Sent;
+            lock (sent)
             {
-                var input = Sent[i];
-                if (input.Button is null && input.Key == Key.None) return (input.X, input.Y);
+                for (var i = sent.Count - 1; i >= 0; i--)
+                {
+                    var input = sent[i];
+                    if (input.Button is null && input.Key == Key.None) return (input.X, input.Y);
+                }
             }
             return (0, 0);
         }
@@ -159,7 +162,7 @@ public sealed class RunnerTests
         var sampler = new Sampler(() => (Interlocked.Increment(ref reads), 0), () => reads, _ => { });
         sampler.Start();
         var give = Environment.TickCount64 + 5000;
-        while (Volatile.Read(ref reads) < 6000 && Environment.TickCount64 < give) Thread.Sleep(1);
+        while (Volatile.Read(ref reads) <= 5000 && Environment.TickCount64 < give) Thread.Sleep(1);
         var samples = sampler.Stop();
         Check.Equal(5000, samples.Count);
     }
@@ -176,5 +179,29 @@ public sealed class RunnerTests
         Thread.Sleep(30);
         Check.Equal(after, Volatile.Read(ref reads), "no reads after Stop");
         Check.That(after > 1, "it was sampling");
+    }
+
+    [Test]
+    public void SamplerEndsQuietlyWhenTheDelegatesThrow()
+    {
+        var reads = 0;
+        var sampler = new Sampler(() => Interlocked.Increment(ref reads) > 2 ? throw new InvalidOperationException("cursor") : (reads, 0), () => 0, _ => throw new InvalidOperationException("wait"));
+        sampler.Start();
+        Thread.Sleep(20);
+        var samples = sampler.Stop();
+        Check.That(samples.Count >= 1, "kept what it read");
+        var throwing = new Sampler(() => throw new InvalidOperationException("cursor"), () => 0, _ => { });
+        throwing.Start();
+        Check.Equal(0, throwing.Stop().Count);
+    }
+
+    [Test]
+    public void StopWithoutStartTakesNoSample()
+    {
+        var reads = 0;
+        var sampler = new Sampler(() => (Interlocked.Increment(ref reads), 0), () => 0, _ => { });
+        Check.Equal(0, sampler.Stop().Count);
+        sampler.Dispose();
+        Check.Equal(0, reads);
     }
 }

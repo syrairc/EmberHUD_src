@@ -42,6 +42,9 @@ public static partial class Send
     public static (int X, int Y)? ScreenToClient(int x, int y) =>
         ClientToScreen(0, 0) is var (originX, originY) ? (x - originX, y - originY) : null;
 
+    /// <summary>The cursor in screen pixels.</summary>
+    public static (int X, int Y) CursorScreen() => CursorPosition();
+
     static void AbortQueuedMouse()
     {
         _generation++;

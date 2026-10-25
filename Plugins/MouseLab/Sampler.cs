@@ -26,9 +26,12 @@ public sealed class Sampler(Func<(int X, int Y)> cursor, Func<double> clockMs, A
     public IReadOnlyList<PathSample> Stop()
     {
         _stop = true;
-        _thread?.Join();
-        _thread = null;
-        Take();
+        if (_thread is not null)
+        {
+            _thread.Join();
+            _thread = null;
+            Take();
+        }
         lock (_samples) return _samples.ToArray();
     }
 
@@ -36,17 +39,30 @@ public sealed class Sampler(Func<(int X, int Y)> cursor, Func<double> clockMs, A
 
     void Poll()
     {
-        while (!_stop && Take()) wait(1);
+        try
+        {
+            while (!_stop && Take()) wait(1);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     bool Take()
     {
-        var (x, y) = cursor();
-        lock (_samples)
+        try
         {
-            if (_samples.Count >= MaxSamples) return false;
-            _samples.Add(new PathSample(clockMs(), x, y));
-            return true;
+            var (x, y) = cursor();
+            lock (_samples)
+            {
+                if (_samples.Count >= MaxSamples) return false;
+                _samples.Add(new PathSample(clockMs(), x, y));
+                return true;
+            }
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 }

@@ -10,7 +10,7 @@ public sealed record MoveResult(string Scenario, string Label, PathScores Scores
 
 public sealed record RunResult(string Preset, IReadOnlyList<MoveResult> Moves, IReadOnlyList<string> Skipped, bool Cancelled, string? Refused);
 
-public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, CancellationToken, Task> delay, Thresholds thresholds)
+public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, CancellationToken, Task> delay, Thresholds thresholds, Action<Step>? stepStarted = null)
 {
     const int SettleMs = 150;
     const int StepPauseMs = 250;
@@ -43,6 +43,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                     var step = scenario.Steps[i];
                     var centreX = (int)((step.Target.Min.X + step.Target.Max.X) / 2);
                     var centreY = (int)((step.Target.Min.Y + step.Target.Max.Y) / 2);
+                    stepStarted?.Invoke(step);
                     sampler.Start();
                     var moved = await Send.MoveTo(centreX, centreY, MouseMode.Humanized, cancel, config);
                     if (moved) await delay(SettleMs, cancel);
