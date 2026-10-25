@@ -34,9 +34,11 @@ public sealed record HumanizerConfig
         };
     }
 
+    const int MaxDelayMs = 10_000;
+
     static (int Min, int Max) Range(int min, int max)
     {
-        min = Math.Max(0, min);
-        return (min, Math.Max(min, max));
+        min = Math.Min(Math.Max(0, min), MaxDelayMs);
+        return (min, Math.Min(Math.Max(min, max), MaxDelayMs));
     }
 }

@@ -110,11 +110,6 @@ public static partial class Send
 
     internal static void Reset()
     {
-        Sink = SendReal;
-        GameForeground = null;
-        ToScreen = null;
-        Clock = Stopwatch.GetTimestamp;
-        ResetMouseSeams();
         lock (Gate)
         {
             AbortQueuedMouse();
@@ -123,6 +118,11 @@ public static partial class Send
             _windowStart = 0;
             _windowCount = 0;
         }
+        Sink = SendReal;
+        GameForeground = null;
+        ToScreen = null;
+        Clock = Stopwatch.GetTimestamp;
+        ResetMouseSeams();
     }
 
     static bool Admit()

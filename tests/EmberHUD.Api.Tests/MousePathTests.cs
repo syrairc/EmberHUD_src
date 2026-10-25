@@ -61,6 +61,16 @@ public sealed class MousePathTests
     }
 
     [Fact]
+    public void HugeDelaysClampToTenSecondsAndPathStillGenerates()
+    {
+        var huge = (Default with { StepDelayMax = int.MaxValue, PreClickSettleMax = int.MaxValue }).Clamped();
+        Assert.True(huge.StepDelayMax <= 10_000);
+        Assert.True(huge.PreClickSettleMax <= 10_000);
+        var path = MousePath.Generate((0, 0), (800, 450), huge, new Random(1));
+        Assert.Equal((800, 450), (path[^1].X, path[^1].Y));
+    }
+
+    [Fact]
     public void PathIsNotAStraightLine()
     {
         var path = MousePath.Generate((0, 0), (800, 0), Default, new Random(1));

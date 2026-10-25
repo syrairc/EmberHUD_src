@@ -205,6 +205,29 @@ public sealed class SendMouseTests : IDisposable
     }
 
     [Fact]
+    public async Task ResetFailsAJobParkedInAWaitAndSendsNothingAfterIt()
+    {
+        var sent = TestSend.Record();
+        var waits = TestSend.Instant();
+        using var entered = new ManualResetEventSlim();
+        using var proceed = new ManualResetEventSlim();
+        Send.Wait = ms =>
+        {
+            waits.Add(ms);
+            if (entered.IsSet) return;
+            entered.Set();
+            proceed.Wait(Limit);
+        };
+        var move = MoveTo(100, 0, MouseMode.Humanized);
+        WaitFor(entered);
+        var before = sent.Count;
+        Send.Reset();
+        proceed.Set();
+        Assert.False(await Done(move));
+        Assert.Equal(before, sent.Count);
+    }
+
+    [Fact]
     public async Task LosingFocusMidPathStopsTheMoveReleasesTheButtonAndFailsQueuedCalls()
     {
         var sent = TestSend.Record();
