@@ -41,6 +41,7 @@ public sealed class SendMouseTests : IDisposable
 
     static void WaitFor(ManualResetEventSlim signal) => Assert.True(signal.Wait(Limit, TestContext.Current.CancellationToken));
 
+    static void AssertNear(SentInput actual, int x, int y) => Assert.InRange(Math.Sqrt(Math.Pow(actual.X - x, 2) + Math.Pow(actual.Y - y, 2)), 0, new HumanizerConfig().StopTolerance);
     static SentInput Move(int x, int y) => new(Key.None, null, false, x, y);
 
     static SentInput ButtonDown(MouseButton button) => new(Key.None, button, true, 0, 0);
@@ -64,7 +65,7 @@ public sealed class SendMouseTests : IDisposable
         Assert.True(await Done(MoveTo(300, 200, MouseMode.Humanized)));
         Assert.True(sent.Count > 5);
         Assert.All(sent, input => Assert.True(input.Key == Key.None && input.Button is null));
-        Assert.Equal(Move(300, 200), sent[^1]);
+        AssertNear(sent[^1], 300, 200);
         Assert.Equal(sent.Count, waits.Count);
         var config = new HumanizerConfig();
         Assert.All(waits, wait => Assert.InRange(wait, config.StepDelayMin, config.StepDelayMax));
@@ -109,7 +110,7 @@ public sealed class SendMouseTests : IDisposable
         var moves = sent[..^2];
         Assert.NotEmpty(moves);
         Assert.All(moves, input => Assert.True(input.Button is null && input.Key == Key.None));
-        Assert.Equal(Move(30, 0), moves[^1]);
+        AssertNear(moves[^1], 30, 0);
         Assert.Equal(moves.Count + 3, waits.Count);
         Assert.All(waits.Take(moves.Count), wait => Assert.InRange(wait, 1, 2));
         Assert.Equal([100, 200, 300], waits.Skip(moves.Count));
@@ -200,7 +201,7 @@ public sealed class SendMouseTests : IDisposable
         Assert.True(await Done(second));
         Assert.True(await Done(third));
         Assert.Equal([Move(1, 1), Move(2, 2)], sent[^2..]);
-        Assert.Equal(Move(100, 0), sent[^3]);
+        AssertNear(sent[^3], 100, 0);
         Assert.DoesNotContain(sent[..^2], input => input == Move(1, 1) || input == Move(2, 2));
     }
 

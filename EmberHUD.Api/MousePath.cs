@@ -15,7 +15,7 @@ public static class MousePath
         var cfg = config.Clamped();
         var points = new List<Waypoint>();
         if (from != to) WindMouse(from, to, cfg, rng, points);
-        points.Add(new Waypoint(to.X, to.Y, StepDelay(cfg, rng)));
+        if (cfg.StopTolerance <= 0 || points.Count == 0) points.Add(new Waypoint(to.X, to.Y, StepDelay(cfg, rng)));
         return points;
     }
 
@@ -27,9 +27,14 @@ public static class MousePath
         float dist;
         float gravity = MathF.Max(cfg.Gravity, cfg.MaxStep * GravityPerMaxStep);
 
+        float axisLength = MathF.Max(Dist(start.X, start.Y, end.X, end.Y), 1f);
+        float axisX = (end.X - start.X) / axisLength, axisY = (end.Y - start.Y) / axisLength;
+        float stopRadius = MathF.Max(cfg.StopTolerance, 1f);
+        float placedX = start.X, placedY = start.Y;
         int budget = StepBudget;
-        while ((dist = Dist(curX, curY, end.X, end.Y)) >= 1f && budget-- > 0)
+        while (NotArrived(Dist(placedX, placedY, end.X, end.Y), cfg.StopTolerance, stopRadius) && budget-- > 0)
         {
+            dist = MathF.Max(Dist(curX, curY, end.X, end.Y), 1f);
             float w = MathF.Min(cfg.Wind, dist);
             if (dist >= cfg.SlowDistance)
             {
@@ -56,12 +61,22 @@ public static class MousePath
                 veloY = veloY / veloMag * randStep;
             }
 
+            float excess = (curX + veloX - start.X) * axisX + (curY + veloY - start.Y) * axisY - axisLength;
+            if (excess > 0)
+            {
+                veloX -= excess * axisX;
+                veloY -= excess * axisY;
+            }
+
             curX += veloX;
             curY += veloY;
-            output.Add(new Waypoint((int)MathF.Round(curX), (int)MathF.Round(curY), StepDelay(cfg, rng)));
+            placedX = MathF.Round(curX);
+            placedY = MathF.Round(curY);
+            output.Add(new Waypoint((int)placedX, (int)placedY, StepDelay(cfg, rng)));
         }
     }
 
+    static bool NotArrived(float placedDist, float tolerance, float stopRadius) => tolerance > 0 ? placedDist > stopRadius : placedDist >= 1f;
     static int StepDelay(HumanizerConfig cfg, Random rng) => rng.Next(cfg.StepDelayMin, cfg.StepDelayMax + 1);
     static float Dist(float ax, float ay, float bx, float by) => MathF.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
 }
