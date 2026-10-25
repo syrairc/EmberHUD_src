@@ -90,6 +90,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                         if (shown is not { } found) return Refused(Gone($"The item menu did not show within {MenuTimeoutMs} ms, stopped"));
                         target = found;
                     }
+                    if (step.Kind == StepKind.MenuClick && !await SendAllowed()) return Stopped();
                     sampler.Start();
                     var moved = await Send.MoveTo(CentreX(target), CentreY(target), MouseMode.Humanized, cancel, config);
                     if (moved) await delay(SettleMs, cancel);

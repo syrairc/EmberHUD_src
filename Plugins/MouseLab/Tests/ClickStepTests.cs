@@ -202,6 +202,29 @@ public sealed class ClickStepTests
     }
 
     [Test]
+    public void MoveToTheOptionWaitsOutTheUiHoldAfterTheCellClick()
+    {
+        var fixture = Setup();
+        var polls = 0;
+        var held = false;
+        var runner = fixture.Runner(() => FullMenu(), (ms, _) =>
+        {
+            if (ms == 150 && fixture.Clicks().Count == 1 && !held)
+            {
+                held = true;
+                TestGame.Set(GameState.Empty with { ChatOpen = true });
+            }
+            else if (ms == 50 && ++polls == 6) TestGame.Set(GameState.Empty with { ChatOpen = false });
+            return Task.CompletedTask;
+        });
+        var result = Run(runner, ClickScenario(MenuOption.Lock));
+        Check.That(result.Refused is null && !result.Cancelled, "ran clean");
+        Check.Equal(3, fixture.Clicks().Count, "cell plus both lock clicks");
+        Check.Equal(1, result.Moves.Count, "the move was scored");
+        Check.That(result.Note is null, result.Note);
+    }
+
+    [Test]
     public void SendNeverAllowedAgainBeforeTheSecondLockClickStopsWithTheNote()
     {
         var fixture = Setup();
