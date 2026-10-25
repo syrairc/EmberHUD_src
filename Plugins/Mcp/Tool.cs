@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EmberHUD;
@@ -38,6 +39,18 @@ internal sealed class Args(JsonObject? source)
     public int? OptInt(string name) => source?[name] is null ? null : Int(name, 0, int.MinValue, int.MaxValue);
 
     public float? OptFloat(string name) => source?[name] is JsonValue { } value && value.GetValueKind() == System.Text.Json.JsonValueKind.Number ? float.Parse(value.ToJsonString(), CultureInfo.InvariantCulture) : null;
+
+    public Vector2[]? OptPoints(string name, int max)
+    {
+        if (source?[name] is not { } node) return null;
+        if (node is not JsonArray array || array.Count > max || array.Any(item => item is not JsonArray { Count: 2 } pair || !IsNumber(pair[0]) || !IsNumber(pair[1])))
+            throw new ToolError($"{name} must be up to {max} pairs like [[x,y],[x,y]]");
+        return [.. array.Select(item => new Vector2(NumberOf(item![0]), NumberOf(item[1])))];
+    }
+
+    static bool IsNumber(JsonNode? node) => node is JsonValue value && value.GetValueKind() == JsonValueKind.Number;
+
+    static float NumberOf(JsonNode? node) => float.Parse(node!.ToJsonString(), CultureInfo.InvariantCulture);
 
     public bool Bool(string name, bool fallback) => source?[name] is JsonValue value && value.TryGetValue<bool>(out var flag) ? flag : fallback;
 
