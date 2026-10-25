@@ -17,6 +17,7 @@ public static class TestSend
         Send.Wait = waits.Add;
         Send.Rng = new Random(seed);
         Send.CursorPosition = () => position;
+        Send.ToScreen = (x, y) => (x, y);
         return waits;
     }
 
