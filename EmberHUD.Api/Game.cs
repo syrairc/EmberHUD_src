@@ -14,6 +14,7 @@ public static class Game
     static long _groundHazardsAsked;
     static long _characterAsked;
     static long _tartarusAsked;
+    static long _tartarusRawAsked;
     static long _tarotAsked;
     static long _voraxAsked;
     static long _frozenCanvasAsked;
@@ -139,6 +140,20 @@ public static class Game
     internal static bool TartarusWanted(long now, double seconds)
     {
         var asked = Interlocked.Read(ref _tartarusAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
+    public static void WantTartarusRaw() => Interlocked.Exchange(ref _tartarusRawAsked, Stopwatch.GetTimestamp());
+
+    internal static long TartarusRawAsked
+    {
+        get => Interlocked.Read(ref _tartarusRawAsked);
+        set => Interlocked.Exchange(ref _tartarusRawAsked, value);
+    }
+
+    internal static bool TartarusRawWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _tartarusRawAsked);
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 

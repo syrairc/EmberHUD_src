@@ -162,7 +162,7 @@ internal sealed class LiveReader
             Combat = _combat?.Snapshot,
             Inventory = inventoryWanted ? _inventory?.Read() : null,
             BagCapacities = inventoryWanted ? _inventory?.Capacities : null,
-            Tartarus = Game.TartarusWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds) ? _tartarus?.Read() : null,
+            Tartarus = Game.TartarusWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds) ? _tartarus?.Read(Game.TartarusRawWanted(Stopwatch.GetTimestamp(), Offsets.TartarusWantedSeconds)) : null,
             Tarot = Game.TarotWanted(Stopwatch.GetTimestamp(), Offsets.TarotWantedSeconds) ? _tarot?.Read() : null,
             Vorax = Game.VoraxWanted(Stopwatch.GetTimestamp(), Offsets.VoraxWantedSeconds) ? _vorax?.Read() : null,
             FrozenCanvas = Game.FrozenCanvasWanted(Stopwatch.GetTimestamp(), Offsets.FrozenWantedSeconds) ? _frozenCanvas?.Read() : null,
