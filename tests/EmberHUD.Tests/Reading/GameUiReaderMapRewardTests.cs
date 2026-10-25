@@ -14,7 +14,6 @@ public sealed class GameUiReaderMapRewardTests
         public required nint Drops;
         public required nint Stage;
         public long Now;
-        public Vector2 LastItemAt;
     }
 
     static readonly Vector2 ClipMin = new(1000, 300);
@@ -41,12 +40,12 @@ public sealed class GameUiReaderMapRewardTests
         return new Screen { World = world, Ui = ui, Page = page, PageRoot = pageRoot, Drops = drops, Stage = stage };
     }
 
-    internal static nint Item(Screen screen, string iconPath, string? count, float x, float y, uint pathNumber = 0, byte visibility = 4)
+    internal static nint Item(Screen screen, string iconPath, string? count, float x, float y, uint pathNumber = 0, byte visibility = 4, Vector2? frameAt = null)
     {
         var world = screen.World;
         var ui = screen.Ui;
-        screen.LastItemAt = new Vector2(x, y);
         var item = ui.Widget(ui.UserClass("GoodSmallBaseItem_C"), "GoodSmallBaseItem_C_1", new Vector2(x, y), new Vector2(94, 94), visibility);
+        world.Memory.Write(item + Offsets.MapRewardItemFrame, ui.Widget(world.AddClass("UIImage"), "UIImage_Bg", frameAt ?? new Vector2(x, y), new Vector2(94, 94)));
         var root = ui.Widget(ui.PanelClass("CanvasPanel"), "CanvasPanel_0", Vector2.Zero, new Vector2(94, 94));
         var icon = ui.Widget(world.AddClass("UIImage"), "UIImage_Icon", new Vector2(x, y), new Vector2(94, 94));
         world.Memory.Write(item + Offsets.MapRewardItemIcon, icon);
@@ -78,9 +77,9 @@ public sealed class GameUiReaderMapRewardTests
         return new Screen { World = world, Ui = ui, Page = page, PageRoot = pageRoot, Drops = grid, Stage = 0 };
     }
 
-    internal static nint Cell(Screen screen, nint item, Vector2? at = null)
+    internal static nint Cell(Screen screen, nint item)
     {
-        var box = screen.Ui.Widget(screen.Ui.PanelClass("SizeBox"), "SizeBox_0", at ?? screen.LastItemAt, new Vector2(78, 112));
+        var box = screen.Ui.Widget(screen.Ui.PanelClass("SizeBox"), "SizeBox_0", Vector2.Zero, new Vector2(78, 112));
         screen.Ui.SetChildren(box, item);
         return box;
     }
@@ -112,6 +111,29 @@ public sealed class GameUiReaderMapRewardTests
     }
 
     static GameUiReader Reader(Screen screen, ItemInfoReader? items = null) => screen.World.UiReader(() => screen.Now, items);
+
+    [Fact]
+    public void RectIsTheBackgroundImageNotTheShrunkItem()
+    {
+        var screen = Open();
+        screen.Ui.SetChildren(screen.Drops, Item(screen, MemoryPath, "1", 1018, 321, frameAt: new Vector2(1010, 310)));
+        Assert.Equal((new Vector2(1010, 310), new Vector2(1104, 404)), (Tick(Reader(screen), screen)!.Items[0].Min, Tick(Reader(screen), screen)!.Items[0].Max));
+
+        var boss = OpenBoss();
+        var items = Gold(boss.World, (112258, 3610, "Icon_Equip_Ring_Epic_202_128"));
+        boss.Ui.SetChildren(boss.Drops, Cell(boss, Item(boss, RingPath, null, 1018, 321, frameAt: new Vector2(1010, 310))));
+        Assert.Equal(new Vector2(1010, 310), Assert.Single(Tick(Reader(boss, items), boss)!.Items).Min);
+    }
+
+    [Fact]
+    public void ItemWithoutAReadableBackgroundIsSkipped()
+    {
+        var screen = Open();
+        var item = Item(screen, MemoryPath, "1", 1010, 310);
+        screen.World.Memory.Write(item + Offsets.MapRewardItemFrame, 0L);
+        screen.Ui.SetChildren(screen.Drops, item);
+        Assert.Null(Tick(Reader(screen), screen));
+    }
 
     [Fact]
     public void MemoryIconResolvesFromTheNameWithoutTheItemTable()
@@ -268,16 +290,6 @@ public sealed class GameUiReaderMapRewardTests
         screen.World.Memory.Write(Ptr(screen, bad + Offsets.MapRewardItemIcon) + Offsets.MapRewardIconPath, 0x7FFFFFu);
         screen.Ui.SetChildren(screen.Drops, bad, Item(screen, MemoryPath, "1", 1110, 310));
         Assert.Equal([new Vector2(1110, 310)], Tick(Reader(screen), screen)!.Items.Select(i => i.Min));
-    }
-
-    [Fact]
-    public void BossItemRectIsTheCellRectNotTheShrunkItem()
-    {
-        var screen = OpenBoss();
-        var items = Gold(screen.World, (112258, 3610, "Icon_Equip_Ring_Epic_202_128"));
-        screen.Ui.SetChildren(screen.Drops, Cell(screen, Item(screen, RingPath, null, 1018, 321), new Vector2(1010, 310)));
-        var item = Assert.Single(Tick(Reader(screen, items), screen)!.Items);
-        Assert.Equal((new Vector2(1010, 310), new Vector2(1088, 422)), (item.Min, item.Max));
     }
 
     [Fact]
