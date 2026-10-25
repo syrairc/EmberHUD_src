@@ -76,4 +76,12 @@ public sealed class MousePathTests
         var path = MousePath.Generate((0, 0), (800, 0), Default, new Random(1));
         Assert.Contains(path, p => p.Y != 0);
     }
+
+    [Fact]
+    public void StopToleranceClampsToZeroTwenty()
+    {
+        Assert.Equal(0, (Default with { StopTolerance = -5 }).Clamped().StopTolerance);
+        Assert.Equal(20, (Default with { StopTolerance = 99 }).Clamped().StopTolerance);
+        Assert.Equal(3, Default.Clamped().StopTolerance);
+    }
 }

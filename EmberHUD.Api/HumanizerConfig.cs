@@ -14,6 +14,7 @@ public sealed record HumanizerConfig
     public float Gravity { get; init; } = 9;
     public float Wind { get; init; } = 3;
     public float SlowDistance { get; init; } = 8;
+    public float StopTolerance { get; init; } = 3;
 
     public HumanizerConfig Clamped()
     {
@@ -27,6 +28,7 @@ public sealed record HumanizerConfig
             Gravity = MathF.Max(0, Gravity),
             Wind = MathF.Max(0, Wind),
             SlowDistance = MathF.Max(0, SlowDistance),
+            StopTolerance = Math.Clamp(StopTolerance, 0, 20),
             StepDelayMin = stepMin, StepDelayMax = stepMax,
             PreClickSettleMin = preMin, PreClickSettleMax = preMax,
             ClickDwellMin = dwellMin, ClickDwellMax = dwellMax,

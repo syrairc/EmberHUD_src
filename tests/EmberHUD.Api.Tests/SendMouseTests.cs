@@ -397,4 +397,53 @@ public sealed class SendMouseTests : IDisposable
         Assert.True(await Done(MoveTo(7, 7, MouseMode.Humanized)));
         Assert.Equal([Move(7, 7)], sent);
     }
+
+    [Fact]
+    public async Task PerCallConfigReplacesTheGlobalOne()
+    {
+        TestSend.Record();
+        var waits = TestSend.Instant();
+        Send.Config = new HumanizerConfig { StepDelayMin = 4, StepDelayMax = 9 };
+        Assert.True(await Done(Send.MoveTo(300, 200, MouseMode.Humanized, TestContext.Current.CancellationToken, new HumanizerConfig { StepDelayMin = 20, StepDelayMax = 20 })));
+        Assert.NotEmpty(waits);
+        Assert.All(waits, wait => Assert.Equal(20, wait));
+    }
+
+    [Fact]
+    public async Task PerCallConfigIsIgnoredInDirectMode()
+    {
+        var sent = TestSend.Record();
+        var waits = TestSend.Instant();
+        Assert.True(await Done(Send.MoveTo(300, 200, MouseMode.Direct, TestContext.Current.CancellationToken, new HumanizerConfig { StepDelayMin = 20, StepDelayMax = 20 })));
+        Assert.Equal([Move(300, 200)], sent);
+        Assert.Empty(waits);
+    }
+
+    [Fact]
+    public void ClientToScreenUsesTheToScreenSeam()
+    {
+        Send.ToScreen = (x, y) => (x + 100, y + 50);
+        Assert.Equal((110, 70), Send.ClientToScreen(10, 20));
+    }
+
+    [Fact]
+    public void ClientToScreenIsNullWithoutAWindow()
+    {
+        Send.ToScreen = null;
+        Assert.Null(Send.ClientToScreen(1, 2));
+        Assert.Null(Send.ScreenToClient(1, 2));
+        Send.ToScreen = (_, _) => null;
+        Assert.Null(Send.ClientToScreen(1, 2));
+    }
+
+    [Fact]
+    public void ScreenToClientInvertsClientToScreen()
+    {
+        Send.ToScreen = (x, y) => (x + 1920, y - 30);
+        foreach (var (x, y) in new[] { (0, 0), (15, 700), (1919, 1079) })
+        {
+            var screen = Send.ClientToScreen(x, y)!.Value;
+            Assert.Equal((x, y), Send.ScreenToClient(screen.X, screen.Y));
+        }
+    }
 }
