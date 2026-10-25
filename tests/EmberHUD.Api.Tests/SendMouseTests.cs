@@ -236,7 +236,7 @@ public sealed class SendMouseTests : IDisposable
     }
 
     [Fact]
-    public async Task LosingFocusMidPathStopsTheMoveReleasesTheButtonAndFailsQueuedCalls()
+    public async Task ChatOpeningDuringTheDwellStillDeliversTheClickAndFailsQueuedCalls()
     {
         var sent = TestSend.Record();
         var waits = TestSend.Instant();
@@ -257,10 +257,38 @@ public sealed class SendMouseTests : IDisposable
         WaitFor(atPreSettle);
         var queued = MoveTo(50, 50, MouseMode.Direct);
         proceed.Set();
-        Assert.False(await Done(click));
+        Assert.True(await Done(click));
         Assert.False(await Done(queued));
         Assert.Equal([Move(0, 0), ButtonDown(MouseButton.Left), ButtonUp(MouseButton.Left)], sent);
-        Assert.DoesNotContain(300, waits);
+    }
+
+    [Fact]
+    public async Task ClickWhoseDwellLosesPermissionIsTrueBecauseItWasPressedAndReleased()
+    {
+        var sent = TestSend.Record();
+        TestSend.Instant();
+        Send.Config = Distinct;
+        Send.Wait = ms =>
+        {
+            if (ms == 200) ChatIs(true);
+        };
+        Assert.True(await Done(ClickAt(0, 0, MouseButton.Left, MouseMode.Humanized)));
+        Assert.Equal([ButtonDown(MouseButton.Left), ButtonUp(MouseButton.Left)], sent.Where(input => input.Button is not null));
+    }
+
+    [Fact]
+    public async Task CancelDuringTheDwellStillDeliversTheClick()
+    {
+        var sent = TestSend.Record();
+        TestSend.Instant();
+        Send.Config = Distinct;
+        using var cancel = new CancellationTokenSource();
+        Send.Wait = ms =>
+        {
+            if (ms == 200) cancel.Cancel();
+        };
+        Assert.True(await Done(ClickAt(0, 0, MouseButton.Left, MouseMode.Humanized, cancel.Token)));
+        Assert.Equal([ButtonDown(MouseButton.Left), ButtonUp(MouseButton.Left)], sent.Where(input => input.Button is not null));
     }
 
     [Fact]

@@ -185,6 +185,40 @@ public sealed class ClickStepTests
     }
 
     [Test]
+    public void LockPairCompletesWhenTheUiHoldsSendOffAfterTheFirstClick()
+    {
+        var fixture = Setup();
+        var polls = 0;
+        var runner = fixture.Runner(() => FullMenu(), (ms, _) =>
+        {
+            if (ms == 250 && fixture.Clicks().Count == 2) TestGame.Set(GameState.Empty with { ChatOpen = true });
+            else if (ms == 50 && ++polls == 6) TestGame.Set(GameState.Empty with { ChatOpen = false });
+            return Task.CompletedTask;
+        });
+        var result = Run(runner, ClickScenario(MenuOption.Lock));
+        Check.That(result.Refused is null && !result.Cancelled, "ran clean");
+        Check.Equal(3, fixture.Clicks().Count, "cell plus both lock clicks");
+        Check.That(result.Note is null, result.Note);
+    }
+
+    [Test]
+    public void SendNeverAllowedAgainBeforeTheSecondLockClickStopsWithTheNote()
+    {
+        var fixture = Setup();
+        Send.Down(Key.D1);
+        var runner = fixture.Runner(() => FullMenu(), (ms, _) =>
+        {
+            if (ms == 250 && fixture.Clicks().Count == 2) TestGame.Set(GameState.Empty with { ChatOpen = true });
+            return Task.CompletedTask;
+        });
+        var result = Run(runner, ClickScenario(MenuOption.Lock));
+        Check.That(result.Cancelled, "stopped");
+        Check.That(result.Note is { } note && note.Contains("one Lock click"), result.Note);
+        Check.Equal(2, fixture.Clicks().Count, "nothing pressed for the second click");
+        lock (fixture.Sent) Check.That(fixture.Sent.Contains(new SentInput(Key.D1, null, false, 0, 0)), "ReleaseAll ran");
+    }
+
+    [Test]
     public void ACompleteLockPairLeavesNoNote()
     {
         var fixture = Setup();

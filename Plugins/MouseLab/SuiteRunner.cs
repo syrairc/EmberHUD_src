@@ -15,6 +15,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
     const string HalfLockNote = "Stopped after one Lock click - the item may now be locked or unlocked, check it";
     const int MenuPollMs = 50;
     const int MenuTimeoutMs = 4000;
+    const int AllowedTimeoutMs = 1500;
 
     const int SettleMs = 150;
     const int StepPauseMs = 250;
@@ -36,6 +37,16 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
         {
             Send.ReleaseAll();
             return Result(refused: reason);
+        }
+
+        async Task<bool> SendAllowed()
+        {
+            for (var waited = 0; !Send.Allowed; waited += MenuPollMs)
+            {
+                if (waited >= AllowedTimeoutMs) return false;
+                await delay(MenuPollMs, cancel);
+            }
+            return true;
         }
 
         var overlapsTakeOut = false;
@@ -68,7 +79,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                     var target = step.Target;
                     if (step.Kind == StepKind.Click)
                     {
-                        if (!await Send.ClickAt(CentreX(target), CentreY(target), MouseButton.Left, MouseMode.Humanized, cancel, config) || cancel.IsCancellationRequested) return Stopped();
+                        if (!await SendAllowed() || !await Send.ClickAt(CentreX(target), CentreY(target), MouseButton.Left, MouseMode.Humanized, cancel, config) || cancel.IsCancellationRequested) return Stopped();
                         await delay(SettleMs, cancel);
                         continue;
                     }
@@ -90,6 +101,7 @@ public sealed class SuiteRunner(Func<Sampler> newSampler, Func<int, Cancellation
                         for (var click = 0; click < clicks; click++)
                         {
                             if (click > 0) await delay(StepPauseMs, cancel);
+                            if (!await SendAllowed()) return Stopped();
                             if (OptionRect(step.Option) is not { } fresh) return Refused(Gone("The item menu went away mid click, stopped"));
                             if (clicks > 1 && click == 0) pending = HalfLockNote;
                             var landed = await Send.ClickAt(CentreX(fresh), CentreY(fresh), MouseButton.Left, MouseMode.Humanized, cancel, config);

@@ -114,7 +114,6 @@ public static partial class Send
         {
             if (!Emit(job, new SentInput(Key.None, button, true, 0, 0), capped: true)) return false;
             if (humanized) Wait(Rng.Next(config.ClickDwellMin, config.ClickDwellMax + 1));
-            if (!Alive(job)) return false;
         }
         finally
         {
