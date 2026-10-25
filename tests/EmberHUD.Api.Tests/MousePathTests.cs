@@ -39,17 +39,7 @@ public sealed class MousePathTests
     {
         yield return new HumanizerConfig();
         foreach (var speed in new[] { 50, 75, 100, 125, 150 })
-        {
-            int Delay(int atFullSpeed) => (int)Math.Round(atFullSpeed * 150.0 / speed);
-            yield return new HumanizerConfig
-            {
-                MaxStep = (float)Math.Round(60.0 * speed / 150, 1),
-                StepDelayMin = Delay(0), StepDelayMax = Delay(2),
-                PreClickSettleMin = Delay(4), PreClickSettleMax = Delay(12),
-                ClickDwellMin = Delay(8), ClickDwellMax = Delay(20),
-                PostClickSettleMin = Delay(4), PostClickSettleMax = Delay(12),
-            };
-        }
+            yield return HumanizerPresets.FromSpeed(speed);
     }
 
     internal static IEnumerable<PathScores> Sweep(HumanizerConfig config)
