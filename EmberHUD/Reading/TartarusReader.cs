@@ -44,15 +44,17 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
         for (var index = 0; index < size; index++)
             if (_lua.TryGetTableAt(cells, index, out var cell) && TryReadCell(index, cell, out var read)) cellList.Add(read);
 
-        var instruments = _lua.TryGetTable(manager, Offsets.LuaTartarusRelics, out var relics)
-            ? _lua.IntKeyedTables(relics).Take(Offsets.MaxTartarusRelics)
-                .Select(r => (ok: TryGetInt(r.Value, Offsets.LuaTartarusRelicId, out var id) & TryGetInt(r.Value, Offsets.LuaTartarusObtainSequence, out var sequence), id, sequence))
-                .Where(r => r.ok).OrderBy(r => r.sequence).Select(r => r.id).ToArray()
-            : [];
+        var instruments = RelicIds(manager, Offsets.LuaTartarusRelics);
         var chromatics = _lua.TryGetTable(manager, Offsets.LuaTartarusArchive, out var archive) ? _lua.IntKeyedTables(archive).Count() : 0;
 
-        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics) { Tasks = ReadTasks(manager), Raw = raw ? ReadRaw(manager) : null };
+        return new TartarusState(position, size, day, maxDay, [.. cellList], ReadChoice(manager, position, size), instruments, chromatics) { Tasks = ReadTasks(manager), Themes = RelicIds(manager, Offsets.LuaTartarusThemes), Raw = raw ? ReadRaw(manager) : null };
     }
+
+    private int[] RelicIds(LuaTable manager, string key) => _lua.TryGetTable(manager, key, out var relics)
+        ? _lua.IntKeyedTables(relics).Take(Offsets.MaxTartarusRelics)
+            .Select(r => (ok: TryGetInt(r.Value, Offsets.LuaTartarusRelicId, out var id) & TryGetInt(r.Value, Offsets.LuaTartarusObtainSequence, out var sequence), id, sequence))
+            .Where(r => r.ok).OrderBy(r => r.sequence).Select(r => r.id).ToArray()
+        : [];
 
     private TartarusRaw ReadRaw(LuaTable manager)
     {

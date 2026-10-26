@@ -65,6 +65,16 @@ public class TartarusReaderTests
             Lua.SetIntKeyTable(Cells, index, cell);
         }
 
+        public void Theme(int relicId)
+        {
+            var themes = Lua.NewTable(4, 1);
+            var theme = Lua.NewTable(0, 2);
+            Lua.SetInt(theme, Offsets.LuaTartarusRelicId, relicId);
+            Lua.SetInt(theme, Offsets.LuaTartarusObtainSequence, 1);
+            Lua.SetIntKeyTable(themes, 1, theme);
+            Lua.SetTable(Manager, Offsets.LuaTartarusThemes, themes);
+        }
+
         public void Relic(int slot, int relicId, int sequence)
         {
             var relic = Lua.NewTable(0, 2);
@@ -351,6 +361,15 @@ public class TartarusReaderTests
         var f = new Fixture();
         f.Cell(2, "P7", 101, 201, tusk: true);
         Assert.True(f.Reader().Read()!.Cells.Single().Tusk);
+    }
+
+    [Fact]
+    public void StartCardIsReadFromThemes()
+    {
+        var f = new Fixture();
+        Assert.Empty(f.Reader().Read()!.Themes);
+        f.Theme(304);
+        Assert.Equal([304], f.Reader().Read()!.Themes);
     }
 
     [Fact]

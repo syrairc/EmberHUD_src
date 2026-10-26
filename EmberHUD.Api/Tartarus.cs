@@ -19,5 +19,6 @@ public sealed record TartarusRaw(string Run, long Build, string State);
 public sealed record TartarusState(int Position, int Size, int Day, int MaxDay, TartarusCell[] Cells, TartarusChoice? Choice, int[] Instruments, int Chromatics)
 {
     public TartarusTask[] Tasks { get; init; } = [];
+    public int[] Themes { get; init; } = [];
     public TartarusRaw? Raw { get; init; }
 }
