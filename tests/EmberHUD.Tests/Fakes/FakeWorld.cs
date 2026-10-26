@@ -745,6 +745,16 @@ internal sealed class FakeWorld
         Memory.Write(minimap.Widget + Offsets.MinimapViewportScale, viewportScale);
     }
 
+    public void SetMinimapSlateScale(FakeMinimap minimap, float scale)
+    {
+        var slate = Alloc(0x1000);
+        Memory.WriteArray(slate + Offsets.SWidgetTransform, new[] { scale, 0, 0, scale, 0, 0 });
+        var controller = Alloc(0x40);
+        Memory.Write(controller + Offsets.RefControllerShared, 1);
+        Memory.Write(minimap.Widget + Offsets.UWidgetSlate, slate);
+        Memory.Write(minimap.Widget + Offsets.UWidgetSlate + Offsets.WeakPtrController, controller);
+    }
+
     public void MoveEntity(FakeEntity entity, double x, double y, double z)
     {
         Memory.TryReadPtr(entity.Address + Offsets.EntityPosition, out var block);

@@ -350,6 +350,18 @@ public class MinimapReaderTests
     }
 
     [Fact]
+    public void ALiveSlateScaleThatDriftedFromTheConstructTimeScaleStretchesTheWorldWidth()
+    {
+        var world = new FakeWorld();
+        var minimap = world.AddMinimap(0f);
+        world.SetGameMinimap(minimap, 1, 6.2086f, 34304, 0.64f);
+        world.SetMinimapSlateScale(minimap, 0.84f);
+        var reader = ReaderFor(world);
+        reader.ReadRotationDegrees(1);
+        Assert.Equal(6.2086f * 34304 * 0.64f * 0.64f / (1.92f * 0.84f), reader.ReadGameMinimap()!.WorldWidth, 0.5f);
+    }
+
+    [Fact]
     public void NoWidgetGivesNoGameMinimap()
     {
         var reader = ReaderFor(new FakeWorld());
