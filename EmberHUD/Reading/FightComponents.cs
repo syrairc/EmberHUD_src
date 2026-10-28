@@ -31,6 +31,35 @@ internal sealed class FightComponents(IReadBackend memory, nint moduleBase)
                memory.TryReadPtr(entry + Offsets.FightEntryComponent, out component);
     }
 
+    public Dictionary<int, nint> ReadAll(nint fighter)
+    {
+        var found = new Dictionary<int, nint>();
+        if (TryReadTable(fighter + Offsets.FightEntityDirectTable, out var directIndex, out var directSlots))
+            for (var id = 0; id < directIndex.Length; id++)
+                if (directIndex[id] < directSlots.Length && directSlots[directIndex[id]] != 0) found[id] = directSlots[directIndex[id]];
+
+        if (TryReadTable(fighter + Offsets.FightEntityEntryTable, out var entryIndex, out var entrySlots))
+            for (var id = 0; id < entryIndex.Length; id++)
+                if (!found.ContainsKey(id) && entryIndex[id] < entrySlots.Length && entrySlots[entryIndex[id]] != 0 &&
+                    memory.TryReadPtr(entrySlots[entryIndex[id]] + Offsets.FightEntryComponent, out var component)) found[id] = component;
+        return found;
+    }
+
+    private bool TryReadTable(nint table, out byte[] index, out nint[] slots)
+    {
+        index = [];
+        slots = [];
+        if (!memory.TryRead(table + Offsets.FightTableSlotCap, out int slotCap) || slotCap < 0 || slotCap > Offsets.FightComponentCount + 8 ||
+            !memory.TryReadPtr(table + Offsets.FightTableIndex, out var indexAt) || !memory.TryReadPtr(table + Offsets.FightTableSlots, out var slotsAt)) return false;
+
+        var indexBytes = new byte[Offsets.FightComponentCount];
+        var slotValues = new nint[slotCap + 1];
+        if (!memory.TryRead(indexAt, indexBytes) || !memory.TryRead(slotsAt, slotValues.AsSpan())) return false;
+        index = indexBytes;
+        slots = slotValues;
+        return true;
+    }
+
     private bool TryFromTable(nint table, int componentId, out nint slot)
     {
         slot = 0;

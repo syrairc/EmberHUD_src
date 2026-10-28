@@ -345,6 +345,17 @@ internal sealed class FakeWorld
         return entity;
     }
 
+    public nint FighterEntity(uint id) => _fighters[id].Entity;
+
+    public Dictionary<int, nint> AddFighter(uint id, (double X, double Y) position, params int[] componentIds)
+    {
+        var components = componentIds.Distinct().ToDictionary(component => component, _ => Alloc(0x600));
+        if (!components.TryGetValue(Offsets.TransformComponentId, out var transform)) components[Offsets.TransformComponentId] = transform = Alloc(0x600);
+        Memory.WriteArray(transform + Offsets.TransformPosition, new[] { position.X, position.Y });
+        AddFightEntity(id, [.. components.Select(pair => (pair.Key, pair.Value))]);
+        return components;
+    }
+
     public nint AddBuffComponent(params nint[] instances)
     {
         const int bucketCount = 5;

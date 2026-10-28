@@ -95,7 +95,7 @@ internal sealed class LiveGameSource : IGameSource
             Loc.Getter = null;
             Loc.Finder = null;
             Scene.Lister = null;
-            FightScan.Lister = null;
+            Fight.Lister = null;
             Lua.Dumper = null;
             Items.BaseGetter = null;
             Items.UniqueGetter = null;
@@ -117,9 +117,9 @@ internal sealed class LiveGameSource : IGameSource
         Loc.Getter = key => Guarded(locGate, () => loc.Get(key), null);
         Loc.Finder = (needle, max) => Guarded(findGate, () => finder.Find(needle, max), ([], false));
         Scene.Lister = () => Guarded(sceneGate, () => world.TryReadScene(out var scene, out _) ? world.ListScene(scene, names) : [], []);
-        var probes = new FightProbeReader(backend, moduleBase);
+        var probes = new FightEntityReader(backend, moduleBase);
         var probeGate = new Lock();
-        FightScan.Lister = (at, radius) => Guarded(probeGate, () => probes.Near(at, radius), []);
+        Fight.Lister = (at, radius) => Guarded(probeGate, () => probes.Near(at, radius, Offsets.MaxFighters), []);
         var items = new ItemInfoReader(backend, moduleBase);
         var itemGate = new Lock();
         Items.BaseGetter = id => Guarded(itemGate, () => items.ByBase(id), null);
