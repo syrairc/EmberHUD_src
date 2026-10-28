@@ -1048,4 +1048,70 @@ public class LiveReaderTests
         now += 1;
         Assert.True(reader.TryRead(out state, out _));
         Assert.Equal("Other#1", state.Player!.Name);
-    }}
+    }
+
+    [Fact]
+    public void FightersAreNullUntilAsked()
+    {
+        var (world, _) = WorldWithPlayerAt(100, 200);
+        world.AddFighter(50, (150, 200));
+        Game.FightersAsked = 0;
+        Assert.True(ReaderFor(world).TryRead(out var state, out _));
+        Assert.Null(state.Fighters);
+    }
+
+    [Fact]
+    public void FightersAroundThePlayerArePublishedWhenAsked()
+    {
+        var (world, _) = WorldWithPlayerAt(100, 200);
+        world.AddFighter(50, (150, 200));
+        world.AddFighter(51, (100 + Offsets.FighterRadius + 500, 200));
+        Game.WantFighters();
+        try
+        {
+            Assert.True(ReaderFor(world).TryRead(out var state, out _));
+            Assert.Equal(50, Assert.Single(state.Fighters!).Id);
+        }
+        finally { Game.FightersAsked = 0; }
+    }
+
+    [Fact]
+    public void FightersAreReadOncePerRefreshWindow()
+    {
+        var (world, _) = WorldWithPlayerAt(100, 200);
+        world.AddFighter(50, (150, 200));
+        var now = 100_000L;
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now);
+        Game.WantFighters();
+        try
+        {
+            Assert.True(reader.TryRead(out var state, out _));
+            Assert.Single(state.Fighters!);
+
+            world.AddFighter(52, (160, 200));
+            now += Offsets.FighterRefreshMilliseconds - 1;
+            Assert.True(reader.TryRead(out state, out _));
+            Assert.Single(state.Fighters!);
+
+            now += 1;
+            Assert.True(reader.TryRead(out state, out _));
+            Assert.Equal(2, state.Fighters!.Length);
+        }
+        finally { Game.FightersAsked = 0; }
+    }
+
+    [Fact]
+    public void FightersAreNullWithoutAPlayerPosition()
+    {
+        var world = new FakeWorld();
+        world.PublishEntities(world.AddEntity(11, 48, true, 5, 5, 0));
+        world.AddFighter(50, (150, 200));
+        Game.WantFighters();
+        try
+        {
+            Assert.True(ReaderFor(world).TryRead(out var state, out _));
+            Assert.Null(state.Fighters);
+        }
+        finally { Game.FightersAsked = 0; }
+    }
+}

@@ -357,7 +357,7 @@ public sealed class StateToolsTests
         TestGame.UseFightScan((at, radius) =>
         {
             (askedAt, askedRadius) = (at, radius);
-            return [new FightProbe(9, new Vector2(130, 40), [16, 124], 1, 300, 0, 0, double.NaN, 2, 77) { Buffs = [new FightBuff(82151, 2, 3.5)] }];
+            return [new FightEntity(9, new Vector3(130, 40, 5), new Vector2(0, 1), FightArchetype.GroundEffect, [16, 124]) { Shape = new FightShape(1, 300, 0, 0), Camp = 2, OwnerId = 77, Buffs = [new FightBuff(82151, 2, 3.5)] }];
         });
         try
         {
@@ -369,11 +369,83 @@ public sealed class StateToolsTests
             Check.Equal("16,124", string.Join(',', row["components"]!.AsArray().Select(c => (int)c!)));
             Check.Equal(300u, (uint)row["shapeRadius"]!);
             Check.That(row["scale"] is null, "no Scale component is null");
+            Check.Equal(5d, (double)row["z"]!);
+            Check.Equal("GroundEffect", (string?)row["archetype"]);
             Check.Equal(2, (int)row["camp"]!);
             Check.Equal(77, (int)row["ownerId"]!);
             Check.Equal(82151, (int)row["buffs"]![0]!["id"]!);
             Check.Equal(2, (int)row["buffs"]![0]!["stacks"]!);
             Check.Equal(3.5, (double)row["buffs"]![0]!["remaining"]!);
+        }
+        finally
+        {
+            TestGame.UseFightScan(null);
+        }
+    }
+
+    [Test]
+    public void FightEntitiesShowsTheDecodedBlocks()
+    {
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(Vector3.Zero, Vector2.UnitX) });
+        TestGame.UseFightScan((_, _) =>
+        [
+            new FightEntity(3, new Vector3(10, 0, 1), new Vector2(1, 0), FightArchetype.Bullet, [19, 102])
+            {
+                Motion = new FightMotion(800, 13, new Vector2(800, 0), new Vector2(13, 0), false, true, 4, 55.5),
+                Command = new FightCommand(MoveCommandType.Seek, 4, 0.5, 1),
+                Bullet = new FightBullet(2, 1500, new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), true, true, false, 66),
+                Track = new FightTrack(true, 1, true, false, 900),
+                Link = new FightLink(5, 1, 3, false),
+                Timed = new FightTimed(0.5, 2),
+                Beam = new FightBeam(Vector3.Zero, new Vector3(0, 0, 1)),
+                Npc = new FightNpc(1010, 1, 2, 3),
+                Role = new FightRole(1010, 1, 80),
+                Lifetime = 1.5,
+                Scale = 1.25,
+            },
+        ]);
+        try
+        {
+            var row = Wire.Run(Tools, "fight_entities")["entities"]![0]!;
+            Check.Equal(1d, (double)row["directionX"]!);
+            Check.Equal("Bullet", (string?)row["archetype"]);
+            Check.Equal(1.5, (double)row["lifetime"]!);
+            Check.Equal(1.25, (double)row["scale"]!);
+            Check.Equal(-1, (int)row["camp"]!);
+            Check.Equal(55.5, (double)row["motion"]!["travelled"]!);
+            Check.Equal(13d, (double)row["motion"]!["lastStep"]!["x"]!);
+            Check.Equal("Seek", (string?)row["command"]!["type"]);
+            Check.Equal(3, (int)row["command"]!["typeId"]!);
+            Check.Equal(2, (int)row["bullet"]!["moveType"]!);
+            Check.Equal("Lob", (string?)row["bullet"]!["kind"]);
+            Check.Equal(9d, (double)row["bullet"]!["end"]!["z"]!);
+            Check.Equal(66, (int)row["bullet"]!["sourceId"]!);
+            Check.That((bool)row["bullet"]!["armed"]!, "armed");
+            Check.Equal(900d, (double)row["track"]!["range"]!);
+            Check.Equal(3, (int)row["link"]!["maxHits"]!);
+            Check.Equal(2d, (double)row["timed"]!["duration"]!);
+            Check.Equal(1d, (double)row["beam"]!["end"]!["z"]!);
+            Check.Equal(3, (int)row["npc"]!["category"]!);
+            Check.Equal(80, (int)row["role"]!["level"]!);
+        }
+        finally
+        {
+            TestGame.UseFightScan(null);
+        }
+    }
+
+    [Test]
+    public void FightEntitiesBareFighterHasNullBlocks()
+    {
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(Vector3.Zero, Vector2.UnitX) });
+        TestGame.UseFightScan((_, _) => [new FightEntity(4, new Vector3(10, 0, 0), Vector2.UnitY, FightArchetype.Unknown, [])]);
+        try
+        {
+            var row = Wire.Run(Tools, "fight_entities")["entities"]![0]!;
+            foreach (var key in new[] { "motion", "command", "bullet", "track", "link", "timed", "beam", "npc", "role", "lifetime", "scale", "buffs" })
+                Check.That(row[key] is null, key + " is null");
+            Check.Equal(-1, (int)row["camp"]!);
+            Check.Equal(0u, (uint)row["shapeKind"]!);
         }
         finally
         {

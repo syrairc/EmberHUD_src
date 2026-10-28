@@ -43,7 +43,7 @@ internal static class StateTools
             Schema.Of([], ("kind", "string", "EntityKind name, e.g. Monster, Portal, Npc"), ("rarity", "string", "Normal, Magic, Rare or Boss"), ("cfgId", "integer", "config id"), ("id", "integer", "entity id"), ("address", "string", "logic entity address, hex"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), GetEntities),
         new("scene_entities", "Every entity in the scene hash map, not just the ones Game.State draws - id, cfgId, kind (null when the overlay doesn't draw it), UObject class (FightMgr map entries only, else empty), alive, position, logic address. Nearest to the player first when there is one. Filters combine: cfgId, class (case-insensitive substring), radius (world units around the player). limit defaults to 200, max 1000. Empty without a live game.",
             Schema.Of([], ("cfgId", "integer", "config id"), ("class", "string", "class name substring, e.g. EMapGodOf"), ("radius", "number", "world units around the player"), ("limit", "integer", "rows to return, 1 to 1000")), SceneEntities),
-        new("fight_entities", "Fighters in the fight world near the player, which the scene list and Game.State often miss (ground rings, bullets, auras). Per fighter: id, x / y, distance, component ids, shape kind (1 circle, 2 rect) with radius and extents, scale (null = no Scale component), side camp (-1 none, 1 hostile, 2 player), owner id. Nearest first. radius is world units around the player (default 600), limit defaults to 100, max 500. Empty without a live game.",
+        new("fight_entities", "Fighters in the fight world near the player, which the scene list and Game.State often miss (ground rings, bullets, auras). Per fighter: id, x / y, distance, component ids, shape kind (1 circle, 2 rect) with radius and extents, scale (null = no Scale component), side camp (-1 none, 1 hostile, 2 player), owner id. Also z, direction, archetype, lifetime and the decoded blocks motion, command, bullet, track, link, timed, beam, npc, role (null when the fighter lacks one). Nearest first. radius is world units around the player (default 600), limit defaults to 100, max 500. Empty without a live game.",
             Schema.Of([], ("radius", "number", "world units around the player, default 600"), ("limit", "integer", "rows to return, 1 to 500")), FightEntities),
         new("get_inventory", "Inventory items from Game.State: bag (Equipment, Skills, Commodities, Other), slot, id, baseId, level, quality, rareValue, count, stackMax, type, icon (texture short name, null when the row is not loaded). Asks the reader for the inventory and waits up to a second for it - ready is false only when the reader did not answer in that time, or when the Lua chain did not resolve - items are empty then, ask again. Optional bag filter.",
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
@@ -450,28 +450,109 @@ internal static class StateTools
         var radius = args.OptFloat("radius") ?? 600;
         var player = Game.State.Player ?? throw new ToolError("fight_entities needs a player position and there is none yet");
         var at = new Vector2(player.Position.X, player.Position.Y);
-        return Page(FightScan.Near(at, radius), limit, probe =>
+        return Page(Fight.Scan(at, radius), limit, fighter =>
         {
             var row = new JsonObject
             {
-                ["id"] = probe.Id,
-                ["x"] = Num.F(probe.Position.X),
-                ["y"] = Num.F(probe.Position.Y),
-                ["distance"] = Num.F(Vector2.Distance(probe.Position, at)),
-                ["components"] = new JsonArray([.. probe.Components.Select(component => (JsonNode)component)]),
-                ["shapeKind"] = probe.ShapeKind,
-                ["shapeRadius"] = probe.ShapeRadius,
-                ["extentA"] = probe.ExtentA,
-                ["extentB"] = probe.ExtentB,
-                ["scale"] = double.IsFinite(probe.Scale) ? Math.Round(probe.Scale, 3) : null,
-                ["camp"] = probe.Camp,
-                ["ownerId"] = probe.OwnerId,
+                ["id"] = fighter.Id,
+                ["x"] = Num.F(fighter.Position.X),
+                ["y"] = Num.F(fighter.Position.Y),
+                ["z"] = Num.F(fighter.Position.Z),
+                ["distance"] = Num.F(Vector2.Distance(new Vector2(fighter.Position.X, fighter.Position.Y), at)),
+                ["directionX"] = Num.F(fighter.Direction.X),
+                ["directionY"] = Num.F(fighter.Direction.Y),
+                ["archetype"] = fighter.Archetype.ToString(),
+                ["components"] = new JsonArray([.. fighter.Components.Select(component => (JsonNode)component)]),
+                ["shapeKind"] = fighter.Shape?.Kind ?? 0,
+                ["shapeRadius"] = fighter.Shape?.Radius ?? 0,
+                ["extentA"] = fighter.Shape?.ExtentA ?? 0,
+                ["extentB"] = fighter.Shape?.ExtentB ?? 0,
+                ["scale"] = fighter.Scale is { } scale && double.IsFinite(scale) ? Math.Round(scale, 3) : null,
+                ["camp"] = fighter.Camp ?? -1,
+                ["ownerId"] = fighter.OwnerId,
+                ["lifetime"] = fighter.Lifetime is { } lifetime ? Round(lifetime) : null,
+                ["motion"] = fighter.Motion is { } motion ? new JsonObject
+                {
+                    ["speed"] = Round(motion.Speed),
+                    ["tickDistance"] = Round(motion.TickDistance),
+                    ["velocity"] = Xy(motion.Velocity),
+                    ["lastStep"] = Xy(motion.LastStep),
+                    ["blocked"] = motion.Blocked,
+                    ["moving"] = motion.Moving,
+                    ["commandId"] = motion.CommandId,
+                    ["travelled"] = Round(motion.Travelled),
+                } : null,
+                ["command"] = fighter.Command is { } command ? new JsonObject
+                {
+                    ["type"] = command.Type.ToString(),
+                    ["typeId"] = (int)command.Type,
+                    ["id"] = command.Id,
+                    ["elapsed"] = Round(command.Elapsed),
+                    ["speedProfile"] = command.SpeedProfile,
+                } : null,
+                ["bullet"] = fighter.Bullet is { } bullet ? new JsonObject
+                {
+                    ["moveType"] = bullet.MoveType,
+                    ["kind"] = bullet.Kind?.ToString(),
+                    ["range"] = Round(bullet.Range),
+                    ["origin"] = Xyz(bullet.Origin),
+                    ["last"] = Xyz(bullet.Last),
+                    ["end"] = Xyz(bullet.End),
+                    ["terrainStop"] = bullet.TerrainStop,
+                    ["armed"] = bullet.Armed,
+                    ["finished"] = bullet.Finished,
+                    ["sourceId"] = bullet.SourceId,
+                } : null,
+                ["track"] = fighter.Track is { } track ? new JsonObject
+                {
+                    ["hasTarget"] = track.HasTarget,
+                    ["targetId"] = track.TargetId,
+                    ["needsTarget"] = track.NeedsTarget,
+                    ["survivesTargetLoss"] = track.SurvivesTargetLoss,
+                    ["range"] = Round(track.Range),
+                } : null,
+                ["link"] = fighter.Link is { } link ? new JsonObject
+                {
+                    ["skillId"] = link.SkillId,
+                    ["hits"] = link.Hits,
+                    ["maxHits"] = link.MaxHits,
+                    ["unlimited"] = link.Unlimited,
+                } : null,
+                ["timed"] = fighter.Timed is { } timed ? new JsonObject
+                {
+                    ["elapsed"] = Round(timed.Elapsed),
+                    ["duration"] = Round(timed.Duration),
+                } : null,
+                ["beam"] = fighter.Beam is { } beam ? new JsonObject
+                {
+                    ["start"] = Xyz(beam.Start),
+                    ["end"] = Xyz(beam.End),
+                } : null,
+                ["npc"] = fighter.Npc is { } npc ? new JsonObject
+                {
+                    ["npcId"] = npc.NpcId,
+                    ["rarity"] = npc.Rarity,
+                    ["sourceType"] = npc.SourceType,
+                    ["category"] = npc.Category,
+                } : null,
+                ["role"] = fighter.Role is { } role ? new JsonObject
+                {
+                    ["config"] = role.Config,
+                    ["rarity"] = role.Rarity,
+                    ["level"] = role.Level,
+                } : null,
             };
-            if (probe.Buffs.Length > 0)
-                row["buffs"] = new JsonArray([.. probe.Buffs.Select(buff => (JsonNode)new JsonObject { ["id"] = buff.Id, ["stacks"] = buff.Stacks, ["remaining"] = Math.Round(buff.Remaining, 2) })]);
+            if (fighter.Buffs.Length > 0)
+                row["buffs"] = new JsonArray([.. fighter.Buffs.Select(buff => (JsonNode)new JsonObject { ["id"] = buff.Id, ["stacks"] = buff.Stacks, ["remaining"] = Math.Round(buff.Remaining, 2) })]);
             return row;
         });
     }
+
+    static JsonNode? Round(double value) => double.IsFinite(value) ? JsonValue.Create(Math.Round(value, 2)) : null;
+
+    static JsonObject Xy(Vector2 value) => new() { ["x"] = Num.F(value.X), ["y"] = Num.F(value.Y) };
+
+    static JsonObject Xyz(Vector3 value) => new() { ["x"] = Num.F(value.X), ["y"] = Num.F(value.Y), ["z"] = Num.F(value.Z) };
 
     static JsonObject Page<T>(T[] rows, int limit, Func<T, JsonNode> row) => new()
     {

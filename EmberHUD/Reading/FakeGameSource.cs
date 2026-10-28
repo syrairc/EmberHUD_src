@@ -9,6 +9,9 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
     private const float CastSeconds = 3f;
     private const float ProjectileSeconds = 1.5f;
     private const float LapSeconds = 20f;
+    private const float FighterCycleSeconds = 2f;
+    private const int FakePlayerId = 1;
+    private const int FakeBossId = 1;
     private const float WalkRadius = 300f;
     private const float OuterRadius = 900f;
     private const float InnerRadius = 120f;
@@ -148,6 +151,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             AreaId = 1,
             Player = player,
             Entities = Game.CastsWanted(now, Offsets.CastWantedSeconds) ? CastingAt(now) : SceneEntities,
+            Fighters = Game.FightersWanted(now, Offsets.FighterWantedSeconds) ? FightersAt(now, player.Position) : null,
             Projectiles = Game.ProjectilesWanted(now, Offsets.ProjectileWantedSeconds) ? ProjectilesAt(now, new Vector2(player.Position.X, player.Position.Y)) : [],
             GroundHazards = Game.GroundHazardsWanted(now, Offsets.GroundHazardWantedSeconds) ? GroundHazardsAt(new Vector2(player.Position.X, player.Position.Y)) : [],
             Terrain = SceneTerrain,
@@ -378,6 +382,42 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
                 var direction = Vector2.Normalize(end - origin);
                 return new Projectile(9000 + i, shooter.Id, shooter.Rarity, origin + (end - origin) * travel, origin, direction, 120, 1500);
             }),
+        ];
+    }
+
+    private static FightEntity[] FightersAt(long now, Vector3 player)
+    {
+        var cycle = now / (double)Stopwatch.Frequency % FighterCycleSeconds;
+        var travel = (float)(cycle / FighterCycleSeconds);
+        var origin = player + new Vector3(-600, 0, 0);
+        var straightAt = origin + new Vector3(1500 * travel, 0, 0);
+        var homingAt = player + new Vector3(0, 800 * (1 - travel), 0);
+        return
+        [
+            new(9200, straightAt, Vector2.UnitX, FightArchetype.Bullet, [Offsets.BulletComponentId, Offsets.MoveComponentId, Offsets.MoveCmdComponentId, Offsets.SuicideComponentId])
+            {
+                Motion = new FightMotion(800, 13, new Vector2(800, 0), new Vector2(13, 0), false, true, 1, 1500 * travel),
+                Command = new FightCommand(MoveCommandType.Straight, 1, cycle, 0),
+                Bullet = new FightBullet(0, 1500, origin, straightAt, origin + new Vector3(1500, 0, 0), false, true, false, FakeBossId),
+                Lifetime = FighterCycleSeconds - cycle,
+            },
+            new(9201, homingAt, -Vector2.UnitY, FightArchetype.Bullet, [Offsets.BulletComponentId, Offsets.MoveComponentId, Offsets.MoveCmdComponentId, Offsets.TrackComponentId])
+            {
+                Motion = new FightMotion(800, 13, new Vector2(0, -800), new Vector2(0, -13), false, true, 2, 800 * travel),
+                Command = new FightCommand(MoveCommandType.Seek, 2, cycle, 0),
+                Bullet = new FightBullet(0, 1500, player + new Vector3(0, 800, 0), homingAt, player, false, true, false, FakeBossId),
+                Track = new FightTrack(true, FakePlayerId, true, false, 1500),
+            },
+            new(9202, player + new Vector3(500, 0, 0), Vector2.UnitY, FightArchetype.GroundEffect, [Offsets.GroundEffectComponentId, Offsets.LastedEffectComponentId, Offsets.SuicideComponentId])
+            {
+                Timed = new FightTimed(cycle, FighterCycleSeconds),
+                Lifetime = FighterCycleSeconds - cycle,
+            },
+            new(9203, player + new Vector3(0, 400, 0), Vector2.UnitY, FightArchetype.Monster, [Offsets.NpcComponentId, Offsets.RoleComponentId])
+            {
+                Npc = new FightNpc(1010, 0, 1, 1),
+                Role = new FightRole(1010, 0, 80),
+            },
         ];
     }
 

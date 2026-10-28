@@ -97,6 +97,24 @@ public class FakeGameSourceTests
     }
 
     [Fact]
+    public void FakeGameServesFightersOnlyWhenAsked()
+    {
+        Game.FightersAsked = 0;
+        Assert.Null(At(Stopwatch.GetTimestamp()).Fighters);
+        try
+        {
+            Game.WantFighters();
+            var fighters = At(Stopwatch.GetTimestamp()).Fighters!;
+
+            Assert.Equal([FightArchetype.Bullet, FightArchetype.Bullet, FightArchetype.GroundEffect, FightArchetype.Monster], fighters.Select(f => f.Archetype));
+            Assert.Equal(MoveCommandType.Seek, fighters[1].Command!.Value.Type);
+            Assert.True(fighters[1].Track!.Value.HasTarget);
+            Assert.Equal(80, fighters[3].Role!.Value.Level);
+        }
+        finally { Game.FightersAsked = 0; }
+    }
+
+    [Fact]
     public void FakeInventoryHasItemsInEveryBagWhenWanted()
     {
         try

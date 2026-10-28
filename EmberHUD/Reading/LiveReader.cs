@@ -29,6 +29,9 @@ internal sealed class LiveReader
     private readonly EntityNamer _namer;
     private readonly CastReader _casts;
     private readonly ProjectileReader _projectiles;
+    private readonly FightEntityReader _fighters;
+    private FightEntity[]? _fightersCache;
+    private long _nextFighterRead;
     private readonly GroundHazardReader _groundHazards;
     private readonly HpBarReader _hpBars;
     private readonly PausedReader _paused;
@@ -65,6 +68,7 @@ internal sealed class LiveReader
         _woodStake = new WoodStakeReader(memory, moduleBase);
         _casts = new CastReader(memory, moduleBase);
         _projectiles = new ProjectileReader(memory, moduleBase);
+        _fighters = new FightEntityReader(memory, moduleBase);
         _groundHazards = new GroundHazardReader(memory, moduleBase);
         _namer = new EntityNamer(new LocText(memory, moduleBase));
         _hpBars = new HpBarReader(memory, moduleBase, names, _ui.TryOrigin);
@@ -136,6 +140,7 @@ internal sealed class LiveReader
             AreaId = _terrain.Generation,
             Player = player,
             Entities = entities,
+            Fighters = ReadFighters(playerPosition, now),
             Projectiles = Game.ProjectilesWanted(Stopwatch.GetTimestamp(), Offsets.ProjectileWantedSeconds) ? _projectiles.Read(entities) : [],
             GroundHazards = Game.GroundHazardsWanted(Stopwatch.GetTimestamp(), Offsets.GroundHazardWantedSeconds) ? _groundHazards.Read(entities) : [],
             Terrain = terrain,
@@ -176,6 +181,21 @@ internal sealed class LiveReader
             SkillSlots = Game.CharacterWanted(Stopwatch.GetTimestamp(), Offsets.CharacterWantedSeconds) ? _ui.ReadSkillSlots() : null,
         };
         return true;
+    }
+
+    private FightEntity[]? ReadFighters(Vector3? playerPosition, long now)
+    {
+        if (!Game.FightersWanted(Stopwatch.GetTimestamp(), Offsets.FighterWantedSeconds) || playerPosition is not { } position)
+        {
+            _fightersCache = null;
+            _nextFighterRead = 0;
+            return null;
+        }
+
+        if (now < _nextFighterRead) return _fightersCache;
+        _nextFighterRead = now + Offsets.FighterRefreshMilliseconds;
+        var found = _fighters.Near(new Vector2(position.X, position.Y), Offsets.FighterRadius, Offsets.MaxFighters);
+        return _fightersCache = found.Length > 0 ? found : null;
     }
 
     private string? ReadPlayerName(nint pawn)
