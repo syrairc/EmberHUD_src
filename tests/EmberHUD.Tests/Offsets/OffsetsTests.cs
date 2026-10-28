@@ -550,6 +550,77 @@ public class OffsetsTests
     }
 
     [Fact]
+    public void FightEntityKeysAreTheV17Values()
+    {
+        Assert.Equal(102, Offsets.MoveCmdComponentId);
+        Assert.Equal(147, Offsets.TrackComponentId);
+        Assert.Equal(106, Offsets.NpcComponentId);
+        Assert.Equal(115, Offsets.RoleComponentId);
+        Assert.Equal(140, Offsets.SuicideComponentId);
+        Assert.Equal(129, Offsets.SkillAttachComponentId);
+        Assert.Equal(71, Offsets.LastedEffectComponentId);
+        Assert.Equal(70, Offsets.LaserComponentId);
+        Assert.Equal(31, Offsets.DirectHitComponentId);
+        Assert.Equal(45, Offsets.GroundEffectComponentId);
+        Assert.Equal(145, Offsets.ThunderCloudComponentId);
+        Assert.Equal(150, Offsets.TriggerAreaComponentId);
+        Assert.Equal(97, Offsets.MapTrapComponentId);
+        Assert.Equal(109, Offsets.PlayerComponentId);
+        Assert.Equal(122, Offsets.ServantComponentId);
+        Assert.Equal(4, Offsets.AiComponentId);
+        Assert.Equal(151, Offsets.ViewAssistComponentId);
+
+        Assert.Equal(52, Offsets.TransformPending);
+        Assert.Equal(64, Offsets.MoveTickDistance);
+        Assert.Equal(88, Offsets.MoveLastStep);
+        Assert.Equal(112, Offsets.MoveBlocked);
+        Assert.Equal(113, Offsets.MoveActive);
+        Assert.Equal(116, Offsets.MoveCommandId);
+        Assert.Equal(136, Offsets.MoveTravelled);
+        Assert.Equal(64, Offsets.MoveCmdCommand);
+        Assert.Equal(72, Offsets.MoveCmdSpeedProfile);
+        Assert.Equal(15, Offsets.CmdType);
+        Assert.Equal(16, Offsets.CmdId);
+        Assert.Equal(24, Offsets.CmdElapsed);
+        Assert.Equal(52, Offsets.BulletMoveType);
+        Assert.Equal(56, Offsets.BulletRange);
+        Assert.Equal(64, Offsets.BulletEnd);
+        Assert.Equal(120, Offsets.BulletLast);
+        Assert.Equal(113, Offsets.BulletTerrainStop);
+        Assert.Equal(281, Offsets.BulletArmed);
+        Assert.Equal(282, Offsets.BulletFinished);
+        Assert.Equal(328, Offsets.BulletSource);
+        Assert.Equal(32, Offsets.RefBound);
+        Assert.Equal(36, Offsets.RefId);
+        Assert.Equal(56, Offsets.TrackTarget);
+        Assert.Equal(236, Offsets.TrackNeedsTarget);
+        Assert.Equal(184, Offsets.TrackRange);
+        Assert.Equal(376, Offsets.TrackSurvives);
+        Assert.Equal(64, Offsets.SuicideLife);
+        Assert.Equal(84, Offsets.SkillAttachSkill);
+        Assert.Equal(92, Offsets.SkillAttachHits);
+        Assert.Equal(96, Offsets.SkillAttachMaxHits);
+        Assert.Equal(100, Offsets.SkillAttachUnlimited);
+        Assert.Equal(56, Offsets.LastedElapsed);
+        Assert.Equal(64, Offsets.LastedDuration);
+        Assert.Equal(56, Offsets.ViewAssistStart);
+        Assert.Equal(80, Offsets.ViewAssistEnd);
+        Assert.Equal(52, Offsets.NpcId);
+        Assert.Equal(60, Offsets.NpcRarity);
+        Assert.Equal(68, Offsets.NpcSource);
+        Assert.Equal(152, Offsets.NpcCategory);
+        Assert.Equal(52, Offsets.FightRoleConfig);
+        Assert.Equal(56, Offsets.FightRoleRarity);
+        Assert.Equal(424, Offsets.FightRoleLevel);
+
+        Assert.Equal(2500, Offsets.FighterRadius);
+        Assert.Equal(300, Offsets.MaxFighters);
+        Assert.Equal(100, Offsets.FighterRefreshMilliseconds);
+        Assert.Equal(3, Offsets.FighterWantedSeconds);
+        Assert.Equal(100000, Offsets.MaxLifetimeSeconds);
+    }
+
+    [Fact]
     public void LuaGlobalRvaIsSetForTheCurrentBuild()
     {
         var original = Offsets.Build;
