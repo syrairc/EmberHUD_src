@@ -250,7 +250,7 @@ public class FakeGameSourceTests
         try
         {
             Game.InventoryAsked = 0;
-            Assert.Equal((null, null), (At(open).Stash, At(open).StashItems));
+            using (Game.Peek()) Assert.Equal((null, null), (At(open).Stash, At(open).StashItems));
 
             Game.InventoryAsked = open;
             var state = At(open);

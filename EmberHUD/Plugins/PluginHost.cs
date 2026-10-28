@@ -88,7 +88,9 @@ internal sealed class PluginHost(SdkSettings sdk, string root, Action<string>? u
                 if (inFrame) Stats.Add(slot.Name, Draw.Background.VtxBuffer.Size - before);
             }
         if (inFrame) Draw.MergeLayers();
-        if (Stats.Report(Environment.TickCount64, Game.State.Projectiles.Length) is { } heavy) Log.Warn(heavy);
+        Game.BeginPeek();
+        try { if (Stats.Report(Environment.TickCount64, Game.State.Projectiles.Length) is { } heavy) Log.Warn(heavy); }
+        finally { Game.EndPeek(); }
     }
 
     public void DrawSettings(PluginSlot slot) => Call(slot, PluginStage.Settings, plugin =>

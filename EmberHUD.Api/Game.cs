@@ -257,6 +257,36 @@ public static class Game
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
+    [ThreadStatic]
+    static int _peekDepth;
+
+    internal static void Touch(Action want)
+    {
+        if (_peekDepth == 0) want();
+    }
+
+    public static IDisposable Peek()
+    {
+        BeginPeek();
+        return new PeekScope();
+    }
+
+    internal static void BeginPeek() => _peekDepth++;
+
+    internal static void EndPeek() => _peekDepth--;
+
+    sealed class PeekScope : IDisposable
+    {
+        bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            EndPeek();
+        }
+    }
+
     internal static bool TakeMinimapRescan() => Interlocked.Exchange(ref _minimapRescans, 0) > 0;
 }
 
@@ -278,7 +308,17 @@ public sealed record GameState
 
     public Entity[] Entities { get; init; } = [];
 
-    public Projectile[] Projectiles { get; init; } = [];
+    Projectile[] _projectiles = [];
+
+    public Projectile[] Projectiles
+    {
+        get
+        {
+            Game.Touch(Game.WantProjectiles);
+            return _projectiles;
+        }
+        init => _projectiles = value;
+    }
 
     FightEntity[]? _fighters;
 
@@ -286,13 +326,23 @@ public sealed record GameState
     {
         get
         {
-            Game.WantFighters();
+            Game.Touch(Game.WantFighters);
             return _fighters;
         }
         init => _fighters = value;
     }
 
-    public GroundHazard[] GroundHazards { get; init; } = [];
+    GroundHazard[] _groundHazards = [];
+
+    public GroundHazard[] GroundHazards
+    {
+        get
+        {
+            Game.Touch(Game.WantGroundHazards);
+            return _groundHazards;
+        }
+        init => _groundHazards = value;
+    }
 
     public Terrain? Terrain { get; init; }
 
@@ -310,52 +360,252 @@ public sealed record GameState
 
     public EquipCompare? Compare { get; init; }
 
-    public TradeGood[]? TradeGoods { get; init; }
+    TradeGood[]? _tradeGoods;
 
-    public BagView? Bag { get; init; }
-    public BagView? Booth { get; init; }
+    public TradeGood[]? TradeGoods
+    {
+        get
+        {
+            Game.Touch(Game.WantTradeGoods);
+            return _tradeGoods;
+        }
+        init => _tradeGoods = value;
+    }
+
+    BagView? _bag;
+
+    public BagView? Bag
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _bag;
+        }
+        init => _bag = value;
+    }
+    BagView? _booth;
+
+    public BagView? Booth
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _booth;
+        }
+        init => _booth = value;
+    }
 
     public MapRewardView? MapReward { get; init; }
 
-    public StashView? Stash { get; init; }
+    StashView? _stash;
 
-    public InventoryItem[]? StashItems { get; init; }
+    public StashView? Stash
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _stash;
+        }
+        init => _stash = value;
+    }
+
+    InventoryItem[]? _stashItems;
+
+    public InventoryItem[]? StashItems
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _stashItems;
+        }
+        init => _stashItems = value;
+    }
 
     public MapInfo? Area { get; init; }
 
     public WoodStakeStats? WoodStake { get; init; }
 
-    public CombatStats? Combat { get; init; }
+    CombatStats? _combat;
+
+    public CombatStats? Combat
+    {
+        get
+        {
+            Game.Touch(Game.WantCombat);
+            return _combat;
+        }
+        init => _combat = value;
+    }
 
     public QuestTarget[] QuestTargets { get; init; } = [];
 
-    public InventoryItem[]? Inventory { get; init; }
+    InventoryItem[]? _inventory;
 
-    public int[]? BagCapacities { get; init; }
+    public InventoryItem[]? Inventory
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _inventory;
+        }
+        init => _inventory = value;
+    }
 
-    public TartarusState? Tartarus { get; init; }
+    int[]? _bagCapacities;
 
-    public TarotState? Tarot { get; init; }
+    public int[]? BagCapacities
+    {
+        get
+        {
+            Game.Touch(Game.WantInventory);
+            return _bagCapacities;
+        }
+        init => _bagCapacities = value;
+    }
 
-    public VoraxState? Vorax { get; init; }
+    TartarusState? _tartarus;
 
-    public FrozenCanvasState? FrozenCanvas { get; init; }
+    public TartarusState? Tartarus
+    {
+        get
+        {
+            Game.Touch(Game.WantTartarus);
+            return _tartarus;
+        }
+        init => _tartarus = value;
+    }
 
-    public XpState? Xp { get; init; }
+    TarotState? _tarot;
 
-    public ScreenRect? XpBar { get; init; }
+    public TarotState? Tarot
+    {
+        get
+        {
+            Game.Touch(Game.WantTarot);
+            return _tarot;
+        }
+        init => _tarot = value;
+    }
 
-    public ItemMenu? ItemMenu { get; init; }
+    VoraxState? _vorax;
 
-    public DeathState? Death { get; init; }
+    public VoraxState? Vorax
+    {
+        get
+        {
+            Game.Touch(Game.WantVorax);
+            return _vorax;
+        }
+        init => _vorax = value;
+    }
 
-    public GroundItem[]? GroundItems { get; init; }
+    FrozenCanvasState? _frozenCanvas;
 
-    public Buff[]? Buffs { get; init; }
+    public FrozenCanvasState? FrozenCanvas
+    {
+        get
+        {
+            Game.Touch(Game.WantFrozenCanvas);
+            return _frozenCanvas;
+        }
+        init => _frozenCanvas = value;
+    }
 
-    public Skill[]? Skills { get; init; }
+    XpState? _xp;
 
-    public ScreenRect?[]? SkillSlots { get; init; }
+    public XpState? Xp
+    {
+        get
+        {
+            Game.Touch(Game.WantXp);
+            return _xp;
+        }
+        init => _xp = value;
+    }
+
+    ScreenRect? _xpBar;
+
+    public ScreenRect? XpBar
+    {
+        get
+        {
+            Game.Touch(Game.WantXp);
+            return _xpBar;
+        }
+        init => _xpBar = value;
+    }
+
+    ItemMenu? _itemMenu;
+
+    public ItemMenu? ItemMenu
+    {
+        get
+        {
+            Game.Touch(Game.WantItemMenu);
+            return _itemMenu;
+        }
+        init => _itemMenu = value;
+    }
+
+    DeathState? _death;
+
+    public DeathState? Death
+    {
+        get
+        {
+            Game.Touch(Game.WantXp);
+            return _death;
+        }
+        init => _death = value;
+    }
+
+    GroundItem[]? _groundItems;
+
+    public GroundItem[]? GroundItems
+    {
+        get
+        {
+            Game.Touch(Game.WantGroundItems);
+            return _groundItems;
+        }
+        init => _groundItems = value;
+    }
+
+    Buff[]? _buffs;
+
+    public Buff[]? Buffs
+    {
+        get
+        {
+            Game.Touch(Game.WantCharacter);
+            return _buffs;
+        }
+        init => _buffs = value;
+    }
+
+    Skill[]? _skills;
+
+    public Skill[]? Skills
+    {
+        get
+        {
+            Game.Touch(Game.WantCharacter);
+            return _skills;
+        }
+        init => _skills = value;
+    }
+
+    ScreenRect?[]? _skillSlots;
+
+    public ScreenRect?[]? SkillSlots
+    {
+        get
+        {
+            Game.Touch(Game.WantCharacter);
+            return _skillSlots;
+        }
+        init => _skillSlots = value;
+    }
 
     public GameMinimap? GameMinimap { get; init; }
 
@@ -451,7 +701,17 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
 
     public bool HasGameBar { get; init; }
 
-    public Cast? Cast { get; init; }
+    readonly Cast? _cast;
+
+    public Cast? Cast
+    {
+        get
+        {
+            Game.Touch(Game.WantCasts);
+            return _cast;
+        }
+        init => _cast = value;
+    }
 }
 
 public readonly record struct Cast(int StoneId, byte State, float Progress, float SecondsLeft, Vector2 Target, Vector2 Direction)

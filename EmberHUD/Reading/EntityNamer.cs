@@ -14,6 +14,7 @@ internal sealed class EntityNamer(LocText loc)
             _language = language;
         }
 
+        using var peek = Game.Peek();
         Dictionary<(string, int), string> frame = [];
         var result = entities;
         for (var i = 0; i < entities.Length; i++)

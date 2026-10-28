@@ -95,6 +95,7 @@ internal static class Walker
     {
         try
         {
+            using var _ = Game.Peek();
             return member.Get(target);
         }
         catch (Exception exception)
