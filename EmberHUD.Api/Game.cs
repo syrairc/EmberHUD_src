@@ -280,7 +280,17 @@ public sealed record GameState
 
     public Projectile[] Projectiles { get; init; } = [];
 
-    public FightEntity[]? Fighters { get; init; }
+    FightEntity[]? _fighters;
+
+    public FightEntity[]? Fighters
+    {
+        get
+        {
+            Game.WantFighters();
+            return _fighters;
+        }
+        init => _fighters = value;
+    }
 
     public GroundHazard[] GroundHazards { get; init; } = [];
 

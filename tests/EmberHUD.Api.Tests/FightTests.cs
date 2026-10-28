@@ -66,6 +66,15 @@ public class FightTests
     }
 
     [Fact]
+    public void ReadingFightersAsksForThem()
+    {
+        Game.FightersAsked = 0;
+        Assert.False(Game.FightersWanted(Stopwatch.GetTimestamp(), 3));
+        _ = GameState.Empty.Fighters;
+        Assert.True(Game.FightersWanted(Stopwatch.GetTimestamp(), 3));
+    }
+
+    [Fact]
     public void FightersAreNullByDefault()
     {
         Assert.Null(GameState.Empty.Fighters);
