@@ -19,7 +19,7 @@ internal sealed class FrozenCanvasReader(IReadBackend memory, nint moduleBase, F
     {
         var now = _clock();
         if (now < _nextRefresh) return _state;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.FrozenRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.MinigameMilliseconds / 1000;
         return _state = Build();
     }
 

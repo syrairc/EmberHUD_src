@@ -149,6 +149,7 @@ NpcCategory = 152
 FightRoleConfig = 52
 FightRoleRarity = 56
 FightRoleLevel = 424
+ReaderTickMilliseconds = 33
 FighterRadius = 2500
 MaxFighters = 300
 FighterRefreshMilliseconds = 100

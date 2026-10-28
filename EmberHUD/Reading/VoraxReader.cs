@@ -33,7 +33,7 @@ internal sealed class VoraxReader(IReadBackend memory, nint moduleBase, Func<str
     {
         var now = _clock();
         if (now < _nextRefresh) return _state;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.VoraxRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.MinigameMilliseconds / 1000;
         return _state = Build();
     }
 

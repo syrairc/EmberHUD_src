@@ -10,6 +10,7 @@ public class ObfuscationTests
     [Theory]
     [InlineData("SdkSettings")]
     [InlineData("InputSettings")]
+    [InlineData("PerformanceSettings")]
     [InlineData("ThemeFile")]
     [InlineData("PluginStage")]
     public void KeptTypeAndEveryHostTypeItHoldsKeepTheirNames(string name)

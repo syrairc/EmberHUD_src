@@ -7,6 +7,7 @@ internal sealed class SdkSettings : PluginSettings
 {
     public SdkHotkeys Hotkeys = new();
     public InputSettings Input = new();
+    public PerformanceSettings Performance = new();
     public string Theme = ThemeStore.DefaultTheme;
     public bool AutoReload;
     public bool InteractiveOutOfFocus;

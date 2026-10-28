@@ -33,6 +33,11 @@ internal sealed class LiveReader
     private FightEntity[]? _fightersCache;
     private long _nextFighterRead;
     private readonly GroundHazardReader _groundHazards;
+    private readonly ReadThrottle<Projectile[]> _projectileThrottle = new();
+    private readonly ReadThrottle<GroundHazard[]> _hazardThrottle = new();
+    private Dictionary<int, Cast>? _castCache;
+    private int _castCacheGeneration;
+    private long _nextCastRead;
     private readonly HpBarReader _hpBars;
     private readonly PausedReader _paused;
     private readonly Func<long> _clock;
@@ -90,7 +95,8 @@ internal sealed class LiveReader
         _memory.TryReadPtr(scene + Offsets.SceneGridModule, out var gridModule);
         var terrain = _terrain.Read(geometry, gridModule);
         var (playerPosition, entities, pawn) = _world.ReadWorld(scene, _terrain.Generation);
-        if (Game.CastsWanted(Stopwatch.GetTimestamp(), Offsets.CastWantedSeconds)) entities = _casts.Apply(entities);
+        var now = _clock();
+        entities = ApplyCasts(entities, now);
         entities = _namer.Apply(entities);
         entities = _hpBars.Apply(entities);
         if (_terrain.Generation != _generation)
@@ -126,7 +132,6 @@ internal sealed class LiveReader
         var explored = _explored.Read(_minimap.Widget, geometry, _terrain.Generation);
         var status = $"{(player is null ? "live - no local player" : "live")} - entities {entities.Length}, map icons {icons.Length}, explored {(explored is null ? "off" : explored.Count)}{(_minimap.Scans > 0 ? $", scans {_minimap.Scans}" : "")}";
         var uiClean = _ui.TryRead(out var ui, out var chatSeen);
-        var now = _clock();
         var chatHeld = _chatSeenAt is { } seenAt && now - seenAt < Offsets.ChatHoldMilliseconds;
         bool? chatOpen = chatSeen || chatHeld ? true : uiClean ? false : null;
         if (chatSeen || !uiClean) _chatSeenAt = now;
@@ -141,8 +146,8 @@ internal sealed class LiveReader
             Player = player,
             Entities = entities,
             Fighters = ReadFighters(playerPosition, now),
-            Projectiles = Game.ProjectilesWanted(Stopwatch.GetTimestamp(), Offsets.ProjectileWantedSeconds) ? _projectiles.Read(entities) : [],
-            GroundHazards = Game.GroundHazardsWanted(Stopwatch.GetTimestamp(), Offsets.GroundHazardWantedSeconds) ? _groundHazards.Read(entities) : [],
+            Projectiles = _projectileThrottle.Read(Game.ProjectilesWanted(Stopwatch.GetTimestamp(), Offsets.ProjectileWantedSeconds), Performance.ProjectileMilliseconds, now, _terrain.Generation, () => _projectiles.Read(entities)) ?? [],
+            GroundHazards = _hazardThrottle.Read(Game.GroundHazardsWanted(Stopwatch.GetTimestamp(), Offsets.GroundHazardWantedSeconds), Performance.GroundHazardMilliseconds, now, _terrain.Generation, () => _groundHazards.Read(entities)) ?? [],
             Terrain = terrain,
             MinimapRotation = rotation,
             GameMinimap = _minimap.ReadGameMinimap(),
@@ -183,6 +188,23 @@ internal sealed class LiveReader
         return true;
     }
 
+    private Entity[] ApplyCasts(Entity[] entities, long now)
+    {
+        if (!Game.CastsWanted(Stopwatch.GetTimestamp(), Offsets.CastWantedSeconds))
+        {
+            _castCache = null;
+            return entities;
+        }
+
+        var interval = Performance.CastMilliseconds;
+        if (interval <= 0) return _casts.Apply(entities);
+        if (_castCache is { } cache && _castCacheGeneration == _terrain.Generation && now < _nextCastRead) return CastReader.Reapply(entities, cache);
+        _castCache = cache = [];
+        _castCacheGeneration = _terrain.Generation;
+        _nextCastRead = now + interval;
+        return _casts.Apply(entities, cache);
+    }
+
     private FightEntity[]? ReadFighters(Vector3? playerPosition, long now)
     {
         if (!Game.FightersWanted(Stopwatch.GetTimestamp(), Offsets.FighterWantedSeconds) || playerPosition is not { } position)
@@ -193,7 +215,7 @@ internal sealed class LiveReader
         }
 
         if (now < _nextFighterRead) return _fightersCache;
-        _nextFighterRead = now + Offsets.FighterRefreshMilliseconds;
+        _nextFighterRead = now + Performance.FighterMilliseconds;
         var found = _fighters.Near(new Vector2(position.X, position.Y), Offsets.FighterRadius, Offsets.MaxFighters);
         return _fightersCache = found.Length > 0 ? found : null;
     }

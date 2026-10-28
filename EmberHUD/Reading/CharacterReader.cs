@@ -20,7 +20,7 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
     {
         var now = _clock();
         if (now < _nextRefresh) return _buffs;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.CharacterRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.CharacterMilliseconds / 1000;
         return _buffs = BuildBuffs();
     }
 
@@ -28,7 +28,7 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
     {
         var now = _clock();
         if (now < _nextSkillRefresh) return _skills;
-        _nextSkillRefresh = now + Stopwatch.Frequency * Offsets.CharacterRefreshMilliseconds / 1000;
+        _nextSkillRefresh = now + Stopwatch.Frequency * Performance.CharacterMilliseconds / 1000;
         return _skills = BuildSkills(readSkillBar());
     }
 

@@ -25,7 +25,7 @@ internal sealed partial class GameUiReader
 
         var now = _clock();
         if (now < _boothReadAt) return _boothShown;
-        _boothReadAt = now + Offsets.BagRefreshMilliseconds;
+        _boothReadAt = now + Performance.PanelMilliseconds;
 
         var widgets = _boothWidgets;
         if (widgets is null || widgets.Page != _boothPage)

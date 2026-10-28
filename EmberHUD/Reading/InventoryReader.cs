@@ -22,7 +22,7 @@ internal sealed class InventoryReader(IReadBackend memory, nint moduleBase, Func
     {
         var now = _clock();
         if (now < _nextRefresh) return _items;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.InventoryRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.InventoryMilliseconds / 1000;
         return _items = Build();
     }
 

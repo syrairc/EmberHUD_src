@@ -1101,6 +1101,87 @@ public class LiveReaderTests
     }
 
     [Fact]
+    public void FighterRefreshFollowsThePerformanceSetting()
+    {
+        var (world, _) = WorldWithPlayerAt(100, 200);
+        world.AddFighter(50, (150, 200));
+        var now = 100_000L;
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now);
+        Game.WantFighters();
+        Performance.Apply(new EmberHUD.Host.Ui.PerformanceSettings { FighterMilliseconds = 400 });
+        try
+        {
+            Assert.True(reader.TryRead(out var state, out _));
+            world.AddFighter(52, (160, 200));
+            now += Offsets.FighterRefreshMilliseconds;
+            Assert.True(reader.TryRead(out state, out _));
+            Assert.Single(state.Fighters!);
+            now += 300;
+            Assert.True(reader.TryRead(out state, out _));
+            Assert.Equal(2, state.Fighters!.Length);
+        }
+        finally
+        {
+            Game.FightersAsked = 0;
+            Performance.Reset();
+        }
+    }
+
+    [Fact]
+    public void CastsAreReadEveryTickByDefault()
+    {
+        var world = new FakeWorld();
+        var first = world.AddEntity(5, 77, true, 50, 60, 0);
+        world.PublishEntities(first);
+        world.AddCast(first, 170203, 1, 0.5, 1);
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => 1000);
+        Game.WantCasts();
+        try
+        {
+            Assert.True(reader.TryRead(out _, out _));
+            var second = world.AddEntity(6, 77, true, 70, 60, 0);
+            world.PublishEntities(first, second);
+            world.AddCast(second, 170204, 1, 0.5, 1);
+            Assert.True(reader.TryRead(out var state, out _));
+            Assert.All(state.Entities, entity => Assert.NotNull(entity.Cast));
+        }
+        finally { Game.CastsAsked = 0; }
+    }
+
+    [Fact]
+    public void CastReadIsThrottledButEntitiesStillRefreshAndCastsReapplyById()
+    {
+        var world = new FakeWorld();
+        var first = world.AddEntity(5, 77, true, 50, 60, 0);
+        world.PublishEntities(first);
+        world.AddCast(first, 170203, 1, 0.5, 1);
+        var now = 1000L;
+        var reader = new LiveReader(world.Memory, FakeWorld.Module, clockMilliseconds: () => now);
+        Game.WantCasts();
+        Performance.Apply(new EmberHUD.Host.Ui.PerformanceSettings { CastMilliseconds = 200 });
+        try
+        {
+            Assert.True(reader.TryRead(out _, out _));
+            var second = world.AddEntity(6, 77, true, 70, 60, 0);
+            world.PublishEntities(first, second);
+            world.AddCast(second, 170204, 1, 0.5, 1);
+            now += 199;
+            Assert.True(reader.TryRead(out var state, out _));
+            Assert.Equal(2, state.Entities.Length);
+            Assert.Equal(170203, state.Entities.Single(entity => entity.Id == 5).Cast?.StoneId);
+            Assert.Null(state.Entities.Single(entity => entity.Id == 6).Cast);
+            now += 1;
+            Assert.True(reader.TryRead(out state, out _));
+            Assert.Equal(170204, state.Entities.Single(entity => entity.Id == 6).Cast?.StoneId);
+        }
+        finally
+        {
+            Game.CastsAsked = 0;
+            Performance.Reset();
+        }
+    }
+
+    [Fact]
     public void FightersAreNullWithoutAPlayerPosition()
     {
         var world = new FakeWorld();

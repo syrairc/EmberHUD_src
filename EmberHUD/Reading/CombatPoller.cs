@@ -57,7 +57,7 @@ internal sealed partial class CombatPoller : IDisposable
                 }
             }
 
-            _stop.Wait(wanted ? Offsets.CombatPollMilliseconds : 100);
+            _stop.Wait(wanted ? Performance.CombatPollMilliseconds : 100);
         }
     }
 

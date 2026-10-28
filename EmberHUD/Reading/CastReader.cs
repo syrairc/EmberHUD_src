@@ -7,7 +7,20 @@ internal sealed class CastReader(IReadBackend memory, nint moduleBase)
 {
     private readonly FightComponents _fight = new(memory, moduleBase);
 
-    public Entity[] Apply(Entity[] entities)
+    public static Entity[] Reapply(Entity[] entities, Dictionary<int, Cast> casts)
+    {
+        Entity[]? result = null;
+        for (var i = 0; i < entities.Length; i++)
+        {
+            if (entities[i].Kind != EntityKind.Monster || !casts.TryGetValue(entities[i].Id, out var cast)) continue;
+            result ??= [.. entities];
+            result[i] = entities[i] with { Cast = cast };
+        }
+
+        return result ?? entities;
+    }
+
+    public Entity[] Apply(Entity[] entities, Dictionary<int, Cast>? found = null)
     {
         Entity[]? result = null;
         nint world = 0;
@@ -18,6 +31,7 @@ internal sealed class CastReader(IReadBackend memory, nint moduleBase)
             if (!TryRead(world, entities[i].Id, out var cast)) continue;
             result ??= [.. entities];
             result[i] = entities[i] with { Cast = cast };
+            found?[entities[i].Id] = cast;
         }
 
         return result ?? entities;

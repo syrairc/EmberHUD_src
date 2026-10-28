@@ -78,7 +78,8 @@ var sdkPath = PluginHost.SdkPath(root);
 var sdk = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, File.Exists(sdkPath) ? File.ReadAllText(sdkPath) : null, problem => Log.Warn($"sdk.json - {problem}"));
 Log.Filter = LogLevels.Filter(sdk, pluginLevels);
 
-using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.For("Reader").Info, fake ? 8 : 33);
+Performance.Apply(sdk.Performance);
+using var reader = new ReaderLoop(() => fake ? new FakeGameSource(Stopwatch.GetTimestamp) : new LiveGameSource(), Log.For("Reader").Info, () => fake ? 8 : Performance.TickMilliseconds);
 reader.Start();
 using var overlay = OverlayLoop.Create(Offsets.TargetWindowClass, Offsets.TargetWindowTitle);
 Send.GameForeground = overlay.GameIsForeground;

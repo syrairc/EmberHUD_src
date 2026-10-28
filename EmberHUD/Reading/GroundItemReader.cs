@@ -28,7 +28,7 @@ internal sealed class GroundItemReader(IReadBackend memory, nint moduleBase, Fun
         if (_affixes is null || now >= _nextRefresh)
         {
             _affixes = ReadLua();
-            _nextRefresh = now + System.Diagnostics.Stopwatch.Frequency * Offsets.GroundItemsRefreshMilliseconds / 1000;
+            _nextRefresh = now + System.Diagnostics.Stopwatch.Frequency * Performance.GroundItemMilliseconds / 1000;
         }
 
         List<GroundItem> items = [];

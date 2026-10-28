@@ -3,8 +3,12 @@ using System.Numerics;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds) : IDisposable
+internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> log, Func<int> tickMilliseconds) : IDisposable
 {
+    public ReaderLoop(Func<IGameSource> createSource, Action<string> log, int tickMilliseconds) : this(createSource, log, () => tickMilliseconds)
+    {
+    }
+
     internal static int WaitMilliseconds(int tickMilliseconds, TimeSpan elapsed) =>
         Math.Max(1, tickMilliseconds - (int)elapsed.TotalMilliseconds);
 
@@ -74,7 +78,7 @@ internal sealed class ReaderLoop(Func<IGameSource> createSource, Action<string> 
                 _current = lastGood with { State = lastGood.State with { Status = $"read failed - {cause}", ChatOpen = null, Paused = null } };
             }
 
-            _stop.Wait(WaitMilliseconds(tickMilliseconds, Stopwatch.GetElapsedTime(started)));
+            _stop.Wait(WaitMilliseconds(tickMilliseconds(), Stopwatch.GetElapsedTime(started)));
         }
     }
 

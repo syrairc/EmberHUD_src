@@ -35,7 +35,7 @@ internal sealed partial class GameUiReader
 
         var now = _clock();
         if (now < _mapRewardReadAt) return _mapRewardShown;
-        _mapRewardReadAt = now + Offsets.BagRefreshMilliseconds;
+        _mapRewardReadAt = now + Performance.PanelMilliseconds;
 
         var widgets = _mapRewardWidgets;
         if (widgets is null || widgets.Page != page || widgets.Boss != boss || !MapRewardRootsStillThere(widgets))

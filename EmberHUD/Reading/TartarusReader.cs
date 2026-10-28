@@ -18,7 +18,7 @@ internal sealed class TartarusReader(IReadBackend memory, nint moduleBase, Func<
     {
         var now = _clock();
         if (now < _nextRefresh && (!raw || _state is not { Raw: null })) return _state;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.TartarusRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.MinigameMilliseconds / 1000;
         return _state = Build(raw);
     }
 

@@ -48,7 +48,7 @@ internal sealed partial class GameUiReader
             return _stashShown = null;
         }
         if (tab == _stashCellsTab && now < _stashReadAt) return _stashShown;
-        _stashReadAt = now + Offsets.StashRefreshMilliseconds;
+        _stashReadAt = now + Performance.PanelMilliseconds;
         _stashCellsTab = tab;
         return _stashShown = TryOverlay(out _, out var origin) ? ReadStashCells(widgets, tab, origin) : null;
     }

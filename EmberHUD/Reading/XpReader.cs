@@ -14,7 +14,7 @@ internal sealed class XpReader(IReadBackend memory, nint moduleBase, Func<long>?
     {
         var now = _clock();
         if (now < _nextRefresh) return _state;
-        _nextRefresh = now + Stopwatch.Frequency * Offsets.XpRefreshMilliseconds / 1000;
+        _nextRefresh = now + Stopwatch.Frequency * Performance.XpMilliseconds / 1000;
         return _state = Build();
     }
 
