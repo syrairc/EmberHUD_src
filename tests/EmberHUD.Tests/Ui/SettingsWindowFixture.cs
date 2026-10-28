@@ -115,11 +115,13 @@ public abstract class SettingsWindowFixture : IDisposable
 
     internal void Click(SettingsWindow window, Vector2 at) => ImGuiScene.Click(() => Frame(window), at);
 
+    static readonly string[] TabNames = ["General", "Theme", "Hotkeys", "Updater", "Logging", "Input", "Performance"];
+
     internal void OpenTab(SettingsWindow window, int tab)
     {
         window.Selected = null;
         var labels = PageRows(Settled(window))[0].OrderBy(glyph => glyph.Min.X).ToList();
-        Click(window, labels[new[] { 0, "General".Length, "General".Length + "Theme".Length, "General".Length + "Theme".Length + "Hotkeys".Length, "General".Length + "Theme".Length + "Hotkeys".Length + "Updater".Length }[tab]].Centre);
+        Click(window, labels[TabNames.Take(tab).Sum(name => name.Length)].Centre);
     }
 
     internal PluginHost Discovered(params string[] good)

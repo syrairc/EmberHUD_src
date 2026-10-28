@@ -1,6 +1,7 @@
 using EmberHUD.Host.Logging;
 using System.Numerics;
 using EmberHUD.Host.Plugins;
+using EmberHUD.Host.Reading;
 using EmberHUD.Host.Update;
 using EmberHUD.Ui;
 using Hexa.NET.ImGui;
@@ -64,7 +65,7 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
         if (Selected is { } slot) DrawPlugin(slot);
         else
         {
-            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater), ("Logging", DrawLogging), ("Input", DrawInput)];
+            (string, Func<bool>)[] tabs = [("General", DrawGeneral), ("Theme", DrawTheme), ("Hotkeys", DrawHotkeys), ("Updater", DrawUpdater), ("Logging", DrawLogging), ("Input", DrawInput), ("Performance", DrawPerformance)];
             if (assets is not null) tabs = [.. tabs, ("Game Assets", assets.Draw)];
             Layout.TabBar("emberhud", debug is null ? tabs : [.. tabs, ("Debug", debug.Draw)]);
         }
@@ -254,6 +255,59 @@ internal sealed class SettingsWindow(SdkSettings sdk, PluginHost plugins, ThemeS
 
     static bool Range(string label, ref int min, ref int max, string id) =>
         Setting.Slider(label + " min", ref min, 0, 500, id: id + "Min") | Setting.Slider(label + " max", ref max, 0, 500, id: id + "Max");
+
+    bool DrawPerformance()
+    {
+        var performance = sdk.Performance;
+        var defaults = PerformanceSettings.Defaults;
+        var changed = false;
+        Wrapped("How often the overlay reads the game. Lower is smoother and more current, but costs more CPU and more memory reads. Higher saves both. Changes apply at once.");
+
+        Controls.Section("Main loop");
+        changed |= Rate("World tick (ms)", ref performance.TickMilliseconds, defaults.TickMilliseconds, PerformanceSettings.MinTick, PerformanceSettings.MaxTick, "How often the player, entities and everything below them are read. 33 is 30 times a second.", "perfTick");
+
+        Controls.Section("Fight world");
+        changed |= Rate("Fighters (ms)", ref performance.FighterMilliseconds, defaults.FighterMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, "Game.State.Fighters: every nearby effect, bullet, trap and summon with its movement and timers. The heaviest reader.", "perfFighters");
+        changed |= Rate("Projectiles (ms)", ref performance.ProjectileMilliseconds, defaults.ProjectileMilliseconds, 0, PerformanceSettings.MaxThrottle, "0 reads on every world tick. Higher reuses the last read, lines lag a little.", "perfProjectiles");
+        changed |= Rate("Ground hazards (ms)", ref performance.GroundHazardMilliseconds, defaults.GroundHazardMilliseconds, 0, PerformanceSettings.MaxThrottle, "0 reads on every world tick.", "perfHazards");
+        changed |= Rate("Casts (ms)", ref performance.CastMilliseconds, defaults.CastMilliseconds, 0, PerformanceSettings.MaxThrottle, "Monster cast bars. 0 reads on every world tick.", "perfCasts");
+        changed |= Rate("Combat poll (ms)", ref performance.CombatPollMilliseconds, defaults.CombatPollMilliseconds, PerformanceSettings.MinCombatPoll, PerformanceSettings.MaxCombatPoll, "How often damage is sampled for the DPS meter. Lower catches every hit, higher can miss fast ones.", "perfCombat");
+
+        Controls.Section("Character and items");
+        changed |= Rate("Buffs and skills (ms)", ref performance.CharacterMilliseconds, defaults.CharacterMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, null, "perfCharacter");
+        changed |= Rate("Inventory (ms)", ref performance.InventoryMilliseconds, defaults.InventoryMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, "Bag, stash contents and capacities.", "perfInventory");
+        changed |= Rate("Bag and stash panels (ms)", ref performance.PanelMilliseconds, defaults.PanelMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, "Cell positions on screen for price tags and similar.", "perfPanels");
+        changed |= Rate("Ground items (ms)", ref performance.GroundItemMilliseconds, defaults.GroundItemMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, null, "perfGround");
+        changed |= Rate("Experience (ms)", ref performance.XpMilliseconds, defaults.XpMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, null, "perfXp");
+
+        Controls.Section("Minigames");
+        changed |= Rate("Tartarus, Tarot, Vorax, Frozen Canvas (ms)", ref performance.MinigameMilliseconds, defaults.MinigameMilliseconds, PerformanceSettings.MinRefresh, PerformanceSettings.MaxRefresh, null, "perfMinigames");
+
+        if (ImGui.Button("Reset all"))
+        {
+            performance.Reset();
+            changed = true;
+        }
+        if (changed) Performance.Apply(performance);
+        return changed;
+    }
+
+    static bool Rate(string label, ref int value, int fallback, int min, int max, string? tip, string id)
+    {
+        var edited = Setting.Slider(label, ref value, min, max, tip, id);
+        ImGui.SameLine();
+        ImGui.TextDisabled(value <= 0 ? "every tick" : $"{1000f / value:0.#} / s");
+        if (value != fallback)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Reset##" + id))
+            {
+                value = fallback;
+                edited = true;
+            }
+        }
+        return edited;
+    }
 
     bool DrawLogging()
     {
