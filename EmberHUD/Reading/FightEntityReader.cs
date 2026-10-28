@@ -13,7 +13,7 @@ internal sealed class FightEntityReader(IReadBackend memory, nint moduleBase)
 
     private delegate bool TryDecode<T>(nint at, out T value);
 
-    private readonly record struct Candidate(int Id, Vector3 Position, Vector2 Direction, Dictionary<int, nint> Components);
+    private readonly record struct Candidate(int Id, nint Fighter, Vector3 Position, Vector2 Direction);
 
     public FightEntity[] Near(Vector2 at, float radius, int max)
     {
@@ -40,13 +40,13 @@ internal sealed class FightEntityReader(IReadBackend memory, nint moduleBase)
             !TryVector2(transform + Offsets.TransformDirection, out var direction) ||
             Vector2.Distance(Flat(position), at) > radius) return false;
 
-        candidate = new Candidate(id, position, direction, _fight.ReadAll(fighter));
+        candidate = new Candidate(id, fighter, position, direction);
         return true;
     }
 
     private FightEntity Build(Candidate candidate)
     {
-        var components = candidate.Components;
+        var components = _fight.ReadAll(candidate.Fighter);
         return new FightEntity(candidate.Id, candidate.Position, candidate.Direction, FightClassifier.Classify(components.Keys.ToHashSet()), [.. components.Keys.Order()])
         {
             Motion = Decode<FightMotion>(components, Offsets.MoveComponentId, TryMotion),
@@ -119,9 +119,9 @@ internal sealed class FightEntityReader(IReadBackend memory, nint moduleBase)
     {
         link = default;
         if (!TryId(at + Offsets.SkillAttachSkill, out var skillId) || !TryCount(at + Offsets.SkillAttachHits, out var hits) ||
-            !TryCount(at + Offsets.SkillAttachMaxHits, out var maxHits) || !memory.TryRead(at + Offsets.SkillAttachUnlimited, out byte unlimited)) return false;
+            !memory.TryRead(at + Offsets.SkillAttachMaxHits, out uint rawMaxHits) || !memory.TryRead(at + Offsets.SkillAttachUnlimited, out byte unlimited)) return false;
 
-        link = new FightLink(skillId, hits, maxHits, unlimited != 0);
+        link = new FightLink(skillId, hits, (int)Math.Min(rawMaxHits, int.MaxValue), unlimited != 0);
         return true;
     }
 

@@ -104,6 +104,18 @@ public class FightEntityReaderTests
     }
 
     [Fact]
+    public void AnUnlimitedLinkKeepsAHugeMaxHits()
+    {
+        var (world, reader) = Rig();
+        var components = world.AddFighter(11, Spot, Offsets.SkillAttachComponentId);
+        var link = components[Offsets.SkillAttachComponentId];
+        world.Memory.Write(link + Offsets.SkillAttachSkill, 4242u);
+        world.Memory.Write(link + Offsets.SkillAttachMaxHits, uint.MaxValue);
+        world.Memory.Write(link + Offsets.SkillAttachUnlimited, (byte)1);
+        Assert.Equal(new FightLink(4242, 0, int.MaxValue, true), Only(reader).Link);
+    }
+
+    [Fact]
     public void ReadsShapeScaleCampAndComponents()
     {
         var (world, reader) = Rig();
@@ -252,7 +264,6 @@ public class FightEntityReaderTests
         yield return Case("track range infinite", Offsets.TrackComponentId, (m, c) => m.Write(c + Offsets.TrackRange, double.PositiveInfinity), e => e.Track);
         yield return Case("track bound target id huge", Offsets.TrackComponentId, (m, c) => m.Write(c + Offsets.TrackTarget + Offsets.RefId, uint.MaxValue), e => e.Track);
         yield return Case("link skill id huge", Offsets.SkillAttachComponentId, (m, c) => m.Write(c + Offsets.SkillAttachSkill, uint.MaxValue), e => e.Link);
-        yield return Case("link max hits huge", Offsets.SkillAttachComponentId, (m, c) => m.Write(c + Offsets.SkillAttachMaxHits, uint.MaxValue), e => e.Link);
         yield return Case("timed elapsed NaN", Offsets.LastedEffectComponentId, (m, c) => m.Write(c + Offsets.LastedElapsed, double.NaN), e => e.Timed);
         yield return Case("beam start huge", Offsets.ViewAssistComponentId, (m, c) => m.WriteArray(c + Offsets.ViewAssistStart, new[] { 1e12, 0.0, 0.0 }), e => e.Beam);
         yield return Case("npc id zero", Offsets.NpcComponentId, (m, c) => m.Write(c + Offsets.NpcId, 0u), e => e.Npc);
