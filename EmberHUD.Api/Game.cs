@@ -11,6 +11,7 @@ public static class Game
     static long _tradeGoodsAsked;
     static long _castsAsked;
     static long _projectilesAsked;
+    static long _fightersAsked;
     static long _groundHazardsAsked;
     static long _characterAsked;
     static long _tartarusAsked;
@@ -99,6 +100,20 @@ public static class Game
     internal static bool ProjectilesWanted(long now, double seconds)
     {
         var asked = Interlocked.Read(ref _projectilesAsked);
+        return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
+    }
+
+    public static void WantFighters() => Interlocked.Exchange(ref _fightersAsked, Stopwatch.GetTimestamp());
+
+    internal static long FightersAsked
+    {
+        get => Interlocked.Read(ref _fightersAsked);
+        set => Interlocked.Exchange(ref _fightersAsked, value);
+    }
+
+    internal static bool FightersWanted(long now, double seconds)
+    {
+        var asked = Interlocked.Read(ref _fightersAsked);
         return asked != 0 && now - asked < seconds * Stopwatch.Frequency;
     }
 
@@ -264,6 +279,8 @@ public sealed record GameState
     public Entity[] Entities { get; init; } = [];
 
     public Projectile[] Projectiles { get; init; } = [];
+
+    public FightEntity[]? Fighters { get; init; }
 
     public GroundHazard[] GroundHazards { get; init; } = [];
 
@@ -619,18 +636,6 @@ public static class Scene
 }
 
 public readonly record struct FightBuff(int Id, int Stacks, double Remaining);
-
-public readonly record struct FightProbe(int Id, Vector2 Position, int[] Components, uint ShapeKind, uint ShapeRadius, uint ExtentA, uint ExtentB, double Scale, int Camp, int OwnerId)
-{
-    public FightBuff[] Buffs { get; init; } = [];
-}
-
-public static class FightScan
-{
-    internal static Func<Vector2, float, FightProbe[]>? Lister { get; set; }
-
-    public static FightProbe[] Near(Vector2 at, float radius) => Lister?.Invoke(at, radius) ?? [];
-}
 
 public static class Loc
 {
