@@ -14,6 +14,19 @@ public sealed class TemplateTests
     [Test]
     public void CastTokensAreEmptyWithoutACast() => Check.Equal(" 0.0s", Template.Parse("{cast} {left}s").Render(new PlateData("Ghoul", 1, 2, 0, "Rare", "Monster")));
 
+    static string Level(int? level) => Template.Parse("L{level}").Render(new PlateData("Ghoul", 1, 2, 0, "Rare", "Monster", Level: level));
+
+    [Test]
+    public void LevelTokenRendersTheMonsterLevel() => Check.Equal("L87", Level(87));
+
+    [Test]
+    public void LevelTokenIsEmptyWithoutInfoOrAPositiveLevel()
+    {
+        Check.Equal("L", Level(null));
+        Check.Equal("L", Level(0));
+        Check.Equal("L", Level(-3));
+    }
+
     [Test]
     public void NameAndPercent() => Check.Equal("Ichi Militant 50%", Render("{name} {hp%}%"));
 

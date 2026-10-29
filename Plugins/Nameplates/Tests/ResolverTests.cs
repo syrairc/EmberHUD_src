@@ -6,8 +6,43 @@ namespace NameplatesPlugin;
 
 public sealed class ResolverTests
 {
-    static Entity Make(EntityKind kind = EntityKind.Monster, Rarity rarity = Rarity.Normal, bool friendly = false, bool hidden = false, string name = "Thing", int cfgId = 1, double life = 50, double maxLife = 100) =>
-        new(1, cfgId, Vector3.Zero, kind, rarity) { Friendly = friendly, Hidden = hidden, Name = name, Life = life, MaxLife = maxLife };
+    static Entity Make(EntityKind kind = EntityKind.Monster, Rarity rarity = Rarity.Normal, bool friendly = false, bool hidden = false, string name = "Thing", int cfgId = 1, double life = 50, double maxLife = 100, FightInfo? info = null) =>
+        new(1, cfgId, Vector3.Zero, kind, rarity) { Friendly = friendly, Hidden = hidden, Name = name, Life = life, MaxLife = maxLife, Info = info };
+
+    static FightInfo Fight(FightArchetype archetype = FightArchetype.Monster, int sourceType = 0) => new(archetype, 0, 80, sourceType);
+
+    [Test]
+    public void SourceFiltersHideOnlyWhatTheyNameAndAreOffByDefault()
+    {
+        var off = new Settings();
+        var summoned = new Settings { HideSummoned = true };
+        var special = new Settings { HideSpecialSpawns = true };
+        var minions = new Settings { HideMinions = true };
+        foreach (var source in new[] { 1, 2, 212 })
+        {
+            var e = Make(info: Fight(sourceType: source));
+            Check.Equal(Bucket.Normal, Resolver.BucketOf(e, off));
+            Check.That(Resolver.BucketOf(e, summoned) is null, $"summoned {source}");
+            Check.Equal(Bucket.Normal, Resolver.BucketOf(e, special));
+            Check.Equal(Bucket.Normal, Resolver.BucketOf(e, minions));
+        }
+        var spawn = Make(info: Fight(sourceType: 2000));
+        Check.That(Resolver.BucketOf(spawn, special) is null, "special spawn");
+        Check.Equal(Bucket.Normal, Resolver.BucketOf(spawn, summoned));
+        var minion = Make(friendly: true, info: Fight(FightArchetype.Minion));
+        Check.That(Resolver.BucketOf(minion, minions) is null, "minion");
+        Check.Equal(Bucket.Ally, Resolver.BucketOf(minion, off));
+        Check.Equal(Bucket.Ally, Resolver.BucketOf(minion, summoned));
+        Check.Equal(Bucket.Normal, Resolver.BucketOf(Make(info: Fight(sourceType: 3)), new Settings { HideSummoned = true, HideSpecialSpawns = true, HideMinions = true }));
+    }
+
+    [Test]
+    public void SourceFiltersNeverHideWithoutInfoOrThePlayer()
+    {
+        var all = new Settings { HideSummoned = true, HideSpecialSpawns = true, HideMinions = true };
+        Check.Equal(Bucket.Normal, Resolver.BucketOf(Make(), all));
+        Check.Equal(Bucket.Ally, Resolver.BucketOf(Make(EntityKind.Player, info: Fight(FightArchetype.Minion, 2000)), all));
+    }
 
     static PlateStyle Styled(float offsetY) => new() { OffsetY = offsetY };
 
