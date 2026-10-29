@@ -102,4 +102,46 @@ public class FightTests
     }
 
     private static FightBullet Bullet(int moveType) => new(moveType, 0, Vector3.Zero, Vector3.Zero, Vector3.Zero, false, false, false, 0);
+
+    static FightEntity Circle(uint radius, double? scale = null, uint kind = 1) =>
+        new(1, new Vector3(10, 20, 99), Vector2.UnitX, FightArchetype.GroundEffect, []) { Shape = new FightShape(kind, radius, 0, 0), Scale = scale };
+
+    [Fact]
+    public void CircleCoversPointsInsideItsRadiusFlat()
+    {
+        var circle = Circle(100);
+
+        Assert.True(circle.Covers(new Vector2(10, 20)));
+        Assert.True(circle.Covers(new Vector2(110, 20)));
+        Assert.False(circle.Covers(new Vector2(110.5f, 20)));
+    }
+
+    [Theory]
+    [InlineData(2.0, 150, true)]
+    [InlineData(2.0, 250, false)]
+    [InlineData(0.5, 60, false)]
+    [InlineData(double.NaN, 90, true)]
+    [InlineData(0.0, 90, true)]
+    [InlineData(-3.0, 90, true)]
+    public void CircleRadiusIsScaledOnlyWhenScaleIsSane(double scale, float distance, bool covered) =>
+        Assert.Equal(covered, Circle(100, scale).Covers(new Vector2(10 + distance, 20)));
+
+    [Fact]
+    public void NoShapeNonCircleOrZeroRadiusCoversNothing()
+    {
+        var at = new Vector2(10, 20);
+
+        Assert.False(new FightEntity(1, new Vector3(10, 20, 0), Vector2.UnitX, FightArchetype.Unknown, []).Covers(at));
+        Assert.False(Circle(100, kind: 2).Covers(at));
+        Assert.False(Circle(0).Covers(at));
+    }
+
+    [Theory]
+    [InlineData(FightCamps.Hostile, true)]
+    [InlineData(FightCamps.BossArea, true)]
+    [InlineData(FightCamps.Player, false)]
+    [InlineData(FightCamps.Servant, false)]
+    [InlineData(null, false)]
+    public void HostileIsCampOneOrThree(int? camp, bool hostile) =>
+        Assert.Equal(hostile, new FightEntity(1, default, default, FightArchetype.Monster, []) { Camp = camp }.IsHostile);
 }

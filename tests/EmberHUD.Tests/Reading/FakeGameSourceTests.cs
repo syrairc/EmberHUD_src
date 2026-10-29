@@ -623,4 +623,16 @@ public class FakeGameSourceTests
         Assert.Contains(pageOne, t => t.Listings.Any(l => l.Status is not null));
         Assert.Contains(pageOne, t => t.Listings.All(l => l.Status is null));
     }
+
+    [Fact]
+    public void FakeMonstersCarryHostileMonsterInfo()
+    {
+        var monsters = At(0).Entities.Where(e => e.Kind == EntityKind.Monster).ToArray();
+
+        Assert.NotEmpty(monsters);
+        Assert.All(monsters, m => Assert.Equal(FightArchetype.Monster, m.Info?.Archetype));
+        Assert.All(monsters, m => Assert.Equal(FightCamps.Hostile, m.Info?.Camp));
+        Assert.All(monsters, m => Assert.True(m.Info?.Level > 0));
+        Assert.All(monsters, m => Assert.True(m.IsEnemy));
+    }
 }

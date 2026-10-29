@@ -4,12 +4,13 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
+internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase, Func<long>? clockMilliseconds = null)
 {
     private readonly record struct Known(nint Entity, nint Value, int CfgId);
 
     private readonly Names _names = new(memory, moduleBase);
     private readonly FightComponents _fight = new(memory, moduleBase);
+    private readonly FightInfoReader _fightInfo = new(memory, moduleBase, clockMilliseconds ?? (() => Environment.TickCount64));
 
     private readonly Dictionary<uint, uint> _tiers = [];
     private readonly HashSet<uint> _friendlyConfigs = [];
@@ -323,7 +324,7 @@ internal sealed class LogicWorldReader(IReadBackend memory, nint moduleBase)
         if (kind == EntityKind.Monster)
             TryReadStat(role, Offsets.RoleLifeMax, false, out life, out maxLife);
         var hidden = kind == EntityKind.Monster && memory.TryRead(value + Offsets.ActorFlags, out byte actorFlags) && (actorFlags & Offsets.ActorHiddenMask) != 0;
-        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId) && !(_fight.TryReadWorld(out var fightWorld) && _fight.IsHostile(fightWorld, id)), Hidden = hidden, Invulnerable = kind == EntityKind.Monster && InvulnerableMonsters.Ids.Contains(cfgId) };
+        result = new Entity(id, (int)cfgId, position, kind, rarity) { Address = entity, Life = life, MaxLife = maxLife, Friendly = kind == EntityKind.Monster && _friendlyConfigs.Contains(cfgId) && !(_fight.TryReadWorld(out var fightWorld) && _fight.IsHostile(fightWorld, id)), Hidden = hidden, Invulnerable = kind == EntityKind.Monster && InvulnerableMonsters.Ids.Contains(cfgId), Info = kind is EntityKind.Monster or EntityKind.Ally or EntityKind.Npc ? _fightInfo.Read(id, _generation ?? 0) : null };
         return true;
     }
 

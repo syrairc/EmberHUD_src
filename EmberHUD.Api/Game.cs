@@ -642,7 +642,7 @@ public sealed record GameState
         var count = 0;
         foreach (var entity in Entities)
         {
-            if (entity.Kind != EntityKind.Monster || entity.Friendly || entity.Hidden || entity.Rarity < minRarity) continue;
+            if (!entity.IsEnemy || entity.Hidden || entity.Rarity < minRarity) continue;
 
             var dx = entity.Position.X - player.Position.X;
             var dy = entity.Position.Y - player.Position.Y;
@@ -696,6 +696,10 @@ public readonly record struct Entity(int Id, int CfgId, Vector3 Position, Entity
     public bool Hidden { get; init; }
 
     public bool Invulnerable { get; init; }
+
+    public FightInfo? Info { get; init; }
+
+    public bool IsEnemy => Kind == EntityKind.Monster && !Friendly && (Info is null || Info.Value.Archetype == FightArchetype.Monster);
 
     public ScreenRect? GameBar { get; init; }
 

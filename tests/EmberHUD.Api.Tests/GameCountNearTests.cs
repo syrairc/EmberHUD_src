@@ -75,4 +75,29 @@ public class GameCountNearTests
 
         Assert.Equal(1, state.CountNear(2));
     }
+
+    static Entity WithInfo(EntityKind kind, FightArchetype? archetype, bool friendly = false) =>
+        new(0, 0, new Vector3(1, 0, 0), kind, Rarity.Normal) { Friendly = friendly, Info = archetype is { } a ? new FightInfo(a, FightCamps.Hostile, 1, 0) : null };
+
+    [Theory]
+    [InlineData(EntityKind.Monster, null, false, true)]
+    [InlineData(EntityKind.Monster, FightArchetype.Monster, false, true)]
+    [InlineData(EntityKind.Monster, FightArchetype.Minion, false, false)]
+    [InlineData(EntityKind.Monster, FightArchetype.Monster, true, false)]
+    [InlineData(EntityKind.Ally, FightArchetype.Monster, false, false)]
+    [InlineData(EntityKind.Npc, null, false, false)]
+    public void IsEnemyTruthTable(EntityKind kind, FightArchetype? archetype, bool friendly, bool enemy) =>
+        Assert.Equal(enemy, WithInfo(kind, archetype, friendly).IsEnemy);
+
+    [Fact]
+    public void SkipsNonMonsterArchetypesButCountsInfoNullAndMonsters()
+    {
+        var state = new GameState
+        {
+            Player = Origin,
+            Entities = [WithInfo(EntityKind.Monster, FightArchetype.Minion), WithInfo(EntityKind.Monster, null), WithInfo(EntityKind.Monster, FightArchetype.Monster)],
+        };
+
+        Assert.Equal(2, state.CountNear(10));
+    }
 }

@@ -31,6 +31,17 @@ public readonly record struct FightRole(int Config, int Rarity, int Level);
 
 public readonly record struct FightShape(uint Kind, uint Radius, uint ExtentA, uint ExtentB);
 
+public readonly record struct FightInfo(FightArchetype Archetype, int Camp, int Level, int SourceType);
+
+/// <summary>Observed Side camp ids.</summary>
+public static class FightCamps
+{
+    public const int Hostile = 1;
+    public const int Player = 2;
+    public const int BossArea = 3;
+    public const int Servant = 5;
+}
+
 public sealed record FightEntity(int Id, Vector3 Position, Vector2 Direction, FightArchetype Archetype, int[] Components)
 {
     public FightMotion? Motion { get; init; }
@@ -62,6 +73,19 @@ public sealed record FightEntity(int Id, Vector3 Position, Vector2 Direction, Fi
     public double? Lifetime { get; init; }
 
     public FightBuff[] Buffs { get; init; } = [];
+
+    public bool IsHostile => Camp is FightCamps.Hostile or FightCamps.BossArea;
+
+    public bool Covers(Vector2 point)
+    {
+        if (Shape is not { Kind: 1, Radius: > 0 } shape) return false;
+
+        var scale = Scale is { } value && double.IsFinite(value) && value > 0 ? value : 1;
+        var radius = shape.Radius * scale;
+        var dx = point.X - Position.X;
+        var dy = point.Y - Position.Y;
+        return dx * dx + dy * dy <= radius * radius;
+    }
 }
 
 public static class Fight

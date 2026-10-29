@@ -436,6 +436,13 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
         return e with { Cast = new Cast(170203, 1, progress, CastSeconds * (1 - progress), at + new Vector2(150, 0), Vector2.UnitX) { Name = "Fake Slash" } };
     })];
 
+    private static FightInfo? FakeInfo(EntityKind kind, int index) => kind switch
+    {
+        EntityKind.Monster => new FightInfo(FightArchetype.Monster, FightCamps.Hostile, 80 + index, 0),
+        EntityKind.Ally => new FightInfo(FightArchetype.Minion, FightCamps.Servant, 90, 0),
+        _ => null,
+    };
+
     private static Entity[] BuildEntities()
     {
         var entities = new List<Entity>();
@@ -444,7 +451,7 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
             var index = entities.Count;
             var maxLife = kind == EntityKind.Monster ? rarity switch { Rarity.Normal => 120d, Rarity.Magic => 300, Rarity.Rare => 900, _ => 12000 } : 0;
             var label = kind == EntityKind.Monster ? rarity.ToString() : kind.ToString();
-            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Name = $"Fake {label} {index + 1}", Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife, HasGameBar = hasGameBar, GameBar = gameBar });
+            entities.Add(new Entity(index + 1, 1000 + index, new Vector3(Center + offset, 0), kind, rarity) { Name = $"Fake {label} {index + 1}", Life = maxLife * (0.35 + 0.08 * index), MaxLife = maxLife, HasGameBar = hasGameBar, GameBar = gameBar, Info = FakeInfo(kind, index) });
         }
 
         Rarity[] rarities = [Rarity.Normal, Rarity.Magic, Rarity.Rare];

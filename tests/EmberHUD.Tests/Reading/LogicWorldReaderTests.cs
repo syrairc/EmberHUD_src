@@ -1232,4 +1232,29 @@ public class LogicWorldReaderTests
         world.Memory.Write(component + Offsets.PlayerComponentName, FakeWorld.Unmapped);
 
         Assert.Null(reader.ReadPlayerName(pawn));
-    }}
+    }
+
+    [Fact]
+    public void AttachesFightInfoToMonstersAndAlliesButNotOthers()
+    {
+        var world = new FakeWorld();
+        var clock = 0L;
+        world.AddFighter(11, (1, 2), Offsets.NpcComponentId, Offsets.RoleComponentId, Offsets.SideComponentId);
+        world.AddFighter(12, (1, 2), Offsets.NpcComponentId, Offsets.ServantComponentId, Offsets.SideComponentId);
+        world.PublishEntities(
+            world.AddEntity(11, 48, true, 1, 2, 0),
+            world.AddEntity(12, 49, true, 1, 2, 0, mapOffset: Offsets.FightMapServant),
+            world.AddEntity(13, 50, true, 1, 2, 0, mapOffset: Offsets.FightMapPortal));
+        var reader = new LogicWorldReader(world.Memory, FakeWorld.Module, () => clock);
+        Assert.True(reader.TryReadScene(out var scene, out _));
+
+        var entities = reader.ReadWorld(scene, 0).Entities.ToDictionary(e => e.Id);
+
+        Assert.Equal(FightArchetype.Monster, entities[11].Info?.Archetype);
+        Assert.Equal(FightArchetype.Minion, entities[12].Info?.Archetype);
+        Assert.Null(entities[13].Info);
+    }
+
+    [Fact]
+    public void MonsterWithoutAFighterHasNoInfo() => Assert.Null(Assert.Single(Read(WorldWithPlayerAndMonster()), e => e.Kind == EntityKind.Monster).Info);
+}

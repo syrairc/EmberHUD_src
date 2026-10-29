@@ -617,6 +617,7 @@ public class OffsetsTests
         Assert.Equal(300, Offsets.MaxFighters);
         Assert.Equal(100, Offsets.FighterRefreshMilliseconds);
         Assert.Equal(3, Offsets.FighterWantedSeconds);
+        Assert.Equal(250, Offsets.FightInfoCampRefreshMilliseconds);
         Assert.Equal(100000, Offsets.MaxLifetimeSeconds);
     }
 

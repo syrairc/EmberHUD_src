@@ -154,6 +154,7 @@ FighterRadius = 2500
 MaxFighters = 300
 FighterRefreshMilliseconds = 100
 FighterWantedSeconds = 3
+FightInfoCampRefreshMilliseconds = 250
 MaxLifetimeSeconds = 100000
 
 HashBucketCount = 12
