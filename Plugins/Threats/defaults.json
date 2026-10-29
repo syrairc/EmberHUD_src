@@ -30,6 +30,7 @@
   "UseFightData": true,
   "HighlightHoming": true,
   "HomingColour": "#BE5AFFE6",
+  "HitAreas": true,
   "HazardTimers": true,
   "HazardTimerSize": 60,
   "DangerColour": "#FF0000FF",

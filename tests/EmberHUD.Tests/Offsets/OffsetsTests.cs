@@ -605,6 +605,16 @@ public class OffsetsTests
         Assert.Equal(64, Offsets.LastedDuration);
         Assert.Equal(56, Offsets.ViewAssistStart);
         Assert.Equal(80, Offsets.ViewAssistEnd);
+        Assert.Equal(64, Offsets.ShapeOffsetX);
+        Assert.Equal(72, Offsets.ShapeOffsetY);
+        Assert.Equal(92, Offsets.ShapeInner);
+        Assert.Equal(96, Offsets.ShapeAngleA);
+        Assert.Equal(100, Offsets.ShapeAngleB);
+        Assert.Equal(10, Offsets.AttackComponentId);
+        Assert.Equal(56, Offsets.AttackDelay);
+        Assert.Equal(80, Offsets.AttackDuration);
+        Assert.Equal(96, Offsets.AttackHits);
+        Assert.Equal(104, Offsets.AttackInterval);
         Assert.Equal(52, Offsets.NpcId);
         Assert.Equal(60, Offsets.NpcRarity);
         Assert.Equal(68, Offsets.NpcSource);

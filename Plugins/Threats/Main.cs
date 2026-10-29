@@ -17,6 +17,8 @@ public sealed class Main : Plugin<Settings>
     long _groundSince;
     readonly HashSet<(int, int)> _rings = [];
     readonly Dictionary<int, FightEntity> _fighters = [];
+    readonly HashSet<int> _hazardIds = [];
+    readonly HashSet<int> _areaOwners = [];
 
     public override void Initialize() => RegisterHotkey("Toggle", "Shows or hides the telegraphs", () => Settings.Show = !Settings.Show, new Hotkey(Key.F9));
 
@@ -35,6 +37,9 @@ public sealed class Main : Plugin<Settings>
         var inDanger = false;
         var inArea = false;
         var entities = state.Entities;
+        _hazardIds.Clear();
+        _areaOwners.Clear();
+        foreach (var hazard in state.GroundHazards) _hazardIds.Add(hazard.Id);
         if (Settings.UseFightData) FightData.Index(state.Fighters, _fighters);
         else _fighters.Clear();
         if (Settings.GroundAreas)
@@ -48,13 +53,22 @@ public sealed class Main : Plugin<Settings>
                 else inArea = true;
             }
         }
+        if (Settings.UseFightData && Settings.HitAreas)
+        {
+            foreach (var fighter in _fighters.Values)
+            {
+                if (!HitAreas.Eligible(fighter, _hazardIds)) continue;
+                inDanger |= HitAreas.Draw(fighter, Settings, at);
+                _areaOwners.Add(fighter.OwnerId);
+            }
+        }
         if (!inArea) _groundSince = 0;
         else if (_groundSince == 0) _groundSince = now;
         inDanger |= inArea && now - _groundSince >= Settings.GroundAlertSeconds * Stopwatch.Frequency;
         for (var i = 0; i < entities.Length; i++)
         {
             ref readonly var entity = ref entities[i];
-            if (entity.Kind != EntityKind.Monster || entity.Friendly || entity.Hidden || entity.Cast is null || !Settings.Allows(entity.Rarity, true)) continue;
+            if (entity.Kind != EntityKind.Monster || entity.Friendly || entity.Hidden || entity.Cast is null || !Settings.Allows(entity.Rarity, true) || _areaOwners.Contains(entity.Id)) continue;
             inDanger |= Telegraph.Draw(entity, Settings, at);
         }
         var seconds = Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;

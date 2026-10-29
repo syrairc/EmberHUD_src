@@ -29,7 +29,9 @@ public readonly record struct FightNpc(int NpcId, int Rarity, int SourceType, in
 
 public readonly record struct FightRole(int Config, int Rarity, int Level);
 
-public readonly record struct FightShape(uint Kind, uint Radius, uint ExtentA, uint ExtentB);
+public readonly record struct FightShape(uint Kind, uint Radius, uint ExtentA, uint ExtentB, uint Inner = 0, int AngleA = 0, int AngleB = 0, double OffsetX = 0, double OffsetY = 0);
+
+public readonly record struct FightAttack(double Delay, double Duration, int Hits, double Interval);
 
 public readonly record struct FightInfo(FightArchetype Archetype, int Camp, int Level, int SourceType);
 
@@ -64,6 +66,8 @@ public sealed record FightEntity(int Id, Vector3 Position, Vector2 Direction, Fi
 
     public FightShape? Shape { get; init; }
 
+    public FightAttack? Attack { get; init; }
+
     public double? Scale { get; init; }
 
     public int? Camp { get; init; }
@@ -76,15 +80,100 @@ public sealed record FightEntity(int Id, Vector3 Position, Vector2 Direction, Fi
 
     public bool IsHostile => Camp is FightCamps.Hostile or FightCamps.BossArea;
 
+    private const int CircleVertices = 32;
+    private const double ArcStepDegrees = 12;
+
     public bool Covers(Vector2 point)
     {
-        if (Shape is not { Kind: 1, Radius: > 0 } shape) return false;
+        if (!TryFrame(out var shape, out var centre, out var forward, out var left, out var scale) || !float.IsFinite(point.X) || !float.IsFinite(point.Y)) return false;
 
-        var scale = Scale is { } value && double.IsFinite(value) && value > 0 ? value : 1;
+        var dx = point.X - centre.X;
+        var dy = point.Y - centre.Y;
+        var distanceSquared = dx * dx + dy * dy;
         var radius = shape.Radius * scale;
-        var dx = point.X - Position.X;
-        var dy = point.Y - Position.Y;
-        return dx * dx + dy * dy <= radius * radius;
+        switch (shape.Kind & 0xFF)
+        {
+            case 1:
+                return radius > 0 && distanceSquared <= radius * radius;
+            case 5:
+                var hole = shape.Inner * scale;
+                return radius > 0 && distanceSquared <= radius * radius && distanceSquared >= hole * hole;
+            case 2:
+                return shape.ExtentA > 0 && shape.ExtentB > 0 &&
+                    Math.Abs(dx * forward.X + dy * forward.Y) <= shape.ExtentA * scale / 2 && Math.Abs(dx * left.X + dy * left.Y) <= shape.ExtentB * scale / 2;
+            case 4:
+                var span = shape.AngleB - shape.AngleA;
+                if (radius <= 0 || span <= 0 || distanceSquared > radius * radius) return false;
+                if (span >= 360 || distanceSquared == 0) return true;
+                var angle = Math.Atan2(dx * left.X + dy * left.Y, dx * forward.X + dy * forward.Y) * 180 / Math.PI;
+                var from = (angle - shape.AngleA) % 360;
+                return (from < 0 ? from + 360 : from) <= span;
+            default:
+                return false;
+        }
+    }
+
+    public int Outline(Span<Vector2> into)
+    {
+        if (!TryFrame(out var shape, out var centre, out var forward, out var left, out var scale)) return 0;
+
+        var radius = shape.Radius * scale;
+        switch (shape.Kind & 0xFF)
+        {
+            case 1 or 5:
+                return radius > 0 ? Arc(into, centre, forward, left, radius, 0, 360, closed: false) : 0;
+            case 2:
+                if (shape.ExtentA == 0 || shape.ExtentB == 0 || into.Length < 4) return 0;
+                var halfLength = (float)(shape.ExtentA * scale / 2);
+                var halfWidth = (float)(shape.ExtentB * scale / 2);
+                into[0] = centre + forward * halfLength + left * halfWidth;
+                into[1] = centre - forward * halfLength + left * halfWidth;
+                into[2] = centre - forward * halfLength - left * halfWidth;
+                into[3] = centre + forward * halfLength - left * halfWidth;
+                return 4;
+            case 4:
+                var span = shape.AngleB - shape.AngleA;
+                if (radius <= 0 || span <= 0) return 0;
+                if (span >= 360) return Arc(into, centre, forward, left, radius, 0, 360, closed: false);
+                if (into.Length < 1) return 0;
+                into[0] = centre;
+                var written = Arc(into[1..], centre, forward, left, radius, shape.AngleA, span, closed: true);
+                return written == 0 ? 0 : written + 1;
+            default:
+                return 0;
+        }
+    }
+
+    private static int Arc(Span<Vector2> into, Vector2 centre, Vector2 forward, Vector2 left, double radius, double startDegrees, double spanDegrees, bool closed)
+    {
+        var segments = closed ? (int)Math.Ceiling(spanDegrees / ArcStepDegrees) : CircleVertices;
+        var count = closed ? segments + 1 : segments;
+        if (into.Length < count) return 0;
+
+        for (var i = 0; i < count; i++)
+        {
+            var angle = (startDegrees + spanDegrees * i / segments) * Math.PI / 180;
+            into[i] = centre + forward * (float)(radius * Math.Cos(angle)) + left * (float)(radius * Math.Sin(angle));
+        }
+        return count;
+    }
+
+    private bool TryFrame(out FightShape shape, out Vector2 centre, out Vector2 forward, out Vector2 left, out double scale)
+    {
+        centre = forward = left = default;
+        scale = 1;
+        if (Shape is not { } found) { shape = default; return false; }
+
+        shape = found;
+        if (!float.IsFinite(Position.X) || !float.IsFinite(Position.Y) || !float.IsFinite(Direction.X) || !float.IsFinite(Direction.Y) ||
+            !double.IsFinite(shape.OffsetX) || !double.IsFinite(shape.OffsetY)) return false;
+
+        scale = Scale is { } value && double.IsFinite(value) && value > 0 ? value : 1;
+        var length = Direction.Length();
+        forward = length > 1e-6f ? Direction / length : Vector2.UnitX;
+        left = new Vector2(-forward.Y, forward.X);
+        centre = new Vector2(Position.X, Position.Y) + (forward * (float)(shape.OffsetX * scale)) + (left * (float)(shape.OffsetY * scale));
+        return float.IsFinite(centre.X) && float.IsFinite(centre.Y);
     }
 }
 

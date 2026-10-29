@@ -44,6 +44,7 @@ public sealed partial class Settings : PluginSettings
     public bool UseFightData = true;
     public bool HighlightHoming = true;
     public Color HomingColour = Color.FromArgb(230, 190, 90, 255);
+    public bool HitAreas = true;
     public bool HazardTimers = true;
     public float HazardTimerSize = 60;
 

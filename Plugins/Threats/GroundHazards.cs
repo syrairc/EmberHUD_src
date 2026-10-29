@@ -45,14 +45,19 @@ public static class GroundHazards
 
         Span<Vector2> hole = stackalloc Vector2[Segments];
         Geometry.RegularPolygon(hazard.Centre, hazard.InnerRadius, hole);
+        Band(ring, hole, fill, group);
+    }
+
+    internal static void Band(ReadOnlySpan<Vector2> outer, ReadOnlySpan<Vector2> inner, Color fill, string group)
+    {
         Span<Vector2> quad = stackalloc Vector2[4];
-        for (var i = 0; i < Segments; i++)
+        for (var i = 0; i < outer.Length; i++)
         {
-            var next = (i + 1) % Segments;
-            quad[0] = ring[i];
-            quad[1] = ring[next];
-            quad[2] = hole[next];
-            quad[3] = hole[i];
+            var next = (i + 1) % outer.Length;
+            quad[0] = outer[i];
+            quad[1] = outer[next];
+            quad[2] = inner[next];
+            quad[3] = inner[i];
             Ground.PolygonFilled(quad, fill, group: group);
         }
     }
