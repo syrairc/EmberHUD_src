@@ -53,6 +53,38 @@ public sealed class SettingsTests
         Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(Scene.Entity(EntityKind.Monster, Vector3.Zero))));
     }
 
+    static Entity Monster(FightInfo? info = null, bool friendly = false) =>
+        Scene.Entity(EntityKind.Monster, Vector3.Zero) with { Info = info, Friendly = friendly };
+
+    [Test]
+    public void FriendlyMonsterTruthTable()
+    {
+        Check.That(IconsTab.FriendlyMonster(Monster(friendly: true), true), "friendly flag");
+        Check.That(IconsTab.FriendlyMonster(Monster(friendly: true), false), "friendly flag with the setting off");
+        Check.That(IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Minion, FightCamps.Hostile, 1, 0)), true), "minion archetype");
+        Check.That(IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Monster, FightCamps.Player, 1, 0)), true), "player camp");
+        Check.That(IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Monster, FightCamps.Servant, 1, 0)), true), "servant camp");
+        Check.That(!IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Monster, FightCamps.Hostile, 1, 0)), true), "hostile camp");
+        Check.That(!IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Monster, FightCamps.BossArea, 1, 0)), true), "boss area camp");
+        Check.That(!IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Monster, 99, 1, 0)), true), "unknown camp");
+        Check.That(!IconsTab.FriendlyMonster(Monster(), true), "no info");
+        Check.That(!IconsTab.FriendlyMonster(Monster(new FightInfo(FightArchetype.Minion, FightCamps.Player, 1, 0)), false), "setting off ignores info");
+        Check.That(!IconsTab.FriendlyMonster(Scene.Entity(EntityKind.Npc, Vector3.Zero) with { Friendly = true }, true), "only monsters");
+    }
+
+    [Test]
+    public void FightInfoDecidesTheIconRowAndLayer()
+    {
+        var s = new Settings();
+        var servant = Monster(new FightInfo(FightArchetype.Monster, FightCamps.Servant, 1, 0));
+        Check.That(s.Icons.UseFightInfo, "on by default");
+        Check.That(ReferenceEquals(s.Icons.Npcs, s.Icons.FixedFor(servant)));
+        Check.Equal(7, IconsTab.Layer(servant, true));
+        s.Icons.UseFightInfo = false;
+        Check.That(ReferenceEquals(s.Icons.NormalMonsters, s.Icons.FixedFor(servant)));
+        Check.Equal(2, IconsTab.Layer(servant, false));
+    }
+
     [Test]
     public void OtherKindsMapToTheirFixedRowOrNone()
     {
