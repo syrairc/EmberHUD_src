@@ -173,4 +173,48 @@ public sealed class AuraEvalTests
         aura.Name = "Mine";
         Check.Equal("Mine", AuraEval.Evaluate(aura, WithBuff(2, 8)).TextFor(TextField.Name));
     }
+
+    static Aura AreaAura(ConditionKind kind = ConditionKind.GroundEffect) => new() { Conditions = [new Condition { Kind = kind }] };
+
+    static GameState Inside(params FightEntity[] fighters) =>
+        new() { Player = new Player(Vector3.Zero, Vector2.UnitX), Fighters = fighters };
+
+    static FightEntity Zone(FightTimed? timed = null, double? lifetime = null, FightArchetype archetype = FightArchetype.GroundEffect) =>
+        new(1, Vector3.Zero, Vector2.UnitX, archetype, []) { Shape = new FightShape(1, 100, 0, 0), Camp = 1, Timed = timed, Lifetime = lifetime };
+
+    [Test]
+    public void AreaTimedShowsRemainingSecondsAndFill()
+    {
+        var view = AuraEval.Evaluate(AreaAura(), Inside(Zone(new FightTimed(2.5, 10))));
+        Check.That(view.Visibility == Visibility.Shown);
+        Check.Equal(0.75f, view.Fill);
+        Check.Equal("7.5", view.TextFor(TextField.Duration));
+    }
+
+    [Test]
+    public void AreaLifetimeOnlyShowsSecondsAndFullFill()
+    {
+        var view = AuraEval.Evaluate(AreaAura(ConditionKind.BuffArea), Inside(Zone(lifetime: 12, archetype: FightArchetype.BuffArea)));
+        Check.Equal(1f, view.Fill);
+        Check.Equal("12", view.TextFor(TextField.Duration));
+    }
+
+    [Test]
+    public void AreaWithNoTimeHasNoTextAndFullFill()
+    {
+        var view = AuraEval.Evaluate(AreaAura(), Inside(Zone()));
+        Check.Equal(1f, view.Fill);
+        Check.That(view.TextFor(TextField.Duration) is null);
+    }
+
+    [Test]
+    public void AreaLeastRemainingWinsAndOutsideIsHidden()
+    {
+        var view = AuraEval.Evaluate(AreaAura(), Inside(Zone(new FightTimed(0, 10)), Zone(new FightTimed(9, 10))));
+        Check.Equal("1.0", view.TextFor(TextField.Duration));
+        Check.Equal(0.1f, view.Fill, "fill follows the winner");
+        var outside = AuraEval.Evaluate(AreaAura(), Inside());
+        Check.That(outside.Visibility == Visibility.Hidden);
+        Check.That(AuraEval.Evaluate(AreaAura(), new GameState { Player = new Player(Vector3.Zero, Vector2.UnitX) }).Visibility == Visibility.Hidden);
+    }
 }
