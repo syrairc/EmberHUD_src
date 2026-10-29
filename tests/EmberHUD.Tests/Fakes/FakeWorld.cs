@@ -253,6 +253,23 @@ internal sealed class FakeWorld
         return transform;
     }
 
+    public static void WriteShapeGeometry(FakeMemory memory, nint shape, uint inner = 0, int angleA = 0, int angleB = 0, double offsetX = 0, double offsetY = 0)
+    {
+        memory.Write(shape + Offsets.ShapeInner, inner);
+        memory.Write(shape + Offsets.ShapeAngleA, angleA);
+        memory.Write(shape + Offsets.ShapeAngleB, angleB);
+        memory.Write(shape + Offsets.ShapeOffsetX, offsetX);
+        memory.Write(shape + Offsets.ShapeOffsetY, offsetY);
+    }
+
+    public static void WriteAttack(FakeMemory memory, nint attack, double delay, double duration, uint hits, double interval)
+    {
+        memory.Write(attack + Offsets.AttackDelay, delay);
+        memory.Write(attack + Offsets.AttackDuration, duration);
+        memory.Write(attack + Offsets.AttackHits, hits);
+        memory.Write(attack + Offsets.AttackInterval, interval);
+    }
+
     public void AddSideFighter(uint id, byte camp)
     {
         var entity = Alloc(0x200);

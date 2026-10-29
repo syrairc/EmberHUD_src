@@ -400,6 +400,8 @@ public sealed class StateToolsTests
                 Beam = new FightBeam(Vector3.Zero, new Vector3(0, 0, 1)),
                 Npc = new FightNpc(1010, 1, 2, 3),
                 Role = new FightRole(1010, 1, 80),
+                Shape = new FightShape(4, 450, 0, 0, 20, -40, 40, 12.5, -3),
+                Attack = new FightAttack(1.5, 0.5, 3, 0.25),
                 Lifetime = 1.5,
                 Scale = 1.25,
             },
@@ -412,6 +414,15 @@ public sealed class StateToolsTests
             Check.Equal(1.5, (double)row["lifetime"]!);
             Check.Equal(1.25, (double)row["scale"]!);
             Check.Equal(-1, (int)row["camp"]!);
+            Check.Equal(20u, (uint)row["shapeInner"]!);
+            Check.Equal(-40, (int)row["angleA"]!);
+            Check.Equal(40, (int)row["angleB"]!);
+            Check.Equal(12.5, (double)row["offsetX"]!);
+            Check.Equal(-3d, (double)row["offsetY"]!);
+            Check.Equal(1.5, (double)row["attack"]!["delay"]!);
+            Check.Equal(0.5, (double)row["attack"]!["duration"]!);
+            Check.Equal(3, (int)row["attack"]!["hits"]!);
+            Check.Equal(0.25, (double)row["attack"]!["interval"]!);
             Check.Equal(55.5, (double)row["motion"]!["travelled"]!);
             Check.Equal(13d, (double)row["motion"]!["lastStep"]!["x"]!);
             Check.Equal("Seek", (string?)row["command"]!["type"]);

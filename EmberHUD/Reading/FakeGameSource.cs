@@ -418,6 +418,13 @@ internal sealed class FakeGameSource(Func<long> clock) : IGameSource
                 Npc = new FightNpc(1010, 0, 1, 1),
                 Role = new FightRole(1010, 0, 80),
             },
+            new(9204, player + new Vector3(0, -500, 0), Vector2.UnitY, FightArchetype.Anchor, [Offsets.ShapeComponentId, Offsets.AttackComponentId, Offsets.SideComponentId])
+            {
+                Shape = new FightShape(4, 450, 0, 0, AngleA: -40, AngleB: 40),
+                Attack = new FightAttack(Math.Max(0.1, 2 - cycle % 2), 0.5, 1, 0.1),
+                Camp = FightCamps.Hostile,
+                OwnerId = FakeBossId,
+            },
         ];
     }
 

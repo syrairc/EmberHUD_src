@@ -59,6 +59,7 @@ internal sealed class FightEntityReader(IReadBackend memory, nint moduleBase)
             Npc = Decode<FightNpc>(components, Offsets.NpcComponentId, TryNpc),
             Role = Decode<FightRole>(components, Offsets.RoleComponentId, TryRole),
             Shape = Decode<FightShape>(components, Offsets.ShapeComponentId, TryShape),
+            Attack = Decode<FightAttack>(components, Offsets.AttackComponentId, TryAttack),
             Scale = Decode<double>(components, Offsets.ScaleComponentId, TryScale),
             Camp = Decode<int>(components, Offsets.SideComponentId, TryCamp),
             OwnerId = Decode<int>(components, Offsets.AttachmentComponentId, TryOwner) ?? 0,
@@ -167,9 +168,21 @@ internal sealed class FightEntityReader(IReadBackend memory, nint moduleBase)
     {
         shape = default;
         if (!memory.TryRead(at + Offsets.ShapeKind, out uint kind) || !memory.TryRead(at + Offsets.ShapeRadius, out uint radius) ||
-            !memory.TryRead(at + Offsets.ShapeExtentA, out uint extentA) || !memory.TryRead(at + Offsets.ShapeExtentB, out uint extentB)) return false;
+            !memory.TryRead(at + Offsets.ShapeExtentA, out uint extentA) || !memory.TryRead(at + Offsets.ShapeExtentB, out uint extentB) ||
+            !memory.TryRead(at + Offsets.ShapeInner, out uint inner) || !memory.TryRead(at + Offsets.ShapeAngleA, out int angleA) || !memory.TryRead(at + Offsets.ShapeAngleB, out int angleB) ||
+            !TryDouble(at + Offsets.ShapeOffsetX, out var offsetX) || !TryDouble(at + Offsets.ShapeOffsetY, out var offsetY)) return false;
 
-        shape = new FightShape(kind, radius, extentA, extentB);
+        shape = new FightShape(kind, radius, extentA, extentB, inner, angleA, angleB, offsetX, offsetY);
+        return true;
+    }
+
+    private bool TryAttack(nint at, out FightAttack attack)
+    {
+        attack = default;
+        if (!TryDouble(at + Offsets.AttackDelay, out var delay) || !TryDouble(at + Offsets.AttackDuration, out var duration) ||
+            !TryCount(at + Offsets.AttackHits, out var hits) || !TryDouble(at + Offsets.AttackInterval, out var interval) || delay < 0 || duration < 0 || interval < 0) return false;
+
+        attack = new FightAttack(delay, duration, hits, interval);
         return true;
     }
 

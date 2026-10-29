@@ -106,10 +106,13 @@ public class FakeGameSourceTests
             Game.WantFighters();
             var fighters = At(Stopwatch.GetTimestamp()).Fighters!;
 
-            Assert.Equal([FightArchetype.Bullet, FightArchetype.Bullet, FightArchetype.GroundEffect, FightArchetype.Monster], fighters.Select(f => f.Archetype));
+            Assert.Equal([FightArchetype.Bullet, FightArchetype.Bullet, FightArchetype.GroundEffect, FightArchetype.Monster, FightArchetype.Anchor], fighters.Select(f => f.Archetype));
             Assert.Equal(MoveCommandType.Seek, fighters[1].Command!.Value.Type);
             Assert.True(fighters[1].Track!.Value.HasTarget);
             Assert.Equal(80, fighters[3].Role!.Value.Level);
+            Assert.Equal(4u, fighters[4].Shape!.Value.Kind);
+            Assert.True(fighters[4].Attack!.Value.Delay > 0);
+            Assert.True(fighters[4].IsHostile);
         }
         finally { Game.FightersAsked = 0; }
     }

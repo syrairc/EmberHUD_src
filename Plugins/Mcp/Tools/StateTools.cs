@@ -467,6 +467,11 @@ internal static class StateTools
                 ["shapeRadius"] = fighter.Shape?.Radius ?? 0,
                 ["extentA"] = fighter.Shape?.ExtentA ?? 0,
                 ["extentB"] = fighter.Shape?.ExtentB ?? 0,
+                ["shapeInner"] = fighter.Shape?.Inner ?? 0,
+                ["angleA"] = fighter.Shape?.AngleA ?? 0,
+                ["angleB"] = fighter.Shape?.AngleB ?? 0,
+                ["offsetX"] = fighter.Shape is { } offset ? Round(offset.OffsetX) : null,
+                ["offsetY"] = fighter.Shape is { } shifted ? Round(shifted.OffsetY) : null,
                 ["scale"] = fighter.Scale is { } scale && double.IsFinite(scale) ? Math.Round(scale, 3) : null,
                 ["camp"] = fighter.Camp ?? -1,
                 ["ownerId"] = fighter.OwnerId,
@@ -540,6 +545,13 @@ internal static class StateTools
                     ["config"] = role.Config,
                     ["rarity"] = role.Rarity,
                     ["level"] = role.Level,
+                } : null,
+                ["attack"] = fighter.Attack is { } attack ? new JsonObject
+                {
+                    ["delay"] = Round(attack.Delay),
+                    ["duration"] = Round(attack.Duration),
+                    ["hits"] = attack.Hits,
+                    ["interval"] = Round(attack.Interval),
                 } : null,
             };
             if (fighter.Buffs.Length > 0)

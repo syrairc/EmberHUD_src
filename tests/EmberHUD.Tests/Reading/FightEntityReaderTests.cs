@@ -20,7 +20,7 @@ public class FightEntityReaderTests
     [
         Offsets.MoveComponentId, Offsets.MoveCmdComponentId, Offsets.BulletComponentId, Offsets.TrackComponentId, Offsets.SkillAttachComponentId, Offsets.LastedEffectComponentId,
         Offsets.ViewAssistComponentId, Offsets.NpcComponentId, Offsets.RoleComponentId, Offsets.ShapeComponentId, Offsets.ScaleComponentId, Offsets.SideComponentId,
-        Offsets.AttachmentComponentId, Offsets.SuicideComponentId,
+        Offsets.AttachmentComponentId, Offsets.SuicideComponentId, Offsets.AttackComponentId,
     ];
 
     private static Dictionary<int, nint> FullFighter(FakeWorld world, uint id = 10)
@@ -95,6 +95,8 @@ public class FightEntityReaderTests
         memory.Write(shape + Offsets.ShapeRadius, 300u);
         memory.Write(shape + Offsets.ShapeExtentA, 11u);
         memory.Write(shape + Offsets.ShapeExtentB, 12u);
+        FakeWorld.WriteShapeGeometry(memory, shape, inner: 40, angleA: -30, angleB: 60, offsetX: 15.5, offsetY: -8);
+        FakeWorld.WriteAttack(memory, components[Offsets.AttackComponentId], delay: 1.5, duration: 0.5, hits: 3, interval: 0.25);
 
         memory.Write(components[Offsets.ScaleComponentId] + Offsets.ScaleValue, 2.5);
         memory.Write(components[Offsets.SideComponentId] + Offsets.SideCamp, (byte)2);
@@ -236,7 +238,8 @@ public class FightEntityReaderTests
         Assert.Equal(new FightBeam(new Vector3(10, 20, 30), new Vector3(40, 50, 60)), entity.Beam);
         Assert.Equal(new FightNpc(1001, 2, 3, 4), entity.Npc);
         Assert.Equal(new FightRole(555, 1, 80), entity.Role);
-        Assert.Equal(new FightShape(1, 300, 11, 12), entity.Shape);
+        Assert.Equal(new FightShape(1, 300, 11, 12, 40, -30, 60, 15.5, -8), entity.Shape);
+        Assert.Equal(new FightAttack(1.5, 0.5, 3, 0.25), entity.Attack);
         Assert.Equal(2.5, entity.Scale);
         Assert.Equal(2, entity.Camp);
         Assert.Equal(7504, entity.OwnerId);
@@ -270,6 +273,16 @@ public class FightEntityReaderTests
         yield return Case("npc category huge", Offsets.NpcComponentId, (m, c) => m.Write(c + Offsets.NpcCategory, uint.MaxValue), e => e.Npc);
         yield return Case("role config huge", Offsets.RoleComponentId, (m, c) => m.Write(c + Offsets.FightRoleConfig, 200_000_000u), e => e.Role);
         yield return Case("role level negative", Offsets.RoleComponentId, (m, c) => m.Write(c + Offsets.FightRoleLevel, -5), e => e.Role);
+        yield return Case("shape offset x NaN", Offsets.ShapeComponentId, (m, c) => m.Write(c + Offsets.ShapeOffsetX, double.NaN), e => e.Shape);
+        yield return Case("shape offset y huge", Offsets.ShapeComponentId, (m, c) => m.Write(c + Offsets.ShapeOffsetY, 1e9), e => e.Shape);
+        yield return Case("shape offset x infinite", Offsets.ShapeComponentId, (m, c) => m.Write(c + Offsets.ShapeOffsetX, double.NegativeInfinity), e => e.Shape);
+        yield return Case("attack delay NaN", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackDelay, double.NaN), e => e.Attack);
+        yield return Case("attack delay negative", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackDelay, -1.0), e => e.Attack);
+        yield return Case("attack duration huge", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackDuration, 1e9), e => e.Attack);
+        yield return Case("attack duration negative", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackDuration, -0.5), e => e.Attack);
+        yield return Case("attack hits huge", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackHits, uint.MaxValue), e => e.Attack);
+        yield return Case("attack interval infinite", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackInterval, double.PositiveInfinity), e => e.Attack);
+        yield return Case("attack interval negative", Offsets.AttackComponentId, (m, c) => m.Write(c + Offsets.AttackInterval, -2.0), e => e.Attack);
         yield return Case("scale NaN", Offsets.ScaleComponentId, (m, c) => m.Write(c + Offsets.ScaleValue, double.NaN), e => e.Scale);
         yield return Case("lifetime NaN", Offsets.SuicideComponentId, (m, c) => m.Write(c + Offsets.SuicideLife, double.NaN), e => e.Lifetime);
         yield return Case("lifetime negative", Offsets.SuicideComponentId, (m, c) => m.Write(c + Offsets.SuicideLife, -1.0), e => e.Lifetime);
@@ -315,6 +328,7 @@ public class FightEntityReaderTests
         Assert.Null(entity.Npc);
         Assert.Null(entity.Role);
         Assert.Null(entity.Shape);
+        Assert.Null(entity.Attack);
         Assert.Null(entity.Scale);
         Assert.Null(entity.Camp);
         Assert.Equal(0, entity.OwnerId);
@@ -332,6 +346,7 @@ public class FightEntityReaderTests
         Assert.Null(entity.Motion);
         Assert.Null(entity.Bullet);
         Assert.Null(entity.Shape);
+        Assert.Null(entity.Attack);
         Assert.Null(entity.Camp);
         Assert.Null(entity.Lifetime);
         Assert.Equal(0, entity.OwnerId);
