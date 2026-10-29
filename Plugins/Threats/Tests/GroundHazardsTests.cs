@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -89,5 +90,55 @@ public sealed class GroundHazardsTests
         Check.That(vertices.Any(v => v.Col >> 24 == 200 && Vector2.Distance(v.Pos, rim) < 8), "no outline around the hole");
         var ratio = FillArea(settings, Ring with { InnerRadius = 200, Kind = HazardKind.Area }) / FillArea(settings, Ring with { InnerRadius = 0, Kind = HazardKind.Area });
         Check.That(ratio < 0.95f, $"fill covers the hole {ratio}");
+    }
+
+    static FightEntity Timer(double remaining) => new(1, Vector3.Zero, Vector2.UnitX, FightArchetype.GroundEffect, []) { Lifetime = remaining };
+
+    static List<(Vector2 Pos, Vector2 Uv)> Text(Settings settings, Action draw)
+    {
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
+        ImDrawListPtr list = default;
+        TestFrame.Run(() =>
+        {
+            list = Draw.Background;
+            Groups.Declare(settings);
+            draw();
+        });
+        var white = EColor.U32(Color.White);
+        var found = new List<(Vector2, Vector2)>();
+        for (var i = 0; i < list.VtxBuffer.Size; i++)
+            if (list.VtxBuffer[i].Col == white) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Uv));
+        return found;
+    }
+
+    static int TimerVertices(Settings settings, FightEntity? fighter) => Text(settings, () => GroundHazards.Draw(Pool, settings, new Vector2(5000, 5000), fighter)).Count;
+
+    [Test]
+    public void TimedHazardShowsTheSecondsLeft()
+    {
+        var settings = new Settings();
+        Check.That(TimerVertices(settings, Timer(4.5)) > 0, "no timer text");
+        Check.Equal(0, TimerVertices(settings, null));
+        Check.Equal(0, TimerVertices(settings, Timer(0)));
+        Check.Equal(0, TimerVertices(settings, Timer(600)));
+        Check.Equal(0, TimerVertices(settings, Timer(double.NaN)));
+    }
+
+    [Test]
+    public void TimerFollowsItsToggles()
+    {
+        Check.Equal(0, TimerVertices(new Settings { HazardTimers = false }, Timer(4.5)));
+        Check.Equal(0, TimerVertices(new Settings { UseFightData = false }, Timer(4.5)));
+    }
+
+    [Test]
+    public void TimerTextIsTheRemainingSeconds()
+    {
+        var settings = new Settings { HazardTimerSize = 100 };
+        var drawn = Text(settings, () => GroundHazards.Draw(Pool, settings, new Vector2(5000, 5000), Timer(4.5)));
+        var expected = Text(settings, () => Ground.Text("4.5", Pool.Centre, 100, Overdraw.Looking.Rotation.Y + 90, Color.White));
+        var wrong = Text(settings, () => Ground.Text("4.6", Pool.Centre, 100, Overdraw.Looking.Rotation.Y + 90, Color.White));
+        Check.That(drawn.Count > 0 && drawn.SequenceEqual(expected), "text is not 4.5");
+        Check.That(!drawn.SequenceEqual(wrong), "text matches 4.6");
     }
 }

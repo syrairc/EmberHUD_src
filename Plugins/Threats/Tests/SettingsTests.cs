@@ -44,4 +44,12 @@ public sealed class SettingsTests
             Check.That(s.Allows(Rarity.Boss, telegraphs));
         }
     }
+
+    [Test]
+    public void FightDataDefaultsToOn()
+    {
+        var s = new Settings();
+        Check.That(s.UseFightData && s.HighlightHoming && s.HazardTimers, "toggles");
+        Check.Equal(60f, s.HazardTimerSize);
+    }
 }

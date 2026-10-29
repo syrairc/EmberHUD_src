@@ -24,7 +24,7 @@ public sealed class MainTests
 
     static Projectile Shot(Rarity rarity = Rarity.Rare) => new(1, 1, rarity, new Vector2(0, 500), new Vector2(0, 500), Vector2.UnitX, 100, 600);
 
-    static GameState State(Player? player, Entity[]? entities = null, Projectile[]? projectiles = null, GameUi? ui = null, GroundHazard[]? hazards = null) => GameState.Empty with
+    static GameState State(Player? player, Entity[]? entities = null, Projectile[]? projectiles = null, GameUi? ui = null, GroundHazard[]? hazards = null, FightEntity[]? fighters = null) => GameState.Empty with
     {
         Camera = Forward,
         Player = player,
@@ -32,6 +32,7 @@ public sealed class MainTests
         Projectiles = projectiles ?? [],
         Ui = ui ?? GameUi.Empty,
         GroundHazards = hazards ?? [],
+        Fighters = fighters,
     };
 
     static Main Plugin(Action<Settings>? configure = null, Func<long>? clock = null)
@@ -286,5 +287,65 @@ public sealed class MainTests
         Check.That((long)casts.GetValue(null)! != 0, "WantCasts was not called");
         Check.That((long)projectiles.GetValue(null)! != 0, "WantProjectiles was not called");
         Check.That((long)ground.GetValue(null)! != 0, "WantGroundHazards was not called");
+    }
+
+    static FightEntity Fighter(int id) => new(id, Vector3.Zero, Vector2.UnitX, FightArchetype.Bullet, []);
+
+    static FightEntity Spent(int id) => Fighter(id) with
+    {
+        Bullet = new FightBullet(0, 800, Vector3.Zero, Vector3.Zero, Vector3.Zero, false, true, false, 0),
+        Motion = new FightMotion(600, 0, Vector2.Zero, Vector2.Zero, false, true, 0, 800),
+    };
+
+    [Test]
+    public void FightDataOffNeverReadsTheFighters()
+    {
+        var asked = Asked("FightersAsked");
+        asked.SetValue(null, 0L);
+        Frame(State(Away, projectiles: [Shot()], fighters: [Spent(1)]), s => s.UseFightData = false);
+        Check.Equal(0L, (long)asked.GetValue(null)!);
+        Frame(State(Away, projectiles: [Shot()], fighters: [Spent(1)]));
+        Check.That((long)asked.GetValue(null)! != 0, "fighters not read with the toggle on");
+    }
+
+    [Test]
+    public void FighterWithNothingLeftToFlyDrawsNoLine()
+    {
+        var withFighter = State(Away, projectiles: [Shot()], fighters: [Spent(1)]);
+        Check.Equal(0, Frame(withFighter));
+        Check.That(Frame(withFighter, s => s.UseFightData = false) > 0, "toggle off should draw the old line");
+    }
+
+    [Test]
+    public void MissingFighterKeepsTheOldLine()
+    {
+        var plain = Frame(State(Away, projectiles: [Shot()]));
+        Check.That(plain > 0, "control");
+        Check.Equal(plain, Frame(State(Away, projectiles: [Shot()], fighters: [Spent(99)])));
+        Check.Equal(plain, Frame(State(Away, projectiles: [Shot()], fighters: [])));
+    }
+
+    [Test]
+    public void FighterShortensTheDangerTest()
+    {
+        var nearTheEnd = new Player(new Vector3(900, 500, 0), Vector2.UnitX);
+        var clipped = Fighter(1) with
+        {
+            Bullet = new FightBullet(0, 800, Vector3.Zero, Vector3.Zero, Vector3.Zero, false, true, false, 0),
+            Motion = new FightMotion(600, 0, Vector2.Zero, Vector2.Zero, false, true, 0, 300),
+        };
+        var quiet = Frame(State(nearTheEnd, projectiles: [Shot()], fighters: [clipped]), s => s.MoveAlert = true);
+        var alert = Frame(State(nearTheEnd, projectiles: [Shot()]), s => s.MoveAlert = true);
+        Check.That(alert > quiet, "alert should only fire without the fight data clip");
+    }
+
+    [Test]
+    public void HazardTimerDrawsFromTheFighter()
+    {
+        var timed = Fighter(Pool.Id) with { Lifetime = 4.5 };
+        var plain = Frame(State(Away, hazards: [Pool]));
+        Check.That(Frame(State(Away, hazards: [Pool], fighters: [timed])) > plain, "no timer text");
+        Check.Equal(plain, Frame(State(Away, hazards: [Pool], fighters: [timed]), s => s.HazardTimers = false));
+        Check.Equal(plain, Frame(State(Away, hazards: [Pool], fighters: [timed]), s => s.UseFightData = false));
     }
 }

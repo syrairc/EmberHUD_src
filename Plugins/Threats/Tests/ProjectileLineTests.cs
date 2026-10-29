@@ -31,7 +31,7 @@ public sealed class ProjectileLineTests
 
     static Projectile Shot(Vector2? direction = null, float radius = 100) => new(1, 1, Rarity.Rare, new Vector2(0, 500), new Vector2(0, 500), direction ?? Vector2.UnitX, radius, 600);
 
-    static List<(Vector2 Pos, uint Col)> Drawn(Camera? camera, Projectile projectile, Settings settings, Vector2 player, double seconds, bool? inside = null)
+    static List<(Vector2 Pos, uint Col)> Drawn(Camera? camera, Projectile projectile, Settings settings, Vector2 player, double seconds, bool? inside = null, FightEntity? fighter = null)
     {
         TestGame.Set(new GameState { Camera = camera });
         var found = new List<(Vector2, uint)>();
@@ -41,7 +41,7 @@ public sealed class ProjectileLineTests
         {
             list = Draw.Background;
             Groups.Declare(settings);
-            result = ProjectileLine.Draw(projectile, settings, player, seconds);
+            result = ProjectileLine.Draw(projectile, settings, player, seconds, null, fighter);
         });
         for (var i = 0; i < list.VtxBuffer.Size; i++) found.Add((list.VtxBuffer[i].Pos, list.VtxBuffer[i].Col));
         if (inside is not null) Check.Equal(inside, result);
@@ -228,5 +228,140 @@ public sealed class ProjectileLineTests
         var settings = Configured();
         settings.ShowHitWidth = true;
         Check.Equal(Drawn(Forward, Shot(radius: 0), Configured(), Far, 0).Count, Drawn(Forward, Shot(radius: 0), settings, Far, 0).Count);
+    }
+
+    static readonly Color Homing = Color.FromArgb(255, 123, 45, 67);
+
+    static FightEntity Flying(double range, double travelled) => new(1, Vector3.Zero, Vector2.UnitX, FightArchetype.Bullet, [])
+    {
+        Bullet = new FightBullet(0, range, Vector3.Zero, Vector3.Zero, Vector3.Zero, false, true, false, 0),
+        Motion = new FightMotion(600, 0, Vector2.Zero, Vector2.Zero, false, true, 0, travelled),
+    };
+
+    static FightEntity Chasing() => new FightEntity(1, Vector3.Zero, Vector2.UnitX, FightArchetype.Bullet, []) with { Track = new FightTrack(true, 5, true, false, 0) };
+
+    static Settings WithHoming()
+    {
+        var settings = Configured();
+        settings.HomingColour = Homing;
+        return settings;
+    }
+
+    [Test]
+    public void FightRangeShortensTheLineAndTheDangerZone()
+    {
+        var settings = Configured();
+        var clipped = Flying(800, 300);
+        Check.That(ProjectileLine.Inside(Shot(), settings, new Vector2(700, 500)), "control: full line reaches 700");
+        Check.That(!ProjectileLine.Inside(Shot(), settings, new Vector2(700, 500), clipped), "clipped line reaches 700");
+        Check.That(ProjectileLine.Inside(Shot(), settings, new Vector2(560, 500), clipped), "inside the clipped line");
+        Check.That(!ProjectileLine.Inside(Shot(), settings, new Vector2(591, 500), clipped), "past the clipped end plus slack");
+    }
+
+    [Test]
+    public void FightRangeShortensTheDrawing()
+    {
+        float Area(FightEntity? fighter)
+        {
+            var settings = Configured();
+            TestGame.Set(new GameState { Camera = Overdraw.Looking });
+            ImDrawListPtr list = default;
+            TestFrame.Run(() =>
+            {
+                list = Draw.Background;
+                Groups.Declare(settings);
+                ProjectileLine.Draw(Shot(), settings, Far, 0, null, fighter);
+            });
+            return Overdraw.Area(list, EColor.U32(settings.LineColour));
+        }
+        var full = Area(null);
+        var clipped = Area(Flying(800, 300));
+        Check.That(clipped > 0 && clipped < full * 0.7f, $"clipped {clipped} vs full {full}");
+    }
+
+    [Test]
+    public void NothingLeftToFlyDrawsAndWarnsNothing()
+    {
+        var spent = Flying(800, 800);
+        Check.Equal(0, Drawn(Forward, Shot(), Configured(), new Vector2(500, 500), 0, inside: false, fighter: spent).Count);
+    }
+
+    [Test]
+    public void FightDataOffIgnoresTheFighter()
+    {
+        var settings = Configured();
+        settings.UseFightData = false;
+        Check.That(ProjectileLine.Inside(Shot(), settings, new Vector2(700, 500), Flying(800, 300)), "full line expected");
+    }
+
+    [Test]
+    public void BeamIsTheExactSegment()
+    {
+        var settings = Configured();
+        var beam = new FightEntity(1, Vector3.Zero, Vector2.UnitX, FightArchetype.Laser, []) with { Beam = new FightBeam(new Vector3(0, 0, 0), new Vector3(100, 0, 0)) };
+        Check.That(ProjectileLine.Inside(Shot(), settings, new Vector2(50, 0), beam), "on the beam");
+        Check.That(!ProjectileLine.Inside(Shot(), settings, new Vector2(500, 500), beam), "on the guessed line");
+        Check.That(ProjectileLine.Inside(Shot(), settings, new Vector2(500, 500)), "control without the beam");
+        var drawn = Drawn(Forward, Shot(), settings, new Vector2(50, 0), 0, inside: true, fighter: beam);
+        Check.That(drawn.Count > 0 && drawn.All(v => v.Col == EColor.U32(Danger)), "beam drawn danger coloured");
+    }
+
+    [Test]
+    public void HomingLinesUseTheHomingColour()
+    {
+        var chasing = Drawn(Forward, Shot(), WithHoming(), Far, 0, inside: false, fighter: Chasing());
+        Check.That(chasing.Count > 0 && chasing.All(v => v.Col == EColor.U32(Homing)), "homing colour");
+        var plain = Drawn(Forward, Shot(), WithHoming(), Far, 0, fighter: Flying(5000, 0));
+        Check.That(plain.Count > 0 && plain.All(v => v.Col == EColor.U32(Line)), "line colour for a straight shot");
+    }
+
+    [Test]
+    public void HomingStaysDangerColourWhenInside()
+    {
+        var hit = Drawn(Forward, Shot(), WithHoming(), new Vector2(500, 500), 0, inside: true, fighter: Chasing());
+        Check.That(hit.Count > 0 && hit.All(v => v.Col == EColor.U32(Danger)), "danger colour");
+    }
+
+    [Test]
+    public void HomingHighlightHonoursItsToggles()
+    {
+        var off = WithHoming();
+        off.HighlightHoming = false;
+        var plain = Drawn(Forward, Shot(), off, Far, 0, fighter: Chasing());
+        Check.That(plain.Count > 0 && plain.All(v => v.Col == EColor.U32(Line)), "highlight off");
+        var master = WithHoming();
+        master.UseFightData = false;
+        plain = Drawn(Forward, Shot(), master, Far, 0, fighter: Chasing());
+        Check.That(plain.Count > 0 && plain.All(v => v.Col == EColor.U32(Line)), "fight data off");
+    }
+
+    [Test]
+    public void HomingBandUsesTheHomingGroup()
+    {
+        var settings = WithHoming();
+        settings.ShowHitWidth = true;
+        var band = EColor.U32(Color.FromArgb(Homing.A / 4, Homing));
+        Check.That(Drawn(Forward, Shot(), settings, Far, 0, fighter: Chasing()).Any(v => v.Col == band), "no homing band");
+    }
+
+    [Test]
+    public void HomingLinesMergeInTheirOwnGroup()
+    {
+        var settings = WithHoming();
+        settings.HomingColour = Color.FromArgb(200, 123, 45, 67);
+        TestGame.Set(new GameState { Camera = Overdraw.Looking });
+        float Area(int count)
+        {
+            ImDrawListPtr list = default;
+            TestFrame.Run(() =>
+            {
+                list = Draw.Background;
+                Groups.Declare(settings);
+                for (var i = 0; i < count; i++) ProjectileLine.Draw(Shot() with { Position = new Vector2(0, 500 + i * 0.5f) }, settings, Far, 0, null, Chasing());
+            });
+            return Overdraw.Area(list, EColor.U32(settings.HomingColour));
+        }
+        var single = Area(1);
+        Check.That(single > 0 && Area(5) < single * 2, "homing lines stacked");
     }
 }

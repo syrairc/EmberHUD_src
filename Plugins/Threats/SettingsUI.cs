@@ -37,6 +37,13 @@ public sealed partial class Settings
         Setting.Color("Area colour", ref AreaColour);
         Setting.Slider("Ground alert delay", ref GroundAlertSeconds, 0, 10, "Seconds inside a pool before the move alert fires");
 
+        Controls.Section("Fight data");
+        Setting.Checkbox("Use fight data", ref UseFightData, "Reads the game's own projectile and effect data: lines stop where the shot ends, exact beams, orbit detection, homing, hazard timers. Decoded from static reverse engineering and not verified live yet - turn off if lines look wrong, it switches all of this off and stops reading it");
+        Setting.Checkbox("Highlight homing", ref HighlightHoming, "Draws lines of projectiles that are chasing a target in the homing colour");
+        Setting.Color("Homing colour", ref HomingColour);
+        Setting.Checkbox("Hazard timers", ref HazardTimers, "Seconds left on timed ground hazards, shown at their centre");
+        Setting.Slider("Hazard timer size", ref HazardTimerSize, 20, 300, "World units tall");
+
         Controls.Section("Danger");
         Setting.Color("Danger colour", ref DangerColour);
         Setting.Checkbox("Move alert", ref MoveAlert);
