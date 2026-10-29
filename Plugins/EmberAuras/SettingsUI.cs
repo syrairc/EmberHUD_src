@@ -11,7 +11,7 @@ namespace EmberAuras;
 static class SettingsUI
 {
     const string BuffTip = "Matched against the buff name and id as a regex, e.g. shield|1234 - if it does not compile it matches the name or id exactly";
-    const string FightTip = "Fight data is decoded from static reverse engineering and not yet live verified. Holds while you stand inside a hostile ground effect / buff area, the text is the time it has left.";
+    const string FightTip = "Holds while you stand inside a hostile ground effect / buff area, the text is the time it has left.";
 
     static int selectedGroup;
     static int selectedAura;

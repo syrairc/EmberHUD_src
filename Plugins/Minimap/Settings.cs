@@ -273,7 +273,7 @@ public sealed class Settings : PluginSettings
         }
         changed |= Setting.Checkbox("Fade hidden monsters", ref Icons.FadeHidden, "Draw buried or hidden monsters at half opacity");
         changed |= Setting.Checkbox("Fade invulnerable monsters", ref Icons.FadeInvulnerable, "Draw monsters that cannot be damaged (e.g. turrets) at half opacity");
-        changed |= Setting.Checkbox("Use fight info", ref Icons.UseFightInfo, "Friendly / enemy from the fight world; decoded from static reverse engineering, turn off if icons look wrong");
+        changed |= Setting.Checkbox("Use fight info", ref Icons.UseFightInfo, "Friendly / enemy from the fight world; turn off if icons look wrong");
         using (Layout.Dim(General.UseGameMinimap))
         {
             changed |= Setting.Checkbox("Scale with zoom", ref Icons.ScaleWithZoom, "Icons grow and shrink with the map zoom, the default zoom keeps them at their own size. The game map drives zoom with Use game minimap");
