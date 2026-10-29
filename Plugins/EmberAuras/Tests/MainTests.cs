@@ -200,4 +200,28 @@ public sealed class MainTests
         var dimmed = Life(WhenInactive.Dim, 50, Direction.Below);
         Check.That(Drawn(Plugin(dimmed), Alive()) > 0);
     }
+
+    static Aura FightAura(bool enabled = true) => new() { Enabled = enabled, Conditions = [new Condition { Kind = ConditionKind.GroundEffect }] };
+
+    static bool FightersAskedDuring(Action run)
+    {
+        var asked = typeof(Game).GetProperty("FightersAsked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        asked.SetValue(null, 0L);
+        run();
+        return (long)asked.GetValue(null)! != 0;
+    }
+
+    [Test]
+    public void FightersAreOnlyAskedForOrReadWithAnEnabledFightAura()
+    {
+        var other = Plugin(Life(), FightAura(false));
+        var disabledGroup = Plugin(FightAura());
+        disabledGroup.Settings.Groups[0].Enabled = false;
+        var used = Plugin(Life(), FightAura());
+        Check.That(!FightersAskedDuring(() => Drawn(other, Alive())), "no fight aura");
+        Check.That(!FightersAskedDuring(() => Drawn(disabledGroup, Alive())), "disabled group");
+        Check.That(FightersAskedDuring(() => Drawn(used, Alive())), "enabled fight aura");
+        Check.That(!Main.NeedsFighters(other.Settings));
+        Check.That(Main.NeedsFighters(used.Settings));
+    }
 }

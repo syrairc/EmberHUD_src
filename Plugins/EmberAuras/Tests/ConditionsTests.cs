@@ -225,4 +225,75 @@ public sealed class ConditionsTests
         Check.That(Conditions.AllMet(aura, state));
         Check.That(!Conditions.AllMet(aura, state with { Buffs = [] }));
     }
+
+    static FightEntity Area(FightArchetype archetype = FightArchetype.GroundEffect, float x = 0, uint radius = 100, int camp = 1, double? scale = null, FightTimed? timed = null, double? lifetime = null, uint kind = 1) =>
+        new(1, new Vector3(x, 0, 0), Vector2.UnitX, archetype, [])
+        {
+            Shape = new FightShape(kind, radius, 0, 0),
+            Camp = camp,
+            Scale = scale,
+            Timed = timed,
+            Lifetime = lifetime,
+        };
+
+    static GameState Standing(float x, params FightEntity[] fighters) =>
+        new() { Player = new Player(new Vector3(x, 0, 0), Vector2.UnitX), Fighters = fighters };
+
+    static Condition GroundEffect = new() { Kind = ConditionKind.GroundEffect };
+
+    static Condition BuffArea = new() { Kind = ConditionKind.BuffArea };
+
+    [Test]
+    public void GroundEffectMetInsideAndNotOutside()
+    {
+        Check.That(Conditions.Met(GroundEffect, Standing(99, Area())));
+        Check.That(Conditions.Met(GroundEffect, Standing(100, Area())));
+        Check.That(!Conditions.Met(GroundEffect, Standing(101, Area())));
+    }
+
+    [Test]
+    public void AreaScaleWidensTheRadius()
+    {
+        Check.That(!Conditions.Met(GroundEffect, Standing(150, Area())));
+        Check.That(Conditions.Met(GroundEffect, Standing(150, Area(scale: 2))));
+    }
+
+    [Test]
+    public void NonHostileOrWrongArchetypeOrNonCircleIsIgnored()
+    {
+        Check.That(!Conditions.Met(GroundEffect, Standing(0, Area(camp: 2))));
+        Check.That(Conditions.Met(GroundEffect, Standing(0, Area(camp: 3))));
+        Check.That(!Conditions.Met(GroundEffect, Standing(0, Area(FightArchetype.BuffArea))));
+        Check.That(!Conditions.Met(BuffArea, Standing(0, Area())));
+        Check.That(Conditions.Met(BuffArea, Standing(0, Area(FightArchetype.BuffArea))));
+        Check.That(!Conditions.Met(GroundEffect, Standing(0, Area(kind: 2))));
+    }
+
+    [Test]
+    public void NullFightersOrNoPlayerIsNotMet()
+    {
+        Check.That(!Conditions.Met(GroundEffect, new GameState { Player = new Player(Vector3.Zero, Vector2.UnitX), Fighters = null }));
+        Check.That(!Conditions.Met(GroundEffect, new GameState { Fighters = [Area()] }));
+    }
+
+    [Test]
+    public void RemainingPrefersTimedThenLifetimeThenNone()
+    {
+        Check.Equal(7.0, Conditions.Remaining(Area(timed: new FightTimed(3, 10), lifetime: 99)));
+        Check.Equal(5.0, Conditions.Remaining(Area(timed: new FightTimed(3, 0), lifetime: 5)));
+        Check.Equal(5.0, Conditions.Remaining(Area(timed: new FightTimed(-1, 10), lifetime: 5)));
+        Check.Equal(0.0, Conditions.Remaining(Area(timed: new FightTimed(12, 10))));
+        Check.That(Conditions.Remaining(Area(lifetime: -1)) is null);
+        Check.That(Conditions.Remaining(Area()) is null);
+    }
+
+    [Test]
+    public void FindAreaPicksTheLeastRemaining()
+    {
+        var slow = Area(timed: new FightTimed(0, 10));
+        var fast = Area(timed: new FightTimed(8, 10));
+        var unknown = Area();
+        Check.That(ReferenceEquals(fast, Conditions.FindArea(Standing(0, slow, unknown, fast), ConditionKind.GroundEffect)));
+        Check.That(ReferenceEquals(slow, Conditions.FindArea(Standing(0, unknown, slow), ConditionKind.GroundEffect)));
+    }
 }
