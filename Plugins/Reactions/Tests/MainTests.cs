@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -56,6 +57,34 @@ public sealed class MainTests
         Check.That(TestGame.CharacterAskedDuring(buff.Tick), "buff asks");
         var health = Plugin(Health);
         Check.That(!TestGame.CharacterAskedDuring(health.Tick), "health does not ask");
+    }
+
+    static long FightersAsked() =>
+        (long)typeof(Game).GetProperty("FightersAsked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+
+    static void ResetFightersAsked() =>
+        typeof(Game).GetProperty("FightersAsked", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.SetValue(null, 0L);
+
+    static bool FightersAskedDuring(Action run)
+    {
+        ResetFightersAsked();
+        run();
+        return FightersAsked() != 0;
+    }
+
+    [Test]
+    public void TickReadsFightersOnlyForEnabledHomingReactions()
+    {
+        TestSend.Record();
+        TestGame.Set(Hurt());
+        var homing = new Condition { Kind = ConditionKind.HomingProjectile };
+        Check.That(FightersAskedDuring(Plugin(Health, homing).Tick), "enabled homing reads");
+        foreach (var other in new[] { Health, new Condition { Kind = ConditionKind.GroundEffect }, new Condition { Kind = ConditionKind.NearbyEnemies }, new Condition { Kind = ConditionKind.Buff, Text = "x" } })
+            Check.That(!FightersAskedDuring(Plugin(Health, other).Tick), $"{other.Kind} does not read fighters");
+        var disabled = Plugin(Health, homing);
+        disabled.Settings.Reactions[0].Enabled = false;
+        Check.That(!FightersAskedDuring(disabled.Tick), "disabled homing does not read");
+        Check.That(!FightersAskedDuring(Plugin(new Condition { Kind = ConditionKind.Health, Percent = 1 }, homing).Tick), "short-circuited before homing");
     }
 
     [Test]

@@ -200,6 +200,110 @@ public sealed class ConditionsTests
     }
 
     [Test]
+    public void NearbyEnemiesSkipsMinionArchetype()
+    {
+        var state = new GameState
+        {
+            Player = new Player(Vector3.Zero, Vector2.UnitX),
+            Entities =
+            [
+                new Entity(1, 100, new Vector3(10, 0, 0), EntityKind.Monster, Rarity.Normal) { Address = 0x1000, Info = new FightInfo(FightArchetype.Minion, 2, 1, 0) },
+                new Entity(2, 100, new Vector3(20, 0, 0), EntityKind.Monster, Rarity.Normal) { Address = 0x2000, Info = new FightInfo(FightArchetype.Monster, 1, 1, 0) },
+            ],
+        };
+        Check.That(Conditions.Met(new Condition { Kind = ConditionKind.NearbyEnemies, Radius = 50, Count = 1 }, state));
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.NearbyEnemies, Radius = 50, Count = 2 }, state));
+    }
+
+    static Projectile Shot(int id, float x) => new(id, 0, Rarity.Normal, new Vector2(x, 0), Vector2.Zero, Vector2.UnitX, 5, 100);
+
+    static FightEntity Fighter(int id, bool hasTarget, int targetId = 0) =>
+        new(id, Vector3.Zero, Vector2.UnitX, FightArchetype.Bullet, []) { Track = new FightTrack(hasTarget, targetId, false, false, 0) };
+
+    static FightEntity PlayerFighter(int id, float x = 0) =>
+        new(id, new Vector3(x, 0, 0), Vector2.UnitX, FightArchetype.Player, []);
+
+    static GameState Homing(Projectile[] projectiles, FightEntity[]? fighters) =>
+        new() { Player = new Player(Vector3.Zero, Vector2.UnitX), Projectiles = projectiles, Fighters = fighters };
+
+    [Test]
+    public void HomingCountsTargetingProjectilesInRadius()
+    {
+        var state = Homing([Shot(1, 10), Shot(2, 20), Shot(3, 30), Shot(4, 900)], [Fighter(1, true), Fighter(2, true), Fighter(3, false), Fighter(4, true)]);
+        Check.That(Conditions.Met(new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100, Count = 2 }, state));
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100, Count = 3 }, state), "untargeting and far ones do not count");
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.HomingProjectile, Radius = 15, Count = 2 }, state), "radius");
+        Check.That(Conditions.Met(new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100, Count = 0 }, state), "count 0 needs one");
+    }
+
+    [Test]
+    public void HomingWithoutFighterOrFightersIsFalse()
+    {
+        var condition = new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100 };
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(9, true)])), "no fighter with the projectile id");
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], null)), "fighters unread");
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [new FightEntity(1, Vector3.Zero, Vector2.UnitX, FightArchetype.Bullet, [])])), "no track");
+        Check.That(!Conditions.Met(condition, new GameState { Projectiles = [Shot(1, 10)], Fighters = [Fighter(1, true)] }), "no player");
+    }
+
+    [Test]
+    public void HomingOnlyTargetingMeNeedsThePlayerFighter()
+    {
+        var condition = new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100, OnlyTargetingMe = true };
+        Check.That(Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 77), PlayerFighter(77, 5)])));
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 88), PlayerFighter(77, 5)])), "targets someone else");
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 77)])), "player fighter missing");
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 77), PlayerFighter(77, 500)])), "player fighter too far");
+        Check.That(!Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 0), PlayerFighter(77, 5)])), "target 0 is not the player");
+    }
+
+    [Test]
+    public void HomingOnlyTargetingMePicksTheNearestPlayerFighter()
+    {
+        var condition = new Condition { Kind = ConditionKind.HomingProjectile, Radius = 100, OnlyTargetingMe = true };
+        Check.That(Conditions.Met(condition, Homing([Shot(1, 10)], [Fighter(1, true, 77), PlayerFighter(88, 40), PlayerFighter(77, 5)])));
+    }
+
+    static GameState InHazard(params GroundHazard[] hazards) =>
+        new() { Player = new Player(new Vector3(10, 0, 0), Vector2.UnitX), GroundHazards = hazards };
+
+    [Test]
+    public void GroundEffectIsMetInsideAHazard()
+    {
+        var condition = new Condition { Kind = ConditionKind.GroundEffect };
+        Check.That(Conditions.Met(condition, InHazard(new GroundHazard(1, HazardKind.Area, new Vector2(0, 0), 10))), "edge counts");
+        Check.That(!Conditions.Met(condition, InHazard(new GroundHazard(1, HazardKind.Area, new Vector2(0, 0), 9))));
+        Check.That(!Conditions.Met(condition, InHazard()));
+        Check.That(!Conditions.Met(condition, new GameState { GroundHazards = [new GroundHazard(1, HazardKind.Area, Vector2.Zero, 99)] }), "no player");
+    }
+
+    [Test]
+    public void GroundEffectInnerRadiusIsAHole()
+    {
+        var condition = new Condition { Kind = ConditionKind.GroundEffect };
+        Check.That(!Conditions.Met(condition, InHazard(new GroundHazard(1, HazardKind.Damage, Vector2.Zero, 50) { InnerRadius = 20 })));
+        Check.That(Conditions.Met(condition, InHazard(new GroundHazard(1, HazardKind.Damage, Vector2.Zero, 50) { InnerRadius = 5 })));
+    }
+
+    [Test]
+    public void GroundEffectDamageOnlyIgnoresAreas()
+    {
+        var area = new GroundHazard(1, HazardKind.Area, Vector2.Zero, 50);
+        var damage = new GroundHazard(2, HazardKind.Damage, Vector2.Zero, 50);
+        var condition = new Condition { Kind = ConditionKind.GroundEffect, DamageOnly = true };
+        Check.That(!Conditions.Met(condition, InHazard(area)));
+        Check.That(Conditions.Met(condition, InHazard(area, damage)));
+    }
+
+    [Test]
+    public void OldNumericKindsKeepTheirMeaning()
+    {
+        Check.Equal(6, (int)ConditionKind.NearbyEnemies);
+        Check.Equal(7, (int)ConditionKind.HomingProjectile);
+        Check.Equal(8, (int)ConditionKind.GroundEffect);
+    }
+
+    [Test]
     public void UnknownKindIsFalse() =>
         Check.That(!Conditions.Met(new Condition { Kind = (ConditionKind)99 }, Pools(0, 100)));
 
