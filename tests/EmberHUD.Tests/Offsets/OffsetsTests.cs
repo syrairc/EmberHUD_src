@@ -152,6 +152,13 @@ public class OffsetsTests
             Assert.Equal(0x6F6EF60, Offsets.CharStateCfgBuckets);
             Assert.Equal(0x6F6EF6C, Offsets.CharStateCfgBucketCount);
 
+            Assert.True(Offsets.SelectBuild(125919160));
+            Assert.Equal(0x6EC28C0, Offsets.BuffCfgBuckets);
+            Assert.Equal(0x6EC28CC, Offsets.BuffCfgBucketCount);
+            Assert.Equal(0x6F23840, Offsets.CharStateCfgBuckets);
+            Assert.Equal(0x6F2384C, Offsets.CharStateCfgBucketCount);
+            Assert.Equal(0x6BB0A78, Offsets.LogicWorldGlobalRva);
+
             Assert.True(Offsets.SelectBuild(123144120));
             Assert.Equal(0, Offsets.BuffCfgBuckets);
             Assert.Equal(0x6C0, Offsets.FightMapNpc);
