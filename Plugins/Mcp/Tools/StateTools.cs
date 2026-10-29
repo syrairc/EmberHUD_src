@@ -49,6 +49,8 @@ internal static class StateTools
             Schema.Of([], ("bag", "string", "Equipment, Skills, Commodities or Other")), GetInventory),
         new("get_buffs", "Buffs and debuffs on the local player from Game.State.Buffs: id, name, stacks (1 when the buff is not stackable), remaining and total seconds. Asks the reader and returns what it has - ready is false until the character reader answered (it also stays false while the game has no fight entity), ask again. Optional id filter.",
             Schema.Of([], ("id", "integer", "only this buff id")), GetBuffs),
+        new("buff_info", "Config of one buff id from the game tables, player or monster: found, name, icon, kind (None, Basic, Ailment, Control, Curse, Charge), propensity (raw flag, meaning unproven), maxStacks, tickInterval and maxDuration seconds, control (crowd control flags the buff causes, from its fixed id and the char states it adds). found is false when the row is not loaded, ask again.",
+            Schema.Of(["id"], ("id", "integer", "buff id")), BuffInfoTool),
         new("get_vorax", "Season 13 Vorax (surgery minigame) state from Game.State.Vorax: phase, round of rounds, activity, nextRewardActivity, rewardsTaken / rewardsTotal, rerolls, monsterSlots, monsters (slot, id, species, rarity, rarityName, name, count, activity, total), offered cards, owned instruments and obtained protocols (slot, id, kind, rarity, name, description, typeName), rewardBonusPercent, chests. Asks the reader and returns what it has - ready is false when the Vorax page is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetVorax()),
         new("get_frozen_canvas", "Season 8 Frozen Canvas (paint minigame) state from Game.State.FrozenCanvas: phase (Idle, Draw, Battle), difficulty, plotsDone / plotsTotal / plotsTarget, challengesLeft / challengesTotal, rewards (itemId, count), plots (slot, x, y, kind, paintId, paintName, level, servant, player; empty Unknown plots left out), objective (description, done, secondsLeft) and the draw block while drawing (screen, placed, total, maxLevel, revives, rerolls, uninstalls, mission, missionDetail, papers, bagSize). Asks the reader and returns what it has - ready is false when the minigame is not open or the reader has not answered yet, ask again.", Schema.Of([]), _ => GetFrozenCanvas()),
     ];
@@ -113,6 +115,37 @@ internal static class StateTools
         return json;
     }
 
+    static JsonArray ControlNames(CrowdControl control) =>
+        new([.. Enum.GetValues<CrowdControl>().Where(flag => flag != CrowdControl.None && control.HasFlag(flag)).Select(flag => (JsonNode)flag.ToString())]);
+
+    static JsonObject BuffInfoTool(Args args)
+    {
+        var id = args.RequiredInt("id", 1, int.MaxValue);
+        if (!Buffs.TryGet(id, out var info)) return new JsonObject { ["id"] = id, ["found"] = false };
+        return new JsonObject
+        {
+            ["id"] = id,
+            ["found"] = true,
+            ["name"] = info.Name,
+            ["icon"] = info.Icon,
+            ["kind"] = info.Kind.ToString(),
+            ["propensity"] = info.Propensity,
+            ["maxStacks"] = info.MaxStacks,
+            ["tickInterval"] = info.TickInterval,
+            ["maxDuration"] = info.MaxDuration,
+            ["control"] = ControlNames(info.Control),
+        };
+    }
+
+    static JsonObject WithCatalog(JsonObject row, int id, bool named = false)
+    {
+        if (!Buffs.TryGet(id, out var info)) return row;
+        if (named) row["name"] = info.Name;
+        row["kind"] = info.Kind.ToString();
+        row["control"] = ControlNames(info.Control);
+        return row;
+    }
+
     static JsonObject GetBuffs(Args args)
     {
         Game.WantCharacter();
@@ -121,14 +154,14 @@ internal static class StateTools
         return new JsonObject
         {
             ["ready"] = true,
-            ["buffs"] = new JsonArray([.. buffs.Where(b => id is null || b.Id == id).Select(b => (JsonNode)new JsonObject
+            ["buffs"] = new JsonArray([.. buffs.Where(b => id is null || b.Id == id).Select(b => (JsonNode)WithCatalog(new JsonObject
             {
                 ["id"] = b.Id,
                 ["name"] = b.Name,
                 ["stacks"] = b.Stacks,
                 ["remaining"] = b.Remaining,
                 ["total"] = b.Total,
-            })]),
+            }, b.Id))]),
         };
     }
 
@@ -555,7 +588,8 @@ internal static class StateTools
                 } : null,
             };
             if (fighter.Buffs.Length > 0)
-                row["buffs"] = new JsonArray([.. fighter.Buffs.Select(buff => (JsonNode)new JsonObject { ["id"] = buff.Id, ["stacks"] = buff.Stacks, ["remaining"] = Math.Round(buff.Remaining, 2) })]);
+                row["buffs"] = new JsonArray([.. fighter.Buffs.Select(buff => (JsonNode)WithCatalog(new JsonObject { ["id"] = buff.Id, ["stacks"] = buff.Stacks, ["remaining"] = Math.Round(buff.Remaining, 2) }, buff.Id, named: true))]);
+            if (fighter.Control != CrowdControl.None) row["control"] = ControlNames(fighter.Control);
             return row;
         });
     }

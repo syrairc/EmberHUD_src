@@ -14,13 +14,12 @@ public class CharacterReaderTests
         public FakeWorld World { get; } = new();
         public long Now { get; set; }
         public CfgIconCache SkillCache { get; } = new();
-        public CfgIconCache BuffCache { get; } = new();
         public CharacterReader Reader { get; }
 
         public Rig()
         {
             World.SetLocalPlayer(Player);
-            Reader = new CharacterReader(World.Memory, FakeWorld.Module, () => Now, SkillCache, BuffCache);
+            Reader = new CharacterReader(World.Memory, FakeWorld.Module, () => Now, SkillCache);
         }
 
         public void GivePlayerBuffs(params nint[] instances) =>
@@ -239,7 +238,7 @@ public class CharacterReaderTests
     }
 
     [Fact]
-    public void BuffIconsComeFromTheCfgRowAndFillTheCache()
+    public void BuffIconsComeFromTheCfgRow()
     {
         var rig = new Rig();
         rig.GivePlayerBuffs(rig.World.AddBuff(15180, 1, 1, icon: "UI_Buff_AttackEnhance_Icon_32"), rig.World.AddBuff(10, 1, 1, icon: "-1"), rig.World.AddBuff(11, 1, 1));
@@ -249,9 +248,6 @@ public class CharacterReaderTests
         Assert.Equal("UI_Buff_AttackEnhance_Icon_32", buffs.Single(b => b.Id == 15180).Icon);
         Assert.Null(buffs.Single(b => b.Id == 10).Icon);
         Assert.Null(buffs.Single(b => b.Id == 11).Icon);
-        Assert.Equal("UI_Buff_AttackEnhance_Icon_32", rig.BuffCache.Get(15180));
-        Assert.Null(rig.BuffCache.Get(10));
-        Assert.Null(rig.BuffCache.Get(11));
     }
 
     [Fact]
@@ -282,8 +278,6 @@ public class CharacterReaderTests
 
         Assert.Equal("Cached", skills.Single(s => s.CfgId == 2210).Icon);
         Assert.Null(rig.SkillCache.Get(0));
-        rig.BuffCache.Add(0, "Zero");
-        Assert.Null(rig.BuffCache.Get(0));
     }
 
     private static readonly int[] Bar =[2300, 2040, 2210, 1230, 1960, 0];

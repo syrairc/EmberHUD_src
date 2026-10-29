@@ -430,7 +430,7 @@ internal sealed class FakeWorld
         return component;
     }
 
-    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null, string? icon = null, int? stacks = null, bool stackable = true)
+    public nint AddBuff(int id, double remaining, double total, bool withCfgRow = true, int? cfgId = null, string? icon = null, int? stacks = null, bool stackable = true, BuffRowSpec? spec = null)
     {
         var buff = Alloc(0x200);
         Memory.Write(buff + Offsets.BuffTotal, total);
@@ -445,8 +445,85 @@ internal sealed class FakeWorld
         var row = Alloc(0x200);
         WriteConfigString(row + Offsets.BuffCfgRowIcon, icon);
         Memory.Write(row + Offsets.BuffCfgId, cfgId ?? id);
+        if (spec is not null) WriteBuffRow(row, spec);
         Memory.Write(buff + Offsets.BuffCfgRow, row);
         return buff;
+    }
+
+    public sealed record BuffRowSpec(string? NameKey = null, int Type = 0, bool Propensity = false, int MaxStacks = 0, double Tick = 0, double MaxDuration = 0, int[]? States = null, int StateCount = -1);
+
+    public void WriteBuffRow(nint row, BuffRowSpec spec)
+    {
+        WriteConfigString(row + Offsets.BuffCfgRowName, spec.NameKey);
+        Memory.Write(row + Offsets.BuffCfgRowType, spec.Type);
+        Memory.Write(row + Offsets.BuffCfgRowPropensity, (byte)(spec.Propensity ? 1 : 0));
+        Memory.Write(row + Offsets.BuffCfgRowMaxStacks, spec.MaxStacks);
+        Memory.Write(row + Offsets.BuffCfgRowTick, spec.Tick);
+        Memory.Write(row + Offsets.BuffCfgRowMaxDuration, spec.MaxDuration);
+        if (spec.States is not { } states) return;
+        WriteIntArray(row + Offsets.BuffCfgRowAddedState, states, spec.StateCount);
+    }
+
+    public void WriteIntArray(nint at, int[] values, int count = -1)
+    {
+        var data = Alloc(Math.Max(8, values.Length * 4));
+        Memory.WriteArray(data, values);
+        Memory.Write(at, data);
+        Memory.Write(at + Offsets.TArrayNum, count < 0 ? values.Length : count);
+    }
+
+    public nint BuffRowOf(nint buff) => Memory.TryReadPtr(buff + Offsets.BuffCfgRow, out var row) ? row : 0;
+
+    public nint AddBuffRow(int id, BuffRowSpec? spec = null, string? icon = null)
+    {
+        var row = Alloc(0x200);
+        WriteConfigString(row + Offsets.BuffCfgRowIcon, icon);
+        Memory.Write(row + Offsets.BuffCfgId, id);
+        if (spec is not null) WriteBuffRow(row, spec);
+        return row;
+    }
+
+    public void SetBuffCfgTable(BuffTableRvas rvas, int bucketCount, params (int Id, int Mode, nint Row)[] rows)
+    {
+        Memory.Map(Module + rvas.Buffs, 8);
+        Memory.Map(Module + rvas.BuffCount, 4);
+        var heads = new nint[bucketCount];
+        foreach (var group in rows.GroupBy(r => r.Id))
+        {
+            var (inner, _) = WriteChains(5, group.Select(r => ((uint)r.Mode, r.Row)));
+            var node = Alloc(0x40);
+            var bucket = group.Key % bucketCount;
+            Memory.Write(node + Offsets.NodeKey, (uint)group.Key);
+            Memory.Write(node + Offsets.BuffCfgInnerBuckets, inner);
+            Memory.Write(node + Offsets.BuffCfgInnerCount, 5u);
+            Memory.Write(node + Offsets.BuffCfgOuterNext, heads[bucket]);
+            heads[bucket] = node;
+        }
+
+        var buckets = Alloc(Math.Max(8, bucketCount * 8));
+        Memory.WriteArray(buckets, heads);
+        Memory.Write(Module + rvas.Buffs, buckets);
+        Memory.Write(Module + rvas.BuffCount, (uint)bucketCount);
+    }
+
+    public Dictionary<int, nint> StateRows { get; } = [];
+
+    public void SetCharStateTable(BuffTableRvas rvas, int bucketCount, params (int Id, int[]? Categories)[] rows)
+    {
+        StateRows.Clear();
+        Memory.Map(Module + rvas.States, 8);
+        Memory.Map(Module + rvas.StateCount, 4);
+        var entries = rows.Select(r =>
+        {
+            if (r.Categories is null) return ((uint)r.Id, (nint)0);
+            var row = Alloc(0x80);
+            WriteIntArray(row + Offsets.CharStateRowCategory, r.Categories);
+            StateRows[r.Id] = row;
+            return ((uint)r.Id, row);
+        }).ToArray();
+        var (array, _) = WriteChains(bucketCount, entries);
+        Memory.Write(Module + rvas.States, array);
+        Memory.Write(Module + rvas.StateCount, (uint)bucketCount);
     }
 
     public void WriteMap(int mapOffset, params (int Key, nint Value)?[] slots) => WriteMapAt(FightMgr + mapOffset, slots);

@@ -3,10 +3,10 @@ using EmberHUD.Host.Memory;
 
 namespace EmberHUD.Host.Reading;
 
-internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null, CfgIconCache? skillIcons = null, CfgIconCache? buffIcons = null)
+internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func<long>? clock = null, CfgIconCache? skillIcons = null, BuffCatalog? buffs = null)
 {
     private readonly CfgIconCache _skillIcons = skillIcons ?? new();
-    private readonly CfgIconCache _buffIcons = buffIcons ?? new();
+    private readonly BuffCatalog _catalog = buffs ?? new(memory, moduleBase);
     private readonly Func<long> _clock = clock ?? Stopwatch.GetTimestamp;
     private readonly LogicWorldReader _world = new(memory, moduleBase);
     private readonly LocText _loc = new(memory, moduleBase);
@@ -110,9 +110,8 @@ internal sealed class CharacterReader(IReadBackend memory, nint moduleBase, Func
             !memory.TryRead(row + Offsets.BuffCfgId, out int rowId) || rowId != id)
             return false;
 
-        var icon = _buffIcons.Get(id) ?? memory.ReadIconName(row + Offsets.BuffCfgRowIcon);
-        _buffIcons.Add(id, icon);
-        buff = new Buff(id, _loc.Get(Offsets.BuffNameKey + id + Offsets.BuffNameSuffix), remaining, total, icon, ReadStacks(instance));
+        if (_catalog.Read(id, row) is not { } info) return false;
+        buff = new Buff(id, info.Name, remaining, total, info.Icon, ReadStacks(instance));
         return true;
     }
 

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using EmberHUD;
 using EmberHUD.Testing;
@@ -295,12 +296,58 @@ public sealed class ConditionsTests
         Check.That(Conditions.Met(condition, InHazard(area, damage)));
     }
 
+    static GameState Controlled(params (int Id, CrowdControl Control)[] buffs)
+    {
+        TestGame.UseBuffs(id => new BuffInfo(id, null, Control: buffs.Where(b => b.Id == id).Aggregate(CrowdControl.None, (all, b) => all | b.Control)));
+        return new() { Buffs = [.. buffs.Select(b => new Buff(b.Id, null, 1, 1))] };
+    }
+
+    [Test]
+    public void CrowdControlledIsMetByAnyChosenFlagOnTheBuffs()
+    {
+        var state = Controlled((110, CrowdControl.Freeze), (5, CrowdControl.None));
+        Check.That(Conditions.Met(new Condition { Kind = ConditionKind.CrowdControlled }, state), "default set holds a freeze");
+        Check.That(Conditions.Met(new Condition { Kind = ConditionKind.CrowdControlled, Control = CrowdControl.Freeze | CrowdControl.Stun }, state), "any of the set");
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.CrowdControlled, Control = CrowdControl.Stun }, state), "other flag");
+        Check.That(!Conditions.Met(new Condition { Kind = ConditionKind.CrowdControlled, Control = CrowdControl.None }, state), "empty set");
+        TestGame.UseBuffs(null);
+    }
+
+    [Test]
+    public void CrowdControlledDefaultSetSkipsImmuneFrozenAndCantCast()
+    {
+        var condition = new Condition { Kind = ConditionKind.CrowdControlled };
+        Check.That(!Conditions.Met(condition, Controlled((1, CrowdControl.Immune | CrowdControl.Frozen | CrowdControl.CantCast | CrowdControl.Stagger))));
+        Check.That(Conditions.Met(condition, Controlled((1, CrowdControl.CantMove))));
+        TestGame.UseBuffs(null);
+    }
+
+    [Test]
+    public void CrowdControlledIsFalseWithoutBuffsOrCatalog()
+    {
+        var condition = new Condition { Kind = ConditionKind.CrowdControlled };
+        TestGame.UseBuffs(null);
+        Check.That(!Conditions.Met(condition, new GameState()), "buffs unread");
+        Check.That(!Conditions.Met(condition, new GameState { Buffs = [new Buff(110, null, 1, 1)] }), "no catalog");
+    }
+
+    [Test]
+    public void CrowdControlledReadsTheCharacterOnlyWhenItsConditionIsReached()
+    {
+        TestGame.UseBuffs(null);
+        var reaction = new Reaction { Conditions = [new Condition { Kind = ConditionKind.Health, Percent = 50 }, new Condition { Kind = ConditionKind.CrowdControlled }] };
+        var healthy = Pools(100, 100);
+        Check.That(!TestGame.CharacterAskedDuring(() => Conditions.AllMet(reaction, healthy)), "health failed first");
+        Check.That(TestGame.CharacterAskedDuring(() => Conditions.Met(reaction.Conditions[1], healthy)), "own condition asks");
+    }
+
     [Test]
     public void OldNumericKindsKeepTheirMeaning()
     {
         Check.Equal(6, (int)ConditionKind.NearbyEnemies);
         Check.Equal(7, (int)ConditionKind.HomingProjectile);
         Check.Equal(8, (int)ConditionKind.GroundEffect);
+        Check.Equal(9, (int)ConditionKind.CrowdControlled);
     }
 
     [Test]
