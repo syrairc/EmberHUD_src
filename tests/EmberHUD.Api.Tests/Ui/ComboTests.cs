@@ -9,6 +9,9 @@ public class ComboTests : IDisposable
 
     enum Speed { Slow, Medium, Fast }
 
+    [Flags]
+    enum Traits { None = 0, Fire = 1, Ice = 2, Rock = 4 }
+
     static float FrameHeight => UiFrame.Style.FrameHeight;
 
     static float FontSize => UiFrame.Style.FontSize;
@@ -91,6 +94,24 @@ public class ComboTests : IDisposable
         var expected = 0u;
         UiFrame.Run(Window, () => expected = ImGui.GetID("##pace"));
         Assert.Equal(expected, rig.ItemId);
+    }
+
+    [Fact]
+    public void FlagsPickTogglesTheBitAndKeepsThePopupOpen()
+    {
+        var traits = Traits.Fire;
+        var rig = new Rig();
+        rig.Draw = () => rig.Changed |= Combo.Flags(ref traits, "traits");
+        rig.Open(200f);
+        Assert.False(rig.Changed);
+        rig.PickRow(1);
+        Assert.True(rig.Changed);
+        Assert.Equal(Traits.Fire | Traits.Ice, traits);
+        Assert.True(UiFrame.PopupOpen(Window, rig.Body));
+        rig.Changed = false;
+        rig.PickRow(0);
+        Assert.True(rig.Changed);
+        Assert.Equal(Traits.Ice, traits);
     }
 
     [Fact]

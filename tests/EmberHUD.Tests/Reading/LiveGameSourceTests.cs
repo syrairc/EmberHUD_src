@@ -78,6 +78,21 @@ public sealed class LiveGameSourceTests : IDisposable
     }
 
     [Fact]
+    public void BuffLookupServesTheCatalogAndIsClearedWithTheLookups()
+    {
+        var world = new FakeWorld();
+        var rvas = new BuffTableRvas(0x2000, 0x2008, 0x2010, 0x2018);
+        world.SetBuffCfgTable(rvas, 7, (110, 0, world.AddBuffRow(110, new(Type: 3), "UI_Freeze")));
+        LiveGameSource.UseLookups(world.Memory, FakeWorld.Module, new BuffCatalog(world.Memory, FakeWorld.Module, rvas));
+
+        var info = Buffs.Get(110)!.Value;
+
+        Assert.Equal((BuffKind.Control, "UI_Freeze", CrowdControl.Freeze), (info.Kind, info.Icon, info.Control));
+        LiveGameSource.UseLookups(null, 0);
+        Assert.Null(Buffs.Get(110));
+    }
+
+    [Fact]
     public void ClearingTheLookupsClearsLua()
     {
         LuaWorld(new FakeWorld());

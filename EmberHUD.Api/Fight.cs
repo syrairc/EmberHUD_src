@@ -78,6 +78,8 @@ public sealed record FightEntity(int Id, Vector3 Position, Vector2 Direction, Fi
 
     public FightBuff[] Buffs { get; init; } = [];
 
+    public CrowdControl Control => EmberHUD.Buffs.Union(Buffs.Select(buff => buff.Id));
+
     public bool IsHostile => Camp is FightCamps.Hostile or FightCamps.BossArea;
 
     private const int CircleVertices = 32;

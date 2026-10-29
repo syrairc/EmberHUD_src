@@ -165,6 +165,10 @@ static class SettingsUI
                 changed |= ImGui.Checkbox("Damage only", ref condition.DamageOnly);
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Holds while you stand inside a ground effect, damage only skips harmless areas.");
                 break;
+            case ConditionKind.CrowdControlled:
+                changed |= Combo.Flags(ref condition.Control, "control", 260, "nothing selected");
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Holds while one of the ticked crowd controls is on you, from your active buffs. Immune is the CC immunity state, Frozen is the frozen animation state.");
+                break;
         }
         if (condition.Kind is ConditionKind.SkillCooldown or ConditionKind.SkillCharges && SkillMissing(condition.SkillCfgId))
             ImGui.TextColored(new Vector4(0.86f, 0.31f, 0.31f, 1), $"Skill cfg {condition.SkillCfgId} is not on the bar - this condition is never met");

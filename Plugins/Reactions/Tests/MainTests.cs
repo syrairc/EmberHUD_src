@@ -57,6 +57,8 @@ public sealed class MainTests
         Check.That(TestGame.CharacterAskedDuring(buff.Tick), "buff asks");
         var health = Plugin(Health);
         Check.That(!TestGame.CharacterAskedDuring(health.Tick), "health does not ask");
+        var control = Plugin(new Condition { Kind = ConditionKind.CrowdControlled });
+        Check.That(TestGame.CharacterAskedDuring(control.Tick), "crowd control asks");
     }
 
     static long FightersAsked() =>

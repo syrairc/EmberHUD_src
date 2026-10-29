@@ -583,6 +583,8 @@ public sealed record GameState
         init => _buffs = value;
     }
 
+    public CrowdControl Control => Buffs is { } active ? EmberHUD.Buffs.Union(active.Select(buff => buff.Id)) : CrowdControl.None;
+
     Skill[]? _skills;
 
     public Skill[]? Skills

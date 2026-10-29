@@ -349,6 +349,27 @@ public sealed class StateToolsTests
     }
 
     [Test]
+    public void FightEntitiesShowBuffNamesKindsAndControl()
+    {
+        TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(Vector3.Zero, Vector2.UnitX) });
+        TestGame.UseBuffs(id => id == 51110 ? new BuffInfo(51110, null, "Monster Root", BuffKind.Control, Control: CrowdControl.Root) : null);
+        TestGame.UseFightScan((_, _) => [new FightEntity(9, new Vector3(10, 0, 0), Vector2.UnitX, FightArchetype.Monster, []) { Buffs = [new FightBuff(51110, 1, 2), new FightBuff(5, 1, 2)] }]);
+        try
+        {
+            var row = Wire.Run(Tools, "fight_entities")["entities"]![0]!;
+            Check.Equal("Monster Root", (string?)row["buffs"]![0]!["name"]);
+            Check.Equal("Control", (string?)row["buffs"]![0]!["kind"]);
+            Check.Equal("Root", string.Join(',', row["control"]!.AsArray().Select(name => (string)name!)));
+            Check.That(row["buffs"]![1]!["kind"] is null, "unknown buff stays plain");
+        }
+        finally
+        {
+            TestGame.UseBuffs(null);
+            TestGame.UseFightScan(null);
+        }
+    }
+
+    [Test]
     public void FightEntitiesListsProbesFromThePlayer()
     {
         TestGame.Set(new GameState { Status = "playing", AreaId = 12, Player = new Player(new Vector3(100, 0, 0), Vector2.UnitX) });
@@ -589,6 +610,54 @@ public sealed class StateToolsTests
         var one = Wire.Run(Tools, "get_buffs", new JsonObject { ["id"] = 43022 })["buffs"]!.AsArray();
         Check.Equal(1, one.Count);
         Check.Equal(4, (int)one[0]!["stacks"]!);
+    }
+
+    [Test]
+    public void GetBuffsAddsKindAndControlWhenTheCatalogKnowsTheBuff()
+    {
+        TestGame.UseBuffs(id => id == 110 ? new BuffInfo(110, null, "Freeze", BuffKind.Control, Control: CrowdControl.Freeze | CrowdControl.CantMove) : null);
+        try
+        {
+            TestGame.Set(GameState.Empty with { Buffs = [new Buff(110, "Freeze", 1, 2), new Buff(10, "Marker", 1, 1)] });
+            var rows = Wire.Run(Tools, "get_buffs")["buffs"]!.AsArray();
+            Check.Equal("Control", (string?)rows[0]!["kind"]);
+            Check.Equal("Freeze,CantMove", string.Join(',', rows[0]!["control"]!.AsArray().Select(name => (string)name!)));
+            Check.That(rows[1]!["kind"] is null, "unknown buff has no catalog fields");
+        }
+        finally
+        {
+            TestGame.UseBuffs(null);
+        }
+    }
+
+    [Test]
+    public void BuffInfoReportsTheCatalogRowOrNotFound()
+    {
+        TestGame.UseBuffs(id => id == 51110 ? new BuffInfo(51110, "UI_Root", "Monster Root", BuffKind.Control, true, 3, 0.5, 12, CrowdControl.Root) : null);
+        try
+        {
+            var found = Wire.Run(Tools, "buff_info", new JsonObject { ["id"] = 51110 });
+            Check.Equal(true, (bool)found["found"]!);
+            Check.Equal("Monster Root", (string?)found["name"]);
+            Check.Equal("UI_Root", (string?)found["icon"]);
+            Check.Equal("Control", (string?)found["kind"]);
+            Check.Equal(true, (bool)found["propensity"]!);
+            Check.Equal(3, (int)found["maxStacks"]!);
+            Check.Equal(0.5, (double)found["tickInterval"]!);
+            Check.Equal(12d, (double)found["maxDuration"]!);
+            Check.Equal("Root", string.Join(',', found["control"]!.AsArray().Select(name => (string)name!)));
+            Check.Equal(false, (bool)Wire.Run(Tools, "buff_info", new JsonObject { ["id"] = 7 })["found"]!);
+        }
+        finally
+        {
+            TestGame.UseBuffs(null);
+        }
+    }
+
+    [Test]
+    public void BuffInfoNeedsAnId()
+    {
+        Check.That(Wire.Fails(Tools, "buff_info").Contains("id"), "id is required");
     }
 
     [Test]

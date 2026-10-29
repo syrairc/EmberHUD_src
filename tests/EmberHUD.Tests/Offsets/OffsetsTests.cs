@@ -147,8 +147,13 @@ public class OffsetsTests
             Assert.Equal(376, Offsets.WoodStakeStatistic);
             Assert.Equal(224, Offsets.WoodStakeUnlimitedTotal);
             Assert.Equal(0xD0, Offsets.FightMapPlayer);
+            Assert.Equal(0x6F0DFE0, Offsets.BuffCfgBuckets);
+            Assert.Equal(0x6F0DFEC, Offsets.BuffCfgBucketCount);
+            Assert.Equal(0x6F6EF60, Offsets.CharStateCfgBuckets);
+            Assert.Equal(0x6F6EF6C, Offsets.CharStateCfgBucketCount);
 
             Assert.True(Offsets.SelectBuild(123144120));
+            Assert.Equal(0, Offsets.BuffCfgBuckets);
             Assert.Equal(0x6C0, Offsets.FightMapNpc);
             Assert.Equal(920, Offsets.EntityPosition);
             Assert.True(Offsets.SelectBuild(124465080));
@@ -259,6 +264,22 @@ public class OffsetsTests
         Assert.Equal(384, Offsets.BuffStackable);
         Assert.Equal(408, Offsets.BuffStacks);
         Assert.Equal(12, Offsets.BuffCfgId);
+        Assert.Equal(9, Offsets.BuffCfgRowPropensity);
+        Assert.Equal(20, Offsets.BuffCfgRowType);
+        Assert.Equal(36, Offsets.BuffCfgRowMaxStacks);
+        Assert.Equal(112, Offsets.BuffCfgRowName);
+        Assert.Equal(160, Offsets.BuffCfgRowAddedState);
+        Assert.Equal(176, Offsets.BuffCfgRowTick);
+        Assert.Equal(184, Offsets.BuffCfgRowMaxDuration);
+        Assert.Equal(8, Offsets.BuffCfgInnerBuckets);
+        Assert.Equal(20, Offsets.BuffCfgInnerCount);
+        Assert.Equal(32, Offsets.BuffCfgOuterNext);
+        Assert.Equal(48, Offsets.CharStateRowCategory);
+        Assert.Equal(16, Offsets.MaxAddedStates);
+        Assert.Equal(16, Offsets.MaxStateCategories);
+        Assert.Contains("Freeze=110", Offsets.CcBuffIds);
+        Assert.Contains("Stun=4000010", Offsets.CcStateIds);
+        Assert.Contains("CantMove=1,2", Offsets.CcCategoryIds);
         Assert.Equal("char_buff|name|", Offsets.BuffNameKey);
         Assert.Equal("_0", Offsets.BuffNameSuffix);
         Assert.Equal(128, Offsets.MaxBuffs);

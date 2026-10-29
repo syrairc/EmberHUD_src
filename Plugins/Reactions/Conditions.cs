@@ -26,6 +26,7 @@ public static class Conditions
         ConditionKind.NearbyEnemies => state.CountNear(condition.Radius, condition.MinRarity) >= Math.Max(condition.Count, 1),
         ConditionKind.HomingProjectile => HomingMet(condition, state),
         ConditionKind.GroundEffect => GroundEffectMet(condition, state),
+        ConditionKind.CrowdControlled => (state.Control & condition.Control) != 0,
         _ => false,
     };
 
@@ -38,6 +39,7 @@ public static class Conditions
             ConditionKind.Buff => $" '{condition.Text}'",
             ConditionKind.HomingProjectile => $" r{condition.Radius} need {Math.Max(condition.Count, 1)} got {HomingCount(condition, state)}{(condition.OnlyTargetingMe ? " at me" : "")}",
             ConditionKind.GroundEffect => $"{(condition.DamageOnly ? " damage only" : "")}",
+            ConditionKind.CrowdControlled => $" want {condition.Control} got {state.Control}",
             _ => "",
         };
         return $"{condition.Kind}{detail} {(Met(condition, state) ? "ok" : "FAIL")}";

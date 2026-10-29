@@ -36,6 +36,7 @@ public class LazyWantTests
         Of("ItemMenu", s => s.ItemMenu, "ItemMenu"),
         Of("GroundItems", s => s.GroundItems, "GroundItems"),
         Of("Buffs", s => s.Buffs, "Character"),
+        Of("Control", s => s.Control, "Character"),
         Of("Skills", s => s.Skills, "Character"),
         Of("SkillSlots", s => s.SkillSlots, "Character"),
         Of("Combat", s => s.Combat, "Combat"),
