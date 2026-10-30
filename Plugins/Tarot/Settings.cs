@@ -19,12 +19,11 @@ public sealed class Settings : PluginSettings
     public Objective Objective = Objective.Rarity;
     public int Rollouts = 150;
     public bool DeathLosesLoot = true;
-    public bool SaveUpgrades = true;
     public bool ShowStats = true;
 
     public SolverOptions ToOptions() => SolverOptions.Default with
     {
-        Weights = (Objective == Objective.Good ? Weights.Good : Weights.Rarity) with { SaveUpgrades = SaveUpgrades },
+        Weights = (Objective == Objective.Good ? Weights.Good : Weights.Rarity),
         Rollouts = Math.Clamp(Rollouts, 20, 1000),
         DeathLosesLoot = DeathLosesLoot,
     };
@@ -40,7 +39,6 @@ public sealed class Settings : PluginSettings
         Setting.Choice("Goal", ref Objective, "Rarity values chests by how rare they are, Good only chases the good ones");
         Setting.Slider("Rollouts", ref Rollouts, 60, 400, "Test plays per card. More is steadier but slower to show - 60 is quick, 150 normal, 400 thorough");
         Setting.Checkbox("Death loses loot", ref DeathLosesLoot, "Counts a run that ends dead as worth nothing");
-        Setting.Checkbox("Save upgrades", ref SaveUpgrades, "Keeps upgrade cards for later instead of burning them early");
         Setting.Checkbox("Show stats", ref ShowStats, "Shows the expected score and the chance to die next to each card");
     }
 }

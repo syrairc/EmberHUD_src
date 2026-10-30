@@ -25,10 +25,10 @@ public sealed class SettingsTests
     [Test]
     public void FlagsPassThrough()
     {
-        var options = new Settings { DeathLosesLoot = false, SaveUpgrades = false }.ToOptions();
-        Check.That(!options.DeathLosesLoot && !options.Weights.SaveUpgrades, "off");
+        var options = new Settings { DeathLosesLoot = false }.ToOptions();
+        Check.That(!options.DeathLosesLoot, "off");
         options = new Settings().ToOptions();
-        Check.That(options.DeathLosesLoot && options.Weights.SaveUpgrades, "on");
+        Check.That(options.DeathLosesLoot, "on");
     }
 
     [Test]
@@ -39,7 +39,7 @@ public sealed class SettingsTests
     {
         var options = new JsonSerializerOptions { IncludeFields = true, Converters = { new JsonStringEnumConverter() } };
         var json = JsonSerializer.Serialize(new Settings { Objective = Objective.Good, Rollouts = 400, ShowStats = false }, options);
-        foreach (var key in new[] { "UseSolver", "Objective", "Rollouts", "DeathLosesLoot", "SaveUpgrades", "ShowStats" }) Check.That(json.Contains($"\"{key}\""), key);
+        foreach (var key in new[] { "UseSolver", "Objective", "Rollouts", "DeathLosesLoot", "ShowStats" }) Check.That(json.Contains($"\"{key}\""), key);
         var back = JsonSerializer.Deserialize<Settings>("""{ "Objective": "Good", "Rollouts": 400, "ShowStats": false }""", options)!;
         Check.That(back.Objective == Objective.Good && back.Rollouts == 400 && !back.ShowStats && back.UseSolver, "loaded with defaults for the rest");
     }

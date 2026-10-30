@@ -16,7 +16,6 @@ public sealed record Weights
     public double BackCost { get; init; }
     public double RefillBias { get; init; }
     public double[] Values { get; init; } = new double[8];
-    public bool SaveUpgrades { get; init; }
 
     static double[] Rarities(double green, double blue, double purple, double gold, double red, double rainbow) =>
         [0, green * 0.5, green, blue, purple, gold, red, rainbow];
