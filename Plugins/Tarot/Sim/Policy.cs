@@ -17,7 +17,7 @@ public static class Policy
 
     public static double TileScore(SimState s, int index, Weights w)
     {
-        if (index < 0 || index >= s.TileCfg.Length) return w.Empty;
+        if (index < 0 || index >= s.TileCfg.Length || index >= s.TileChest.Length) return w.Empty;
         var chest = s.TileChest[index];
         if (chest > 0)
         {
