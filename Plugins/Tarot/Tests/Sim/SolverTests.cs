@@ -75,9 +75,9 @@ public sealed class SolverTests
     [Test]
     public void DeathLosesLootSetting()
     {
-        var s = Board(hp: 1, hand: [1, 1]);
-        Chest(s, 1, 7);
-        s.TileCfg[2] = 1000;
+        var s = Board(hp: 1, hand: [1]);
+        s.Taken.Add(7);
+        s.TileCfg[1] = 1000;
         var loses = Solver.Evaluate(s, Opts, CancellationToken.None).First(x => !x.Move.End);
         var keeps = Solver.Evaluate(s, Opts with { DeathLosesLoot = false }, CancellationToken.None).First(x => !x.Move.End);
         Check.That(loses.Mean == 0, "loot lost");
@@ -116,7 +116,7 @@ public sealed class SolverTests
     [Test]
     public void EightyTileBoardIsFast()
     {
-        var s = Board(80, hand: [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6]);
+        var s = Board(80, hand: [101, 1, 2, 3, 4, 5, 101, 1, 2, 3, 4]);
         for (var i = 3; i < 80; i += 4) Chest(s, i, 2 + i % 6);
         for (var i = 2; i < 80; i += 7) s.TileCfg[i] = 1000;
         var watch = Stopwatch.StartNew();
@@ -124,5 +124,58 @@ public sealed class SolverTests
         System.Console.WriteLine($"Tarot Evaluate 80 tiles: {watch.ElapsedMilliseconds} ms");
         Check.That(watch.ElapsedMilliseconds < 20000, "under 20 s");
         Check.That(r.Length > 1, "ranked");
+    }
+
+    static SimState Doomed(int hp = 1)
+    {
+        var s = Board(10, hp: hp, hand: [1, 1]);
+        s.TileCfg[2] = 1000;
+        s.Taken.AddRange([7, 7, 7]);
+        return s;
+    }
+
+    [Test]
+    public void RolloutEndsRunInsteadOfWalkingIntoATrap()
+    {
+        var value = Solver.Rollout(Doomed(), new Move(0, 1, false), new Rng(1), Opts, out var dead, out var chests);
+        Check.That(!dead, "ended alive");
+        Check.Equal(3, chests);
+        Check.That(value == 3 * Opts.Weights.Values[7], "chest value kept");
+    }
+
+    [Test]
+    public void RolloutPlaysOnWhenDeathKeepsLoot()
+    {
+        var value = Solver.Rollout(Doomed(), new Move(0, 1, false), new Rng(1), Opts with { DeathLosesLoot = false }, out var dead, out _);
+        Check.That(dead, "walked into the trap");
+        Check.That(value == 3 * Opts.Weights.Values[7], "loot kept");
+    }
+
+    [Test]
+    public void RolloutStillTakesTheSafeMove()
+    {
+        var s = Board(10, hp: 1, hand: [1, 1, 2]);
+        s.TileCfg[2] = 1000;
+        s.Taken.AddRange([7, 7, 7]);
+        Solver.Rollout(s, new Move(0, 1, false), new Rng(1), Opts, out var dead, out _);
+        Check.That(!dead, "took the safe card");
+        var a = Solver.Rollout(s, new Move(0, 1, false), new Rng(1), Opts, out _, out _);
+        Check.That(a == 3 * Opts.Weights.Values[7], "value kept");
+    }
+
+    [Test]
+    public void UnknownCardsAreNeverRankedOrChangeTheRest()
+    {
+        var plain = Board(40, hand: [1, 2, 3]);
+        var noisy = Board(40, hand: [301, 1, 51, 2, 3]);
+        foreach (var s in new[] { plain, noisy })
+        {
+            Chest(s, 3, 5);
+            s.TileCfg[2] = 1000;
+        }
+        var a = Solver.Evaluate(plain, Opts, CancellationToken.None);
+        var b = Solver.Evaluate(noisy, Opts, CancellationToken.None);
+        Check.That(b.All(r => r.Move.End || r.Move.HandIndex is 1 or 3 or 4), "unknown never ranked");
+        Check.That(a.Select(r => (r.Mean, r.DeadRate)).SequenceEqual(b.Select(r => (r.Mean, r.DeadRate))), "same ranking");
     }
 }

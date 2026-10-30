@@ -25,6 +25,8 @@ public static class Rules
 
     public static bool IsFallback(int cardCfg) => cardCfg is >= 101 and <= 106;
 
+    public static bool IsUnknown(int cardCfg) => OfCard(cardCfg) is [{ Kind: EffectKind.Unknown }];
+
     public static bool IsUpgradeCard(int cardCfg) => Tag(cardCfg) == 6;
 
     public static (int Count, int MaxRarity) Upgrade(int cardCfg) =>

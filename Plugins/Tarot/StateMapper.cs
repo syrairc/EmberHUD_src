@@ -30,6 +30,8 @@ public static class StateMapper
         return sim;
     }
 
+    public static TarotState Normalise(TarotState s, bool pickOpen) => s.Playing != 0 && !pickOpen ? s with { Playing = 0 } : s;
+
     public static IReadOnlyList<Move>? Pending(TarotState s, SimState sim)
     {
         if (s.Playing == 0) return null;

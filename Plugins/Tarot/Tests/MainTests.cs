@@ -199,4 +199,31 @@ public sealed class MainTests
         }
         finally { TestGame.Set(GameState.Empty); }
     }
+
+    [Test]
+    public void LastPlayedCardWithoutPopupSolvesTheWholeHand()
+    {
+        TestGame.Set(new GameState { Tarot = Board() with { Hand = [new(1, 101), new(2, 2), new(3, 24)], Playing = 101 } });
+        var plugin = new Main();
+        try
+        {
+            plugin.Tick();
+            for (var i = 0; i < 100 && plugin.Worker.Latest is null; i++) System.Threading.Thread.Sleep(50);
+            var results = plugin.Worker.Latest!.Value.Results;
+            Check.That(results.Where(r => !r.Move.End).Select(r => r.Move.HandIndex).Distinct().Count() == 3, "every card ranked");
+        }
+        finally
+        {
+            plugin.Dispose();
+            TestGame.Set(GameState.Empty);
+        }
+    }
+
+    [Test]
+    public void RowColourFollowsTheSolver()
+    {
+        Check.That(Advice.RowColour(false, false, GameColors.Negative) == GameColors.Negative, "greedy colour kept without solver text");
+        Check.That(Advice.RowColour(true, false, GameColors.Negative) == GameColors.Text, "neutral");
+        Check.That(Advice.RowColour(true, true, GameColors.Negative) == GameColors.Positive, "best");
+    }
 }

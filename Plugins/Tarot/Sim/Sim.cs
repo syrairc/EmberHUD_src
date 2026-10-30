@@ -21,6 +21,7 @@ public static class Sim
         for (var i = 0; i < s.Hand.Count; i++)
         {
             var card = s.Hand[i];
+            if (Rules.IsUnknown(card)) continue;
             if (Rules.IsUpgradeCard(card)) { yield return new Move(i, 0, false); continue; }
             var options = Board.Options(card);
             if (options.Length == 0 && Rules.OfCard(card).FirstOrDefault(e => e.Kind == EffectKind.Move).Set is { Length: > 1 } set) options = set;

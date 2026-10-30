@@ -84,4 +84,17 @@ public sealed class StateMapperTests
         tiles[10] = tiles[10] with { CfgId = 1000 };
         Check.That(sig != StateMapper.Signature(state with { Tiles = tiles }), "tile cfg");
     }
+
+    [Test]
+    public void PlayingCountsOnlyWhileThePopupIsOpen()
+    {
+        var state = Board(40, 3, 101, 2, 101) with { Playing = 101 };
+        Check.Equal(0, StateMapper.Normalise(state, false).Playing);
+        Check.Equal(101, StateMapper.Normalise(state, true).Playing);
+        Check.That(ReferenceEquals(StateMapper.Normalise(state, true), state), "same object when open");
+        var idle = Board(40, 3, 2);
+        Check.That(ReferenceEquals(StateMapper.Normalise(idle, false), idle), "same object when idle");
+        var sim = StateMapper.ToSim(StateMapper.Normalise(state, false))!;
+        Check.That(StateMapper.Pending(StateMapper.Normalise(state, false), sim) is null, "no pending pick");
+    }
 }

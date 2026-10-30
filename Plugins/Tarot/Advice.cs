@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Drawing;
 using System.Linq;
 using EmberHUD;
 
@@ -25,6 +26,8 @@ public static class Advice
 
     public static string RowText(ActionResult result) =>
         string.Create(CultureInfo.InvariantCulture, $"{result.Mean:0.0}  dead {result.DeadRate * 100:0}%");
+
+    public static Color RowColour(bool solverText, bool best, Color greedy) => !solverText ? greedy : best ? GameColors.Positive : GameColors.Text;
 
     public static (int Index, bool Good)[] Arrows(TarotState state, ActionResult[]? results)
     {

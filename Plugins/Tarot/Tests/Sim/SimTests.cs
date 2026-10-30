@@ -248,4 +248,13 @@ public sealed class SimTests
         state.TileChest[9] = 1;
         Check.Equal(2, Sim.ChestsLeftAhead(state));
     }
+
+    [Test]
+    public void UnknownEffectCardsAreNotLegal()
+    {
+        var state = Board(hand: [301, 51, 1, 318]);
+        var moves = Sim.Legal(state).ToArray();
+        Check.That(moves.All(m => m.End || m.HandIndex == 2), "only the known card");
+        Check.That(moves.Any(m => m.End), "end run stays");
+    }
 }

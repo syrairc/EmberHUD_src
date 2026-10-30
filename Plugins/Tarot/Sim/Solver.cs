@@ -27,10 +27,25 @@ public static class Solver
     {
         var s = start.Clone();
         Sim.Play(s, first, rng);
-        for (var plays = 1; !s.Ended && plays < o.PlayCap; plays++) Sim.Play(s, Policy.Choose(s, o.Weights, rng), rng);
+        for (var plays = 1; !s.Ended && plays < o.PlayCap; plays++)
+            Sim.Play(s, o.DeathLosesLoot && s.Hp <= 2 && EveryMoveKills(s) ? Move.EndRun : Policy.Choose(s, o.Weights, rng), rng);
         dead = s.Dead;
         chests = s.Taken.Count;
         return Value(s, o);
+    }
+
+    static bool EveryMoveKills(SimState s)
+    {
+        var any = false;
+        foreach (var move in Sim.Legal(s))
+        {
+            if (move.End) continue;
+            any = true;
+            var trial = s.Clone();
+            Sim.Play(trial, move, new Rng(1));
+            if (!trial.Dead) return false;
+        }
+        return any;
     }
 
     static bool Terminal(SimState s) => s.Ended || s.Hp <= 0 || s.TileCfg.Length == 0 || s.Position >= s.TileCfg.Length - 1;

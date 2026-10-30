@@ -20,13 +20,18 @@ public sealed class Main : Plugin<Settings>
     int _unusedWidth, _unusedHeight;
 
     internal readonly SolverWorker Worker = new();
-    TarotState? _signed;
+    TarotState? _signed, _effective;
+    bool _signedOpen;
     string _signature = "";
 
     public override void Tick()
     {
         Game.WantTarot();
-        if (Settings.UseSolver && Game.State.Tarot is { Phase: TarotPhase.Board } state) Worker.Request(state, Settings.ToOptions(), SignatureOf(state));
+        if (Settings.UseSolver && Game.State.Tarot is { Phase: TarotPhase.Board } raw)
+        {
+            var state = Effective(raw, out var signature);
+            Worker.Request(state, Settings.ToOptions(), signature);
+        }
     }
 
     public override void Dispose()
@@ -35,19 +40,26 @@ public sealed class Main : Plugin<Settings>
         base.Dispose();
     }
 
-    string SignatureOf(TarotState state)
+    TarotState Effective(TarotState raw, out string signature)
     {
-        if (ReferenceEquals(state, _signed)) return _signature;
-        _signature = StateMapper.Signature(state);
-        _signed = state;
-        return _signature;
+        var open = Parts("PopPanel/ScrollBox[").Length > 0;
+        if (!ReferenceEquals(raw, _signed) || open != _signedOpen)
+        {
+            _effective = StateMapper.Normalise(raw, open);
+            _signature = StateMapper.Signature(_effective);
+            _signed = raw;
+            _signedOpen = open;
+        }
+        signature = _signature;
+        return _effective!;
     }
 
     public override void Render()
     {
-        if (!Settings.ShowPanel || Game.State.Tarot is not { } state) return;
+        if (!Settings.ShowPanel || Game.State.Tarot is not { } raw) return;
+        var state = Effective(raw, out var signature);
         var rowHeight = Draw.RowHeight(_style);
-        var results = Settings.UseSolver ? Advice.Usable(state, SignatureOf(state), Worker.Latest) : null;
+        var results = Settings.UseSolver ? Advice.Usable(state, signature, Worker.Latest) : null;
         var rows = Rows(state, results);
         var width = 0f;
         foreach (var (left, right, _) in rows) width = MathF.Max(width, Draw.MeasureText(left, _style).X + Gap + Draw.MeasureText(right, _style).X);
@@ -152,12 +164,13 @@ public sealed class Main : Plugin<Settings>
             case TarotPhase.Final: rows.Add(("Tarot", $"challenges left {state.ChallengesLeft}", GameColors.Text)); break;
             default:
                 rows.Add(("Tarot", $"HP {state.Hp}  tile {state.Position + 1}/{state.Tiles.Length}  round {state.Round}", GameColors.Text));
-                if (results is not null && Advice.Rank(state, results).EndRunBest) rows.Add(("End run now", "", GameColors.Gold));
+                var (bestCards, endRunBest) = results is null ? ([], false) : Advice.Rank(state, results);
+                if (endRunBest) rows.Add(("End run now", "", GameColors.Gold));
                 for (var i = 0; i < state.Hand.Length; i++)
                 {
                     var card = state.Hand[i];
                     var stats = results is not null && Settings.ShowStats ? Advice.BestFor(results, i) : null;
-                    rows.Add((Board.CardLabel(card.CfgId), stats is { } best ? Advice.RowText(best) : Outcome(state, card), OutcomeColour(state, card)));
+                    rows.Add((Board.CardLabel(card.CfgId), stats is { } best ? Advice.RowText(best) : Outcome(state, card), Advice.RowColour(stats is not null, bestCards.Contains(i), OutcomeColour(state, card))));
                 }
                 break;
         }
