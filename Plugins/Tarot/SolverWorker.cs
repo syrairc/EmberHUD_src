@@ -32,9 +32,13 @@ public sealed class SolverWorker : IDisposable
 
     public bool Running => thread?.IsAlive == true;
 
-    public void Request(TarotState state, SolverOptions options)
+    public void Request(TarotState state, SolverOptions options, string? signature = null)
     {
-        var signature = StateMapper.Signature(state);
+        signature ??= StateMapper.Signature(state);
+        lock (gate)
+        {
+            if (disposed || signature == lastSignature && options == lastOptions) return;
+        }
         var sim = StateMapper.ToSim(state);
         var moves = sim is null ? null : StateMapper.Pending(state, sim);
         lock (gate)

@@ -57,6 +57,19 @@ public sealed class SolverWorkerTests
     }
 
     [Test]
+    public void RepeatedRequestIsCheapAndKeepsJobs()
+    {
+        using var worker = new SolverWorker();
+        var state = Board();
+        worker.Request(state, Quick);
+        var jobs = worker.Jobs;
+        var watch = Stopwatch.StartNew();
+        for (var i = 0; i < 2000; i++) worker.Request(state, Quick);
+        Check.Equal(jobs, worker.Jobs);
+        Check.That(watch.ElapsedMilliseconds < 500, "2000 repeats are cheap");
+    }
+
+    [Test]
     public void NewBoardDropsStaleResult()
     {
         using var worker = new SolverWorker();

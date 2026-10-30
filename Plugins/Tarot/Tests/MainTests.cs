@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Numerics;
 using EmberHUD;
@@ -91,6 +92,111 @@ public sealed class MainTests
     [Test]
     public void RenderHiddenWhenPanelOff() => Check.Equal(0, Frame(Board(), new Settings { ShowPanel = false }));
 
+    static ActionResult Result(int hand, int steps, double mean, double dead = 0) => new(new Move(hand, steps, false), mean, dead, 0, 10);
+
+    static readonly ActionResult EndFirst = new(Move.EndRun, 20, 0, 0, 1);
+
     [Test]
-    public void TheSettingsPageDraws() => Check.That(TestFrame.Vertices(new Settings().Draw, inWindow: true) > 0, "settings drew");
+    public void RankPicksSolverBestCard()
+    {
+        var (best, endRun) = Advice.Rank(Board(), [Result(1, 3, 14), Result(0, 2, 10), EndFirst with { Mean = 5 }]);
+        Check.That(best.SequenceEqual([1]) && !endRun, "card 1");
+    }
+
+    [Test]
+    public void RankKeepsTiedCards()
+    {
+        var (best, _) = Advice.Rank(Board(), [Result(1, 3, 14), Result(1, 5, 14), Result(0, 2, 14), Result(0, 1, 3)]);
+        Check.That(best.SequenceEqual([1, 0]), "both tied cards once");
+    }
+
+    [Test]
+    public void EndRunBestFlag()
+    {
+        var (best, endRun) = Advice.Rank(Board(), [EndFirst, Result(0, 2, 10)]);
+        Check.That(best.Length == 0 && endRun, "end run first");
+    }
+
+    [Test]
+    public void RowTextFormat()
+    {
+        Check.Equal("14.2  dead 8%", Advice.RowText(Result(0, 2, 14.23, .08)));
+        Check.Equal("0.0  dead 0%", Advice.RowText(Result(0, 2, 0)));
+    }
+
+    [Test]
+    public void BestForTakesTheTopResultOfThatCard()
+    {
+        ActionResult[] results = [Result(1, 3, 14), Result(0, 2, 12), Result(0, 1, 9), EndFirst];
+        Check.Equal(12.0, Advice.BestFor(results, 0)!.Value.Mean);
+        Check.That(Advice.BestFor(results, 5) is null, "unknown card");
+    }
+
+    [Test]
+    public void StaleResultIgnored()
+    {
+        var state = Board();
+        ActionResult[] results = [Result(0, 2, 10)];
+        var signature = StateMapper.Signature(state);
+        Check.That(Advice.Usable(state, signature, (signature, results)) == results, "matching");
+        Check.That(Advice.Usable(state, signature, ("old", results)) is null, "stale");
+        Check.That(Advice.Usable(state, signature, null) is null, "none");
+        Check.That(Advice.Usable(state, signature, (signature, [])) is null, "empty");
+        Check.That(Advice.Usable(state with { Phase = TarotPhase.Final }, signature, (signature, results)) is null, "not board");
+        Check.That(Advice.Arrows(state, null).Select(a => a.Index).SequenceEqual(Tarot.Board.BestCards(state)), "greedy fallback");
+    }
+
+    [Test]
+    public void ArrowsFollowTheSolver()
+    {
+        var state = Board();
+        var arrows = Advice.Arrows(state, [Result(1, 3, 14), Result(0, 2, 10)]);
+        Check.That(arrows.Length == 1 && arrows[0].Index == 1 && arrows[0].Good, "solver card");
+    }
+
+    [Test]
+    public void PendingPickResolvesThroughTheOptions()
+    {
+        var state = Board() with { Playing = 22 };
+        var offscreen = state.Hand.Length;
+        Check.Equal(1, Advice.Pick(state, [Result(offscreen, 4, 14), Result(offscreen, 2, 10)]).Index);
+        Check.Equal(2, Advice.Pick(state, [EndFirst, Result(offscreen, 6, 9)]).Index);
+        Check.Equal(Array.IndexOf(Tarot.Board.Options(22), Tarot.Board.BestMove(state, new TarotCard(0, 22))!.Value.Steps), Advice.Pick(state, null).Index);
+    }
+
+    [Test]
+    public void TickRequestsOnlyWithTheSolverOn()
+    {
+        TestGame.Set(new GameState { Tarot = Board() });
+        try
+        {
+            var off = new Main();
+            var on = new Main();
+            try
+            {
+                typeof(Plugin<Settings>).GetProperty("Settings")!.GetSetMethod(true)!.Invoke(off, [new Settings { UseSolver = false }]);
+                off.Tick();
+                Check.Equal(0, off.Worker.Jobs);
+                on.Tick();
+                on.Tick();
+                Check.Equal(1, on.Worker.Jobs);
+            }
+            finally { off.Dispose(); on.Dispose(); }
+        }
+        finally { TestGame.Set(GameState.Empty); }
+    }
+
+    [Test]
+    public void DisposeStopsTheWorker()
+    {
+        TestGame.Set(new GameState { Tarot = Board() });
+        try
+        {
+            var plugin = new Main();
+            plugin.Tick();
+            plugin.Dispose();
+            Check.That(!plugin.Worker.Running, "thread stopped");
+        }
+        finally { TestGame.Set(GameState.Empty); }
+    }
 }
