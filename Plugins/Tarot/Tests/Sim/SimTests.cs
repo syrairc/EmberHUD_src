@@ -136,6 +136,39 @@ public sealed class SimTests
     }
 
     [Test]
+    public void UpgradeRaisesDistinctChestsOnce()
+    {
+        var two = Board(hand: 213);
+        two.Taken.AddRange([2, 3, 4]);
+        Play(two, 0);
+        Check.Equal(string.Join(",", [2, 4, 5]), string.Join(",", two.Taken.Order()));
+        var one = Board(hand: 221);
+        one.Taken.Add(2);
+        Play(one, 0);
+        Check.Equal(3, one.Taken[0]);
+        Check.Equal(1, one.Taken.Count);
+    }
+
+    [Test]
+    public void UpgradeAllRaisesEachEligibleOnce()
+    {
+        var state = Board(hand: 1);
+        state.TileCfg[1] = 9204;
+        state.Taken.AddRange([2, 6, 7, 5]);
+        Play(state, 0);
+        Check.Equal(string.Join(",", [3, 7, 7, 6]), string.Join(",", state.Taken));
+    }
+
+    [Test]
+    public void UpgradeLeavesChestAboveTarget()
+    {
+        var state = Board(hand: 201);
+        state.Taken.Add(4);
+        Play(state, 0);
+        Check.Equal(4, state.Taken[0]);
+    }
+
+    [Test]
     public void Chests9217BumpsAheadOnly()
     {
         var state = Board(hand: 3, position: 0);

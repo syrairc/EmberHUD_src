@@ -100,14 +100,12 @@ public static class Sim
 
     static void RaiseCollected(SimState s, Effect e)
     {
-        for (var n = 0; n < e.Min; n++)
-        {
-            var best = -1;
-            for (var i = 0; i < s.Taken.Count; i++)
-                if (s.Taken[i] <= e.Target && s.Taken[i] < MaxRarity && (best < 0 || s.Taken[i] > s.Taken[best])) best = i;
-            if (best < 0) return;
-            s.Taken[best]++;
-        }
+        var picked = Enumerable.Range(0, s.Taken.Count)
+            .Where(i => s.Taken[i] <= e.Target && s.Taken[i] < MaxRarity)
+            .OrderByDescending(i => s.Taken[i])
+            .Take(e.Min)
+            .ToArray();
+        foreach (var i in picked) s.Taken[i]++;
     }
 
     static void RaiseAhead(SimState s, Effect e)
