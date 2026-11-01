@@ -8,17 +8,14 @@ using Hexa.NET.ImGui;
 
 namespace EmberHUD.Host.Ui;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record ThemeFont(string File, float Size);
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record ThemeGradient(
     Color Top,
     Color Bottom,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Color? Highlight = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Color? Text = null);
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record ThemeFonts
 {
     public ThemeFont Regular { get; init; } = new("NotoSans-Regular.ttf", 15);
@@ -30,7 +27,6 @@ internal sealed record ThemeFonts
     public ThemeFont Mono { get; init; } = new("JetBrainsMono-Regular.ttf", 15);
 }
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record ThemeFile
 {
     public Dictionary<string, Color> Colors { get; init; } = [];

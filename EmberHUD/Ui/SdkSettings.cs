@@ -1,8 +1,6 @@
-using System.Reflection;
 
 namespace EmberHUD.Host.Ui;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed class SdkSettings : PluginSettings
 {
     public SdkHotkeys Hotkeys = new();
@@ -22,14 +20,12 @@ internal sealed class SdkSettings : PluginSettings
     public override void Draw() { }
 }
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed class SdkHotkeys
 {
     public Hotkey Settings = new(Key.F11);
     public Hotkey Quit = new(Key.F12, KeyModifiers.Ctrl);
 }
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed class PluginState
 {
     public bool Enabled;

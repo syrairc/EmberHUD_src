@@ -1,10 +1,8 @@
-using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace EmberHUD.Launcher;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 public sealed class LauncherProgram
 {
     public string Path = "";
@@ -12,7 +10,6 @@ public sealed class LauncherProgram
     public bool Enabled = true;
 }
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 public sealed class LauncherConfig
 {
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true, IncludeFields = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };

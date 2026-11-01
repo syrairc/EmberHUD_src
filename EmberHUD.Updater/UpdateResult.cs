@@ -1,9 +1,7 @@
-using System.Reflection;
 using System.Text.Json;
 
 namespace EmberHUD.Updater;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 public sealed class UpdateResult
 {
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true, IncludeFields = true };

@@ -1,8 +1,6 @@
-using System.Reflection;
 
 namespace EmberHUD.Host.Ui;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed class InputSettings
 {
     public MouseMode Mode = MouseMode.Humanized;

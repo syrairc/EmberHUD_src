@@ -9,7 +9,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Sequential.cs" Link="Sequential.cs" />
-    <Compile Include="..\ObfuscationCheck.cs" Link="ObfuscationCheck.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD\EmberHUD.csproj" />

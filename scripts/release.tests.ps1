@@ -16,7 +16,7 @@ if ($a[0] -eq 'publish') {
     elseif ($project -like '*EmberHUD.Setup*') { foreach ($name in 'EmberSetup.exe', 'EmberSetup.dll', 'EmberSetup.runtimeconfig.json', 'EmberSetup.deps.json', 'EmberLauncher.exe', 'EmberLauncher.dll', 'EmberLauncher.runtimeconfig.json', 'EmberLauncher.deps.json', 'ooz.dll', 'BCnEncoder.dll', 'Microsoft.Toolkit.HighPerformance.dll', 'ZstdSharp.dll', 'EmberHUD.Api.dll', 'Hexa.NET.ImGui.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll') { Set-Content (Join-Path $dir $name) plain } }
     else {
         foreach ($name in 'Ember.exe', 'Ember.dll', 'Ember.runtimeconfig.json', 'Ember.deps.json') { Copy-Item (Join-Path $env:STUB_APP $name) $dir }
-        foreach ($name in 'EmberHUD.Api.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
+        foreach ($name in 'EmberHUD.Api.dll', 'EmberHUD.Assets.dll', 'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll', 'cimgui.dll', 'ImGuiImpl.dll', 'Vortice.Direct3D11.dll', 'SharpGen.Runtime.dll', 'Microsoft.CodeAnalysis.dll', 'Svg.Skia.dll', 'Clipper2Lib.dll', 'ShimSkiaSharp.dll', 'ExCSS.dll', 'SkiaSharp.dll', 'HarfBuzzSharp.dll', 'libSkiaSharp.dll', 'libHarfBuzzSharp.dll', 'libSkiaSharp.pdb') { Set-Content (Join-Path $dir $name) plain }
     }
     if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $project -notlike '*EmberHUD.Updater*' -and $stage -eq 'unlisted') { Set-Content (Join-Path $dir 'Extra.dll') plain }
     if ($project -notlike '*EmberHUD.Launcher*' -and $project -notlike '*EmberHUD.Setup*' -and $project -notlike '*EmberHUD.Updater*' -and $stage -eq 'swap') {
@@ -24,31 +24,11 @@ if ($a[0] -eq 'publish') {
         New-Item -ItemType Junction -Path $env:STUB_SWAP_DIST -Target $env:STUB_SWAP_TARGET | Out-Null
     }
 }
-elseif ($a[0] -eq 'tool' -and $a[1] -eq 'restore') { exit 0 }
-elseif ($a[0] -eq 'tool' -and $a[1] -eq 'run' -and $a[2] -eq 'obfuscar.console') {
-    if ($stage -eq 'obfuscate') { exit 1 }
-    $raw = Get-Content -LiteralPath $a[3] -Raw
-    if ($raw -match '%[A-Za-z_]+%') { Write-Error "obfuscar config has unsubstituted token $($Matches[0])"; exit 1 }
-    [xml]$config = $raw
-    $modules = @($config.Obfuscator.Module)
-    if (-not $modules) { Write-Error 'obfuscar config has no Module elements'; exit 1 }
-    $inPath = @($config.Obfuscator.Var | Where-Object name -eq 'InPath')[0].value
-    $outPath = @($config.Obfuscator.Var | Where-Object name -eq 'OutPath')[0].value
-    New-Item -ItemType Directory -Force $outPath | Out-Null
-    foreach ($module in $modules) {
-        $modulePath = $module.file.Replace('$(InPath)', $inPath)
-        if (-not (Test-Path -LiteralPath $modulePath)) { Write-Error "obfuscar config module file not found: $modulePath"; exit 1 }
-        $target = Join-Path $outPath (Split-Path $modulePath -Leaf)
-        Copy-Item -LiteralPath $modulePath $target
-        if ($stage -ne 'obfuscate-samehash') { [IO.File]::AppendAllText($target, 'x') }
-    }
-    Set-Content (Join-Path $outPath 'Mapping.txt') x
-}
 exit 0
 '@
 $stubBuild = 'if ($env:STUB_FAIL -eq ''build'') { exit 99 }; exit 0'
 try {
-    New-Item -ItemType Directory -Force "$box/bin", "$box/stubapp", "$box/bin/packs/Microsoft.NETCore.App.Ref/10.0.0/ref/net10.0" | Out-Null
+    New-Item -ItemType Directory -Force "$box/bin", "$box/stubapp" | Out-Null
     Set-Content "$box/stubapp/EmberHUD.csproj" '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><AssemblyName>Ember</AssemblyName><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>'
     Set-Content "$box/stubapp/Program.cs" 'if (Environment.GetEnvironmentVariable("STUB_FAIL") == "check") return 1; Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Logs")); File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "Logs", "check.txt"), "PASS stub"); return 0;'
     dotnet build "$box/stubapp/EmberHUD.csproj" -o "$box/stubapp-out" | Out-Null
@@ -63,10 +43,9 @@ try {
     }
     New-Item -ItemType Directory -Force "$box/repo/.git", "$box/repo/src/scripts", "$box/repo/dist/.git", "$box/repo/dist/old", "$box/plain/dist", "$box/notdist/.git", "$box/repo/other/.git", "$box/repo/dist2" | Out-Null
     Copy-Item "$PSScriptRoot/release.ps1" $release
-    Copy-Item "$PSScriptRoot/obfuscar.xml" "$box/repo/src/scripts/obfuscar.xml"
     Set-Content "$box/repo/src/scripts/build.ps1" $stubBuild
     New-Item -ItemType Directory -Force "$box/repo/src/Fonts", "$box/repo/src/Themes", "$box/repo/src/licenses", "$box/repo/src/Plugins/Sample/Icons/deep", "$box/repo/src/Plugins/Sample/bin", "$box/repo/src/Plugins/Sample/Tests", "$box/repo/src/Plugins/Minimap/Tests", "$box/repo/src/Plugins/Inspector", "$box/repo/src/Plugins/Mcp", "$box/repo/src/scripts/steam", "$box/repo/assets/icons" | Out-Null
-    foreach ($file in 'Fonts/a.ttf', 'Fonts/OFL.txt', 'Themes/a.json', 'licenses/THIRD-PARTY.txt', 'licenses/ooz-GPL-3.0.txt', 'Plugins/Sample/Main.cs', 'Plugins/Sample/defaults.json', 'Plugins/Sample/notes.txt', 'Plugins/Sample/Icons/dot.svg', 'Plugins/Sample/Icons/deep/skip.svg', 'Plugins/Sample/bin/Skip.cs', 'Plugins/Sample/Tests/T.cs', 'Plugins/Minimap/Main.cs', 'Plugins/Minimap/Tests/T.cs', 'Plugins/Inspector/Main.cs', 'Plugins/Mcp/Main.cs', 'Plugins/Plugins.csproj', 'scripts/README.release.md', 'scripts/steam/a.reg') { Set-Content "$box/repo/src/$file" x }
+    foreach ($file in 'Fonts/a.ttf', 'Fonts/OFL.txt', 'Themes/a.json', 'licenses/THIRD-PARTY.txt', 'licenses/ooz-GPL-3.0.txt', 'Plugins/Sample/Main.cs', 'Plugins/Sample/defaults.json', 'Plugins/Sample/notes.txt', 'Plugins/Sample/Icons/dot.svg', 'Plugins/Sample/Icons/deep/skip.svg', 'Plugins/Sample/bin/Skip.cs', 'Plugins/Sample/Tests/T.cs', 'Plugins/Minimap/Main.cs', 'Plugins/Minimap/Tests/T.cs', 'Plugins/Inspector/Main.cs', 'Plugins/Mcp/Main.cs', 'Plugins/Plugins.csproj', 'scripts/README.release.md', 'scripts/steam/a.reg', 'LICENSE') { Set-Content "$box/repo/src/$file" x }
     Set-Content "$box/repo/src/version.txt" '1.2.3' -NoNewline
     foreach ($file in 'index.json', 'a.png', 'notes.txt') { Set-Content "$box/repo/assets/icons/$file" x }
     foreach ($dir in 'repo', 'repo/src', 'repo/dist', 'plain', 'notdist', 'repo/other', 'plain/dist') { Set-Content "$box/$dir/keep.txt" keep }
@@ -184,8 +163,6 @@ try {
     FailsAt 'publish' 'publish failed'
     FailsAt 'check' 'without writing'
     FailsAt 'unlisted' 'allow-list doesn''t ship'
-    FailsAt 'obfuscate' 'obfuscar failed \(exit 1\)'
-    FailsAt 'obfuscate-samehash' 'obfuscar output for Ember\.dll is byte-identical to its input'
 
     Set-Content "$box/repo/src/Plugins/Sample/Offsets.g.cs" x
     FailsAt 'none' 'private files staged'
@@ -207,8 +184,7 @@ try {
         (Test-Path "$dist/EmberLauncher.exe") -and (Test-Path "$dist/EmberSetup.exe") -and (Test-Path "$dist/ooz.dll") -and (Test-Path "$dist/BCnEncoder.dll") -and (Test-Path "$dist/licenses/ooz-GPL-3.0.txt") -and
         (Test-Path "$dist/Ember.exe") -and (Test-Path "$dist/libSkiaSharp.dll") -and -not (Test-Path "$dist/libSkiaSharp.pdb") -and
         (Get-Content "$dist/Config/Plugins/Minimap.json" -ErrorAction SilentlyContinue) -eq 'mine' -and (Get-Content "$dist/Logs/ember.log" -ErrorAction SilentlyContinue) -eq 'log' -and -not (Test-Path "$dist/Logs/check.txt") -and
-        (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout' -and
-        -not (Test-Path "$dist/Mapping.txt")) 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences, the launcher, Setup and ooz.dll, keeps the user''s GameIcons and ships no icon art, and leaves no pdb, Logs or work dir'
+        (Get-Content "$dist/Cache/plugin.bin" -ErrorAction SilentlyContinue) -eq 'cache' -and (Get-Content "$dist/imgui.ini" -ErrorAction SilentlyContinue) -eq 'layout') 'a full release keeps .git, README.md, .gitignore, LICENSE* and the user''s Config / Cache / Logs / imgui.ini, wipes the rest, ships plugins with top-level Icons svgs, fonts, themes, licences, the launcher, Setup and ooz.dll, keeps the user''s GameIcons and ships no icon art, and leaves no pdb, Logs or work dir'
 
     New-Item -ItemType Directory -Force "$box/repo/release/.git", "$box/repo/release/Config", "$box/repo/release/Logs", "$box/repo/release/GameIcons", "$box/repo/release/Plugins/Inspector" | Out-Null
     foreach ($file in '.gitignore', 'LICENSE', 'imgui.ini', 'README.md', 'Config/mine.json', 'Logs/ember.log', 'GameIcons/mine.png', 'Plugins/Inspector/Main.cs') { Set-Content "$box/repo/release/$file" stale }
@@ -216,7 +192,7 @@ try {
     $public = "$box/repo/release"
     Check ($code -eq 0 -and $output -match 'release ready' -and
         (Test-Path "$public/.git") -and (Test-Path "$public/.gitignore") -and
-        -not (Test-Path "$public/Config") -and -not (Test-Path "$public/Logs") -and -not (Test-Path "$public/GameIcons") -and -not (Test-Path "$public/LICENSE") -and -not (Test-Path "$public/imgui.ini") -and
+        -not (Test-Path "$public/Config") -and -not (Test-Path "$public/Logs") -and -not (Test-Path "$public/GameIcons") -and (Get-Content "$public/LICENSE") -eq 'x' -and -not (Test-Path "$public/imgui.ini") -and
         (Get-Content "$public/README.md") -eq 'x' -and (Test-Path "$public/Ember.exe") -and (Test-Path "$public/Fonts/a.ttf") -and
         (Test-Path "$public/Plugins/Minimap/Main.cs") -and -not (Test-Path "$public/Plugins/Minimap/Tests") -and
         -not (Test-Path "$public/Plugins/Sample") -and -not (Test-Path "$public/Plugins/Inspector") -and -not (Test-Path "$public/Plugins/Mcp") -and

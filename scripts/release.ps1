@@ -1,4 +1,4 @@
-param([string]$Out, [switch]$Public, [switch]$SkipTests, [switch]$SkipObfuscar)
+param([string]$Out, [switch]$Public, [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 $src = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot)).TrimEnd('\', '/')
 $outName = $Public ? 'release' : 'dist'
@@ -13,7 +13,6 @@ $skipPlugins = 'bin', 'obj'
 if ($Public) { $skipPlugins += 'Inspector', 'Sample', 'Mcp' }
 $work = Join-Path ([IO.Path]::GetTempPath()) "emberhud-release-$([guid]::NewGuid().ToString('N'))"
 $publish = Join-Path $work 'publish'
-$obfuscated = Join-Path $work 'obfuscated'
 $ship = @(
     'Ember.exe'
     'Ember.dll'
@@ -90,7 +89,7 @@ $findPrivate = {
         ($_.Extension -eq '.md' -and -not (($_.Name -eq 'README.md' -or $_.Name -eq 'LICENSE.md') -and $_.DirectoryName -eq $root)) -or
         ($_.Name -like '*.g.cs') -or
         ($_.Name -like 'offsets*') -or
-        ($_.Name -in 'Mapping.txt', 'obfuscar.xml', 'imgui.ini') -or
+        ($_.Name -eq 'imgui.ini') -or
         ($_.PSIsContainer -and $_.Name -in 'docs', 'Config', 'Cache', 'Logs', 'bin', 'obj')
     })
 }
@@ -131,42 +130,6 @@ try {
         }
     }
 
-    $dlls = 'Ember.dll', 'EmberSetup.dll', 'EmberLauncher.dll', 'EmberUpdater.dll'
-    $plainHashes = @{}
-    $obfuscatedHashes = @{}
-    foreach ($name in $dlls) { $plainHashes[$name] = (Get-FileHash (Join-Path $publish $name)).Hash }
-
-    $dotnet = Split-Path (Get-Command dotnet).Source
-    $framework = Get-ChildItem "$dotnet/packs/Microsoft.NETCore.App.Ref" -Directory | Where-Object Name -match '^10\.0\.\d+$' | Sort-Object { [version]$_.Name } | Select-Object -Last 1
-    if (-not $framework) { throw "no .NET 10 reference pack under $dotnet/packs" }
-    $frameworkRef = Join-Path $framework.FullName 'ref\net10.0'
-    if (-not (Test-Path $frameworkRef)) { throw "missing $frameworkRef" }
-    if (-not $SkipObfuscar) {
-        $obfuscarXml = Join-Path $work 'obfuscar.generated.xml'
-        (Get-Content "$src/scripts/obfuscar.xml" -Raw).
-            Replace('%EMBERHUD_PUBLISH%', $publish).
-            Replace('%EMBERHUD_OBFUSCATED%', $obfuscated).
-            Replace('%EMBERHUD_FRAMEWORK%', $frameworkRef) |
-            Set-Content -LiteralPath $obfuscarXml
-        Push-Location $src
-        try {
-            dotnet tool restore
-            if ($LASTEXITCODE) { throw "dotnet tool restore failed (exit $LASTEXITCODE)" }
-            dotnet tool run obfuscar.console $obfuscarXml
-            if ($LASTEXITCODE) { throw "obfuscar failed (exit $LASTEXITCODE)" }
-        }
-        finally { Pop-Location }
-
-        foreach ($name in $dlls) {
-            $obfuscatedDll = Join-Path $obfuscated $name
-            if (-not (Test-Path $obfuscatedDll)) { throw "obfuscar wrote no $name to $obfuscated" }
-            $obfuscatedHash = (Get-FileHash $obfuscatedDll).Hash
-            if ($obfuscatedHash -eq $plainHashes[$name]) { throw "obfuscar output for $name is byte-identical to its input" }
-            $obfuscatedHashes[$name] = $obfuscatedHash
-            Copy-Item $obfuscatedDll (Join-Path $publish $name) -Force
-        }
-    }
-
     $folders = @('Plugins') + $assets.Dir
 
     $check = Start-Process (Join-Path $publish 'Ember.exe') -ArgumentList '--check' -WorkingDirectory $publish -NoNewWindow -PassThru
@@ -196,17 +159,12 @@ try {
     $files | Where-Object { $name = $_.Name; $ship | Where-Object { $name -like $_ } } | Copy-Item -Destination $Out
     foreach ($dir in $folders) { Copy-Item (Join-Path $publish $dir) $Out -Recurse }
     Copy-Item "$src/scripts/steam/*.reg" $Out
+    Copy-Item "$src/LICENSE" $Out
     if ($Public) { Copy-Item "$src/scripts/README.release.md" (Join-Path $Out 'README.md') }
 
     $root = (Resolve-Path -LiteralPath $Out).Path
     $private = & $findPrivate (Get-ChildItem -LiteralPath $root -Recurse -Force | Where-Object { $_.FullName -notmatch '[\\/]\.git([\\/]|$)' -and ($_.FullName.Substring($root.Length + 1) -split '[\\/]')[0] -notin $userData }) $root
     if ($private) { throw "private files in $root - $($private.FullName -join ', ')" }
-
-    if (-not $SkipObfuscar) {
-        foreach ($name in $dlls) {
-            if ((Get-FileHash -LiteralPath (Join-Path $root $name)).Hash -ne $obfuscatedHashes[$name]) { throw "$root/$name is not the obfuscated build" }
-        }
-    }
 
     if ($Public) {
         $hashes = [Collections.Generic.SortedDictionary[string, string]]::new([StringComparer]::Ordinal)
@@ -227,7 +185,7 @@ try {
         finally { $archive.Dispose() }
     }
 
-    Write-Host "release ready in $root - the obfuscation map was at $obfuscated\Mapping.txt, already deleted with the temp work dir"
+    Write-Host "release ready in $root"
 }
 finally {
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue

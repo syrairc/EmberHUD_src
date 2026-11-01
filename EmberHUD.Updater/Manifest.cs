@@ -1,11 +1,9 @@
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace EmberHUD.Updater;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 public sealed class Manifest
 {
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true, IncludeFields = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };

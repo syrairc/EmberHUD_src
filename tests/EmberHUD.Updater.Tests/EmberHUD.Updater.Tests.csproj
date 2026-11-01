@@ -1,8 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <Compile Include="..\ObfuscationCheck.cs" Link="ObfuscationCheck.cs" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\EmberHUD.Updater\EmberHUD.Updater.csproj" />
   </ItemGroup>
 </Project>

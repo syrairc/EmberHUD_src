@@ -2,7 +2,6 @@ using System.Reflection;
 
 namespace EmberHUD.Host.Ui;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed class PerformanceSettings
 {
     public const int MinTick = 8, MaxTick = 250, MinCombatPoll = 1, MaxCombatPoll = 100, MinRefresh = 16, MaxRefresh = 2000, MaxThrottle = 2000;

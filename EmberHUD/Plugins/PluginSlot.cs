@@ -1,10 +1,8 @@
-using System.Reflection;
 using System.Runtime.Loader;
 using EmberHUD.Host.Ui;
 
 namespace EmberHUD.Host.Plugins;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal enum PluginStage { Compile, Initialize, Enable, Tick, Render, Settings, Disable, Dispose }
 
 internal sealed class PluginSlot(string name, string directory, PluginState state)

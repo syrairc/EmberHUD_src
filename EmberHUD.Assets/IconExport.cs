@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -7,10 +6,8 @@ using Raster = (byte[] Rgba, int Width, int Height, string Format);
 
 namespace EmberHUD.Assets;
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record IconEntry(string File, string Pak);
 
-[Obfuscation(Exclude = true, ApplyToMembers = true)]
 internal sealed record IconIndex(Dictionary<string, long> Source, SortedDictionary<string, IconEntry> Icons, List<string> Missing, SortedDictionary<string, string> Failed);
 
 internal sealed record Selection(Dictionary<string, List<string>> ByShort, HashSet<string> Names, string? ConfigPak = null);
