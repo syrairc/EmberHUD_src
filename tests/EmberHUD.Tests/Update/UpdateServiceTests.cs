@@ -62,7 +62,7 @@ public class UpdateServiceTests
         public TempDir Root = new();
         public List<string> Logs = [];
         public List<ProcessStartInfo> Started = [];
-        public SdkSettings Sdk = new();
+        public SdkSettings Sdk = new() { UpdaterEnabled = true };
 
         public Setup(bool manifest = true)
         {

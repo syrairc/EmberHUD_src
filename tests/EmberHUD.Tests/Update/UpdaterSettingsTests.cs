@@ -15,10 +15,10 @@ public class UpdaterSettingsTests
     }
 
     [Fact]
-    public void SdkSettingsDefaultsAreOnOneHourKeep()
+    public void SdkSettingsDefaultsAreOffOneHourKeep()
     {
         var loaded = (SdkSettings)SettingsJson.Load(typeof(SdkSettings), null, null, _ => { });
-        Assert.True(loaded.UpdaterEnabled);
+        Assert.False(loaded.UpdaterEnabled);
         Assert.Equal(1, loaded.UpdateIntervalHours);
         Assert.False(loaded.OverwriteModifiedPlugins);
     }

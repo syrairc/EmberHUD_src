@@ -10,7 +10,7 @@ internal sealed class SdkSettings : PluginSettings
     public bool AutoReload;
     public bool InteractiveOutOfFocus;
     public string GameIconsDirectory = "";
-    public bool UpdaterEnabled = true;
+    public bool UpdaterEnabled;
     public int UpdateIntervalHours = 1;
     public bool OverwriteModifiedPlugins;
     public LogLevel LogMinimum = LogLevel.Info;
